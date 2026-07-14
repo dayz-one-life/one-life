@@ -3,7 +3,7 @@ export type AdmFileRef = {
 };
 
 const API_BASE = "https://api.nitrado.net";
-const FILENAME_RE = /DayZServer_X1_x64_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.ADM$/;
+const FILENAME_RE = /DayZServer_X1_x64_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})\.(?:ADM|RPT)$/;
 
 export class NitradoClient {
   constructor(
@@ -71,7 +71,7 @@ export class NitradoClient {
     return Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!, +m[6]!);
   }
 
-  async listAdmFiles(): Promise<AdmFileRef[]> {
+  private async listLogFiles(ext: ".ADM" | ".RPT"): Promise<AdmFileRef[]> {
     const gs = await this.getJson(`/services/${this.serviceId}/gameservers`);
     const base = gs?.data?.gameserver?.game_specific?.path;
     if (!base) throw new Error("Nitrado: could not resolve gameserver path");
@@ -80,7 +80,7 @@ export class NitradoClient {
     );
     const entries: any[] = listing?.data?.entries ?? [];
     const files: AdmFileRef[] = entries
-      .filter((e) => typeof e.name === "string" && e.name.endsWith(".ADM") && e.path)
+      .filter((e) => typeof e.name === "string" && e.name.endsWith(ext) && e.path)
       .map((e) => ({
         path: e.path as string,
         name: e.name as string,
@@ -89,6 +89,14 @@ export class NitradoClient {
       }));
     files.sort((a, b) => (a.localTimestampMs ?? 0) - (b.localTimestampMs ?? 0)); // oldest-first
     return files;
+  }
+
+  async listAdmFiles(): Promise<AdmFileRef[]> {
+    return this.listLogFiles(".ADM");
+  }
+
+  async listRptFiles(): Promise<AdmFileRef[]> {
+    return this.listLogFiles(".RPT");
   }
 
   async downloadFile(filePath: string): Promise<string> {

@@ -33,6 +33,31 @@ describe("NitradoClient.listAdmFiles", () => {
   });
 });
 
+describe("NitradoClient.listRptFiles", () => {
+  it("lists only .RPT files, oldest-first", async () => {
+    const fetchFn = vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.endsWith("/gameservers")) {
+        return jsonResponse({ data: { gameserver: { game_specific: { path: "/games/x/noftp/dayzxb/" } } } });
+      }
+      if (u.includes("/file_server/list")) {
+        return jsonResponse({ data: { entries: [
+          { name: "DayZServer_X1_x64_2026-07-06_12-51-59.RPT", path: "/p/DayZServer_X1_x64_2026-07-06_12-51-59.RPT", modified_at: 2 },
+          { name: "DayZServer_X1_x64_2026-07-05_10-00-00.RPT", path: "/p/DayZServer_X1_x64_2026-07-05_10-00-00.RPT", modified_at: 1 },
+          { name: "DayZServer_X1_x64_2026-07-06_12-51-59.ADM", path: "/p/x.ADM", modified_at: 3 },
+        ] } });
+      }
+      throw new Error("unexpected url " + u);
+    });
+    const client = new NitradoClient("tok", 1, fetchFn as unknown as typeof fetch);
+    const files = await client.listRptFiles();
+    expect(files.map((f) => f.name)).toEqual([
+      "DayZServer_X1_x64_2026-07-05_10-00-00.RPT",
+      "DayZServer_X1_x64_2026-07-06_12-51-59.RPT",
+    ]);
+  });
+});
+
 describe("NitradoClient.downloadFile", () => {
   it("follows the returned token url", async () => {
     const fetchFn = vi.fn(async (url: string | URL) => {
