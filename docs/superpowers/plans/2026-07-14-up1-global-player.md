@@ -280,23 +280,52 @@ the migration mid-statement. Therefore `players` MUST be empty before `db:migrat
 projector MUST be stopped first so the still-running OLD code can't repopulate old-model rows
 between the truncate and the migrate.
 
-1. `pg_dump` a checkpoint:
-   `pg_dump "postgres://onelife:onelife@localhost:5432/onelife" -t players -t lives -t sessions -t kills -t hit_events -t build_events -t positions > /root/pre-up1-projections.sql`
-   Also note the pre-rebuild `SELECT count(*) FROM lives;` for the post-check.
+**`0006` has the same hazard on a DURABLE table.** Migration `0006` (UP2) drops
+`gamertag_links.server_id` and builds `gamertag_links_user_gamertag_uniq (user_id, gamertag)` and
+`gamertag_links_verified_uniq (gamertag) WHERE status='verified'`. Under the OLD schema those
+uniques were server-scoped, so prod may *legally* hold the same `(user_id, gamertag)` — or the same
+verified `gamertag` — on two servers. Unlike `players`, `gamertag_links` is **durable and is NOT
+rebuilt**, so those rows survive into the migrate and would abort `0006` with `duplicate key`.
+`0005` and `0006` run as **separate transactions**: a `0006` abort leaves `0005` applied but `0006`
+not, while the deployed code assumes both — a half-migrated state. So `gamertag_links` duplicates
+MUST be detected (and deduped, or the deploy aborted) BEFORE `db:migrate`. Prod currently has 0–few
+links, so none are expected — but do not assume; check.
+
+1. `pg_dump` a checkpoint that includes the **durable** tables `0006` mutates (these are NOT
+   rebuildable from `events`, unlike the projection tables):
+   `pg_dump "postgres://onelife:onelife@localhost:5432/onelife" -t players -t lives -t sessions -t kills -t hit_events -t build_events -t positions -t gamertag_links -t verification_challenges -t bans > /root/pre-up1-checkpoint.sql`
+   (Or dump the whole DB — cheap at this size and strictly safer.) Also note the pre-rebuild
+   `SELECT count(*) FROM lives;` for the post-check.
 2. **Deploy the merged code** (prod checkout onto the released `main`).
 3. **Stop the projector** so old code can't re-fold during the migration:
    `sudo systemctl stop onelife-projector`
 4. **Clear the derived projection tables + reset the cursor** (schema-agnostic TRUNCATE, safe pre-migrate):
    `pnpm --filter @onelife/projector rebuild`  — this empties `players`, `lives`, `sessions`,
    `kills`, `hit_events`, `build_events`, `positions` and sets the projector cursor to 0.
-5. **Apply migrations** — now `players` is empty, so `0005` (players) and `0006` (gamertag_links, UP2)
-   build cleanly: `pnpm --filter @onelife/db db:migrate`.
-6. **Start the projector** — it re-folds from cursor 0 under the new schema/code, rebuilding one
+5. **Precheck `gamertag_links` for duplicates that `0006`'s new uniques would reject** (durable table,
+   not truncated). Both queries MUST return zero rows before proceeding:
+   ```sql
+   -- would violate gamertag_links_user_gamertag_uniq (user_id, gamertag)
+   SELECT user_id, gamertag, count(*) FROM gamertag_links
+     GROUP BY user_id, gamertag HAVING count(*) > 1;
+   -- would violate gamertag_links_verified_uniq (gamertag) WHERE verified
+   SELECT gamertag, count(*) FROM gamertag_links WHERE status = 'verified'
+     GROUP BY gamertag HAVING count(*) > 1;
+   ```
+   If either returns rows, STOP and dedup first (keep the earliest verified row / one row per
+   `(user_id, gamertag)`, delete the rest) — or abort the deploy. Do NOT run `db:migrate` with
+   duplicates present: `0006` would abort mid-deploy and leave `0005` applied but `0006` not.
+6. **Apply migrations** — now `players` is empty and `gamertag_links` is duplicate-free, so `0005`
+   (players) and `0006` (gamertag_links, UP2) both build cleanly:
+   `pnpm --filter @onelife/db db:migrate`.
+7. **Start the projector** — it re-folds from cursor 0 under the new schema/code, rebuilding one
    global player per gamertag with per-server lives: `sudo systemctl start onelife-projector`;
    watch `journalctl -u onelife-projector -f` until it catches up.
-7. **Verify:** `SELECT count(*) FROM players;` = one row per distinct gamertag; total `lives`
+8. **Verify:** `SELECT count(*) FROM players;` = one row per distinct gamertag; total `lives`
    matches the step-1 count; a gamertag that played both servers has ONE player row with lives on
-   both `server_id`s.
+   both `server_id`s. Confirm `gamertag_links` survived (`SELECT count(*) FROM gamertag_links;`
+   matches the pre-migrate count minus any dedup) and `\d gamertag_links` shows the new uniques
+   with no `server_id`.
 
 ---
 
