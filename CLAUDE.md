@@ -80,6 +80,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
+- **UP1+UP2 — Universal Player** ✅: a player is a **global identity** keyed by gamertag (one row per
+  gamertag across all servers; **lives stay per-server**). **UP1** rebuilds the `players` projection
+  globally (migration `0005`: drops `server_id`/`current_life_id`, unique on `gamertag`; fold/stores/
+  read-models resolve by gamertag and scope per-server via `lives.server_id`; rebuilt from `events`).
+  **UP2** makes the gamertag claim server-agnostic (migration `0006`: `gamertag_links` drops
+  `server_id`, verified-unique on `gamertag`) — verified once per gamertag across all servers, emote
+  completable on any server; the claim UI replaces the server dropdown with a gamertag autocomplete
+  over unverified players (`searchClaimableGamertags` read-model + `GET /players/search`).
+  `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
+  per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
+  duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
