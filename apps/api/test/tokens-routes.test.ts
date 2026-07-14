@@ -45,13 +45,13 @@ beforeAll(async () => {
   userId = u!.id;
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "tok-test" }).returning();
   serverId = s!.id;
-  await db.insert(gamertagLinks).values({ userId, serverId, gamertag: GT, status: "verified" });
+  await db.insert(gamertagLinks).values({ userId, gamertag: GT, status: "verified" });
   await grant(db, { userId, kind: "verification", idempotencyKey: `verify:tokroute:${svc}` });
 });
 
 afterAll(async () => {
   await db.delete(bans).where(eq(bans.serverId, serverId));
-  await db.delete(gamertagLinks).where(eq(gamertagLinks.serverId, serverId));
+  await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, userId));
   await sql`DELETE FROM token_transactions WHERE user_id = ${userId}`;
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql`DELETE FROM "session" WHERE user_id = ${userId}`;

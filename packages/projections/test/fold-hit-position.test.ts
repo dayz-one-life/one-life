@@ -31,7 +31,7 @@ describe("hit + position fold", () => {
     const t1 = new Date("2026-07-11T00:05:00Z");
     await applyEvent(s, { id: 1, serverId: 1, type: "player.connected", occurredAt: t0, payload: { gamertag: "Heartbeat", dayzId: "H=" } });
     await applyEvent(s, { id: 2, serverId: 1, type: "player.position", occurredAt: t1, payload: { gamertag: "Heartbeat", x: 1, y: 2 } });
-    const p = await s.getPlayer(1, "Heartbeat");
+    const p = await s.getPlayer("Heartbeat");
     expect(p).not.toBeNull();
     expect(s.players.find((x) => x.id === p!.id)!.lastSeenAt.getTime()).toBe(t1.getTime());
   });

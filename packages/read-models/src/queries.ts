@@ -32,9 +32,13 @@ export type Profile = {
 };
 
 export async function getPlayerProfile(db: Database, serverId: number, gamertag: string, now: Date): Promise<Profile | null> {
-  const p = (await db.select().from(players).where(and(eq(players.serverId, serverId), eq(players.gamertag, gamertag))))[0];
+  const p = (await db.select().from(players).where(eq(players.gamertag, gamertag)))[0];
   if (!p) return null;
   const lifeRows = await db.select().from(lives).where(and(eq(lives.serverId, serverId), eq(lives.playerId, p.id)));
+  // players are global; a per-server profile only exists where the player has actually played
+  // (i.e. has at least one life on this server) — otherwise every server would show a (mostly
+  // empty) profile for any globally-known gamertag.
+  if (lifeRows.length === 0) return null;
   const openSession = (await db.select().from(sessions)
     .where(and(eq(sessions.serverId, serverId), eq(sessions.playerId, p.id), isNull(sessions.disconnectedAt))))[0] ?? null;
   const pk = await killTimes(db, serverId, gamertag);
@@ -62,7 +66,7 @@ export async function getPlayerProfile(db: Database, serverId: number, gamertag:
 }
 
 export async function getPlayerLives(db: Database, serverId: number, gamertag: string) {
-  const p = (await db.select().from(players).where(and(eq(players.serverId, serverId), eq(players.gamertag, gamertag))))[0];
+  const p = (await db.select().from(players).where(eq(players.gamertag, gamertag)))[0];
   if (!p) return null;
   const rows = await db.select().from(lives).where(and(eq(lives.serverId, serverId), eq(lives.playerId, p.id))).orderBy(desc(lives.lifeNumber));
   const openSession = (await db.select().from(sessions)

@@ -31,7 +31,7 @@ describe("superseded/reboot close cap at last_seen_at", () => {
     const superseded = s.sessions.find((x) => x.closeReason === "superseded")!;
     expect(superseded.disconnectedAt).toEqual(at("2026-07-06T12:10:00Z"));
     expect(superseded.durationSeconds).toBe(600);            // 10 min observed, not 3h
-    const p = await s.getPlayer(1, "A");
+    const p = await s.getPlayer("A");
     const life = s.lives.find((l) => l.playerId === p!.id) as any;
     expect(life.playtimeSeconds).toBe(600);
   });

@@ -4,11 +4,10 @@ import type {
 } from "./types.js";
 
 export interface ProjectionStore {
-  getPlayer(serverId: number, gamertag: string): Promise<PlayerRow | null>;
+  getPlayer(gamertag: string): Promise<PlayerRow | null>;
   getPlayerById(playerId: number): Promise<PlayerRow | null>;
-  createPlayer(serverId: number, gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow>;
+  createPlayer(gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow>;
   touchPlayer(playerId: number, lastSeenAt: Date): Promise<void>;
-  setCurrentLife(playerId: number, lifeId: number | null): Promise<void>;
 
   getOpenLife(serverId: number, playerId: number): Promise<LifeRow | null>;
   getMaxLifeNumber(serverId: number, playerId: number): Promise<number>;

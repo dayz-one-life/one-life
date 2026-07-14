@@ -28,11 +28,11 @@ async function closeOpen(store: ProjectionStore, session: SessionRow, at: Date, 
 async function onConnected(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
   const gamertag = String(e.payload.gamertag);
   const dayzId = e.payload.dayzId != null ? String(e.payload.dayzId) : null;
-  let player = await store.getPlayer(e.serverId, gamertag);
+  let player = await store.getPlayer(gamertag);
   // capture BEFORE touchPlayer: the superseded cap must be the heartbeat as of the crash,
   // not this reconnect (and MemoryStore returns its row by reference, so touch would alias it)
   const lastSeenBefore = player?.lastSeenAt ?? null;
-  if (!player) player = await store.createPlayer(e.serverId, gamertag, dayzId, e.occurredAt);
+  if (!player) player = await store.createPlayer(gamertag, dayzId, e.occurredAt);
   else await store.touchPlayer(player.id, e.occurredAt);
 
   const open = await store.getOpenSession(e.serverId, player.id);
@@ -42,13 +42,12 @@ async function onConnected(store: ProjectionStore, e: ProjectionEvent): Promise<
   if (!life) {
     const n = (await store.getMaxLifeNumber(e.serverId, player.id)) + 1;
     life = await store.createLife(e.serverId, player.id, n, e.occurredAt);
-    await store.setCurrentLife(player.id, life.id);
   }
   await store.createSession(e.serverId, player.id, life.id, e.occurredAt);
 }
 
 async function onDisconnected(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
-  const player = await store.getPlayer(e.serverId, String(e.payload.gamertag));
+  const player = await store.getPlayer(String(e.payload.gamertag));
   if (!player) return;
   await store.touchPlayer(player.id, e.occurredAt);
   const open = await store.getOpenSession(e.serverId, player.id);
@@ -57,7 +56,7 @@ async function onDisconnected(store: ProjectionStore, e: ProjectionEvent): Promi
 
 async function onDied(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
   const victim = String(e.payload.victim);
-  const player = await store.getPlayer(e.serverId, victim);
+  const player = await store.getPlayer(victim);
   if (!player) return;                              // never fabricate players from a death line
 
   const cause = String(e.payload.cause);
@@ -81,10 +80,9 @@ async function onDied(store: ProjectionStore, e: ProjectionEvent): Promise<void>
   const distance = e.payload.distance != null ? Number(e.payload.distance) : null;
 
   await store.endLife(life.id, { endedAt: e.occurredAt, cause, byGamertag: killer, weapon, distance, energy, water, bleedSources });
-  await store.setCurrentLife(player.id, null);
 
   if (cause === "pvp" && killer && killer !== victim) {
-    const killerPlayer = await store.getPlayer(e.serverId, killer);
+    const killerPlayer = await store.getPlayer(killer);
     await store.insertKill({
       serverId: e.serverId, killerGamertag: killer, killerPlayerId: killerPlayer?.id ?? null,
       victimGamertag: victim, victimPlayerId: player.id, victimLifeId: life.id,
@@ -103,7 +101,7 @@ async function onRebooted(store: ProjectionStore, e: ProjectionEvent): Promise<v
 
 async function onHit(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
   const victim = String(e.payload.victim);
-  const victimPlayer = await store.getPlayer(e.serverId, victim);   // never create from a hit
+  const victimPlayer = await store.getPlayer(victim);   // never create from a hit
   await store.insertHit({
     serverId: e.serverId, victimGamertag: victim, victimPlayerId: victimPlayer?.id ?? null,
     attackerGamertag: e.payload.attackerGamertag != null ? String(e.payload.attackerGamertag) : null,
@@ -118,7 +116,7 @@ async function onHit(store: ProjectionStore, e: ProjectionEvent): Promise<void> 
 }
 
 async function onPosition(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
-  const player = await store.getPlayer(e.serverId, String(e.payload.gamertag));
+  const player = await store.getPlayer(String(e.payload.gamertag));
   if (!player) return;                                              // no-op for unknown gamertag
   await store.touchPlayer(player.id, e.occurredAt);                 // position dump = presence heartbeat
   await store.insertPosition({
@@ -129,7 +127,7 @@ async function onPosition(store: ProjectionStore, e: ProjectionEvent): Promise<v
 
 async function onBuild(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
   const gamertag = String(e.payload.gamertag);
-  const player = await store.getPlayer(e.serverId, gamertag);       // never create from a build
+  const player = await store.getPlayer(gamertag);       // never create from a build
   const lifeId = player ? await store.findLifeIdAt(e.serverId, player.id, e.occurredAt) : null;
   await store.insertBuild({
     serverId: e.serverId, gamertag, playerId: player?.id ?? null, lifeId,

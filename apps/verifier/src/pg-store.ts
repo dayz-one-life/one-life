@@ -14,8 +14,8 @@ export type PendingChallenge = {
 export class PgVerifierStore {
   constructor(private tx: Database) {}
 
-  /** Open (pending, not completed, in-window) challenges for a gamertag on a server. */
-  async findPendingChallenges(serverId: number, gamertag: string, at: Date): Promise<PendingChallenge[]> {
+  /** Open (pending, not completed, in-window) challenges for a gamertag, across all servers. */
+  async findPendingChallenges(gamertag: string, at: Date): Promise<PendingChallenge[]> {
     const rows = await this.tx
       .select({
         challengeId: verificationChallenges.id,
@@ -27,7 +27,6 @@ export class PgVerifierStore {
       .from(verificationChallenges)
       .innerJoin(gamertagLinks, eq(verificationChallenges.gamertagLinkId, gamertagLinks.id))
       .where(and(
-        eq(gamertagLinks.serverId, serverId),
         eq(gamertagLinks.gamertag, gamertag),
         eq(gamertagLinks.status, "pending"),
         isNull(verificationChallenges.completedAt),
@@ -43,9 +42,9 @@ export class PgVerifierStore {
       .where(eq(verificationChallenges.id, challengeId));
   }
 
-  async getVerifiedLinkId(serverId: number, gamertag: string): Promise<number | null> {
+  async getVerifiedLinkId(gamertag: string): Promise<number | null> {
     const r = await this.tx.select({ id: gamertagLinks.id }).from(gamertagLinks)
-      .where(and(eq(gamertagLinks.serverId, serverId), eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
+      .where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
     return r[0]?.id ?? null;
   }
 
@@ -57,10 +56,9 @@ export class PgVerifierStore {
     await this.tx.update(gamertagLinks).set({ status: "cancelled" }).where(eq(gamertagLinks.id, linkId));
   }
 
-  async cancelOtherPendingLinks(serverId: number, gamertag: string, exceptLinkId: number): Promise<void> {
+  async cancelOtherPendingLinks(gamertag: string, exceptLinkId: number): Promise<void> {
     await this.tx.update(gamertagLinks).set({ status: "cancelled" })
       .where(and(
-        eq(gamertagLinks.serverId, serverId),
         eq(gamertagLinks.gamertag, gamertag),
         eq(gamertagLinks.status, "pending"),
         ne(gamertagLinks.id, exceptLinkId),

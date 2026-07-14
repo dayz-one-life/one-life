@@ -9,7 +9,7 @@ export function useGamertagLinks() {
 export function useClaimGamertag() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ serverId, gamertag }: { serverId: number; gamertag: string }) => claimGamertag(serverId, gamertag),
+    mutationFn: ({ gamertag }: { gamertag: string }) => claimGamertag(gamertag),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["gamertag-links"] }),
   });
 }

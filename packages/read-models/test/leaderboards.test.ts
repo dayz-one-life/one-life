@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, kills, sessions } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getLeaderboard, getKillFeed } from "../src/index.js";
 import { getTestDb } from "@onelife/test-support";
 
@@ -11,7 +11,7 @@ let serverId: number;
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "lb-test" }).returning();
   serverId = s!.id;
-  const mk = async (g: string) => (await db.insert(players).values({ serverId, gamertag: g, firstSeenAt: new Date(), lastSeenAt: new Date() }).returning())[0]!;
+  const mk = async (g: string) => (await db.insert(players).values({ gamertag: g, firstSeenAt: new Date(), lastSeenAt: new Date() }).returning())[0]!;
   const killer = await mk("Killer");
   const victim = await mk("Victim");
   const [kl] = await db.insert(lives).values({ serverId, playerId: killer.id, lifeNumber: 1, startedAt: new Date("2026-07-06T12:00:00Z"), playtimeSeconds: 3600 }).returning();
@@ -23,7 +23,7 @@ afterAll(async () => {
   await db.delete(kills).where(eq(kills.serverId, serverId));
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(inArray(players.gamertag, ["Killer", "Victim"]));
   await sql.end();
 });
 

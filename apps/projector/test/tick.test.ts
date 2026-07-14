@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, admFiles, players, lives, kills, sessions, events } from "@onelife/db";
-import { and, eq, sql as sqlExpr } from "drizzle-orm";
+import { and, eq, inArray, sql as sqlExpr } from "drizzle-orm";
 import { appendEvent, getCursor, setCursor } from "@onelife/event-log";
 import { projectorTick } from "../src/tick.js";
 import { getTestDb } from "@onelife/test-support";
@@ -36,7 +36,7 @@ afterAll(async () => {
   await db.delete(kills).where(eq(kills.serverId, serverId));
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(inArray(players.gamertag, ["Victim", "Killer"]));
   await sql.end();
 });
 

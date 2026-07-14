@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players } from "@onelife/db";
+import { servers, players, lives } from "@onelife/db";
 import { buildApp } from "../src/app.js";
 
 const { db } = getTestDb();
@@ -9,7 +9,10 @@ const app = buildApp(db);
 describe("GET /players/:gamertag", () => {
   beforeAll(async () => {
     const [c] = await db.insert(servers).values({ nitradoServiceId: 301, name: "Chernarus", map: "chernarusplus", slug: "pa-chernarus" }).returning();
-    await db.insert(players).values({ serverId: c!.id, gamertag: "Twhizzle4life" });
+    const [p] = await db.insert(players).values({ gamertag: "Twhizzle4life" }).returning();
+    // getPlayerProfile only reports a per-server profile once the player has an actual
+    // life on that server (players are global; presence in `players` alone isn't enough).
+    await db.insert(lives).values({ serverId: c!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-06T12:00:00Z"), playtimeSeconds: 300 });
   });
   it("returns the cross-server aggregate", async () => {
     const res = await app.inject({ method: "GET", url: "/players/Twhizzle4life" });

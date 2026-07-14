@@ -13,8 +13,8 @@ beforeAll(async () => {
   ]);
   const [s] = await db.insert(servers).values({ nitradoServiceId: 774001, name: "rf" }).returning();
   await db.insert(gamertagLinks).values([
-    { userId: "rf1", serverId: s!.id, gamertag: "RFG1", status: "verified" },
-    { userId: "rf2", serverId: s!.id, gamertag: "RFG2", status: "verified" },
+    { userId: "rf1", gamertag: "RFG1", status: "verified" },
+    { userId: "rf2", gamertag: "RFG2", status: "verified" },
   ]);
 });
 afterAll(async () => { await sql.end(); });
