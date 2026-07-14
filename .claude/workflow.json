@@ -1,12 +1,12 @@
 {
-  "canonicalRepo": "",
+  "canonicalRepo": "dayz-one-life/one-life",
   "baseBranch": "develop",
   "productionBranch": "main",
   "protectedBranches": ["develop", "main"],
   "featurePrefix": "feature/",
   "releasePrefix": "release/",
   "versionScheme": "semver",
-  "soloMaintainer": false,
+  "soloMaintainer": true,
   "commands": {
     "test": "",
     "lint": ""
