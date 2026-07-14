@@ -8,11 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
-- **Masthead account button is now a stateful CTA.** The top-bar's right-hand link is a single amber primary button that reflects the viewer's auth + gamertag-link state instead of a static "Account" link: signed-out shows **Sign in** → `/login`; signed-in with no active link shows **Link gamertag** → `/account/claim`; a `pending` link shows **{GAMERTAG} (not verified)** → `/account`; a `verified` link shows **{GAMERTAG}** → `/account`. To power this, `QueryProvider` moved from the `/account` layout up to the root layout (one shared TanStack Query cache app-wide), the `Masthead` became a client component reusing the existing `useSession`/`useGamertagLinks`/`activeLink` read models, and `useGamertagLinks(enabled)` now gates its fetch so logged-out visitors don't hit `/api/me/gamertag-links` (401) on every page.
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
+
+## [0.6.0] - 2026-07-14
+
+### Changed
+- **Masthead account button is now a stateful CTA.** The top-bar's right-hand link is a single amber primary button that reflects the viewer's auth + gamertag-link state instead of a static "Account" link: signed-out shows **Sign in** → `/login`; signed-in with no active link shows **Link gamertag** → `/account/claim`; a `pending` link shows **{GAMERTAG} (not verified)** → `/account`; a `verified` link shows **{GAMERTAG}** → `/account`. To power this, `QueryProvider` moved from the `/account` layout up to the root layout (one shared TanStack Query cache app-wide), the `Masthead` became a client component reusing the existing `useSession`/`useGamertagLinks`/`activeLink` read models, and `useGamertagLinks(enabled)` now gates its fetch so logged-out visitors don't hit `/api/me/gamertag-links` (401) on every page.
 
 ## [0.5.0] - 2026-07-14
 
