@@ -11,8 +11,11 @@ const consumer = `verifier-${svc}`;
 const uid = `u-verifier-${svc}`;
 const uidB = `u-verifier-b-${svc}`;
 let serverId: number;
+let serverId2: number;
 let admFileId: number;
+let admFileId2: number;
 let lineCounter = 0;
+let lineCounter2 = 0;
 
 const SEQ = ["EmoteSalute", "EmoteDance", "EmoteShrug"];
 const issuedAt = new Date("2026-07-09T00:00:00Z");
@@ -26,8 +29,17 @@ async function seedEmote(gamertag: string, token: string, at: string): Promise<v
   });
 }
 
+// Seeds on the SECOND server — used to prove challenge matching is server-agnostic.
+async function seedEmoteOnServer2(gamertag: string, token: string, at: string): Promise<void> {
+  await appendEvent(db, {
+    serverId: serverId2, admFileId: admFileId2, lineIndex: lineCounter2++, subIndex: 0,
+    type: "emote.performed" as any, occurredAt: new Date(at),
+    payload: { gamertag, emote: token, item: null, x: 0, y: 0 },
+  });
+}
+
 async function newChallenge(gamertag: string, userId: string): Promise<{ linkId: number; challengeId: number }> {
-  const [link] = await db.insert(gamertagLinks).values({ userId, serverId, gamertag, status: "pending" }).returning();
+  const [link] = await db.insert(gamertagLinks).values({ userId, gamertag, status: "pending" }).returning();
   const [ch] = await db.insert(verificationChallenges).values({
     gamertagLinkId: link!.id, sequence: SEQ, issuedAt, expiresAt,
   }).returning();
@@ -47,18 +59,26 @@ beforeAll(async () => {
   serverId = s!.id;
   const [f] = await db.insert(admFiles).values({ serverId, path: `/t/${svc}.ADM`, name: "t.ADM" }).returning();
   admFileId = f!.id;
+
+  const svc2 = svc + 1;
+  const [s2] = await db.insert(servers).values({ nitradoServiceId: svc2, name: "verifier-test-2" }).returning();
+  serverId2 = s2!.id;
+  const [f2] = await db.insert(admFiles).values({ serverId: serverId2, path: `/t/${svc2}.ADM`, name: "t2.ADM" }).returning();
+  admFileId2 = f2!.id;
+
   await db.insert(players).values({ gamertag: "Alice", dayzId: "A=" });
   await db.insert(players).values({ gamertag: "Bob", dayzId: "B=" });
   await db.insert(players).values({ gamertag: "Carol", dayzId: "C=" });
+  await db.insert(players).values({ gamertag: "G", dayzId: `G=${svc}` });
   await db.insert(user).values({ id: uid, name: "A", email: `${uid}@x.com` });
   await db.insert(user).values({ id: uidB, name: "B", email: `${uidB}@x.com` });
 });
 
 afterAll(async () => {
   await db.delete(verificationChallenges).where(
-    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE server_id = ${serverId})`);
-  await db.delete(gamertagLinks).where(eq(gamertagLinks.serverId, serverId));
-  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Bob", "Carol"]));
+    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE user_id IN (${uid}, ${uidB}))`);
+  await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [uid, uidB]));
+  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Bob", "Carol", "G"]));
   await db.delete(user).where(eq(user.id, uid));
   await db.delete(user).where(eq(user.id, uidB));
   await sql.end();
@@ -102,6 +122,22 @@ describe("verifierTick", () => {
     await seedEmote("Carol", "EmoteShrug", "2026-07-09T02:02:00Z");
     await verifierTick(db, { batchSize: 100, consumerName: consumer });
     // Whichever pending link matched first wins; the other is cancelled. Exactly one verified.
+    const statuses = [await status(a.linkId), await status(b.linkId)].sort();
+    expect(statuses).toEqual(["cancelled", "verified"]);
+  });
+
+  it("matches gamertag links globally by gamertag: verifies on ANY server and cancels the other user's pending claim", async () => {
+    // Two pending links for gamertag "G" — one per user. Links carry no server at all
+    // (gamertag_links is server-agnostic). The emote sequence for "G" is performed entirely
+    // on serverId2, a DIFFERENT server than the one used to seed every other fixture in this
+    // file (serverId). If matching were still scoped by serverId, these events would never
+    // be picked up and the challenge would stay pending forever.
+    const a = await newChallenge("G", uid);
+    const b = await newChallenge("G", uidB);
+    await seedEmoteOnServer2("G", "EmoteSalute", "2026-07-09T03:00:00Z");
+    await seedEmoteOnServer2("G", "EmoteDance", "2026-07-09T03:01:00Z");
+    await seedEmoteOnServer2("G", "EmoteShrug", "2026-07-09T03:02:00Z");
+    await verifierTick(db, { batchSize: 100, consumerName: consumer });
     const statuses = [await status(a.linkId), await status(b.linkId)].sort();
     expect(statuses).toEqual(["cancelled", "verified"]);
   });

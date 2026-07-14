@@ -21,7 +21,7 @@ export async function verifierTick(db: Database, opts: TickOpts): Promise<{ scan
       if (!payload.gamertag || !payload.emote) continue;
       scanned++;
 
-      const challenges = await store.findPendingChallenges(row.serverId, payload.gamertag, row.occurredAt);
+      const challenges = await store.findPendingChallenges(payload.gamertag, row.occurredAt);
       for (const c of challenges) {
         if (row.id <= c.lastMatchedEventId) continue; // idempotent monotonic guard (replay-safe)
         const { index, complete } = advance(c.sequence, c.progressIndex, payload.emote);
@@ -31,12 +31,12 @@ export async function verifierTick(db: Database, opts: TickOpts): Promise<{ scan
         await store.advanceChallenge(c.challengeId, index, row.id, complete ? now : null);
         if (!complete) continue;
 
-        const existingVerified = await store.getVerifiedLinkId(row.serverId, payload.gamertag);
+        const existingVerified = await store.getVerifiedLinkId(payload.gamertag);
         if (existingVerified && existingVerified !== c.linkId) {
           await store.cancelLink(c.linkId); // someone else already won this gamertag
         } else {
           await store.verifyLink(c.linkId, now);
-          await store.cancelOtherPendingLinks(row.serverId, payload.gamertag, c.linkId);
+          await store.cancelOtherPendingLinks(payload.gamertag, c.linkId);
           verified++;
         }
       }
