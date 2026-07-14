@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: onelife
+      POSTGRES_PASSWORD: onelife
+      POSTGRES_DB: onelife
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onelife"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  ingest-worker:
+    build: { context: ., dockerfile: apps/ingest-worker/Dockerfile }
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://onelife:onelife@postgres:5432/onelife
+      NITRADO_TOKEN: ${NITRADO_TOKEN}
+      NITRADO_SERVICE_ID: ${NITRADO_SERVICE_ID}
+      INGEST_INTERVAL_SECONDS: "60"
+      ADM_BACKFILL_BUDGET: "15"
+      LOG_LEVEL: info
+  projector:
+    build: { context: ., dockerfile: apps/projector/Dockerfile }
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://onelife:onelife@postgres:5432/onelife
+      PROJECTOR_INTERVAL_SECONDS: "30"
+      PROJECTOR_BATCH_SIZE: "500"
+      LOG_LEVEL: info
+    restart: unless-stopped
+volumes:
+  pgdata:

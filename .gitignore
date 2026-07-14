@@ -1,2 +1,21 @@
-.claude/settings.local.json
+node_modules/
+dist/
+.turbo/
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+scratchpad/
 .superpowers/
+docker-compose.override.yml
+
+# generated media (hero images) — dev/prod data, never committed
+data/
+
+# harness
+.claude/settings.local.json
+
+# DayZ server logs dropped at repo root for analysis (package test fixtures still track)
+/*.ADM
+/*.RPT
