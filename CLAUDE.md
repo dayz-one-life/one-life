@@ -55,9 +55,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 
 ## Sub-projects
 
-- **SP1 — Foundation + ADM ingest + lives** ✅ (this branch): multi-server Nitrado ADM-log
-  ingest → event log → life/player/session/kill projections + qualified-lives read model.
-- **SP2** — auth (Better Auth: Discord/Google/GitHub/magic-link) + web + emote verification (next).
+- **SP1 — Foundation + ADM ingest + lives** ✅: multi-server Nitrado ADM-log ingest → event log
+  → life/player/session/kill projections + qualified-lives read model.
+- **SP2 — Auth + web + gamertag verification** ✅: Better Auth (Discord/Google/GitHub/magic-link),
+  gamertag linking, emote verification (verifier loop), Fastify API, and an auth-focused web surface
+  (login + account/claim + minimal landing). Stats dashboard deferred.
 - **SP3** — 24h death-ban enforcement (Nitrado ban list). **SP4** — unban-token economy.
 - **SP5** — RPT ingest + character mapping (survivor model per life). Device-based alt detection
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
@@ -65,11 +67,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
-- **packages:** `db` (12-table core schema + migrations), `domain` (zod events, emote/weapon
-  dicts), `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log`
-  (append/cursor over `events`), `projections` (fold logic), `read-models` (stats queries),
-  `test-support` (Postgres test harness).
-- **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold).
+- **packages:** `db` (18-table schema + migrations), `domain` (zod events, emote/weapon dicts),
+  `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
+  `events`), `projections` (fold logic), `read-models` (stats queries), `test-support` (Postgres
+  test harness), `auth` (Better Auth), `verification` (emote-sequence challenges).
+- **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold),
+  `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend).
 
 ## Commands
 
