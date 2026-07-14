@@ -272,3 +272,26 @@ export const bans = pgTable("bans", {
   uniqDeath: uniqueIndex("bans_server_gamertag_life_uniq").on(t.serverId, t.gamertag, t.lifeStartedAt),
   byStatus: index("bans_status_idx").on(t.status),
 }));
+
+// ── Unban-token economy (SP4). Append-only ledger; balance = SUM(delta) per user;
+// idempotency_key makes every grant exactly-once. ──
+
+export const tokenTransactions = pgTable("token_transactions", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  delta: integer("delta").notNull(),        // +1 grant | -1 redeem/transfer_out | +1 transfer_in
+  kind: text("kind").notNull(),             // verification|monthly|referral|redeem|transfer_in|transfer_out
+  idempotencyKey: text("idempotency_key").notNull(),
+  relatedBanId: bigint("related_ban_id", { mode: "number" }),
+  counterpartyUserId: text("counterparty_user_id").references(() => user.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqIdem: uniqueIndex("token_tx_idempotency_uniq").on(t.idempotencyKey),
+  byUser: index("token_tx_user_idx").on(t.userId),
+}));
+
+export const referrals = pgTable("referrals", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }), // one referrer each
+  referrerUserId: text("referrer_user_id").notNull().references(() => user.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

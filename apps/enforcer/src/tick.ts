@@ -1,8 +1,8 @@
 import type { Database } from "@onelife/db";
 import { planBans, planExpiries } from "./decide.js";
 import {
-  findEndedUnbannedLives, insertBan, pendingBans, appliedBans,
-  markApplied, markError, markExpired, serverServiceId,
+  findEndedUnbannedLives, insertBan, pendingBans, appliedBans, liftPendingBans,
+  markApplied, markError, markExpired, markLifted, serverServiceId,
 } from "./pg-store.js";
 
 /** Minimal Nitrado surface the enforcer needs — real client or a fake in tests. */
@@ -19,7 +19,7 @@ export type EnforcerDeps = {
   log: { info: (obj: unknown, msg?: string) => void; error?: (obj: unknown, msg?: string) => void };
 };
 
-export type TickResult = { detected: number; applied: number; expired: number; dryRun: boolean };
+export type TickResult = { detected: number; applied: number; expired: number; lifted: number; dryRun: boolean };
 
 /**
  * One enforcement cycle: detect qualified deaths → record bans; apply pending bans to Nitrado
@@ -69,5 +69,24 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
     }
   }
 
-  return { detected: plans.length, applied, expired, dryRun: deps.dryRun };
+  // ── lift (token redemptions) ──
+  let lifted = 0;
+  for (const b of await liftPendingBans(db)) {
+    if (deps.dryRun) {
+      await markLifted(db, b.id, deps.now);
+      lifted++;
+      continue;
+    }
+    try {
+      const sid = await serverServiceId(db, b.serverId);
+      await deps.nitradoFor(sid).removeBan(b.gamertag);
+      await markLifted(db, b.id, deps.now);
+      lifted++;
+    } catch (e) {
+      await markError(db, b.id, e instanceof Error ? e.message : String(e));
+      deps.log.error?.({ err: e, gamertag: b.gamertag }, "ban lift failed (will retry)");
+    }
+  }
+
+  return { detected: plans.length, applied, expired, lifted, dryRun: deps.dryRun };
 }
