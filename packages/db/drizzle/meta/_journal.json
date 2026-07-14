@@ -29,6 +29,13 @@
       "when": 1784002514766,
       "tag": "0003_powerful_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784042194454,
+      "tag": "0004_bored_guardsmen",
+      "breakpoints": true
     }
   ]
 }
