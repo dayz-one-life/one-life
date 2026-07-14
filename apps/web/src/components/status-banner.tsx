@@ -44,7 +44,7 @@ function EmoteChips({ sequence, progressIndex }: { sequence: string[]; progressI
           <li key={i} data-done={String(done)}
             className={cn("flex items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-[13px]",
               done ? "border-line bg-panel text-muted line-through opacity-60" : "border-amber/40 bg-panel-2 text-bone")}>
-            {done && <span className="text-amber no-underline">✓</span>}
+            {done && <span aria-hidden className="text-amber no-underline">✓</span>}
             {emote}
           </li>
         );
@@ -61,7 +61,7 @@ function Verify({ gamertag, challenge, onCancel, onReclaim, canceling, reclaimin
   if (expired) {
     return (
       <BannerShell>
-        <p className="text-[17px] font-bold text-bone"><span className="text-amber">⚠</span> Your verification for <span>{gamertag}</span> expired</p>
+        <p className="text-[17px] font-bold text-bone"><span aria-hidden className="text-amber">⚠</span> Your verification for <span>{gamertag}</span> expired</p>
         <p className="mt-1 text-[13px] text-dim">The emote challenge timed out. Start a fresh one and perform the new sequence in game.</p>
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <button onClick={onReclaim} disabled={reclaiming} className="rounded-lg bg-amber px-4 py-2 text-[13px] font-semibold text-black hover:opacity-90 disabled:opacity-50">Start a new challenge →</button>
@@ -73,7 +73,7 @@ function Verify({ gamertag, challenge, onCancel, onReclaim, canceling, reclaimin
   return (
     <BannerShell>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="text-[17px] font-bold text-bone"><span className="text-amber">⚠</span> Finish verifying <span>{gamertag}</span></p>
+        <p className="text-[17px] font-bold text-bone"><span aria-hidden className="text-amber">⚠</span> Finish verifying <span>{gamertag}</span></p>
         <span className="text-[11px] font-extrabold tracking-wide text-amber">{challenge.progressIndex} / {challenge.sequence.length} DONE</span>
       </div>
       <p className="mt-1 text-[13px] text-dim">Log in to any One Life server and perform these emotes in order — we detect them automatically.</p>
