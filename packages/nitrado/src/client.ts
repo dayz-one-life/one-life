@@ -20,6 +20,51 @@ export class NitradoClient {
     return res.json();
   }
 
+  private async postJson(path: string, body: unknown): Promise<any> {
+    const res = await this.fetchFn(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Nitrado POST ${res.status} for ${path}`);
+    const json = await res.json();
+    if (json?.status !== "success") throw new Error(`Nitrado settings error: ${json?.status}`);
+    return json;
+  }
+
+  // ── Ban list (name-based). Stored as a single \r\n-joined string in settings.general.bans;
+  // every mutation is a whole-field read-modify-write. ──
+
+  async getBans(): Promise<string[]> {
+    const json = await this.getJson(`/services/${this.serviceId}/gameservers/settings`);
+    if (json?.status !== "success") throw new Error(`Nitrado settings error: ${json?.status}`);
+    const raw: string = json?.data?.settings?.general?.bans ?? "";
+    return raw.split(/\r\n|\r|\n/).map((s) => s.trim()).filter((s) => s !== "");
+  }
+
+  private async setBans(names: string[]): Promise<void> {
+    await this.postJson(`/services/${this.serviceId}/gameservers/settings`, {
+      category: "general",
+      key: "bans",
+      value: names.join("\r\n"),
+    });
+  }
+
+  async addBan(gamertag: string): Promise<void> {
+    const bans = await this.getBans();
+    if (bans.includes(gamertag)) return; // idempotent
+    await this.setBans([...bans, gamertag]);
+  }
+
+  async removeBan(gamertag: string): Promise<void> {
+    const bans = await this.getBans();
+    await this.setBans(bans.filter((b) => b !== gamertag));
+  }
+
   private parseFilenameTs(name: string): number | null {
     const m = FILENAME_RE.exec(name);
     if (!m) return null;

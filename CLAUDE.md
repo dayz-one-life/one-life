@@ -60,7 +60,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **SP2 — Auth + web + gamertag verification** ✅: Better Auth (Discord/Google/GitHub/magic-link),
   gamertag linking, emote verification (verifier loop), Fastify API, and an auth-focused web surface
   (login + account/claim + minimal landing). Stats dashboard deferred.
-- **SP3** — 24h death-ban enforcement (Nitrado ban list). **SP4** — unban-token economy.
+- **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
+  (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
+  intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
+  (never rebuilt). **SP4** — unban-token economy.
 - **SP5** — RPT ingest + character mapping (survivor model per life). Device-based alt detection
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
@@ -72,7 +75,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `events`), `projections` (fold logic), `read-models` (stats queries), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges).
 - **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold),
-  `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend).
+  `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
+  `enforcer` (24h death-ban reconciler; dry-run by default).
 
 ## Commands
 
