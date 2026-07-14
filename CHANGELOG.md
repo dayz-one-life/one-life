@@ -7,15 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **`deploy/deploy.sh` — one-command production deploy.** Checks out the latest semver release tag, installs + builds web, stops the systemd fleet, takes a full-DB `pg_dump` checkpoint, applies migrations, restarts, and health-checks (all services active + web 200 + api reachable). Rolls back the code on pre-migrate failure; after a successful migrate it keeps the new code up and points at the checkpoint (Postgres migrations are forward-only). A `--rebuild` flag adds the gated projection truncate + re-fold (using `pnpm … run rebuild`) and waits for the projector to catch up — for releases that change projection-table shape.
-
 ### Changed
 ### Deprecated
 ### Removed
 ### Fixed
-- UP1 deploy runbook: corrected the projection-rebuild command to `pnpm --filter @onelife/projector run rebuild` (bare `pnpm … rebuild` invokes pnpm's native-module builtin and silently skips the truncate, which then aborts `db:migrate` on the `players_gamertag_uniq` duplicate check).
-
 ### Security
+
+## [0.3.1] - 2026-07-14
+
+### Added
+- **`deploy/deploy.sh` — one-command production deploy.** Checks out the latest semver release tag, installs + builds web, stops the systemd fleet, takes a full-DB `pg_dump` checkpoint, applies migrations, restarts, and health-checks (all services active + web 200 + api reachable). Rolls back the code on pre-migrate failure; after a successful migrate it keeps the new code up and points at the checkpoint (Postgres migrations are forward-only). A `--rebuild` flag adds the gated projection truncate + re-fold (using `pnpm … run rebuild`) and waits for the projector to catch up — for releases that change projection-table shape.
+
+### Fixed
+- UP1 deploy runbook: corrected the projection-rebuild command to `pnpm --filter @onelife/projector run rebuild` (bare `pnpm … rebuild` invokes pnpm's native-module builtin and silently skips the truncate, which then aborts `db:migrate` on the `players_gamertag_uniq` duplicate check).
 
 ## [0.3.0] - 2026-07-14
 
