@@ -1,0 +1,25 @@
+{
+  "name": "@onelife/test-support",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./global-setup": "./src/global-setup.ts",
+    "./setup-path": "./src/setup-path.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@onelife/db": "workspace:*",
+    "drizzle-orm": "^0.36.0",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

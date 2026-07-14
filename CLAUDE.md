@@ -42,3 +42,38 @@ user at the start of a fresh session.**
 ## Configuration
 
 `.claude/workflow.json` holds `canonicalRepo`, branch names, the optional `soloMaintainer` flag (default `false`), and optional `commands.test`/`commands.lint`.
+
+---
+
+# One Life MVP
+
+DayZ community platform: tracks each player's single life (birth→death across sessions),
+24h-bans them when a qualified life dies, and lets them earn back in via emote verification +
+an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the archived
+`../one-life-platform` (news/LLM stack dropped). MVP scope + decomposition:
+`docs/superpowers/specs/2026-07-13-one-life-mvp-definition-design.md`.
+
+## Sub-projects
+
+- **SP1 — Foundation + ADM ingest + lives** ✅ (this branch): multi-server Nitrado ADM-log
+  ingest → event log → life/player/session/kill projections + qualified-lives read model.
+- **SP2** — auth (Better Auth: Discord/Google/GitHub/magic-link) + web + emote verification (next).
+- **SP3** — 24h death-ban enforcement (Nitrado ban list). **SP4** — unban-token economy.
+- **SP5** — RPT ingest + character mapping (survivor model per life). Device-based alt detection
+  is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
+  built-in Multi-Account Mitigation.
+
+## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
+
+- **packages:** `db` (12-table core schema + migrations), `domain` (zod events, emote/weapon
+  dicts), `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log`
+  (append/cursor over `events`), `projections` (fold logic), `read-models` (stats queries),
+  `test-support` (Postgres test harness).
+- **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold).
+
+## Commands
+
+- Test: `pnpm turbo run test --concurrency=1` (DB suites need `TEST_DATABASE_URL`).
+  Typecheck: `pnpm turbo run typecheck`.
+- Local Postgres: `docker compose up -d postgres`. **Note:** a gitignored
+  `docker-compose.override.yml` may remap the host port (this dev machine uses 5434, not 5432).
