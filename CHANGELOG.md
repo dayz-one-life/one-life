@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.5.0] - 2026-07-14
+
+### Added
+- **One gamertag per user.** A user can now hold at most one *active* gamertag link (one `pending` or `verified` claim at a time). Enforced in depth: a partial unique index `gamertag_links_user_active_uniq` on `(user_id) WHERE status IN ('pending','verified')` (migration `0007`), an API guard in `POST /me/gamertag-links` that returns `409 { error: "active_link_exists", current: { gamertag, status } }`, and a web claim UI that hides the claim form / shows the existing link when one is active. Cancelling a `pending` link frees the slot; a `verified` link is permanent (admin-only release via manual DB edit).
+
 ## [0.4.0] - 2026-07-14
 
 ### Added

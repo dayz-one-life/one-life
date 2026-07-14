@@ -69,6 +69,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   are set, and email/magic-link is gated by `MAGIC_LINK_ENABLED` (default `true`). The backend is the source
   of truth via `enabledAuthMethods()`, served at `GET /api/auth/providers` (a static route that wins over the
   `/api/auth/*` Better Auth catch-all); the login page is a server component that fetches it before render.
+  **One gamertag per user:** a user holds at most one active (`pending`|`verified`) `gamertag_links` row —
+  enforced by partial unique index `gamertag_links_user_active_uniq` (migration `0007`) + a
+  `409 active_link_exists` guard in `POST /me/gamertag-links`; a `verified` link is admin-release-only.
 - **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
