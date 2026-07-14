@@ -38,6 +38,11 @@ user at the start of a fresh session.**
 - Hooks only bind inside Claude Code; plain `git`/`gh` in a shell bypasses them.
 - Superpowers/role detection are filesystem/remote heuristics; they fail with clear messages.
 - Approved-review detection needs the canonical repo to be a real GitHub remote.
+- **Orphan roots (reconciled 2026-07-14):** `main` and `develop` were originally created as
+  independent orphan commits with no shared history, which forced a one-off `git rebase --onto` on
+  every cross-branch PR through the v0.1.0 release. After v0.1.0, `develop` was re-rooted onto
+  `main` so they now share history — feature→`develop`, release→`main`, and `main`→`develop`
+  back-merge PRs no longer need any rebasing.
 
 ## Configuration
 
