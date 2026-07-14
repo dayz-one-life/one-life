@@ -2,8 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGamertagLinks, getGamertagLink, claimGamertag, cancelGamertagLink } from "./api";
 
-export function useGamertagLinks() {
-  return useQuery({ queryKey: ["gamertag-links"], queryFn: getGamertagLinks });
+export function useGamertagLinks(enabled = true) {
+  return useQuery({ queryKey: ["gamertag-links"], queryFn: getGamertagLinks, enabled });
 }
 
 export function useClaimGamertag() {

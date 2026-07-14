@@ -72,6 +72,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **One gamertag per user:** a user holds at most one active (`pending`|`verified`) `gamertag_links` row —
   enforced by partial unique index `gamertag_links_user_active_uniq` (migration `0007`) + a
   `409 active_link_exists` guard in `POST /me/gamertag-links`; a `verified` link is admin-release-only.
+  **Masthead account CTA:** the top-bar's right-hand button is a stateful amber CTA (client `Masthead`
+  reusing `useSession`/`useGamertagLinks`/`activeLink`) — **Sign in** → `/login` (signed-out),
+  **Link gamertag** → `/account/claim` (no active link), **{GAMERTAG} (not verified)** → `/account`
+  (pending), **{GAMERTAG}** → `/account` (verified). `QueryProvider` lives at the **root layout** (one
+  app-wide TanStack Query cache), and `useGamertagLinks(enabled)` gates its fetch so logged-out visitors
+  don't 401 on `/api/me/gamertag-links` every page.
 - **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
