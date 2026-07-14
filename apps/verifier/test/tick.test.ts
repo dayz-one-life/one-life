@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { servers, admFiles, players, user, gamertagLinks, verificationChallenges, events } from "@onelife/db";
 import { and, eq, inArray, sql as sqlExpr } from "drizzle-orm";
 import { appendEvent, setCursor } from "@onelife/event-log";
@@ -74,6 +74,14 @@ beforeAll(async () => {
   await db.insert(user).values({ id: uidB, name: "B", email: `${uidB}@x.com` });
 });
 
+// gamertag_links_user_active_uniq allows at most one active (pending/verified) link per
+// user. Reset uid/uidB to no active links before each test so tests stay independent.
+beforeEach(async () => {
+  await db.delete(verificationChallenges).where(
+    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE user_id IN (${uid}, ${uidB}))`);
+  await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [uid, uidB]));
+});
+
 afterAll(async () => {
   await db.delete(verificationChallenges).where(
     sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE user_id IN (${uid}, ${uidB}))`);
@@ -112,9 +120,11 @@ describe("verifierTick", () => {
   });
 
   it("first-verify-wins: cancels the losing user's pending link", async () => {
-    // Two distinct users hold pending claims on the SAME gamertag (allowed — the partial
-    // unique index only forbids two *verified*). A fresh gamertag avoids the (user,server,
-    // gamertag) unique collision with the Bob link created by the previous test.
+    // Two DISTINCT users each hold one pending link on the same gamertag — allowed, since
+    // gamertag_links_user_active_uniq is per-user (forbids two *active* links for ONE user,
+    // not two users sharing a gamertag). First-verify-wins resolves the shared-gamertag
+    // verified-uniqueness. A fresh gamertag avoids the (user,server,gamertag) unique
+    // collision with the Bob link created by the previous test.
     const a = await newChallenge("Carol", uid);
     const b = await newChallenge("Carol", uidB);
     await seedEmote("Carol", "EmoteSalute", "2026-07-09T02:00:00Z");
@@ -127,7 +137,9 @@ describe("verifierTick", () => {
   });
 
   it("matches gamertag links globally by gamertag: verifies on ANY server and cancels the other user's pending claim", async () => {
-    // Two pending links for gamertag "G" — one per user. Links carry no server at all
+    // Two DISTINCT users each hold one pending link for gamertag "G" — allowed, since
+    // gamertag_links_user_active_uniq is per-user (forbids two *active* links for ONE user,
+    // not two users sharing a gamertag). Links carry no server at all
     // (gamertag_links is server-agnostic). The emote sequence for "G" is performed entirely
     // on serverId2, a DIFFERENT server than the one used to seed every other fixture in this
     // file (serverId). If matching were still scoped by serverId, these events would never
