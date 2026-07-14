@@ -2,6 +2,7 @@ import {
   pgTable, bigserial, integer, text, timestamp, boolean, jsonb,
   bigint, uniqueIndex, index, doublePrecision,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const servers = pgTable("servers", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -170,4 +171,81 @@ export const positions = pgTable("positions", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
 }, (t) => ({
   byPlayer: index("positions_player_idx").on(t.serverId, t.playerId, t.recordedAt),
+}));
+
+// ── Identity & auth (Better Auth core schema) ──
+// No server_id: identity is global. camelCase JS keys are required by the
+// Better Auth Drizzle adapter (it matches fields by name).
+
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const gamertagLinks = pgTable("gamertag_links", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id),
+  serverId: integer("server_id").notNull().references(() => servers.id),
+  gamertag: text("gamertag").notNull(),
+  status: text("status").notNull().default("pending"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqUserServerGamertag: uniqueIndex("gamertag_links_user_server_gamertag_uniq").on(t.userId, t.serverId, t.gamertag),
+  uniqVerified: uniqueIndex("gamertag_links_verified_uniq").on(t.serverId, t.gamertag).where(sql`${t.status} = 'verified'`),
+  byServerGamertag: index("gamertag_links_server_gamertag_idx").on(t.serverId, t.gamertag),
+}));
+
+export const verificationChallenges = pgTable("verification_challenges", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  gamertagLinkId: bigint("gamertag_link_id", { mode: "number" }).notNull().references(() => gamertagLinks.id),
+  sequence: text("sequence").array().notNull(),
+  progressIndex: integer("progress_index").notNull().default(0),
+  lastMatchedEventId: bigint("last_matched_event_id", { mode: "number" }).notNull().default(0),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => ({
+  byLink: index("verification_challenges_link_idx").on(t.gamertagLinkId),
 }));

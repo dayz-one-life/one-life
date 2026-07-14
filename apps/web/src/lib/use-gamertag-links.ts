@@ -1,0 +1,32 @@
+"use client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getGamertagLinks, getGamertagLink, claimGamertag, cancelGamertagLink } from "./api";
+
+export function useGamertagLinks() {
+  return useQuery({ queryKey: ["gamertag-links"], queryFn: getGamertagLinks });
+}
+
+export function useClaimGamertag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ serverId, gamertag }: { serverId: number; gamertag: string }) => claimGamertag(serverId, gamertag),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gamertag-links"] }),
+  });
+}
+
+export function useCancelLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => cancelGamertagLink(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["gamertag-links"] }),
+  });
+}
+
+export function useLinkStatus(id: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["gamertag-link", id],
+    queryFn: () => getGamertagLink(id),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.status === "pending" ? 2000 : false),
+  });
+}

@@ -1,0 +1,165 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { servers, players, gamertagLinks, verificationChallenges, user } from "@onelife/db";
+import { eq, sql as sqlExpr } from "drizzle-orm";
+import { createAuth, type Mailer } from "@onelife/auth";
+import { buildApp } from "../src/app.js";
+import { getTestDb } from "@onelife/test-support";
+
+const { db, sql } = getTestDb();
+const svc = Math.floor(Math.random() * 1e8) + 4e8;
+const email = `gl${svc}@example.com`;
+
+let lastLink = "";
+const captureMailer: Mailer = { async send(msg) { lastLink = msg.url; } };
+const auth = createAuth(db, {
+  secret: "s".repeat(32), baseURL: "http://localhost", trustedOrigins: ["http://localhost"],
+  providers: {}, mailer: captureMailer,
+});
+const app = buildApp(db, { auth, corsOrigins: ["http://localhost"] });
+let serverId: number;
+let cookie = "";
+
+function cookieHeader(setCookie: string | string[] | undefined): string {
+  const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  return arr.map((c) => c.split(";")[0]).join("; ");
+}
+
+async function signIn(): Promise<void> {
+  await app.inject({
+    method: "POST", url: "/api/auth/sign-in/magic-link",
+    headers: { "content-type": "application/json", host: "localhost", origin: "http://localhost" },
+    payload: { email },
+  });
+  const verifyPath = lastLink.replace(/^https?:\/\/[^/]+/, "");
+  const verify = await app.inject({ method: "GET", url: verifyPath, headers: { host: "localhost" } });
+  cookie = cookieHeader(verify.headers["set-cookie"] as string | string[] | undefined);
+}
+
+beforeAll(async () => {
+  await app.ready();
+  const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "gl-test" }).returning();
+  serverId = s!.id;
+  await db.insert(players).values({ serverId, gamertag: "Alice", dayzId: "A=" });
+  await db.insert(user).values({ id: "someone-else", name: "x", email: `se${svc}@x.com` });
+  await signIn();
+});
+
+afterAll(async () => {
+  await db.delete(verificationChallenges).where(
+    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE server_id = ${serverId})`);
+  await db.delete(gamertagLinks).where(eq(gamertagLinks.serverId, serverId));
+  await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
+  await db.delete(players).where(eq(players.serverId, serverId));
+  await sql`DELETE FROM "session" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
+  await sql`DELETE FROM "account" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
+  await sql`DELETE FROM "verification" WHERE identifier LIKE ${"%" + email + "%"}`;
+  await sql`DELETE FROM "user" WHERE email = ${email}`;
+  await db.delete(user).where(eq(user.id, "someone-else"));
+  await db.delete(servers).where(eq(servers.id, serverId));
+  await app.close();
+  await sql.end();
+});
+
+function claim(payload: Record<string, unknown>, hdrs: Record<string, string> = {}) {
+  return app.inject({ method: "POST", url: "/me/gamertag-links",
+    headers: { "content-type": "application/json", host: "localhost", cookie, ...hdrs }, payload });
+}
+
+describe("POST /me/gamertag-links", () => {
+  it("401 without a session", async () => {
+    const res = await app.inject({ method: "POST", url: "/me/gamertag-links",
+      headers: { "content-type": "application/json", host: "localhost" }, payload: { serverId, gamertag: "Alice" } });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("422 for a gamertag never seen on the server", async () => {
+    const res = await claim({ serverId, gamertag: "Ghost" });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it("creates a pending link + a 3-emote challenge", async () => {
+    const res = await claim({ serverId, gamertag: "Alice" });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.status).toBe("pending");
+    expect(body.challenge.sequence).toHaveLength(3);
+    expect(body.challenge.progressIndex).toBe(0);
+  });
+
+  it("is idempotent: re-POST returns the same challenge sequence (no re-roll)", async () => {
+    const a = (await claim({ serverId, gamertag: "Alice" })).json();
+    const b = (await claim({ serverId, gamertag: "Alice" })).json();
+    expect(b.linkId).toBe(a.linkId);
+    expect(b.challenge.sequence).toEqual(a.challenge.sequence);
+  });
+
+  it("409 when the gamertag is already verified by someone", async () => {
+    // Force-verify a competing link directly, then a fresh claim must be rejected.
+    const [link] = await db.insert(gamertagLinks)
+      .values({ userId: "someone-else", serverId, gamertag: "Verified", status: "verified", verifiedAt: new Date() })
+      .returning();
+    await db.insert(players).values({ serverId, gamertag: "Verified", dayzId: "V=" });
+    const res = await claim({ serverId, gamertag: "Verified" });
+    expect(res.statusCode).toBe(409);
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.id, link!.id));
+  });
+});
+
+describe("GET/DELETE /me/gamertag-links", () => {
+  it("lists the caller's links with challenge labels for pending", async () => {
+    await claim({ serverId, gamertag: "Alice" });
+    const res = await app.inject({ method: "GET", url: "/me/gamertag-links", headers: { host: "localhost", cookie } });
+    expect(res.statusCode).toBe(200);
+    const list = res.json();
+    const alice = list.find((l: any) => l.gamertag === "Alice");
+    expect(alice.status).toBe("pending");
+    expect(alice.challenge.sequence).toHaveLength(3);
+  });
+
+  it("fetches a single link and 404s for a foreign id", async () => {
+    const created = (await claim({ serverId, gamertag: "Alice" })).json();
+    const ok = await app.inject({ method: "GET", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().id).toBe(created.linkId);
+    const missing = await app.inject({ method: "GET", url: "/me/gamertag-links/99999999", headers: { host: "localhost", cookie } });
+    expect(missing.statusCode).toBe(404);
+  });
+
+  it("cancels a pending claim", async () => {
+    const created = (await claim({ serverId, gamertag: "Alice" })).json();
+    const del = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
+    expect(del.statusCode).toBe(200);
+    expect(del.json().status).toBe("cancelled");
+    const after = await app.inject({ method: "GET", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
+    expect(after.json().status).toBe("cancelled");
+  });
+
+  it("404s (not leaks) GET and DELETE for a link owned by a different user", async () => {
+    const [foreign] = await db.insert(gamertagLinks)
+      .values({ userId: "someone-else", serverId, gamertag: "Foreign", status: "pending" })
+      .returning();
+    const foreignId = foreign!.id;
+
+    const get = await app.inject({ method: "GET", url: `/me/gamertag-links/${foreignId}`, headers: { host: "localhost", cookie } });
+    expect(get.statusCode).toBe(404);
+
+    const del = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${foreignId}`, headers: { host: "localhost", cookie } });
+    expect(del.statusCode).toBe(404);
+
+    const [stillThere] = await db.select().from(gamertagLinks).where(eq(gamertagLinks.id, foreignId));
+    expect(stillThere).toBeDefined();
+    expect(stillThere!.status).toBe("pending");
+
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.id, foreignId));
+  });
+
+  it("409s on DELETE of a link that is no longer pending", async () => {
+    const created = (await claim({ serverId, gamertag: "Alice" })).json();
+    const first = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().status).toBe("cancelled");
+
+    const second = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
+    expect(second.statusCode).toBe(409);
+  });
+});

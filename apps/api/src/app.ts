@@ -1,0 +1,37 @@
+import Fastify, { type FastifyInstance, type FastifyError } from "fastify";
+import fastifyCors from "@fastify/cors";
+import type { Database } from "@onelife/db";
+import type { Auth } from "@onelife/auth";
+import { registerServerRoutes } from "./routes/servers.js";
+import { registerPlayerRoutes } from "./routes/players.js";
+import { registerBoardRoutes } from "./routes/boards.js";
+import { registerAuthHandler } from "./auth-plugin.js";
+import { registerMeRoute } from "./routes/me.js";
+import { registerGamertagLinkRoutes } from "./routes/gamertag-links.js";
+import { registerPlayerAggregateRoutes } from "./routes/player-aggregate.js";
+import { registerGlobalRoutes } from "./routes/global.js";
+
+export interface AuthOptions {
+  auth: Auth;
+  corsOrigins: string[];
+}
+
+export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
+  const app = Fastify({ logger: false });
+  app.setErrorHandler<FastifyError>((err, _req, reply) => {
+    if ((err as any).statusCode === 400 || err.validation) return reply.code(400).send({ error: "bad_request", message: err.message });
+    reply.code(500).send({ error: "internal_error" });
+  });
+  if (opts) {
+    app.register(fastifyCors, { origin: opts.corsOrigins, credentials: true });
+    registerAuthHandler(app, opts.auth);
+    registerMeRoute(app, opts.auth);
+    registerGamertagLinkRoutes(app, db, opts.auth);
+  }
+  registerServerRoutes(app, db);
+  registerPlayerRoutes(app, db);
+  registerBoardRoutes(app, db);
+  registerPlayerAggregateRoutes(app, db);
+  registerGlobalRoutes(app, db);
+  return app;
+}
