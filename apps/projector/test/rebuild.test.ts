@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players } from "@onelife/db";
+import { servers, players, lives, admFiles } from "@onelife/db";
 import { eq } from "drizzle-orm";
-import { getCursor, setCursor } from "@onelife/event-log";
+import { getCursor, setCursor, appendEvent } from "@onelife/event-log";
 import { rebuildAll } from "../src/rebuild.js";
+import { projectorTick } from "../src/tick.js";
 import { getTestDb } from "@onelife/test-support";
 
 const { db, sql } = getTestDb();
@@ -23,5 +24,58 @@ describe("rebuildAll", () => {
     const rows = await db.select().from(players).where(eq(players.gamertag, `Stale-${svc}`));
     expect(rows.length).toBe(0);
     expect(await getCursor(db, "projector")).toBe(0);
+  });
+
+  it("after a rebuild + re-fold, one gamertag on two servers yields one global player with a per-server life", async () => {
+    const svc2 = Math.floor(Math.random() * 1e8) + 8e8;
+    const consumer = `rebuild-multi-${svc2}`;
+    const gamertag = `Multi-${svc2}`;
+
+    const [serverA] = await db.insert(servers).values({ nitradoServiceId: svc2, name: "rebuild-multi-a" }).returning();
+    const [serverB] = await db.insert(servers).values({ nitradoServiceId: svc2 + 1, name: "rebuild-multi-b" }).returning();
+    const [fileA] = await db.insert(admFiles).values({ serverId: serverA!.id, path: `/t/${svc2}-a.ADM`, name: "a.ADM" }).returning();
+    const [fileB] = await db.insert(admFiles).values({ serverId: serverB!.id, path: `/t/${svc2}-b.ADM`, name: "b.ADM" }).returning();
+
+    await appendEvent(db, {
+      serverId: serverA!.id, admFileId: fileA!.id, lineIndex: 0, subIndex: 0,
+      type: "player.connected", occurredAt: new Date("2026-07-06T12:00:00Z"),
+      payload: { gamertag, dayzId: `${svc2}-A=` },
+    });
+    await appendEvent(db, {
+      serverId: serverB!.id, admFileId: fileB!.id, lineIndex: 0, subIndex: 0,
+      type: "player.connected", occurredAt: new Date("2026-07-06T12:01:00Z"),
+      payload: { gamertag, dayzId: `${svc2}-B=` },
+    });
+
+    await setCursor(db, consumer, 0);
+    let applied = 0;
+    for (let i = 0; i < 5; i++) {
+      const r = await projectorTick(db, { batchSize: 100, consumerName: consumer });
+      applied += r.applied;
+      if (r.applied === 0) break;
+    }
+    expect(applied).toBeGreaterThanOrEqual(2);
+
+    // Rebuild wipes everything and resets the cursor; re-folding from 0 must reproduce
+    // the same end state: one global player row, two per-server life rows.
+    await rebuildAll(db, consumer);
+    let applied2 = 0;
+    for (let i = 0; i < 5; i++) {
+      const r = await projectorTick(db, { batchSize: 100, consumerName: consumer });
+      applied2 += r.applied;
+      if (r.applied === 0) break;
+    }
+    expect(applied2).toBeGreaterThanOrEqual(2);
+
+    const playerRows = await db.select().from(players).where(eq(players.gamertag, gamertag));
+    expect(playerRows.length).toBe(1);
+
+    const lifeRows = await db.select().from(lives).where(eq(lives.playerId, playerRows[0]!.id));
+    expect(lifeRows.length).toBe(2);
+    const serverIds = new Set(lifeRows.map((l) => l.serverId));
+    expect(serverIds.size).toBe(2);
+    for (const l of lifeRows) {
+      expect(l.lifeNumber).toBe(1);
+    }
   });
 });
