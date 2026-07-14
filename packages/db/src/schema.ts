@@ -66,14 +66,12 @@ export const consumerCursors = pgTable("consumer_cursors", {
 
 export const players = pgTable("players", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  serverId: integer("server_id").notNull().references(() => servers.id),
   gamertag: text("gamertag").notNull(),
   dayzId: text("dayz_id"),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-  currentLifeId: bigint("current_life_id", { mode: "number" }),
 }, (t) => ({
-  uniq: uniqueIndex("players_server_gamertag_uniq").on(t.serverId, t.gamertag),
+  uniq: uniqueIndex("players_gamertag_uniq").on(t.gamertag),
 }));
 
 export const lives = pgTable("lives", {
