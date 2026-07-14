@@ -42,3 +42,55 @@ user at the start of a fresh session.**
 ## Configuration
 
 `.claude/workflow.json` holds `canonicalRepo`, branch names, the optional `soloMaintainer` flag (default `false`), and optional `commands.test`/`commands.lint`.
+
+---
+
+# One Life MVP
+
+DayZ community platform: tracks each player's single life (birth→death across sessions),
+24h-bans them when a qualified life dies, and lets them earn back in via emote verification +
+an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the archived
+`../one-life-platform` (news/LLM stack dropped). MVP scope + decomposition:
+`docs/superpowers/specs/2026-07-13-one-life-mvp-definition-design.md`.
+
+## Sub-projects
+
+- **SP1 — Foundation + ADM ingest + lives** ✅: multi-server Nitrado ADM-log ingest → event log
+  → life/player/session/kill projections + qualified-lives read model.
+- **SP2 — Auth + web + gamertag verification** ✅: Better Auth (Discord/Google/GitHub/magic-link),
+  gamertag linking, emote verification (verifier loop), Fastify API, and an auth-focused web surface
+  (login + account/claim + minimal landing). Stats dashboard deferred.
+- **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
+  (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
+  intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
+  (never rebuilt).
+- **SP4 — Unban-token economy** ✅: `@onelife/tokens` (ledger; balance = SUM of deltas; idempotent
+  grants) + `apps/granter` sweeps. Token on verification, monthly + referral grants, self-unban
+  (redeem → ban `lift_pending` → enforcer removes under the dry-run gate), and transfers. API
+  routes + a web wallet on the account page.
+- **SP5 — RPT ingest + character mapping** ✅: `@onelife/rpt-parser` correlation state machine +
+  survivor roster; the `ingest-worker` RPT pass writes `character_sightings` + a `characters` rollup
+  (charID inheritance); `getLifeCharacter` read-model + API life-detail `character` field. Web
+  display deferred with the stats dashboard.
+- *(historical)* Device-based alt detection (RPT Feature A): the device signal
+  is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
+  built-in Multi-Account Mitigation.
+
+## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
+
+- **packages:** `db` (18-table schema + migrations), `domain` (zod events, emote/weapon dicts),
+  `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
+  `events`), `projections` (fold logic), `read-models` (stats queries), `test-support` (Postgres
+  test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
+  `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
+  character sightings).
+- **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold),
+  `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
+  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps).
+
+## Commands
+
+- Test: `pnpm turbo run test --concurrency=1` (DB suites need `TEST_DATABASE_URL`).
+  Typecheck: `pnpm turbo run typecheck`.
+- Local Postgres: `docker compose up -d postgres`. **Note:** a gitignored
+  `docker-compose.override.yml` may remap the host port (this dev machine uses 5434, not 5432).
