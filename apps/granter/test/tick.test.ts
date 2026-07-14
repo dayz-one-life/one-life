@@ -13,8 +13,8 @@ beforeAll(async () => {
   ]);
   const [s] = await db.insert(servers).values({ nitradoServiceId: 775001, name: "gr" }).returning();
   await db.insert(gamertagLinks).values([
-    { userId: "gr1", serverId: s!.id, gamertag: "GRG1", status: "verified" },
-    { userId: "gr2", serverId: s!.id, gamertag: "GRG2", status: "verified" },
+    { userId: "gr1", gamertag: "GRG1", status: "verified" },
+    { userId: "gr2", gamertag: "GRG2", status: "verified" },
   ]);
   await db.insert(referrals).values({ userId: "gr2", referrerUserId: "gr1" }); // gr2 referred by gr1
 });

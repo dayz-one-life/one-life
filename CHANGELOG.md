@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.3.0] - 2026-07-14
+
+### Added
+- **Universal Player — global identity + global gamertag claim.** A player is now a single global identity keyed by gamertag (one row per gamertag across all servers) while **lives stay per-server**, matching DayZ Xbox where a gamertag uniquely identifies one person. **UP1** rebuilds the `players` projection globally (migration `0005` drops `players.server_id`/`current_life_id`, unique on `gamertag`); the fold, projection stores, and read-models resolve players by gamertag and scope stats per-server via `lives.server_id`; projections are regenerated from the immutable `events` log (truncate + replay). **UP2** makes the gamertag claim server-agnostic (migration `0006`: `gamertag_links` drops `server_id`, unique `(user_id, gamertag)` + verified-unique `(gamertag)`) — a gamertag is verified once, by one user, across all servers, and the emote sequence can be completed on **any** server. The claim UI replaces the server dropdown with a debounced gamertag **autocomplete over unverified observed players**, backed by a new `searchClaimableGamertags` read-model and `GET /players/search?q=` route.
+
+### Changed
+- **Unban redeem is now global.** `@onelife/tokens` `redeem` establishes ban ownership by the user's verified **gamertag alone** (bans remain per-server), so a globally-verified gamertag can lift its 24h death-ban on any server it was banned on.
+- **`POST /me/gamertag-links` no longer accepts `serverId`** — the claim body is `{ gamertag }` only, and the verifier matches links by gamertag across servers.
+
+### Removed
+- **BREAKING (schema):** dropped `players.server_id` + `players.current_life_id` (migration `0005`) and `gamertag_links.server_id` (migration `0006`). Deploy requires the gated projection rebuild **and** the durable-table (`gamertag_links`) duplicate precheck in the UP1 deploy runbook (`docs/superpowers/plans/2026-07-14-up1-global-player.md`) — `0005`/`0006` are separate transactions, so pre-existing per-server duplicates must be resolved before `db:migrate`.
+
 ## [0.2.0] - 2026-07-14
 
 ### Added

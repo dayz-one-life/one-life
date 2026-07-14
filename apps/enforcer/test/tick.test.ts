@@ -23,12 +23,12 @@ const ENDED = new Date("2026-07-11T12:00:00Z");
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: 555001, name: "enf" }).returning();
   serverId = s!.id;
-  const [p] = await db.insert(players).values({ serverId, gamertag: "Steveo12491" }).returning();
+  const [p] = await db.insert(players).values({ gamertag: "Steveo12491" }).returning();
   await db.insert(lives).values({
     serverId, playerId: p!.id, lifeNumber: 1, startedAt: STARTED, endedAt: ENDED,
     deathCause: "infected", playtimeSeconds: 400, // qualified: >= 300s
   });
-  const [p2] = await db.insert(players).values({ serverId, gamertag: "ShortLived" }).returning();
+  const [p2] = await db.insert(players).values({ gamertag: "ShortLived" }).returning();
   await db.insert(lives).values({
     serverId, playerId: p2!.id, lifeNumber: 1, startedAt: STARTED, endedAt: ENDED,
     deathCause: "infected", playtimeSeconds: 100, // unqualified: < 300s, no kill, non-pvp

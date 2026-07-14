@@ -18,7 +18,7 @@ type LifeElement = FullLife & {
 };
 
 export class MemoryStore implements ProjectionStore {
-  players: (PlayerRow & { serverId: number; dayzId: string | null; firstSeenAt: Date; lastSeenAt: Date })[] = [];
+  players: (PlayerRow & { dayzId: string | null; firstSeenAt: Date; lastSeenAt: Date })[] = [];
   lives: LifeElement[] = [];
   sessions: FullSession[] = [];
   kills: KillInput[] = [];
@@ -27,22 +27,19 @@ export class MemoryStore implements ProjectionStore {
   positions: PositionInput[] = [];
   private seq = 1;
 
-  async getPlayer(serverId: number, gamertag: string): Promise<PlayerRow | null> {
-    return this.players.find((p) => p.serverId === serverId && p.gamertag === gamertag) ?? null;
+  async getPlayer(gamertag: string): Promise<PlayerRow | null> {
+    return this.players.find((p) => p.gamertag === gamertag) ?? null;
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {
     return this.players.find((p) => p.id === playerId) ?? null;
   }
-  async createPlayer(serverId: number, gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow> {
-    const row = { id: this.seq++, serverId, gamertag, dayzId, currentLifeId: null, firstSeenAt: seenAt, lastSeenAt: seenAt };
+  async createPlayer(gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow> {
+    const row = { id: this.seq++, gamertag, dayzId, firstSeenAt: seenAt, lastSeenAt: seenAt };
     this.players.push(row);
     return row;
   }
   async touchPlayer(playerId: number, lastSeenAt: Date): Promise<void> {
     const p = this.players.find((x) => x.id === playerId); if (p) p.lastSeenAt = lastSeenAt;
-  }
-  async setCurrentLife(playerId: number, lifeId: number | null): Promise<void> {
-    const p = this.players.find((x) => x.id === playerId); if (p) p.currentLifeId = lifeId;
   }
   async getOpenLife(serverId: number, playerId: number): Promise<LifeRow | null> {
     return (this.lives as FullLife[]).find((l) => l.serverId === serverId && l.playerId === playerId && l.endedAt === null) ?? null;

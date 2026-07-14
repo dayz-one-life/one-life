@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, sessions, kills } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getGlobalRoster, getGlobalBoard } from "../src/index.js";
 import { getTestDb } from "@onelife/test-support";
 
@@ -17,17 +17,17 @@ beforeAll(async () => {
   sakhId = s!.id;
 
   // Roster: one online player per map.
-  const [roamer] = await db.insert(players).values({ serverId: chernId, gamertag: "Roamer", firstSeenAt: new Date("2026-07-06T12:00:00Z"), lastSeenAt: new Date("2026-07-06T12:00:00Z") }).returning();
+  const [roamer] = await db.insert(players).values({ gamertag: "Roamer", firstSeenAt: new Date("2026-07-06T12:00:00Z"), lastSeenAt: new Date("2026-07-06T12:00:00Z") }).returning();
   const [roamerLife] = await db.insert(lives).values({ serverId: chernId, playerId: roamer!.id, lifeNumber: 1, startedAt: new Date("2026-07-06T12:00:00Z"), playtimeSeconds: 300 }).returning();
   await db.insert(sessions).values({ serverId: chernId, playerId: roamer!.id, lifeId: roamerLife!.id, connectedAt: new Date("2026-07-06T12:00:00Z") });
 
-  const [wanderer] = await db.insert(players).values({ serverId: sakhId, gamertag: "Wanderer", firstSeenAt: new Date("2026-07-06T12:00:00Z"), lastSeenAt: new Date("2026-07-06T12:00:00Z") }).returning();
+  const [wanderer] = await db.insert(players).values({ gamertag: "Wanderer", firstSeenAt: new Date("2026-07-06T12:00:00Z"), lastSeenAt: new Date("2026-07-06T12:00:00Z") }).returning();
   const [wandererLife] = await db.insert(lives).values({ serverId: sakhId, playerId: wanderer!.id, lifeNumber: 1, startedAt: new Date("2026-07-06T12:00:00Z"), playtimeSeconds: 300 }).returning();
   await db.insert(sessions).values({ serverId: sakhId, playerId: wanderer!.id, lifeId: wandererLife!.id, connectedAt: new Date("2026-07-06T12:00:00Z") });
 
   // most-kills board: BigKiller on Sakhal has more kills than SmallKiller on Chernarus.
-  const [bigKiller] = await db.insert(players).values({ serverId: sakhId, gamertag: "BigKiller", firstSeenAt: new Date(), lastSeenAt: new Date() }).returning();
-  const [smallKiller] = await db.insert(players).values({ serverId: chernId, gamertag: "SmallKiller", firstSeenAt: new Date(), lastSeenAt: new Date() }).returning();
+  const [bigKiller] = await db.insert(players).values({ gamertag: "BigKiller", firstSeenAt: new Date(), lastSeenAt: new Date() }).returning();
+  const [smallKiller] = await db.insert(players).values({ gamertag: "SmallKiller", firstSeenAt: new Date(), lastSeenAt: new Date() }).returning();
   for (let i = 0; i < 3; i++) {
     await db.insert(kills).values({
       serverId: sakhId, killerGamertag: "BigKiller", killerPlayerId: bigKiller!.id,
@@ -47,8 +47,7 @@ afterAll(async () => {
   await db.delete(sessions).where(eq(sessions.serverId, sakhId));
   await db.delete(lives).where(eq(lives.serverId, chernId));
   await db.delete(lives).where(eq(lives.serverId, sakhId));
-  await db.delete(players).where(eq(players.serverId, chernId));
-  await db.delete(players).where(eq(players.serverId, sakhId));
+  await db.delete(players).where(inArray(players.gamertag, ["Roamer", "Wanderer", "BigKiller", "SmallKiller"]));
   await sql.end();
 });
 

@@ -66,14 +66,12 @@ export const consumerCursors = pgTable("consumer_cursors", {
 
 export const players = pgTable("players", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  serverId: integer("server_id").notNull().references(() => servers.id),
   gamertag: text("gamertag").notNull(),
   dayzId: text("dayz_id"),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-  currentLifeId: bigint("current_life_id", { mode: "number" }),
 }, (t) => ({
-  uniq: uniqueIndex("players_server_gamertag_uniq").on(t.serverId, t.gamertag),
+  uniq: uniqueIndex("players_gamertag_uniq").on(t.gamertag),
 }));
 
 export const lives = pgTable("lives", {
@@ -226,15 +224,14 @@ export const verification = pgTable("verification", {
 export const gamertagLinks = pgTable("gamertag_links", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: text("user_id").notNull().references(() => user.id),
-  serverId: integer("server_id").notNull().references(() => servers.id),
   gamertag: text("gamertag").notNull(),
   status: text("status").notNull().default("pending"),
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqUserServerGamertag: uniqueIndex("gamertag_links_user_server_gamertag_uniq").on(t.userId, t.serverId, t.gamertag),
-  uniqVerified: uniqueIndex("gamertag_links_verified_uniq").on(t.serverId, t.gamertag).where(sql`${t.status} = 'verified'`),
-  byServerGamertag: index("gamertag_links_server_gamertag_idx").on(t.serverId, t.gamertag),
+  uniqUserGamertag: uniqueIndex("gamertag_links_user_gamertag_uniq").on(t.userId, t.gamertag),
+  uniqVerified: uniqueIndex("gamertag_links_verified_uniq").on(t.gamertag).where(sql`${t.status} = 'verified'`),
+  byGamertag: index("gamertag_links_gamertag_idx").on(t.gamertag),
 }));
 
 export const verificationChallenges = pgTable("verification_challenges", {

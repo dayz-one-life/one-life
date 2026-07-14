@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, gamertagLinks, verificationChallenges, user } from "@onelife/db";
-import { eq, sql as sqlExpr } from "drizzle-orm";
+import { eq, inArray, sql as sqlExpr } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
 import { buildApp } from "../src/app.js";
 import { getTestDb } from "@onelife/test-support";
@@ -39,17 +39,17 @@ beforeAll(async () => {
   await app.ready();
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "gl-test" }).returning();
   serverId = s!.id;
-  await db.insert(players).values({ serverId, gamertag: "Alice", dayzId: "A=" });
+  await db.insert(players).values({ gamertag: "Alice", dayzId: "A=" });
   await db.insert(user).values({ id: "someone-else", name: "x", email: `se${svc}@x.com` });
   await signIn();
 });
 
 afterAll(async () => {
   await db.delete(verificationChallenges).where(
-    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE server_id = ${serverId})`);
-  await db.delete(gamertagLinks).where(eq(gamertagLinks.serverId, serverId));
+    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE gamertag IN ('Alice', 'Verified', 'Foreign'))`);
+  await db.delete(gamertagLinks).where(inArray(gamertagLinks.gamertag, ["Alice", "Verified", "Foreign"]));
   await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Verified"]));
   await sql`DELETE FROM "session" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "account" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "verification" WHERE identifier LIKE ${"%" + email + "%"}`;
@@ -68,65 +68,69 @@ function claim(payload: Record<string, unknown>, hdrs: Record<string, string> = 
 describe("POST /me/gamertag-links", () => {
   it("401 without a session", async () => {
     const res = await app.inject({ method: "POST", url: "/me/gamertag-links",
-      headers: { "content-type": "application/json", host: "localhost" }, payload: { serverId, gamertag: "Alice" } });
+      headers: { "content-type": "application/json", host: "localhost" }, payload: { gamertag: "Alice" } });
     expect(res.statusCode).toBe(401);
   });
 
   it("422 for a gamertag never seen on the server", async () => {
-    const res = await claim({ serverId, gamertag: "Ghost" });
+    const res = await claim({ gamertag: "Ghost" });
     expect(res.statusCode).toBe(422);
   });
 
-  it("creates a pending link + a 3-emote challenge", async () => {
-    const res = await claim({ serverId, gamertag: "Alice" });
+  it("creates a pending link + a 3-emote challenge, with no serverId in the body", async () => {
+    const res = await claim({ gamertag: "Alice" });
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.status).toBe("pending");
     expect(body.challenge.sequence).toHaveLength(3);
     expect(body.challenge.progressIndex).toBe(0);
+    expect(body).not.toHaveProperty("serverId");
   });
 
   it("is idempotent: re-POST returns the same challenge sequence (no re-roll)", async () => {
-    const a = (await claim({ serverId, gamertag: "Alice" })).json();
-    const b = (await claim({ serverId, gamertag: "Alice" })).json();
+    const a = (await claim({ gamertag: "Alice" })).json();
+    const b = (await claim({ gamertag: "Alice" })).json();
     expect(b.linkId).toBe(a.linkId);
     expect(b.challenge.sequence).toEqual(a.challenge.sequence);
   });
 
-  it("409 when the gamertag is already verified by someone", async () => {
-    // Force-verify a competing link directly, then a fresh claim must be rejected.
+  it("409 when the gamertag is already verified by a different user", async () => {
+    // Force-verify a competing link (owned by someone-else) directly, then a fresh claim
+    // by the signed-in caller must be rejected globally, regardless of server.
     const [link] = await db.insert(gamertagLinks)
-      .values({ userId: "someone-else", serverId, gamertag: "Verified", status: "verified", verifiedAt: new Date() })
+      .values({ userId: "someone-else", gamertag: "Verified", status: "verified", verifiedAt: new Date() })
       .returning();
-    await db.insert(players).values({ serverId, gamertag: "Verified", dayzId: "V=" });
-    const res = await claim({ serverId, gamertag: "Verified" });
+    await db.insert(players).values({ gamertag: "Verified", dayzId: "V=" });
+    const res = await claim({ gamertag: "Verified" });
     expect(res.statusCode).toBe(409);
     await db.delete(gamertagLinks).where(eq(gamertagLinks.id, link!.id));
   });
 });
 
 describe("GET/DELETE /me/gamertag-links", () => {
-  it("lists the caller's links with challenge labels for pending", async () => {
-    await claim({ serverId, gamertag: "Alice" });
+  it("lists the caller's links with challenge labels for pending, and no serverId", async () => {
+    await claim({ gamertag: "Alice" });
     const res = await app.inject({ method: "GET", url: "/me/gamertag-links", headers: { host: "localhost", cookie } });
     expect(res.statusCode).toBe(200);
     const list = res.json();
     const alice = list.find((l: any) => l.gamertag === "Alice");
     expect(alice.status).toBe("pending");
     expect(alice.challenge.sequence).toHaveLength(3);
+    expect(alice).not.toHaveProperty("serverId");
   });
 
   it("fetches a single link and 404s for a foreign id", async () => {
-    const created = (await claim({ serverId, gamertag: "Alice" })).json();
+    const created = (await claim({ gamertag: "Alice" })).json();
     const ok = await app.inject({ method: "GET", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
     expect(ok.statusCode).toBe(200);
     expect(ok.json().id).toBe(created.linkId);
+    expect(ok.json()).not.toHaveProperty("serverId");
     const missing = await app.inject({ method: "GET", url: "/me/gamertag-links/99999999", headers: { host: "localhost", cookie } });
     expect(missing.statusCode).toBe(404);
   });
 
   it("cancels a pending claim", async () => {
-    const created = (await claim({ serverId, gamertag: "Alice" })).json();
+    const created = (await claim({ gamertag: "Alice" })).json();
     const del = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
     expect(del.statusCode).toBe(200);
     expect(del.json().status).toBe("cancelled");
@@ -136,7 +140,7 @@ describe("GET/DELETE /me/gamertag-links", () => {
 
   it("404s (not leaks) GET and DELETE for a link owned by a different user", async () => {
     const [foreign] = await db.insert(gamertagLinks)
-      .values({ userId: "someone-else", serverId, gamertag: "Foreign", status: "pending" })
+      .values({ userId: "someone-else", gamertag: "Foreign", status: "pending" })
       .returning();
     const foreignId = foreign!.id;
 
@@ -154,7 +158,7 @@ describe("GET/DELETE /me/gamertag-links", () => {
   });
 
   it("409s on DELETE of a link that is no longer pending", async () => {
-    const created = (await claim({ serverId, gamertag: "Alice" })).json();
+    const created = (await claim({ gamertag: "Alice" })).json();
     const first = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
     expect(first.statusCode).toBe(200);
     expect(first.json().status).toBe("cancelled");

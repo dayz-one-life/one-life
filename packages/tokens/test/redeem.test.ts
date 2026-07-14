@@ -9,14 +9,20 @@ import { TokenError } from "../src/internal.js";
 
 const { db, sql } = getTestDb();
 let serverId: number;
+let serverId2: number;
 const LIFE1 = new Date("2026-07-11T10:00:00Z");
 const LIFE2 = new Date("2026-07-12T10:00:00Z");
+const LIFE3 = new Date("2026-07-13T10:00:00Z");
 
 beforeAll(async () => {
   await db.insert(user).values({ id: "rd1", name: "RD1", email: "rd1@x.com" });
   const [s] = await db.insert(servers).values({ nitradoServiceId: 772001, name: "rd" }).returning();
   serverId = s!.id;
-  await db.insert(gamertagLinks).values({ userId: "rd1", serverId, gamertag: "RG1", status: "verified" });
+  const [s2] = await db.insert(servers).values({ nitradoServiceId: 772002, name: "rd2" }).returning();
+  serverId2 = s2!.id;
+  // Global-player model: verified gamertag links carry no serverId — owning a gamertag
+  // means owning it everywhere, not on one server.
+  await db.insert(gamertagLinks).values({ userId: "rd1", gamertag: "RG1", status: "verified" });
 });
 afterAll(async () => { await sql.end(); });
 
@@ -46,5 +52,32 @@ describe("redeem", () => {
     const r = await redeem(db, { userId: "rd1" });
     const [b] = await db.select().from(bans).where(eq(bans.id, r.banId));
     expect(b!.status).toBe("lifted");
+  });
+
+  it("owns a ban on a DIFFERENT server than any prior activity — gamertag ownership is global, not per-server", async () => {
+    // rd1's verified link for "RG1" has no server association at all. A ban for "RG1"
+    // shows up on serverId2 (a server rd1 has never touched via a link row), and redeem
+    // must still recognize rd1 as the owner purely by gamertag match.
+    const [ban] = await db
+      .insert(bans)
+      .values({ serverId: serverId2, gamertag: "RG1", lifeStartedAt: LIFE3, reason: "qualified_death", bannedAt: LIFE3, status: "applied", dryRun: false })
+      .returning();
+    await grant(db, { userId: "rd1", kind: "referral", idempotencyKey: "referral:rd1" });
+    const r = await redeem(db, { userId: "rd1", banId: ban!.id });
+    expect(r.banId).toBe(ban!.id);
+    expect(r.gamertag).toBe("RG1");
+    const [b] = await db.select().from(bans).where(eq(bans.id, ban!.id));
+    expect(b!.status).toBe("lift_pending");
+  });
+
+  it("throws not_owner when the caller has no verified link for the ban's gamertag", async () => {
+    await db.insert(user).values({ id: "rd2", name: "RD2", email: "rd2@x.com" });
+    await db.insert(gamertagLinks).values({ userId: "rd2", gamertag: "OtherGT", status: "verified" });
+    await grant(db, { userId: "rd2", kind: "verification", idempotencyKey: "verify:rd2" });
+    const [ban] = await db
+      .insert(bans)
+      .values({ serverId, gamertag: "RG1", lifeStartedAt: LIFE3, reason: "qualified_death", bannedAt: LIFE3, status: "applied", dryRun: false })
+      .returning();
+    await expect(redeem(db, { userId: "rd2", banId: ban!.id })).rejects.toThrow(/not_owner/);
   });
 });

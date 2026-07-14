@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, sessions } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { getLeaderboard } from "../src/leaderboards.js";
 import { getRoster } from "../src/queries.js";
@@ -16,20 +16,20 @@ beforeAll(async () => {
   sid = s!.id;
   // A: provisional (open, connected 2 min before `now`, last_seen == now, no kills/PvP)
   const twoMinAgo = new Date(now.getTime() - 120e3);
-  const [a] = await db.insert(players).values({ serverId: sid, gamertag: "Provi", firstSeenAt: start, lastSeenAt: now }).returning();
+  const [a] = await db.insert(players).values({ gamertag: "Provi", firstSeenAt: start, lastSeenAt: now }).returning();
   const [al] = await db.insert(lives).values({ serverId: sid, playerId: Number(a!.id), lifeNumber: 1, startedAt: twoMinAgo, playtimeSeconds: 0 }).returning();
   await db.insert(sessions).values({ serverId: sid, playerId: Number(a!.id), lifeId: Number(al!.id), connectedAt: twoMinAgo });
   // B: qualified 2h ended life
-  const [b] = await db.insert(players).values({ serverId: sid, gamertag: "Vet", firstSeenAt: start, lastSeenAt: now }).returning();
+  const [b] = await db.insert(players).values({ gamertag: "Vet", firstSeenAt: start, lastSeenAt: now }).returning();
   await db.insert(lives).values({ serverId: sid, playerId: Number(b!.id), lifeNumber: 1, startedAt: start, endedAt: new Date(start.getTime() + 7200e3), deathCause: "bled out", playtimeSeconds: 7200 });
   // C: only a 60s suicide (discarded)
-  const [c] = await db.insert(players).values({ serverId: sid, gamertag: "Rerollr", firstSeenAt: start, lastSeenAt: now }).returning();
+  const [c] = await db.insert(players).values({ gamertag: "Rerollr", firstSeenAt: start, lastSeenAt: now }).returning();
   await db.insert(lives).values({ serverId: sid, playerId: Number(c!.id), lifeNumber: 1, startedAt: start, endedAt: new Date(start.getTime() + 60e3), deathCause: "suicide", playtimeSeconds: 60 });
 });
 afterAll(async () => {
   await db.delete(sessions).where(eq(sessions.serverId, sid));
   await db.delete(lives).where(eq(lives.serverId, sid));
-  await db.delete(players).where(eq(players.serverId, sid));
+  await db.delete(players).where(inArray(players.gamertag, ["Provi", "Vet", "Rerollr"]));
   await db.delete(servers).where(eq(servers.id, sid));
   await sql.end();
 });

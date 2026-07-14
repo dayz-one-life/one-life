@@ -8,7 +8,7 @@ export type ProjectionEvent = {
   payload: Record<string, unknown>;
 };
 
-export type PlayerRow = { id: number; gamertag: string; currentLifeId: number | null; lastSeenAt: Date | null };
+export type PlayerRow = { id: number; gamertag: string; lastSeenAt: Date | null };
 export type LifeRow = { id: number; playerId: number; lifeNumber: number; startedAt: Date; endedAt: Date | null };
 export type SessionRow = { id: number; playerId: number; lifeId: number; connectedAt: Date };
 

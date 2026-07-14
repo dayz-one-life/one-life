@@ -17,9 +17,9 @@ beforeAll(async () => {
   ]);
   const [s] = await db.insert(servers).values({ nitradoServiceId: 771001, name: "sw" }).returning();
   await db.insert(gamertagLinks).values([
-    { userId: "sw1", serverId: s!.id, gamertag: "SWG1", status: "verified" },
-    { userId: "sw2", serverId: s!.id, gamertag: "SWG2", status: "verified" },
-    { userId: "sw3", serverId: s!.id, gamertag: "SWG3", status: "pending" }, // not verified
+    { userId: "sw1", gamertag: "SWG1", status: "verified" },
+    { userId: "sw2", gamertag: "SWG2", status: "verified" },
+    { userId: "sw3", gamertag: "SWG3", status: "pending" }, // not verified
   ]);
   await db.insert(referrals).values({ userId: "sw2", referrerUserId: "sw1" }); // sw2 referred by sw1
 });
