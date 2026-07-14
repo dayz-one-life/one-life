@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { gamertagLinks, verificationChallenges, players } from "@onelife/db";
-import { and, eq, gt, desc, isNull } from "drizzle-orm";
+import { and, eq, gt, desc, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { generateSequence } from "@onelife/verification";
 import { tokenToLabel } from "@onelife/domain";
@@ -58,6 +58,18 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     const verified = await db.select({ id: gamertagLinks.id }).from(gamertagLinks)
       .where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
     if (verified.length > 0) return reply.code(409).send({ error: "already_verified" });
+
+    // One active link per user: a user may hold at most one link with status pending|verified.
+    // A different active gamertag blocks a new claim — a pending one can be cancelled to free the
+    // slot; a verified one is permanent (admin-only release). Re-claiming the SAME pending gamertag
+    // stays idempotent (it is not "other").
+    const active = await db.select({ gamertag: gamertagLinks.gamertag, status: gamertagLinks.status })
+      .from(gamertagLinks)
+      .where(and(eq(gamertagLinks.userId, userId), inArray(gamertagLinks.status, ["pending", "verified"])));
+    const other = active.find((l) => l.gamertag !== gamertag);
+    if (other) {
+      return reply.code(409).send({ error: "active_link_exists", current: { gamertag: other.gamertag, status: other.status } });
+    }
 
     const { linkId, challenge } = await db.transaction(async (tx) => {
       // Upsert the caller's link for (user, gamertag) to pending.
