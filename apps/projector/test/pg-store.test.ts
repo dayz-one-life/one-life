@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, sessions, positions } from "@onelife/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { applyEvent } from "@onelife/projections";
 import { PgProjectionStore } from "../src/pg-store.js";
 import { getTestDb } from "@onelife/test-support";
@@ -15,10 +15,12 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   // Delete child rows before players: no ON DELETE CASCADE on lives.player_id (schema uses "no action").
+  // players is global (no server_id) as of the global-player migration, so scope the cleanup by
+  // the gamertags this suite creates rather than by serverId.
   await db.delete(positions).where(eq(positions.serverId, serverId));
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(inArray(players.gamertag, ["PG", "CAP", "FLA", "STATS", "Zed"]));
   await sql.end();
 });
 
@@ -26,11 +28,21 @@ describe("PgProjectionStore", () => {
   it("creates and reads a player, and tracks open life", async () => {
     await db.transaction(async (tx) => {
       const store = new PgProjectionStore(tx as any);
-      const p = await store.createPlayer(serverId, "PG", "PG=", new Date("2026-07-06T12:00:00Z"));
-      expect(await store.getPlayer(serverId, "PG")).toMatchObject({ id: p.id, gamertag: "PG" });
+      const p = await store.createPlayer("PG", "PG=", new Date("2026-07-06T12:00:00Z"));
+      expect(await store.getPlayer("PG")).toMatchObject({ id: p.id, gamertag: "PG" });
       expect(await store.getMaxLifeNumber(serverId, p.id)).toBe(0);
       const life = await store.createLife(serverId, p.id, 1, new Date("2026-07-06T12:00:00Z"));
       expect(await store.getOpenLife(serverId, p.id)).toMatchObject({ id: life.id });
+    });
+  });
+
+  it("getPlayer/createPlayer are keyed by gamertag alone", async () => {
+    await db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const a = await store.createPlayer("Zed", null, new Date("2026-07-01"));
+      const b = await store.createPlayer("Zed", null, new Date("2026-07-02")); // upsert, not a 2nd row
+      expect(b.id).toBe(a.id);
+      expect((await store.getPlayer("Zed"))?.id).toBe(a.id);
     });
   });
 
@@ -43,7 +55,7 @@ describe("PgProjectionStore", () => {
       await applyEvent(store, { id: 1, serverId, type: "player.connected", occurredAt: new Date("2026-07-06T12:00:00Z"), payload: { gamertag: "CAP", dayzId: "CAP=" } });
       await applyEvent(store, { id: 2, serverId, type: "player.position", occurredAt: new Date("2026-07-06T12:10:00Z"), payload: { gamertag: "CAP", x: 1, y: 2 } });
       await applyEvent(store, { id: 3, serverId, type: "player.connected", occurredAt: new Date("2026-07-06T15:00:00Z"), payload: { gamertag: "CAP", dayzId: "CAP=" } });
-      const p = await store.getPlayerById((await store.getPlayer(serverId, "CAP"))!.id);
+      const p = await store.getPlayerById((await store.getPlayer("CAP"))!.id);
       expect(p!.lastSeenAt).toEqual(new Date("2026-07-06T15:00:00Z")); // touched by the reconnect
       const closed = await tx.select().from(sessions)
         .where(and(eq(sessions.serverId, serverId), eq(sessions.closeReason, "superseded")));
@@ -61,7 +73,7 @@ describe("PgProjectionStore", () => {
   it("findLifeIdAt attributes a timestamp to the open life (Date param binds correctly)", async () => {
     await db.transaction(async (tx) => {
       const store = new PgProjectionStore(tx as any);
-      const p = await store.createPlayer(serverId, "FLA", "FLA=", new Date("2026-07-06T10:00:00Z"));
+      const p = await store.createPlayer("FLA", "FLA=", new Date("2026-07-06T10:00:00Z"));
       const life = await store.createLife(serverId, p.id, 1, new Date("2026-07-06T10:00:00Z"));
       // a moment inside the open (unended) life
       const hit = await store.findLifeIdAt(serverId, p.id, new Date("2026-07-06T10:30:00Z"));
@@ -75,7 +87,7 @@ describe("PgProjectionStore", () => {
   it("endLife persists death stats; getRecentlyEndedLifeId + enrichLifeDeath upgrade the cluster", async () => {
     await db.transaction(async (tx) => {
       const store = new PgProjectionStore(tx as any);
-      const p = await store.createPlayer(serverId, "STATS", "STATS=", new Date("2026-07-12T01:00:00Z"));
+      const p = await store.createPlayer("STATS", "STATS=", new Date("2026-07-12T01:00:00Z"));
       const life = await store.createLife(serverId, p.id, 1, new Date("2026-07-12T01:00:00Z"));
       const lifeId = life.id;
       const playerId = p.id;

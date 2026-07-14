@@ -10,27 +10,24 @@ import type {
 export class PgProjectionStore implements ProjectionStore {
   constructor(private tx: Database) {}
 
-  async getPlayer(serverId: number, gamertag: string): Promise<PlayerRow | null> {
+  async getPlayer(gamertag: string): Promise<PlayerRow | null> {
     const r = await this.tx.select().from(players)
-      .where(and(eq(players.serverId, serverId), eq(players.gamertag, gamertag)));
-    return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, currentLifeId: r[0].currentLifeId, lastSeenAt: r[0].lastSeenAt } : null;
+      .where(eq(players.gamertag, gamertag));
+    return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {
     const r = await this.tx.select().from(players).where(eq(players.id, playerId));
-    return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, currentLifeId: r[0].currentLifeId, lastSeenAt: r[0].lastSeenAt } : null;
+    return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
-  async createPlayer(serverId: number, gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow> {
+  async createPlayer(gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow> {
     const [row] = await this.tx.insert(players)
-      .values({ serverId, gamertag, dayzId, firstSeenAt: seenAt, lastSeenAt: seenAt })
-      .onConflictDoUpdate({ target: [players.serverId, players.gamertag], set: { lastSeenAt: seenAt } })
+      .values({ gamertag, dayzId, firstSeenAt: seenAt, lastSeenAt: seenAt })
+      .onConflictDoUpdate({ target: [players.gamertag], set: { lastSeenAt: seenAt } })
       .returning();
-    return { id: row!.id, gamertag: row!.gamertag, currentLifeId: row!.currentLifeId, lastSeenAt: row!.lastSeenAt };
+    return { id: row!.id, gamertag: row!.gamertag, lastSeenAt: row!.lastSeenAt };
   }
   async touchPlayer(playerId: number, lastSeenAt: Date): Promise<void> {
     await this.tx.update(players).set({ lastSeenAt }).where(eq(players.id, playerId));
-  }
-  async setCurrentLife(playerId: number, lifeId: number | null): Promise<void> {
-    await this.tx.update(players).set({ currentLifeId: lifeId }).where(eq(players.id, playerId));
   }
   async getOpenLife(serverId: number, playerId: number): Promise<LifeRow | null> {
     const r = await this.tx.select().from(lives)
