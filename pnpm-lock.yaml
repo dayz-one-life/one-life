@@ -116,6 +116,37 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
 
+  apps/granter:
+    dependencies:
+      '@onelife/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@onelife/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
+      pino:
+        specifier: ^9.4.0
+        version: 9.14.0
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@onelife/test-support':
+        specifier: workspace:*
+        version: link:../../packages/test-support
+      postgres:
+        specifier: ^3.4.4
+        version: 3.4.9
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+
   apps/ingest-worker:
     dependencies:
       '@onelife/adm-parser':
