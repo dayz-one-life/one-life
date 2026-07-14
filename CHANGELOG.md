@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`deploy/deploy.sh` — one-command production deploy.** Checks out the latest semver release tag, installs + builds web, stops the systemd fleet, takes a full-DB `pg_dump` checkpoint, applies migrations, restarts, and health-checks (all services active + web 200 + api reachable). Rolls back the code on pre-migrate failure; after a successful migrate it keeps the new code up and points at the checkpoint (Postgres migrations are forward-only). A `--rebuild` flag adds the gated projection truncate + re-fold (using `pnpm … run rebuild`) and waits for the projector to catch up — for releases that change projection-table shape.
+
 ### Changed
 ### Deprecated
 ### Removed

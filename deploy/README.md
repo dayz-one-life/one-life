@@ -71,15 +71,38 @@ only in the systemd env is too late — the wrong values are already frozen in t
 
 ## Rebuild / redeploy
 
+**Preferred: `deploy/deploy.sh`.** It automates the whole sequence below —
+checks out the latest release tag, installs + builds web, stops the fleet, takes
+a full-DB `pg_dump` checkpoint, migrates, restarts, and health-checks:
+
+```bash
+cd /var/www/dayzonelife.com
+./deploy/deploy.sh            # deploy the latest semver tag
+./deploy/deploy.sh --rebuild  # ALSO truncate + re-fold projections (schema-shape releases)
+```
+
+- Backups land in `$HOME` (override with `ONELIFE_BACKUP_DIR`) as
+  `onelife-pre-<tag>-full.sql`; the script offers to prune stale ones at the end.
+- It checks out a **tag** (detached HEAD). If a deploy fails **before** migrate it
+  rolls the code back automatically; if it fails **after** a successful migrate it
+  leaves the new code running and prints the checkpoint path (Postgres migrations
+  are forward-only — restore is manual).
+- Use `--rebuild` only for releases whose migrations change projection-table shape
+  (e.g. v0.3.0's `0005`/`0006`). If a plain deploy's `db:migrate` aborts on a
+  projection-table constraint, that's the signal to re-run with `--rebuild`.
+
+<details><summary>Manual equivalent (fallback)</summary>
+
 ```bash
 cd /var/www/dayzonelife.com
 git pull                        # (via the fork/PR workflow — see CLAUDE.md)
 pnpm install --frozen-lockfile
-pnpm --filter @onelife/db db:migrate     # if there are new migrations
-pnpm build                               # builds web (reads apps/web/.env.production)
+pnpm --filter @onelife/db run db:migrate   # if there are new migrations
+pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
      onelife-projector onelife-enforcer onelife-granter
 ```
+</details>
 
 Verify the web build baked the right proxy target:
 ```bash
