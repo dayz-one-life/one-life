@@ -5,8 +5,11 @@ import { user, session, account, verification, type Database } from "@onelife/db
 import type { AuthConfig } from "./config.js";
 
 export function createAuth(db: Database, cfg: AuthConfig) {
-  const socialProviders: Record<string, { clientId: string; clientSecret: string }> = {};
-  if (cfg.providers.discord) socialProviders.discord = cfg.providers.discord;
+  const socialProviders: Record<string, { clientId: string; clientSecret: string; prompt?: "consent" | "none" }> = {};
+  // prompt=consent: Better Auth's Discord provider otherwise defaults to prompt=none,
+  // which silently authorizes with whatever Discord account is already active (no account
+  // chooser). Forcing consent lets the user review and switch accounts each sign-in.
+  if (cfg.providers.discord) socialProviders.discord = { ...cfg.providers.discord, prompt: "consent" };
   if (cfg.providers.google) socialProviders.google = cfg.providers.google;
   if (cfg.providers.github) socialProviders.github = cfg.providers.github;
 

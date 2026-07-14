@@ -24,7 +24,7 @@ export default function AccountPage() {
     <main className="mx-auto max-w-2xl space-y-6 p-8">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-[32px] text-amber">Account</h1>
-        <Button className="border border-line bg-panel text-bone hover:border-amber" onClick={() => void signOut()}>Sign out</Button>
+        <Button className="border border-line bg-panel text-bone hover:border-amber" onClick={() => void signOut().finally(() => { window.location.href = "/"; })}>Sign out</Button>
       </div>
       {session?.user && <p className="text-sm text-muted">Signed in as {session.user.email}</p>}
       <section>
