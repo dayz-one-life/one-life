@@ -166,12 +166,11 @@ no shared type package).
 - `SurvivorControls` — the filter/sort bar. **Map toggle = `<Link>`s** to `/survivors`,
   `/survivors/chernarus`, `/survivors/sakhal` (active from route). **Sort chips = `<Link>`s**
   that set `?sort=` (preserving map, resetting `page=1`).
-  - **Gamertag filter — OPEN DECISION (flagged for review).** A purely client-side filter only
-    searches the current 25-row page, which misleads (typed name may be on page 3). Two honest
-    options: **(a)** defer the filter to post-MVP (the board is for ranking; player lookup exists
-    elsewhere), or **(b)** make it a server param `?q=` that filters the alive set before
-    sort/paginate (cheap — the alive set is small). Recommendation: **(a) defer** for MVP to avoid
-    a half-working control; add `?q=` later if wanted. The mock's filter box is illustrative.
+  - **Gamertag filter — DEFERRED (decided).** Not built for MVP: a client-side filter would only
+    search the current 25-row page (misleading), and the board's purpose is ranking, not lookup
+    (player search exists elsewhere). If wanted later, add it as a server param `?q=` that filters
+    the alive set before sort/paginate (cheap — the alive set is small). The mock's filter box was
+    illustrative only; the MVP control bar is the **map toggle + sort chips**.
 - `SurvivorRow` — one leaderboard entry. **Responsive:** stacked card on mobile (avatar+gamertag
   line, then a 3-tile stat strip), horizontal row on desktop (rank → avatar → gamertag + map badge,
   three right-aligned stat tiles). Single ranked column; top-3 get a faint amber border.
