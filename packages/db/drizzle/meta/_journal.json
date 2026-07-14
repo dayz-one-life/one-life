@@ -15,6 +15,13 @@
       "when": 1783997403154,
       "tag": "0001_lively_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783999713037,
+      "tag": "0002_safe_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

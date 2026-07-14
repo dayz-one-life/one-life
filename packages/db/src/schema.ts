@@ -249,3 +249,26 @@ export const verificationChallenges = pgTable("verification_challenges", {
 }, (t) => ({
   byLink: index("verification_challenges_link_idx").on(t.gamertagLinkId),
 }));
+
+// ── Death-ban enforcement (SP3). Durable side-table — never truncated by projector rebuild;
+// keyed on (server_id, gamertag, life_started_at) which survives rebuilds. ──
+
+export const bans = pgTable("bans", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  serverId: integer("server_id").notNull().references(() => servers.id),
+  gamertag: text("gamertag").notNull(),
+  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }).notNull(),
+  reason: text("reason").notNull(),          // 'qualified_death'
+  qualifiedBy: text("qualified_by"),         // 'playtime' | 'kill' | 'pvp-death'
+  bannedAt: timestamp("banned_at", { withTimezone: true }).notNull(),      // death time
+  expiresAt: timestamp("expires_at", { withTimezone: true }),              // banned_at + BAN_DURATION_HOURS
+  status: text("status").notNull().default("pending"),                     // pending|applied|expired|failed|lifted
+  dryRun: boolean("dry_run").notNull(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  liftedAt: timestamp("lifted_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqDeath: uniqueIndex("bans_server_gamertag_life_uniq").on(t.serverId, t.gamertag, t.lifeStartedAt),
+  byStatus: index("bans_status_idx").on(t.status),
+}));
