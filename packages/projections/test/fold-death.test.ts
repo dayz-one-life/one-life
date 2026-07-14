@@ -25,7 +25,7 @@ describe("death + kills + reboot fold", () => {
     await applyEvent(s, connect(2, "Killer", "2026-07-06T12:00:00Z"));
     await applyEvent(s, { id: 3, serverId: 1, type: "player.died", occurredAt: new Date("2026-07-06T12:30:00Z"),
       payload: { victim: "Victim", dayzId: "Victim=", cause: "pvp", killer: "Killer", weapon: "M4A1", distance: 153.4 } });
-    const v = await s.getPlayer(1, "Victim");
+    const v = await s.getPlayer("Victim");
     expect(await s.getOpenLife(1, v!.id)).toBeNull();
     expect(s.kills.length).toBe(1);
     expect(s.kills[0]).toMatchObject({ killerGamertag: "Killer", victimGamertag: "Victim", weapon: "M4A1", distance: 153.4 });
@@ -53,7 +53,7 @@ describe("death + kills + reboot fold", () => {
   it("stores death stats and upgrades died->suicide across the two-line cluster", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "flaminx0r", "2026-07-06T12:00:00Z"));
-    const flamin = await s.getPlayer(1, "flaminx0r");
+    const flamin = await s.getPlayer("flaminx0r");
     const flaminPlayerId = flamin!.id;
 
     const at = new Date("2026-07-12T01:05:41Z");
@@ -70,7 +70,7 @@ describe("death + kills + reboot fold", () => {
   it("a bare second death line never re-closes or downgrades a specific cause", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "flaminx0r", "2026-07-06T12:00:00Z"));
-    const flamin = await s.getPlayer(1, "flaminx0r");
+    const flamin = await s.getPlayer("flaminx0r");
     const flaminPlayerId = flamin!.id;
 
     const at = new Date("2026-07-12T01:05:41Z");
@@ -90,7 +90,7 @@ describe("death + kills + reboot fold", () => {
       payload: { localDateTime: "2026-07-06 12:20:00" } });
     expect(s.sessions.every((x) => x.disconnectedAt !== null)).toBe(true);
     expect(s.sessions.every((x) => (x as any).closeReason === "reboot")).toBe(true);
-    const a = await s.getPlayer(1, "A");
+    const a = await s.getPlayer("A");
     expect(await s.getOpenLife(1, a!.id)).not.toBeNull();
   });
 });
