@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Survivor character headshot assets.** Added the 31 default DayZ survivor portraits (Baty…Taiki) as WebP under `apps/web/public/characters/<name>.webp`, served by Next.js at `/characters/<name>.webp`. Sourced from the DayZ Fandom wiki (CC BY-SA); intended for an upcoming per-life character-head display keyed off the SP5 character mapping (`getLifeCharacter`).
+
 ### Changed
 ### Deprecated
 ### Removed

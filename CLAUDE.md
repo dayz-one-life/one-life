@@ -90,6 +90,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   survivor roster; the `ingest-worker` RPT pass writes `character_sightings` + a `characters` rollup
   (charID inheritance); `getLifeCharacter` read-model + API life-detail `character` field. Web
   display deferred with the stats dashboard.
+  **Character headshots:** the 31 default survivor portraits live at `apps/web/public/characters/<name>.webp`
+  (lowercase names, served by Next.js at `/characters/<name>.webp`, e.g. `/characters/lewis.webp`), staged for
+  the deferred per-life character-head display — map a life's character name via `/characters/${name.toLowerCase()}.webp`.
+  Sourced from the DayZ Fandom wiki (CC BY-SA; attribution required if shipped public-facing).
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
