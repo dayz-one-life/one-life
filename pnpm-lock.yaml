@@ -65,7 +65,89 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/event-log:
+    dependencies:
+      '@onelife/db':
+        specifier: workspace:*
+        version: link:../db
+      '@onelife/domain':
+        specifier: workspace:*
+        version: link:../domain
+      drizzle-orm:
+        specifier: ^0.36.0
+        version: 0.36.4(postgres@3.4.9)
+    devDependencies:
+      '@onelife/test-support':
+        specifier: workspace:*
+        version: link:../test-support
+      postgres:
+        specifier: ^3.4.4
+        version: 3.4.9
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/nitrado:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/projections:
+    dependencies:
+      '@onelife/domain':
+        specifier: workspace:*
+        version: link:../domain
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/read-models:
+    dependencies:
+      '@onelife/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.36.0
+        version: 0.36.4(postgres@3.4.9)
+    devDependencies:
+      '@onelife/test-support':
+        specifier: workspace:*
+        version: link:../test-support
+      postgres:
+        specifier: ^3.4.4
+        version: 3.4.9
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/test-support:
+    dependencies:
+      '@onelife/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.36.0
+        version: 0.36.4(postgres@3.4.9)
+      postgres:
+        specifier: ^3.4.4
+        version: 3.4.9
     devDependencies:
       typescript:
         specifier: ^5.6.0
