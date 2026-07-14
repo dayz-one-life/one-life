@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 96 25% 6%;         /* #0F120C */
+  --panel: 84 20% 9%;      /* #161A0F */
+  --panel-2: 90 22% 7%;    /* #12160D */
+  --line: 84 23% 16%;      /* #2C3320 */
+  --bone: 66 44% 90%;      /* #EEF0DD */
+  --dim: 72 26% 75%;       /* #C7CDB0 */
+  --muted: 76 20% 55%;     /* #98A077 */
+  --amber: 40 68% 55%;     /* #DCA63F */
+  --blood: 4 55% 53%;      /* #C8433A */
+  --steel: 173 18% 57%;    /* #7FA6A0 */
+  --wash: 70 43% 87%;      /* #E7ECCF */
+}
+
+body { background: hsl(var(--bg)); color: hsl(var(--bone)); }
