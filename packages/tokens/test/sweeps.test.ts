@@ -7,6 +7,9 @@ import { getBalance } from "../src/balance.js";
 const { db, sql } = getTestDb();
 
 beforeAll(async () => {
+  // The grant sweeps operate globally, so isolate this file from other files' verified users
+  // (the package shares one truncate-once test DB). Cascade wipes all derived rows.
+  await sql.unsafe('truncate table "user", servers restart identity cascade');
   await db.insert(user).values([
     { id: "sw1", name: "SW1", email: "sw1@x.com" },
     { id: "sw2", name: "SW2", email: "sw2@x.com" },
