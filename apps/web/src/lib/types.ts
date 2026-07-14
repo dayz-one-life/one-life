@@ -112,6 +112,11 @@ export type PlayerMapStats = {
   longestLifeSeconds: number;
 };
 
+export type AuthMethods = {
+  providers: string[];
+  magicLink: boolean;
+};
+
 export type PlayerAggregate = {
   gamertag: string;
   perMap: PlayerMapStats[];

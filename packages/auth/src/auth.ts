@@ -34,19 +34,22 @@ export function createAuth(db: Database, cfg: AuthConfig) {
         allowDifferentEmails: false,
       },
     },
-    plugins: [
-      magicLink({
-        sendMagicLink: async ({ email, url }) => {
-          await cfg.mailer.send({
-            to: email,
-            subject: "Your One Life sign-in link",
-            body: `Click to sign in: ${url}`,
-            url,
-          });
-        },
-      }),
-      bearer(),
-    ],
+    plugins:
+      cfg.magicLink !== false
+        ? [
+            magicLink({
+              sendMagicLink: async ({ email, url }) => {
+                await cfg.mailer.send({
+                  to: email,
+                  subject: "Your One Life sign-in link",
+                  body: `Click to sign in: ${url}`,
+                  url,
+                });
+              },
+            }),
+            bearer(),
+          ]
+        : [bearer()],
   });
 }
 

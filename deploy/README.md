@@ -56,6 +56,7 @@ Key deployment values added at standup:
 BETTER_AUTH_SECRET=<64-char hex>            # generated with: openssl rand -hex 32
 BETTER_AUTH_URL=https://dayzonelife.com
 AUTH_TRUSTED_ORIGINS=https://dayzonelife.com
+MAGIC_LINK_ENABLED=true                     # set false to hide email sign-in on the login page
 API_ORIGIN=http://127.0.0.1:3011
 NEXT_PUBLIC_APP_URL=https://dayzonelife.com
 NEXT_PUBLIC_SITE_URL=https://dayzonelife.com

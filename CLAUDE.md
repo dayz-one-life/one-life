@@ -64,7 +64,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   → life/player/session/kill projections + qualified-lives read model.
 - **SP2 — Auth + web + gamertag verification** ✅: Better Auth (Discord/Google/GitHub/magic-link),
   gamertag linking, emote verification (verifier loop), Fastify API, and an auth-focused web surface
-  (login + account/claim + minimal landing). Stats dashboard deferred.
+  (login + account/claim + minimal landing). Stats dashboard deferred. The login page renders only
+  **configured** sign-in methods — social providers appear only when both `<P>_CLIENT_ID`/`<P>_CLIENT_SECRET`
+  are set, and email/magic-link is gated by `MAGIC_LINK_ENABLED` (default `true`). The backend is the source
+  of truth via `enabledAuthMethods()`, served at `GET /api/auth/providers` (a static route that wins over the
+  `/api/auth/*` Better Auth catch-all); the login page is a server component that fetches it before render.
 - **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
