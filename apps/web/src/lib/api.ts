@@ -89,10 +89,12 @@ export const getBuilds = (serverId: number) => apiGet<Build[]>(`/api/servers/${s
 export const getMe = () => apiGet<Me>("/api/me");
 export const getGamertagLinks = () => apiGet<GamertagLink[]>("/api/me/gamertag-links");
 export const getGamertagLink = (id: number) => apiGet<GamertagLink>(`/api/me/gamertag-links/${id}`);
-export const claimGamertag = (serverId: number, gamertag: string) =>
-  apiSend<ClaimResult>("POST", "/api/me/gamertag-links", { serverId, gamertag });
+export const claimGamertag = (gamertag: string) =>
+  apiSend<ClaimResult>("POST", "/api/me/gamertag-links", { gamertag });
 export const cancelGamertagLink = (id: number) =>
   apiSend<{ status: string }>("DELETE", `/api/me/gamertag-links/${id}`);
+export const searchClaimableGamertags = (q: string) =>
+  apiGet<string[]>(`/api/players/search?q=${encodeURIComponent(q)}`);
 
 export type TokenTransaction = { id: number; delta: number; kind: string; createdAt: string };
 export type TokenWalletData = { balance: number; transactions: TokenTransaction[] };
