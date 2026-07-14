@@ -1,9 +1,17 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGamertagLinks, getGamertagLink, claimGamertag, cancelGamertagLink } from "./api";
+import { hasPendingLink } from "./account-status";
 
 export function useGamertagLinks(enabled = true) {
-  return useQuery({ queryKey: ["gamertag-links"], queryFn: getGamertagLinks, enabled });
+  return useQuery({
+    queryKey: ["gamertag-links"],
+    queryFn: getGamertagLinks,
+    enabled,
+    // Poll while a link is pending so the banner's emote progress ticks live and
+    // flips to verified on completion; stops once nothing is pending.
+    refetchInterval: (q) => (hasPendingLink(q.state.data) ? 5000 : false),
+  });
 }
 
 export function useClaimGamertag() {
