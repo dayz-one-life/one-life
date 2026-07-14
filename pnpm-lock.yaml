@@ -41,6 +41,9 @@ importers:
       '@onelife/read-models':
         specifier: workspace:*
         version: link:../../packages/read-models
+      '@onelife/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
       '@onelife/verification':
         specifier: workspace:*
         version: link:../../packages/verification
