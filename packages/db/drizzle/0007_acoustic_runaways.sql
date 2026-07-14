@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "gamertag_links_user_active_uniq" ON "gamertag_links" USING btree ("user_id") WHERE "gamertag_links"."status" IN ('pending','verified');

@@ -231,6 +231,7 @@ export const gamertagLinks = pgTable("gamertag_links", {
 }, (t) => ({
   uniqUserGamertag: uniqueIndex("gamertag_links_user_gamertag_uniq").on(t.userId, t.gamertag),
   uniqVerified: uniqueIndex("gamertag_links_verified_uniq").on(t.gamertag).where(sql`${t.status} = 'verified'`),
+  uniqUserActive: uniqueIndex("gamertag_links_user_active_uniq").on(t.userId).where(sql`${t.status} IN ('pending','verified')`),
   byGamertag: index("gamertag_links_gamertag_idx").on(t.gamertag),
 }));
 

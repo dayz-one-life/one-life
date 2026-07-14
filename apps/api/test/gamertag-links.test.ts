@@ -46,10 +46,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(verificationChallenges).where(
-    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE gamertag IN ('Alice', 'Verified', 'Foreign'))`);
-  await db.delete(gamertagLinks).where(inArray(gamertagLinks.gamertag, ["Alice", "Verified", "Foreign"]));
+    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE gamertag IN ('Alice', 'Verified', 'Foreign', 'Bob'))`);
+  await db.delete(gamertagLinks).where(inArray(gamertagLinks.gamertag, ["Alice", "Verified", "Foreign", "Bob"]));
   await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
-  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Verified"]));
+  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Verified", "Bob"]));
   await sql`DELETE FROM "session" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "account" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "verification" WHERE identifier LIKE ${"%" + email + "%"}`;
@@ -165,5 +165,65 @@ describe("GET/DELETE /me/gamertag-links", () => {
 
     const second = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${created.linkId}`, headers: { host: "localhost", cookie } });
     expect(second.statusCode).toBe(409);
+  });
+});
+
+describe("one active gamertag link per user", () => {
+  beforeAll(async () => {
+    await db.insert(players).values({ gamertag: "Bob", dayzId: "B=" });
+  });
+
+  it("409 active_link_exists when claiming a second gamertag while one is pending", async () => {
+    await claim({ gamertag: "Alice" });            // caller now holds a pending Alice link
+    const res = await claim({ gamertag: "Bob" });
+    expect(res.statusCode).toBe(409);
+    const body = res.json();
+    expect(body.error).toBe("active_link_exists");
+    expect(body.current.gamertag).toBe("Alice");
+    expect(body.current.status).toBe("pending");
+  });
+
+  it("allows a different gamertag after the pending one is cancelled", async () => {
+    const alice = (await claim({ gamertag: "Alice" })).json();
+    const del = await app.inject({ method: "DELETE", url: `/me/gamertag-links/${alice.linkId}`, headers: { host: "localhost", cookie } });
+    expect(del.statusCode).toBe(200);
+    const res = await claim({ gamertag: "Bob" });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().gamertag).toBe("Bob");
+    // free the slot again so later assertions start clean
+    await app.inject({ method: "DELETE", url: `/me/gamertag-links/${res.json().linkId}`, headers: { host: "localhost", cookie } });
+  });
+
+  it("409 active_link_exists when the caller already has a verified gamertag", async () => {
+    const alice = (await claim({ gamertag: "Alice" })).json();
+    await db.update(gamertagLinks).set({ status: "verified", verifiedAt: new Date() }).where(eq(gamertagLinks.id, alice.linkId));
+    const res = await claim({ gamertag: "Bob" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("active_link_exists");
+    expect(res.json().current.status).toBe("verified");
+    // revert so the shared Alice link doesn't leak a verified state into cleanup
+    await db.update(gamertagLinks).set({ status: "cancelled", verifiedAt: null }).where(eq(gamertagLinks.id, alice.linkId));
+  });
+
+  it("DB backstop: a second active link for one user violates the unique index", async () => {
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
+    await db.insert(gamertagLinks).values({ userId: "someone-else", gamertag: "IdxA", status: "pending" });
+    await expect(
+      db.insert(gamertagLinks).values({ userId: "someone-else", gamertag: "IdxB", status: "pending" }),
+    ).rejects.toThrow();
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
+  });
+
+  it("409s (never 500s) when two concurrent claims for different gamertags race", async () => {
+    const [aRes, bRes] = await Promise.all([claim({ gamertag: "Alice" }), claim({ gamertag: "Bob" })]);
+    const codes = [aRes.statusCode, bRes.statusCode].sort((x, y) => x - y);
+    expect(codes).toEqual([201, 409]);
+
+    const winner = aRes.statusCode === 201 ? aRes : bRes;
+    const loser = aRes.statusCode === 201 ? bRes : aRes;
+    expect(loser.json().error).toBe("active_link_exists");
+
+    await db.delete(verificationChallenges).where(eq(verificationChallenges.gamertagLinkId, winner.json().linkId));
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.id, winner.json().linkId));
   });
 });

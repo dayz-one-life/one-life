@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMe, getTokens, redeemToken, transferToken, setReferrer } from "@/lib/api";
 import { useGamertagLinks, useCancelLink } from "@/lib/use-gamertag-links";
+import { activeLink } from "@/lib/active-link";
 import { LinksList } from "@/components/links-list";
 import { TokenWallet } from "@/components/token-wallet";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -14,6 +15,7 @@ export default function AccountPage() {
   const me = useQuery({ queryKey: ["me"], queryFn: getMe });
   const links = useGamertagLinks();
   const cancel = useCancelLink();
+  const hasActiveLink = activeLink(links.data) !== null;
   const tokens = useQuery({ queryKey: ["tokens"], queryFn: getTokens });
   const refreshTokens = () => qc.invalidateQueries({ queryKey: ["tokens"] });
   const redeem = useMutation({ mutationFn: () => redeemToken(), onSuccess: refreshTokens });
@@ -48,7 +50,9 @@ export default function AccountPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="border-b-2 border-line pb-2 font-display text-[20px] text-bone">Gamertag links</h2>
-          <Link className="text-sm text-amber hover:underline" href="/account/claim">Claim a gamertag →</Link>
+          {!hasActiveLink && (
+            <Link className="text-sm text-amber hover:underline" href="/account/claim">Claim a gamertag →</Link>
+          )}
         </div>
         {links.isLoading ? (
           <p className="text-muted">Loading…</p>

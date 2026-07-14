@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { gamertagLinks, verificationChallenges, players } from "@onelife/db";
-import { and, eq, gt, desc, isNull } from "drizzle-orm";
+import { and, eq, gt, desc, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { generateSequence } from "@onelife/verification";
 import { tokenToLabel } from "@onelife/domain";
@@ -23,6 +23,11 @@ function serializeChallenge(c: ChallengeRow, now: Date) {
 }
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
+
+function isActiveLinkUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; constraint_name?: string };
+  return e?.code === "23505" && e?.constraint_name === "gamertag_links_user_active_uniq";
+}
 
 async function loadLink(db: Database, userId: string, linkId: number, now: Date) {
   const rows = await db.select().from(gamertagLinks).where(eq(gamertagLinks.id, linkId));
@@ -59,35 +64,66 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
       .where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
     if (verified.length > 0) return reply.code(409).send({ error: "already_verified" });
 
-    const { linkId, challenge } = await db.transaction(async (tx) => {
-      // Upsert the caller's link for (user, gamertag) to pending.
-      const existing = await tx.select().from(gamertagLinks)
-        .where(and(eq(gamertagLinks.userId, userId), eq(gamertagLinks.gamertag, gamertag)));
-      let id: number;
-      if (existing[0]) {
-        id = existing[0].id;
-        if (existing[0].status !== "pending") {
-          await tx.update(gamertagLinks).set({ status: "pending", verifiedAt: null }).where(eq(gamertagLinks.id, id));
-        }
-      } else {
-        const [row] = await tx.insert(gamertagLinks).values({ userId, gamertag, status: "pending" }).returning();
-        id = row!.id;
-      }
+    // One active link per user: a user may hold at most one link with status pending|verified.
+    // A different active gamertag blocks a new claim — a pending one can be cancelled to free the
+    // slot; a verified one is permanent (admin-only release). Re-claiming the SAME pending gamertag
+    // stays idempotent (it is not "other").
+    const active = await db.select({ gamertag: gamertagLinks.gamertag, status: gamertagLinks.status })
+      .from(gamertagLinks)
+      .where(and(eq(gamertagLinks.userId, userId), inArray(gamertagLinks.status, ["pending", "verified"])));
+    const other = active.find((l) => l.gamertag !== gamertag);
+    if (other) {
+      return reply.code(409).send({ error: "active_link_exists", current: { gamertag: other.gamertag, status: other.status } });
+    }
 
-      // D7: reuse a live (not completed, not expired) challenge; else issue a fresh one.
-      const live = await tx.select().from(verificationChallenges)
-        .where(and(eq(verificationChallenges.gamertagLinkId, id), isNull(verificationChallenges.completedAt), gt(verificationChallenges.expiresAt, now)))
-        .orderBy(desc(verificationChallenges.issuedAt)).limit(1);
-      let ch = live[0];
-      if (!ch) {
-        const [c] = await tx.insert(verificationChallenges).values({
-          gamertagLinkId: id, sequence: generateSequence(Math.random),
-          issuedAt: now, expiresAt: new Date(now.getTime() + CHALLENGE_TTL_MS),
-        }).returning();
-        ch = c!;
-      }
-      return { linkId: id, challenge: ch };
-    });
+    let linkId: number;
+    let challenge: ChallengeRow;
+    try {
+      const result = await db.transaction(async (tx) => {
+        // Upsert the caller's link for (user, gamertag) to pending.
+        const existing = await tx.select().from(gamertagLinks)
+          .where(and(eq(gamertagLinks.userId, userId), eq(gamertagLinks.gamertag, gamertag)));
+        let id: number;
+        if (existing[0]) {
+          id = existing[0].id;
+          if (existing[0].status !== "pending") {
+            await tx.update(gamertagLinks).set({ status: "pending", verifiedAt: null }).where(eq(gamertagLinks.id, id));
+          }
+        } else {
+          const [row] = await tx.insert(gamertagLinks).values({ userId, gamertag, status: "pending" }).returning();
+          id = row!.id;
+        }
+
+        // D7: reuse a live (not completed, not expired) challenge; else issue a fresh one.
+        const live = await tx.select().from(verificationChallenges)
+          .where(and(eq(verificationChallenges.gamertagLinkId, id), isNull(verificationChallenges.completedAt), gt(verificationChallenges.expiresAt, now)))
+          .orderBy(desc(verificationChallenges.issuedAt)).limit(1);
+        let ch = live[0];
+        if (!ch) {
+          const [c] = await tx.insert(verificationChallenges).values({
+            gamertagLinkId: id, sequence: generateSequence(Math.random),
+            issuedAt: now, expiresAt: new Date(now.getTime() + CHALLENGE_TTL_MS),
+          }).returning();
+          ch = c!;
+        }
+        return { linkId: id, challenge: ch };
+      });
+      linkId = result.linkId;
+      challenge = result.challenge;
+    } catch (err) {
+      // Race backstop: two concurrent claims for different gamertags can both pass the
+      // read-only guard above, then collide on the partial unique index. Map that specific
+      // violation to the same friendly 409 the guard returns; anything else keeps surfacing.
+      if (!isActiveLinkUniqueViolation(err)) throw err;
+      const active = await db.select({ gamertag: gamertagLinks.gamertag, status: gamertagLinks.status })
+        .from(gamertagLinks)
+        .where(and(eq(gamertagLinks.userId, userId), inArray(gamertagLinks.status, ["pending", "verified"])));
+      const found = active.find((l) => l.gamertag !== gamertag) ?? active[0];
+      return reply.code(409).send({
+        error: "active_link_exists",
+        current: { gamertag: found!.gamertag, status: found!.status },
+      });
+    }
 
     return reply.code(201).send({
       linkId, gamertag, status: "pending", challenge: serializeChallenge(challenge, now),
