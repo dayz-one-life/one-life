@@ -300,7 +300,7 @@ links, so none are expected — but do not assume; check.
 3. **Stop the projector** so old code can't re-fold during the migration:
    `sudo systemctl stop onelife-projector`
 4. **Clear the derived projection tables + reset the cursor** (schema-agnostic TRUNCATE, safe pre-migrate):
-   `pnpm --filter @onelife/projector rebuild`  — this empties `players`, `lives`, `sessions`,
+   `pnpm --filter @onelife/projector run rebuild`  — this empties `players`, `lives`, `sessions`,
    `kills`, `hit_events`, `build_events`, `positions` and sets the projector cursor to 0.
 5. **Precheck `gamertag_links` for duplicates that `0006`'s new uniques would reject** (durable table,
    not truncated). Both queries MUST return zero rows before proceeding:
