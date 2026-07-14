@@ -15,6 +15,12 @@ const APP_TABLES = [
   "hit_events",
   "build_events",
   "positions",
+  "gamertag_links",
+  "verification_challenges",
+  "user",
+  "account",
+  "session",
+  "verification",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */
