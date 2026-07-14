@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
+- **Persistent onboarding/status banner drives account state site-wide.** A banner under the masthead now reflects the viewer's onboarding state on every page and carries the single next action, and the masthead's amber CTA collapses to match. One pure `accountStatus()` derivation (`signedOut | unlinked | pending | verified | loading`) is the single source of truth for both surfaces. **Signed out** → banner *"Sign in to claim your gamertag"* (→ `/login`), no masthead CTA. **Signed in, no active link** → banner *"Link your gamertag to get started"* (→ `/account/claim`) + a quiet **Account** link in the masthead. **Pending** → a self-contained verification banner showing the emote sequence with live progress (`n / total DONE`), an expiry countdown, **Cancel claim**, and a **Start a new challenge** re-claim when the challenge expires — plus the quiet **Account** link. **Verified** → no banner; the masthead shows the amber **{GAMERTAG}** CTA → `/account`. No backend change: the existing `GET /me/gamertag-links` list already serializes the challenge, so `useGamertagLinks` just adds a 5s `refetchInterval` while a link is pending (progress ticks live, flips to verified on completion, and never polls signed-out visitors). `StatusBanner`/`MastheadSlot` are presentational (unit-tested by props); `useAccountStatus`/`StatusBannerContainer` wire the hooks. Decorative banner glyphs are `aria-hidden`.
 ### Deprecated
 ### Removed
 ### Fixed
