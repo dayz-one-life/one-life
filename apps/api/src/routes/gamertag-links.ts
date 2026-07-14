@@ -9,7 +9,7 @@ import { tokenToLabel } from "@onelife/domain";
 import { getSession } from "../auth-plugin.js";
 
 const CHALLENGE_TTL_MS = 24 * 60 * 60 * 1000;
-const claimBody = z.object({ serverId: z.number().int().positive(), gamertag: z.string().min(1) });
+const claimBody = z.object({ gamertag: z.string().min(1) });
 
 type ChallengeRow = typeof verificationChallenges.$inferSelect;
 
@@ -32,7 +32,7 @@ async function loadLink(db: Database, userId: string, linkId: number, now: Date)
     .where(eq(verificationChallenges.gamertagLinkId, link.id))
     .orderBy(desc(verificationChallenges.issuedAt)).limit(1);
   return {
-    id: link.id, serverId: link.serverId, gamertag: link.gamertag,
+    id: link.id, gamertag: link.gamertag,
     status: link.status, verifiedAt: link.verifiedAt,
     challenge: link.status === "pending" && ch[0] ? serializeChallenge(ch[0], now) : null,
   };
@@ -45,7 +45,7 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
 
     const parsed = claimBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
-    const { serverId, gamertag } = parsed.data;
+    const { gamertag } = parsed.data;
     const userId = session.user.id;
     const now = new Date();
 
@@ -56,13 +56,13 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
 
     // D3: reject if this gamertag is already verified by anyone.
     const verified = await db.select({ id: gamertagLinks.id }).from(gamertagLinks)
-      .where(and(eq(gamertagLinks.serverId, serverId), eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
+      .where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
     if (verified.length > 0) return reply.code(409).send({ error: "already_verified" });
 
     const { linkId, challenge } = await db.transaction(async (tx) => {
-      // Upsert the caller's link for (user, server, gamertag) to pending.
+      // Upsert the caller's link for (user, gamertag) to pending.
       const existing = await tx.select().from(gamertagLinks)
-        .where(and(eq(gamertagLinks.userId, userId), eq(gamertagLinks.serverId, serverId), eq(gamertagLinks.gamertag, gamertag)));
+        .where(and(eq(gamertagLinks.userId, userId), eq(gamertagLinks.gamertag, gamertag)));
       let id: number;
       if (existing[0]) {
         id = existing[0].id;
@@ -70,7 +70,7 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
           await tx.update(gamertagLinks).set({ status: "pending", verifiedAt: null }).where(eq(gamertagLinks.id, id));
         }
       } else {
-        const [row] = await tx.insert(gamertagLinks).values({ userId, serverId, gamertag, status: "pending" }).returning();
+        const [row] = await tx.insert(gamertagLinks).values({ userId, gamertag, status: "pending" }).returning();
         id = row!.id;
       }
 
@@ -90,7 +90,7 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     });
 
     return reply.code(201).send({
-      linkId, serverId, gamertag, status: "pending", challenge: serializeChallenge(challenge, now),
+      linkId, gamertag, status: "pending", challenge: serializeChallenge(challenge, now),
     });
   });
 
