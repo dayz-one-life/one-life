@@ -271,15 +271,32 @@ git commit -am "test(projector): rebuild yields one global player with per-serve
 
 ## Deployment (runbook — NOT part of the code PR; run after release)
 
-The prod rebuild is a deploy step, gated behind a checkpoint:
+The prod rebuild is a deploy step, gated behind a checkpoint.
 
-1. `pg_dump` the projection tables (or full DB) as a checkpoint:
+**Ordering is critical.** Migration `0005` builds `players_gamertag_uniq`. On real prod data a
+gamertag has played more than one server, so the old per-`(server_id, gamertag)` rows contain
+duplicate gamertags — building the unique index over them fails with `duplicate key` and aborts
+the migration mid-statement. Therefore `players` MUST be empty before `db:migrate`, and the
+projector MUST be stopped first so the still-running OLD code can't repopulate old-model rows
+between the truncate and the migrate.
+
+1. `pg_dump` a checkpoint:
    `pg_dump "postgres://onelife:onelife@localhost:5432/onelife" -t players -t lives -t sessions -t kills -t hit_events -t build_events -t positions > /root/pre-up1-projections.sql`
-2. Deploy the merged code (prod checkout on `main`), apply migration `0005`:
-   `pnpm --filter @onelife/db db:migrate`
-3. Rebuild: `pnpm --filter @onelife/projector rebuild` (truncates derived tables, resets cursor to 0).
-4. The running `onelife-projector` re-folds from cursor 0. Watch: `journalctl -u onelife-projector -f`.
-5. Verify: `SELECT count(*) FROM players;` (one row per distinct gamertag), total `lives` count matches pre-rebuild, and a gamertag that played both servers has one player row with lives on both `server_id`s.
+   Also note the pre-rebuild `SELECT count(*) FROM lives;` for the post-check.
+2. **Deploy the merged code** (prod checkout onto the released `main`).
+3. **Stop the projector** so old code can't re-fold during the migration:
+   `sudo systemctl stop onelife-projector`
+4. **Clear the derived projection tables + reset the cursor** (schema-agnostic TRUNCATE, safe pre-migrate):
+   `pnpm --filter @onelife/projector rebuild`  — this empties `players`, `lives`, `sessions`,
+   `kills`, `hit_events`, `build_events`, `positions` and sets the projector cursor to 0.
+5. **Apply migrations** — now `players` is empty, so `0005` (players) and `0006` (gamertag_links, UP2)
+   build cleanly: `pnpm --filter @onelife/db db:migrate`.
+6. **Start the projector** — it re-folds from cursor 0 under the new schema/code, rebuilding one
+   global player per gamertag with per-server lives: `sudo systemctl start onelife-projector`;
+   watch `journalctl -u onelife-projector -f` until it catches up.
+7. **Verify:** `SELECT count(*) FROM players;` = one row per distinct gamertag; total `lives`
+   matches the step-1 count; a gamertag that played both servers has ONE player row with lives on
+   both `server_id`s.
 
 ---
 
