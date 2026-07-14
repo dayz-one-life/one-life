@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+- UP1 deploy runbook: corrected the projection-rebuild command to `pnpm --filter @onelife/projector run rebuild` (bare `pnpm … rebuild` invokes pnpm's native-module builtin and silently skips the truncate, which then aborts `db:migrate` on the `players_gamertag_uniq` duplicate check).
+
 ### Security
 
 ## [0.3.0] - 2026-07-14
