@@ -1,7 +1,7 @@
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
   Me, GamertagLink, ClaimResult, PlayerAggregate,
-  GlobalRosterEntry, GlobalLeaderRow,
+  GlobalRosterEntry, GlobalLeaderRow, AuthMethods,
 } from "./types";
 
 export class ApiError extends Error {
@@ -72,6 +72,7 @@ export async function apiSend<T>(method: "POST" | "DELETE", path: string, body?:
   return parse<T>(await fetch(url(path), init));
 }
 
+export const getAuthMethods = () => apiGet<AuthMethods>("/api/auth/providers");
 export const getServers = () => apiGet<Server[]>("/api/servers");
 export const getRoster = (serverId: number) => apiGet<RosterEntry[]>(`/api/servers/${serverId}/roster`);
 export const getProfile = (serverId: number, gamertag: string) =>
