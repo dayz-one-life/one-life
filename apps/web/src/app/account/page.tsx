@@ -1,17 +1,24 @@
 "use client";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { getMe } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getMe, getTokens, redeemToken, transferToken, setReferrer } from "@/lib/api";
 import { useGamertagLinks, useCancelLink } from "@/lib/use-gamertag-links";
 import { LinksList } from "@/components/links-list";
+import { TokenWallet } from "@/components/token-wallet";
 import { signOut, useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 
 export default function AccountPage() {
   const { data: session } = useSession();
+  const qc = useQueryClient();
   const me = useQuery({ queryKey: ["me"], queryFn: getMe });
   const links = useGamertagLinks();
   const cancel = useCancelLink();
+  const tokens = useQuery({ queryKey: ["tokens"], queryFn: getTokens });
+  const refreshTokens = () => qc.invalidateQueries({ queryKey: ["tokens"] });
+  const redeem = useMutation({ mutationFn: () => redeemToken(), onSuccess: refreshTokens });
+  const transfer = useMutation({ mutationFn: (to: string) => transferToken(to), onSuccess: refreshTokens });
+  const referrer = useMutation({ mutationFn: (r: string) => setReferrer(r) });
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-8">
@@ -51,6 +58,14 @@ export default function AccountPage() {
           <LinksList links={links.data ?? []} onCancel={(id) => cancel.mutate(id)} />
         )}
       </section>
+      <TokenWallet
+        balance={tokens.data?.balance ?? 0}
+        redeeming={redeem.isPending}
+        error={redeem.isError ? (redeem.error as Error).message : null}
+        onRedeem={() => redeem.mutate()}
+        onTransfer={(to) => transfer.mutate(to)}
+        onSetReferrer={(r) => referrer.mutate(r)}
+      />
     </main>
   );
 }

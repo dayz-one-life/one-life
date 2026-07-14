@@ -22,6 +22,8 @@ const APP_TABLES = [
   "session",
   "verification",
   "bans",
+  "token_transactions",
+  "referrals",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */

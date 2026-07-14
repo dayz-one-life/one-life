@@ -94,6 +94,16 @@ export const claimGamertag = (serverId: number, gamertag: string) =>
 export const cancelGamertagLink = (id: number) =>
   apiSend<{ status: string }>("DELETE", `/api/me/gamertag-links/${id}`);
 
+export type TokenTransaction = { id: number; delta: number; kind: string; createdAt: string };
+export type TokenWalletData = { balance: number; transactions: TokenTransaction[] };
+export const getTokens = () => apiGet<TokenWalletData>("/api/me/tokens");
+export const redeemToken = (banId?: number) =>
+  apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
+export const transferToken = (toUserId: string) =>
+  apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toUserId });
+export const setReferrer = (referrerUserId: string) =>
+  apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerUserId });
+
 async function getOrNull<T>(path: string): Promise<T | null> {
   try {
     return await apiGet<T>(path);

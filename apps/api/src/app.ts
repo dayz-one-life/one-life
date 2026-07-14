@@ -8,6 +8,7 @@ import { registerBoardRoutes } from "./routes/boards.js";
 import { registerAuthHandler } from "./auth-plugin.js";
 import { registerMeRoute } from "./routes/me.js";
 import { registerGamertagLinkRoutes } from "./routes/gamertag-links.js";
+import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerPlayerAggregateRoutes } from "./routes/player-aggregate.js";
 import { registerGlobalRoutes } from "./routes/global.js";
 
@@ -27,6 +28,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerAuthHandler(app, opts.auth);
     registerMeRoute(app, opts.auth);
     registerGamertagLinkRoutes(app, db, opts.auth);
+    registerTokenRoutes(app, db, opts.auth);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);

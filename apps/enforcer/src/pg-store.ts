@@ -99,6 +99,18 @@ export async function markExpired(db: Database, id: number, at: Date): Promise<v
   await db.update(bans).set({ status: "expired", liftedAt: at }).where(eq(bans.id, id));
 }
 
+/** Bans a token-redemption flagged for removal (was applied to Nitrado). */
+export async function liftPendingBans(db: Database): Promise<BanRow[]> {
+  return db
+    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, expiresAt: bans.expiresAt })
+    .from(bans)
+    .where(eq(bans.status, "lift_pending"));
+}
+
+export async function markLifted(db: Database, id: number, at: Date): Promise<void> {
+  await db.update(bans).set({ status: "lifted", liftedAt: at }).where(eq(bans.id, id));
+}
+
 export async function serverServiceId(db: Database, serverId: number): Promise<number> {
   const [s] = await db.select({ sid: servers.nitradoServiceId }).from(servers).where(eq(servers.id, serverId));
   if (!s) throw new Error(`enforcer: no server ${serverId}`);

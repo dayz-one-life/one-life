@@ -63,7 +63,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
-  (never rebuilt). **SP4** — unban-token economy.
+  (never rebuilt).
+- **SP4 — Unban-token economy** ✅: `@onelife/tokens` (ledger; balance = SUM of deltas; idempotent
+  grants) + `apps/granter` sweeps. Token on verification, monthly + referral grants, self-unban
+  (redeem → ban `lift_pending` → enforcer removes under the dry-run gate), and transfers. API
+  routes + a web wallet on the account page.
 - **SP5** — RPT ingest + character mapping (survivor model per life). Device-based alt detection
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
@@ -73,10 +77,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **packages:** `db` (18-table schema + migrations), `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries), `test-support` (Postgres
-  test harness), `auth` (Better Auth), `verification` (emote-sequence challenges).
+  test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
+  `tokens` (unban-token ledger + grants/redeem/transfer).
 - **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
-  `enforcer` (24h death-ban reconciler; dry-run by default).
+  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps).
 
 ## Commands
 

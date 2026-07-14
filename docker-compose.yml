@@ -48,5 +48,13 @@ services:
       BAN_DURATION_HOURS: "24"
       LOG_LEVEL: info
     restart: unless-stopped
+  granter:
+    build: { context: ., dockerfile: apps/granter/Dockerfile }
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://onelife:onelife@postgres:5432/onelife
+      GRANTER_INTERVAL_SECONDS: "300"
+      LOG_LEVEL: info
+    restart: unless-stopped
 volumes:
   pgdata:

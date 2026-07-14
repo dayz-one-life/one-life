@@ -1,5 +1,5 @@
 {
-  "name": "@onelife/api",
+  "name": "@onelife/granter",
   "version": "0.0.0",
   "type": "module",
   "main": "src/main.ts",
@@ -9,24 +9,16 @@
     "start": "tsx src/main.ts"
   },
   "dependencies": {
-    "@fastify/cors": "^11.3.0",
-    "@onelife/auth": "workspace:^",
     "@onelife/db": "workspace:*",
-    "@onelife/domain": "workspace:*",
-    "@onelife/read-models": "workspace:*",
     "@onelife/tokens": "workspace:*",
-    "@onelife/verification": "workspace:*",
-    "better-auth": "^1.6.23",
-    "drizzle-orm": "^0.36.0",
-    "fastify": "^5.0.0",
     "pino": "^9.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@onelife/test-support": "workspace:*",
-    "postgres": "^3.4.4",
-    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "tsx": "^4.19.0",
+    "postgres": "^3.4.4"
   }
 }

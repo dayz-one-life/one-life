@@ -75,3 +75,27 @@ describe("enforcerTick", () => {
     expect(row!.status).toBe("expired");
   });
 });
+
+describe("enforcerTick — lift_pending (token redemption)", () => {
+  it("dry-run: marks lifted without calling Nitrado", async () => {
+    const L = new Date("2026-07-20T10:00:00Z");
+    await db.insert(bans).values({ serverId, gamertag: "Steveo12491", lifeStartedAt: L, reason: "qualified_death", bannedAt: L, status: "lift_pending", dryRun: true });
+    const fake = fakeNitrado();
+    const r = await enforcerTick(db, { nitradoFor: fake.nitradoFor, dryRun: true, banDurationHours: 24, now: new Date("2026-07-20T11:00:00Z"), log });
+    expect(fake.calls.remove).toEqual([]);
+    expect(r.lifted).toBe(1);
+    const [b] = await db.select().from(bans).where(eq(bans.lifeStartedAt, L));
+    expect(b!.status).toBe("lifted");
+  });
+
+  it("enforce: removes the redeemed ban from Nitrado and marks lifted", async () => {
+    const L = new Date("2026-07-21T10:00:00Z");
+    await db.insert(bans).values({ serverId, gamertag: "Steveo12491", lifeStartedAt: L, reason: "qualified_death", bannedAt: L, status: "lift_pending", dryRun: false });
+    const fake = fakeNitrado();
+    const r = await enforcerTick(db, { nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24, now: new Date("2026-07-21T11:00:00Z"), log });
+    expect(fake.calls.remove).toContain("Steveo12491");
+    expect(r.lifted).toBe(1);
+    const [b] = await db.select().from(bans).where(eq(bans.lifeStartedAt, L));
+    expect(b!.status).toBe("lifted");
+  });
+});
