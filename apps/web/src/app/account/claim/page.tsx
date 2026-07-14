@@ -22,7 +22,9 @@ export default function ClaimPage() {
   if (shownId !== null && link) {
     return (
       <main className="mx-auto max-w-md space-y-4 p-8">
-        <h1 className="font-display text-[28px] text-amber">Verify {link.gamertag}</h1>
+        <h1 className="font-display text-[28px] text-amber">
+          {link.status === "verified" ? `Your gamertag: ${link.gamertag}` : `Verify ${link.gamertag}`}
+        </h1>
         <ClaimStatus status={link.status} challenge={link.challenge} />
         {link.status === "pending" && (
           <Button className="border border-line bg-panel text-bone hover:border-amber" onClick={() => { cancel.mutate(link.id); setLinkId(null); }}>

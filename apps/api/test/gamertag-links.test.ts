@@ -213,4 +213,17 @@ describe("one active gamertag link per user", () => {
     ).rejects.toThrow();
     await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
   });
+
+  it("409s (never 500s) when two concurrent claims for different gamertags race", async () => {
+    const [aRes, bRes] = await Promise.all([claim({ gamertag: "Alice" }), claim({ gamertag: "Bob" })]);
+    const codes = [aRes.statusCode, bRes.statusCode].sort((x, y) => x - y);
+    expect(codes).toEqual([201, 409]);
+
+    const winner = aRes.statusCode === 201 ? aRes : bRes;
+    const loser = aRes.statusCode === 201 ? bRes : aRes;
+    expect(loser.json().error).toBe("active_link_exists");
+
+    await db.delete(verificationChallenges).where(eq(verificationChallenges.gamertagLinkId, winner.json().linkId));
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.id, winner.json().linkId));
+  });
 });
