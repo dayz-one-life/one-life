@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import { z } from "zod";
-import { getPlayerAcrossServers, getLifeDetail, getPlayerLives, resolveGamertagBySlug } from "@onelife/read-models";
+import { getPlayerAcrossServers, getLifeDetail, getPlayerLives, resolveGamertagBySlug, getLifeCharacter } from "@onelife/read-models";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const gt = z.object({ gamertag: z.string().min(1) });
@@ -26,6 +26,9 @@ export function registerPlayerAggregateRoutes(app: FastifyInstance, db: Database
     const rows = await getPlayerLives(db, server.id, real);
     const match = rows?.find((l) => l.lifeNumber === p.data.n);
     if (!match) return reply.code(404).send({ error: "not_found" });
-    return getLifeDetail(db, server.id, match.id);
+    const detail = await getLifeDetail(db, server.id, match.id);
+    if (!detail) return reply.code(404).send({ error: "not_found" });
+    const character = await getLifeCharacter(db, server.id, real, detail.life.startedAt, detail.life.endedAt);
+    return { ...detail, character };
   });
 }
