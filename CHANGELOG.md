@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Login page shows only configured sign-in methods.** The web login page now hides social providers that aren't wired up and the email/magic-link form when it's disabled, instead of always rendering all of them. A provider appears only when both its `<P>_CLIENT_ID` and `<P>_CLIENT_SECRET` are set (unchanged backend rule); email is controlled by a new `MAGIC_LINK_ENABLED` flag (default `true`). The backend is the single source of truth: `@onelife/auth` exposes `enabledAuthMethods(cfg)`, served at a new public `GET /api/auth/providers` (a static route that wins over the Better Auth `/api/auth/*` catch-all and returns only method names — no secrets). The login page is now a server component that fetches this before render; if the API is unreachable it shows an explicit "temporarily unavailable" state rather than guessing.
-
 ### Changed
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
+
+## [0.4.0] - 2026-07-14
+
+### Added
+- **Login page shows only configured sign-in methods.** The web login page now hides social providers that aren't wired up and the email/magic-link form when it's disabled, instead of always rendering all of them. A provider appears only when both its `<P>_CLIENT_ID` and `<P>_CLIENT_SECRET` are set (unchanged backend rule); email is controlled by a new `MAGIC_LINK_ENABLED` flag (default `true`). The backend is the single source of truth: `@onelife/auth` exposes `enabledAuthMethods(cfg)`, served at a new public `GET /api/auth/providers` (a static route that wins over the Better Auth `/api/auth/*` catch-all and returns only method names — no secrets). The login page is now a server component that fetches this before render; if the API is unreachable it shows an explicit "temporarily unavailable" state rather than guessing.
 
 ## [0.3.1] - 2026-07-14
 
