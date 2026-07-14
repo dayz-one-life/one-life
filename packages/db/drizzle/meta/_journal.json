@@ -43,6 +43,13 @@
       "when": 1784053816113,
       "tag": "0005_outgoing_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784057849586,
+      "tag": "0006_freezing_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }
