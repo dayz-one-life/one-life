@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { QueryProvider } from "@/components/query-provider";
+import { StatusBannerContainer } from "@/components/status-banner-container";
 import { display, hand } from "./fonts";
 import { SITE_URL } from "@/lib/seo";
 
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <QueryProvider>
           <Masthead />
+          <StatusBannerContainer />
           <div className="flex-1">{children}</div>
           <Footer />
         </QueryProvider>
