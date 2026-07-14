@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyError } from "fastify";
 import fastifyCors from "@fastify/cors";
 import type { Database } from "@onelife/db";
-import type { Auth } from "@onelife/auth";
+import type { Auth, AuthConfig } from "@onelife/auth";
 import { registerServerRoutes } from "./routes/servers.js";
 import { registerPlayerRoutes } from "./routes/players.js";
 import { registerBoardRoutes } from "./routes/boards.js";
@@ -11,9 +11,11 @@ import { registerGamertagLinkRoutes } from "./routes/gamertag-links.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerPlayerAggregateRoutes } from "./routes/player-aggregate.js";
 import { registerGlobalRoutes } from "./routes/global.js";
+import { registerAuthMethodsRoute } from "./routes/auth-methods.js";
 
 export interface AuthOptions {
   auth: Auth;
+  authConfig?: AuthConfig;
   corsOrigins: string[];
 }
 
@@ -25,6 +27,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   });
   if (opts) {
     app.register(fastifyCors, { origin: opts.corsOrigins, credentials: true });
+    if (opts.authConfig) registerAuthMethodsRoute(app, opts.authConfig);
     registerAuthHandler(app, opts.auth);
     registerMeRoute(app, opts.auth);
     registerGamertagLinkRoutes(app, db, opts.auth);

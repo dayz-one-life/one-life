@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loadAuthConfig } from "../src/config.js";
+import { loadAuthConfig, enabledAuthMethods } from "../src/config.js";
 import { consoleMailer } from "../src/mailer.js";
 
 const base = {
@@ -35,5 +35,39 @@ describe("loadAuthConfig", () => {
 
   it("throws when BETTER_AUTH_SECRET is missing", () => {
     expect(() => loadAuthConfig({ BETTER_AUTH_URL: "http://localhost:3001" })).toThrow();
+  });
+
+  it("enables magic link by default and disables it when MAGIC_LINK_ENABLED=false", () => {
+    expect(loadAuthConfig(base).magicLink).toBe(true);
+    expect(loadAuthConfig({ ...base, MAGIC_LINK_ENABLED: "false" }).magicLink).toBe(false);
+    expect(loadAuthConfig({ ...base, MAGIC_LINK_ENABLED: "true" }).magicLink).toBe(true);
+  });
+
+  it("throws when MAGIC_LINK_ENABLED is not a boolean string", () => {
+    expect(() => loadAuthConfig({ ...base, MAGIC_LINK_ENABLED: "yes" })).toThrow();
+  });
+});
+
+describe("enabledAuthMethods", () => {
+  it("lists only configured providers in a stable order, plus the magic-link flag", () => {
+    const cfg = loadAuthConfig({
+      ...base,
+      GITHUB_CLIENT_ID: "id",
+      GITHUB_CLIENT_SECRET: "sec",
+      DISCORD_CLIENT_ID: "id",
+      DISCORD_CLIENT_SECRET: "sec",
+    });
+    expect(enabledAuthMethods(cfg)).toEqual({ providers: ["discord", "github"], magicLink: true });
+  });
+
+  it("reports no methods when nothing is configured and magic link is off", () => {
+    const cfg = loadAuthConfig({ ...base, MAGIC_LINK_ENABLED: "false" });
+    expect(enabledAuthMethods(cfg)).toEqual({ providers: [], magicLink: false });
+  });
+
+  it("treats an absent magicLink field as enabled", () => {
+    expect(
+      enabledAuthMethods({ secret: "s", baseURL: "b", trustedOrigins: [], providers: {}, mailer: consoleMailer }).magicLink,
+    ).toBe(true);
   });
 });
