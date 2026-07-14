@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **DB-driven multi-server ingest.** The `ingest-worker` now ingests every `servers` row with `active = true` (new `ingestSweep` in `apps/ingest-worker/src/sweep.ts`) instead of a single env-pinned server. Single shared `NITRADO_TOKEN` (single tenant), one cached Nitrado client per service id, per-server error isolation (one server's Nitrado failure no longer aborts the sweep), and RPT sightings summed across servers. Adding/removing a server is now a pure data change (`active` flag) — no redeploy. No migration (relies on existing `servers.nitrado_service_id` / `active`). Added a `deploy/README.md` production runbook.
+
 ### Changed
 ### Deprecated
+
 ### Removed
+- **BREAKING:** `ingest-worker` no longer reads the `NITRADO_SERVICE_ID` env var. Register servers by inserting their `nitrado_service_id` into the `servers` table (`active = true`); `.env.example` updated accordingly.
+
 ### Fixed
+- Web: signing out now navigates home so the UI immediately reflects the logged-out state — previously the session cleared server-side but the account page stayed visually logged in.
+- Auth: Discord sign-in forces `prompt=consent`, so it no longer silently authorizes with whatever Discord account is already active in the browser (Better Auth defaults Discord to `prompt=none`, which caused wrong-account logins).
+
 ### Security
 
 ## [0.1.0] - 2026-07-14
