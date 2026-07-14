@@ -25,6 +25,7 @@ describe("ClaimForm", () => {
     await userEvent.type(screen.getByLabelText(/gamertag/i), "Ace");
 
     await waitFor(() => expect(searchClaimableGamertags).toHaveBeenCalledWith("Ace"));
+    expect(searchClaimableGamertags).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("AceHunter")).toBeInTheDocument();
     expect(screen.getByText("AceOfSpades")).toBeInTheDocument();
   });
