@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { NitradoClient } from "@onelife/nitrado";
 import { loadConfig } from "./config.js";
 import { ingestTick } from "./tick.js";
+import { rptTick } from "./rpt-tick.js";
 
 const cfg = loadConfig(process.env);
 const log = pino({ level: cfg.logLevel });
@@ -26,7 +27,8 @@ async function loop(): Promise<void> {
     const started = Date.now();
     try {
       await ingestTick(db, { serverId, client, backfillBudget: cfg.backfillBudget });
-      log.info({ serverId, ms: Date.now() - started }, "ingest tick complete");
+      const rpt = await rptTick(db, { serverId, client, charStaleHours: cfg.charStaleHours });
+      log.info({ serverId, ms: Date.now() - started, rptSightings: rpt.sightings }, "ingest tick complete");
     } catch (err) {
       log.error({ err }, "ingest tick failed");
     }
