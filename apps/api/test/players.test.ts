@@ -13,13 +13,13 @@ beforeAll(async () => {
   await app.ready();
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "api-players" }).returning();
   serverId = s!.id;
-  const [p] = await db.insert(players).values({ serverId, gamertag: "Hero", firstSeenAt: new Date(), lastSeenAt: new Date() }).returning();
+  const [p] = await db.insert(players).values({ gamertag: "Hero", firstSeenAt: new Date(), lastSeenAt: new Date() }).returning();
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-06T12:00:00Z"), endedAt: new Date("2026-07-06T12:30:00Z"), playtimeSeconds: 1800, deathCause: "pvp", deathByGamertag: "Villain" }).returning();
   lifeId = l!.id;
 });
 afterAll(async () => {
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(eq(players.gamertag, "Hero"));
   await db.delete(servers).where(eq(servers.id, serverId));
   await app.close(); await sql.end();
 });

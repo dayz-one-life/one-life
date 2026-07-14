@@ -12,7 +12,7 @@ let serverId: number;
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "rebuild-test" }).returning();
   serverId = s!.id;
-  await db.insert(players).values({ serverId, gamertag: "Stale", firstSeenAt: new Date(), lastSeenAt: new Date() });
+  await db.insert(players).values({ gamertag: `Stale-${svc}`, firstSeenAt: new Date(), lastSeenAt: new Date() });
   await setCursor(db, "projector", 999999);
 });
 afterAll(async () => { await sql.end(); });
@@ -20,7 +20,7 @@ afterAll(async () => { await sql.end(); });
 describe("rebuildAll", () => {
   it("truncates projections and resets the cursor to 0", async () => {
     await rebuildAll(db);
-    const rows = await db.select().from(players).where(eq(players.serverId, serverId));
+    const rows = await db.select().from(players).where(eq(players.gamertag, `Stale-${svc}`));
     expect(rows.length).toBe(0);
     expect(await getCursor(db, "projector")).toBe(0);
   });

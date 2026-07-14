@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, gamertagLinks, verificationChallenges, user } from "@onelife/db";
-import { eq, sql as sqlExpr } from "drizzle-orm";
+import { eq, inArray, sql as sqlExpr } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
 import { buildApp } from "../src/app.js";
 import { getTestDb } from "@onelife/test-support";
@@ -39,7 +39,7 @@ beforeAll(async () => {
   await app.ready();
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "gl-test" }).returning();
   serverId = s!.id;
-  await db.insert(players).values({ serverId, gamertag: "Alice", dayzId: "A=" });
+  await db.insert(players).values({ gamertag: "Alice", dayzId: "A=" });
   await db.insert(user).values({ id: "someone-else", name: "x", email: `se${svc}@x.com` });
   await signIn();
 });
@@ -49,7 +49,7 @@ afterAll(async () => {
     sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE server_id = ${serverId})`);
   await db.delete(gamertagLinks).where(eq(gamertagLinks.serverId, serverId));
   await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Verified"]));
   await sql`DELETE FROM "session" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "account" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "verification" WHERE identifier LIKE ${"%" + email + "%"}`;
@@ -98,7 +98,7 @@ describe("POST /me/gamertag-links", () => {
     const [link] = await db.insert(gamertagLinks)
       .values({ userId: "someone-else", serverId, gamertag: "Verified", status: "verified", verifiedAt: new Date() })
       .returning();
-    await db.insert(players).values({ serverId, gamertag: "Verified", dayzId: "V=" });
+    await db.insert(players).values({ gamertag: "Verified", dayzId: "V=" });
     const res = await claim({ serverId, gamertag: "Verified" });
     expect(res.statusCode).toBe(409);
     await db.delete(gamertagLinks).where(eq(gamertagLinks.id, link!.id));

@@ -49,9 +49,9 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     const userId = session.user.id;
     const now = new Date();
 
-    // D6: the gamertag must be an observed player on this server.
+    // D6: the gamertag must be an observed player (players are global, not per-server).
     const player = await db.select({ id: players.id }).from(players)
-      .where(and(eq(players.serverId, serverId), eq(players.gamertag, gamertag)));
+      .where(eq(players.gamertag, gamertag));
     if (player.length === 0) return reply.code(422).send({ error: "gamertag_not_seen" });
 
     // D3: reject if this gamertag is already verified by anyone.

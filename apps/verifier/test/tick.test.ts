@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, admFiles, players, user, gamertagLinks, verificationChallenges, events } from "@onelife/db";
-import { and, eq, sql as sqlExpr } from "drizzle-orm";
+import { and, eq, inArray, sql as sqlExpr } from "drizzle-orm";
 import { appendEvent, setCursor } from "@onelife/event-log";
 import { verifierTick } from "../src/tick.js";
 import { getTestDb } from "@onelife/test-support";
@@ -47,9 +47,9 @@ beforeAll(async () => {
   serverId = s!.id;
   const [f] = await db.insert(admFiles).values({ serverId, path: `/t/${svc}.ADM`, name: "t.ADM" }).returning();
   admFileId = f!.id;
-  await db.insert(players).values({ serverId, gamertag: "Alice", dayzId: "A=" });
-  await db.insert(players).values({ serverId, gamertag: "Bob", dayzId: "B=" });
-  await db.insert(players).values({ serverId, gamertag: "Carol", dayzId: "C=" });
+  await db.insert(players).values({ gamertag: "Alice", dayzId: "A=" });
+  await db.insert(players).values({ gamertag: "Bob", dayzId: "B=" });
+  await db.insert(players).values({ gamertag: "Carol", dayzId: "C=" });
   await db.insert(user).values({ id: uid, name: "A", email: `${uid}@x.com` });
   await db.insert(user).values({ id: uidB, name: "B", email: `${uidB}@x.com` });
 });
@@ -58,7 +58,7 @@ afterAll(async () => {
   await db.delete(verificationChallenges).where(
     sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE server_id = ${serverId})`);
   await db.delete(gamertagLinks).where(eq(gamertagLinks.serverId, serverId));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Bob", "Carol"]));
   await db.delete(user).where(eq(user.id, uid));
   await db.delete(user).where(eq(user.id, uidB));
   await sql.end();
