@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, kills } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { getPlayerProfile, getPlayerLives } from "../src/queries.js";
 
@@ -13,7 +13,7 @@ let sid: number;
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "Q", map: "chernarusplus" }).returning();
   sid = s!.id;
-  const [p] = await db.insert(players).values({ serverId: sid, gamertag: "Qualia", firstSeenAt: start, lastSeenAt: now }).returning();
+  const [p] = await db.insert(players).values({ gamertag: "Qualia", firstSeenAt: start, lastSeenAt: now }).returning();
   const pid = Number(p!.id);
   await db.insert(lives).values([
     { serverId: sid, playerId: pid, lifeNumber: 1, startedAt: start, endedAt: new Date(start.getTime() + 9000e3), deathCause: "bled out", playtimeSeconds: 9000 },
@@ -23,7 +23,7 @@ beforeAll(async () => {
 
   // Killer-side qualification: a life that's short + non-PvP, so it qualifies only because the
   // player scored a kill during it (isLifeQualified's kill branch, driven through the DB path).
-  const [kp] = await db.insert(players).values({ serverId: sid, gamertag: "Killaqual", firstSeenAt: start, lastSeenAt: now }).returning();
+  const [kp] = await db.insert(players).values({ gamertag: "Killaqual", firstSeenAt: start, lastSeenAt: now }).returning();
   const kpid = Number(kp!.id);
   const killLifeStart = start;
   const killLifeEnd = new Date(start.getTime() + 120e3);
@@ -39,7 +39,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(kills).where(eq(kills.serverId, sid));
   await db.delete(lives).where(eq(lives.serverId, sid));
-  await db.delete(players).where(eq(players.serverId, sid));
+  await db.delete(players).where(inArray(players.gamertag, ["Qualia", "Killaqual"]));
   await db.delete(servers).where(eq(servers.id, sid));
   await sql.end();
 });

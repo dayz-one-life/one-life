@@ -11,15 +11,14 @@ let serverId: number;
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "rm-test" }).returning();
   serverId = s!.id;
-  const [p] = await db.insert(players).values({ serverId, gamertag: "A", firstSeenAt: new Date("2026-07-06T12:00:00Z"), lastSeenAt: new Date("2026-07-06T12:30:00Z") }).returning();
+  const [p] = await db.insert(players).values({ gamertag: "A", firstSeenAt: new Date("2026-07-06T12:00:00Z"), lastSeenAt: new Date("2026-07-06T12:30:00Z") }).returning();
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-06T12:00:00Z"), playtimeSeconds: 600 }).returning();
-  await db.update(players).set({ currentLifeId: l!.id }).where(eq(players.id, p!.id));
   await db.insert(sessions).values({ serverId, playerId: p!.id, lifeId: l!.id, connectedAt: new Date("2026-07-06T12:20:00Z") }); // open
 });
 afterAll(async () => {
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.serverId, serverId));
+  await db.delete(players).where(eq(players.gamertag, "A"));
   await sql.end();
 });
 

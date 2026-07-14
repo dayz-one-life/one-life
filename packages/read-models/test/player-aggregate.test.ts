@@ -10,10 +10,9 @@ describe("getPlayerAcrossServers", () => {
   beforeAll(async () => {
     const [c] = await db.insert(servers).values({ nitradoServiceId: 201, name: "Chernarus", map: "chernarusplus", slug: "chernarus" }).returning();
     const [s] = await db.insert(servers).values({ nitradoServiceId: 202, name: "Sakhal", map: "sakhal", slug: "sakhal" }).returning();
-    const [pc] = await db.insert(players).values({ serverId: c!.id, gamertag: "Steveo12491" }).returning();
-    const [ps] = await db.insert(players).values({ serverId: s!.id, gamertag: "Steveo12491" }).returning();
-    await db.insert(lives).values({ serverId: c!.id, playerId: pc!.id, lifeNumber: 1, startedAt: new Date("2026-07-09T00:00:00Z"), playtimeSeconds: 28800 });
-    await db.insert(lives).values({ serverId: s!.id, playerId: ps!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T18:00:00Z"), playtimeSeconds: 3600 });
+    const [p] = await db.insert(players).values({ gamertag: "Steveo12491" }).returning();
+    await db.insert(lives).values({ serverId: c!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-09T00:00:00Z"), playtimeSeconds: 28800 });
+    await db.insert(lives).values({ serverId: s!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T18:00:00Z"), playtimeSeconds: 3600 });
   });
   it("resolves a gamertag by its lowercase slug across both servers", async () => {
     const agg = await getPlayerAcrossServers(db, "steveo12491", new Date("2026-07-11T20:00:00Z"));
@@ -33,7 +32,7 @@ describe("getPlayerAcrossServers — longestLifeSeconds uses QUALIFIED lives", (
   beforeAll(async () => {
     const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "QLife", map: "chernarusplus", slug: "qlife-chernarus" }).returning();
     sid = s!.id;
-    const [p] = await db.insert(players).values({ serverId: sid, gamertag: "Rerollqualtest" }).returning();
+    const [p] = await db.insert(players).values({ gamertag: "Rerollqualtest" }).returning();
     const pid = Number(p!.id);
     await db.insert(lives).values([
       // Longest life by raw duration, but a discarded non-PvP, sub-5-min-free... actually 200s
@@ -46,7 +45,7 @@ describe("getPlayerAcrossServers — longestLifeSeconds uses QUALIFIED lives", (
 
   afterAll(async () => {
     await db.delete(lives).where(eq(lives.serverId, sid));
-    await db.delete(players).where(eq(players.serverId, sid));
+    await db.delete(players).where(eq(players.gamertag, "Rerollqualtest"));
     await db.delete(servers).where(eq(servers.id, sid));
   });
 
