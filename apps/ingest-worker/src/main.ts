@@ -1,38 +1,40 @@
 import pino from "pino";
-import { getDb, servers } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { getDb } from "@onelife/db";
 import { NitradoClient } from "@onelife/nitrado";
 import { loadConfig } from "./config.js";
-import { ingestTick } from "./tick.js";
-import { rptTick } from "./rpt-tick.js";
+import { ingestSweep } from "./sweep.js";
 
 const cfg = loadConfig(process.env);
 const log = pino({ level: cfg.logLevel });
 const { db } = getDb(cfg.databaseUrl);
 
-async function ensureServer(): Promise<number> {
-  const existing = await db.select().from(servers).where(eq(servers.nitradoServiceId, cfg.nitradoServiceId));
-  if (existing[0]) return existing[0].id;
-  const [row] = await db.insert(servers).values({
-    nitradoServiceId: cfg.nitradoServiceId, name: `server-${cfg.nitradoServiceId}`,
-  }).returning();
-  return row!.id;
-}
-
 async function loop(): Promise<void> {
-  const serverId = await ensureServer();
-  const client = new NitradoClient(cfg.nitradoToken, cfg.nitradoServiceId);
+  // One shared Nitrado token (single tenant); one cached client per service id.
+  const clients = new Map<number, NitradoClient>();
+  const clientFor = (serviceId: number): NitradoClient => {
+    let c = clients.get(serviceId);
+    if (!c) {
+      c = new NitradoClient(cfg.nitradoToken, serviceId);
+      clients.set(serviceId, c);
+    }
+    return c;
+  };
+
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const started = Date.now();
     try {
-      await ingestTick(db, { serverId, client, backfillBudget: cfg.backfillBudget });
-      const rpt = await rptTick(db, { serverId, client, charStaleHours: cfg.charStaleHours });
-      log.info({ serverId, ms: Date.now() - started, rptSightings: rpt.sightings }, "ingest tick complete");
+      const r = await ingestSweep(db, {
+        clientFor,
+        backfillBudget: cfg.backfillBudget,
+        charStaleHours: cfg.charStaleHours,
+        onServerError: (serverId, err) => log.error({ serverId, err }, "server ingest failed"),
+      });
+      log.info({ servers: r.servers, sightings: r.sightings, ms: Date.now() - started }, "ingest sweep complete");
     } catch (err) {
-      log.error({ err }, "ingest tick failed");
+      log.error({ err }, "ingest sweep failed");
     }
-    await new Promise((r) => setTimeout(r, cfg.intervalSeconds * 1000));
+    await new Promise((res) => setTimeout(res, cfg.intervalSeconds * 1000));
   }
 }
 

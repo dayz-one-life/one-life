@@ -38,6 +38,11 @@ user at the start of a fresh session.**
 - Hooks only bind inside Claude Code; plain `git`/`gh` in a shell bypasses them.
 - Superpowers/role detection are filesystem/remote heuristics; they fail with clear messages.
 - Approved-review detection needs the canonical repo to be a real GitHub remote.
+- **Orphan roots (reconciled 2026-07-14):** `main` and `develop` were originally created as
+  independent orphan commits with no shared history, which forced a one-off `git rebase --onto` on
+  every cross-branch PR through the v0.1.0 release. After v0.1.0, `develop` was re-rooted onto
+  `main` so they now share history — feature→`develop`, release→`main`, and `main`→`develop`
+  back-merge PRs no longer need any rebasing.
 
 ## Configuration
 
@@ -84,7 +89,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
   `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
   character sightings).
-- **apps:** `ingest-worker` (ADM poll→events loop), `projector` (events→projections fold),
+- **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
+  `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps).
 
