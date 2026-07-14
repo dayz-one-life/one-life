@@ -15,8 +15,8 @@ beforeAll(async () => {
   ]);
   const [s] = await db.insert(servers).values({ nitradoServiceId: 773001, name: "tf" }).returning();
   await db.insert(gamertagLinks).values([
-    { userId: "tf1", serverId: s!.id, gamertag: "TFG1", status: "verified" },
-    { userId: "tf2", serverId: s!.id, gamertag: "TFG2", status: "verified" },
+    { userId: "tf1", gamertag: "TFG1", status: "verified" },
+    { userId: "tf2", gamertag: "TFG2", status: "verified" },
   ]);
   await grant(db, { userId: "tf1", kind: "verification", idempotencyKey: "verify:tf1" });
 });
