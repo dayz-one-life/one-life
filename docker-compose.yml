@@ -36,5 +36,17 @@ services:
       PROJECTOR_BATCH_SIZE: "500"
       LOG_LEVEL: info
     restart: unless-stopped
+  enforcer:
+    build: { context: ., dockerfile: apps/enforcer/Dockerfile }
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://onelife:onelife@postgres:5432/onelife
+      NITRADO_TOKEN: ${NITRADO_TOKEN}
+      # SAFE DEFAULT: log intended bans, do NOT write to Nitrado. Set "false" to enforce for real.
+      ENFORCER_DRY_RUN: "true"
+      ENFORCER_INTERVAL_SECONDS: "300"
+      BAN_DURATION_HOURS: "24"
+      LOG_LEVEL: info
+    restart: unless-stopped
 volumes:
   pgdata:
