@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 import { boardHref } from "./links";
 
 const SORT_CHIPS: { sort: SurvivorSort; label: string }[] = [
-  { sort: "kills", label: "Kills" },
   { sort: "time", label: "Time alive" },
+  { sort: "kills", label: "Kills" },
   { sort: "longest", label: "Longest kill" },
 ];
 
