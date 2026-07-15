@@ -1,7 +1,25 @@
 import { describe, expect, test } from "vitest";
-import { resolveSurvivorsRoute } from "./board-params";
+import { buildTabs, resolveSurvivorsRoute } from "./board-params";
+import type { Server } from "./types";
 
 const SLUGS = ["chernarus", "sakhal"];
+
+function srv(name: string, slug: string | null): Server {
+  return { id: 1, nitradoServiceId: 1, name, map: "m", slug, active: true, clockOffsetMs: 0, createdAt: "" };
+}
+
+describe("buildTabs", () => {
+  test("'All maps' first, then slugged servers alphabetically by label", () => {
+    const tabs = buildTabs([srv("Sakhal", "sakhal"), srv("Chernarus", "chernarus"), srv("Namalsk", "namalsk")]);
+    expect(tabs.map((t) => t.label)).toEqual(["All maps", "Chernarus", "Namalsk", "Sakhal"]);
+    expect(tabs[0]?.slug).toBeNull();
+  });
+
+  test("drops unslugged servers", () => {
+    const tabs = buildTabs([srv("Slugged", "slugged"), srv("Unslugged", null)]);
+    expect(tabs.map((t) => t.label)).toEqual(["All maps", "Slugged"]);
+  });
+});
 
 describe("resolveSurvivorsRoute", () => {
   test("no segments -> combined board, default (time) sort", () => {

@@ -12,14 +12,16 @@ export function parsePage(raw: string | string[] | undefined): number {
 
 /**
  * Board tabs: an "All maps" tab (slug null) followed by one tab per active,
- * slugged server (label = server name). Unslugged servers never participate.
+ * slugged server (label = server name), sorted alphabetically by label.
+ * Unslugged servers never participate.
  */
 export function buildTabs(servers: Server[]): { slug: string | null; label: string }[] {
   return [
     { slug: null, label: "All maps" },
     ...servers
       .filter((s): s is Server & { slug: string } => s.slug !== null)
-      .map((s) => ({ slug: s.slug, label: s.name })),
+      .map((s) => ({ slug: s.slug, label: s.name }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
   ];
 }
 
