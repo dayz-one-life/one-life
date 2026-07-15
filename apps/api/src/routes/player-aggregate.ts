@@ -6,14 +6,16 @@ import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const gt = z.object({ gamertag: z.string().min(1) });
 const life = z.object({ gamertag: z.string().min(1), map: z.enum(["chernarus", "sakhal"]), n: z.coerce.number().int().positive() });
+const pageQ = z.object({ page: z.coerce.number().int().positive().catch(1) });
 
 export function registerPlayerAggregateRoutes(app: FastifyInstance, db: Database): void {
   app.get("/players/:gamertag", async (req, reply) => {
     const p = gt.safeParse(req.params);
     if (!p.success) return reply.code(400).send({ error: "bad_request" });
-    const page = await getPlayerPage(db, p.data.gamertag, new Date());
-    if (!page) return reply.code(404).send({ error: "not_found" });
-    return page;
+    const { page } = pageQ.parse(req.query);
+    const pg = await getPlayerPage(db, p.data.gamertag, new Date(), { page });
+    if (!pg) return reply.code(404).send({ error: "not_found" });
+    return pg;
   });
 
   app.get("/players/:gamertag/:map/lives/:n", async (req, reply) => {

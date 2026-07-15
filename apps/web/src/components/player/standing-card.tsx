@@ -6,42 +6,60 @@ import { SelfUnbanButton } from "./self-unban-button";
 import { formatDuration, banCountdown, mapLabel } from "./format";
 
 function Stat({ value, label }: { value: string; label: string }) {
-  return <div className="flex-1 rounded bg-panel-2 py-2 text-center"><span className="block font-mono text-bone">{value}</span><span className="text-[9px] uppercase text-muted">{label}</span></div>;
+  return (
+    <div className="flex-1 rounded-lg bg-black/20 py-3 text-center">
+      <span className="block font-mono text-lg text-bone">{value}</span>
+      <span className="mt-1 block text-[9px] uppercase tracking-wide text-muted">{label}</span>
+    </div>
+  );
 }
 
-export function StandingCard({ standing, now, pageGamertag }: { standing: ServerStanding & { pageGamertag?: string }; now: Date; pageGamertag?: string }) {
-  const gt = pageGamertag ?? standing.pageGamertag ?? "";
-  const border = standing.state === "alive" ? "border-emerald-500/40" : standing.state === "banned" ? "border-red-500/40" : "border-line";
+export function StandingCard({ standing, now, pageGamertag }: { standing: ServerStanding; now: Date; pageGamertag: string }) {
+  const tone =
+    standing.state === "alive" ? "border-emerald-500/40 bg-emerald-500/[0.06]"
+    : standing.state === "banned" ? "border-red-500/40 bg-red-500/[0.06]"
+    : "border-line";
+  const pill =
+    standing.state === "alive" ? "bg-emerald-500/15 text-emerald-300"
+    : standing.state === "banned" ? "bg-red-500/15 text-red-300"
+    : "bg-white/10 text-muted";
+  const sub =
+    standing.state === "alive" && standing.alive ? `Alive ${formatDuration(standing.alive.timeAliveSeconds)}`
+    : standing.state === "banned" ? "Died — awaiting respawn"
+    : "No open life";
   return (
-    <div className={cn("rounded-lg border bg-panel p-4", border)}>
+    <div className={cn("rounded-xl border p-5", tone)}>
       <div className="flex items-center gap-3">
-        <PlayerAvatar character={standing.character} size={44} dim={standing.state !== "alive"} />
+        <PlayerAvatar character={standing.character} size={48} dim={standing.state !== "alive"} />
         <div className="flex-1">
-          <p className="font-hand text-bone">{mapLabel(standing.map)}</p>
-          <p className="text-xs text-muted">
-            {standing.state === "alive" && standing.alive ? `Alive ${formatDuration(standing.alive.timeAliveSeconds)}` : standing.state === "banned" ? "Banned" : "No open life"}
-          </p>
+          <p className="font-hand text-lg text-bone">{mapLabel(standing.map)}</p>
+          <p className="text-xs text-muted">{sub}</p>
         </div>
-        <span className="text-[9px] uppercase">{standing.state === "alive" ? "🟢 Alive" : standing.state === "banned" ? "⛔ Banned" : "⚪ Idle"}</span>
+        <span className={cn("rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wide", pill)}>
+          {standing.state === "alive" ? "● Alive" : standing.state === "banned" ? "⛔ Banned" : "Idle"}
+        </span>
       </div>
 
       {standing.state === "alive" && standing.alive && (
-        <details className="mt-3">
-          <summary className="flex cursor-pointer gap-2 list-none">
+        <>
+          <div className="mt-4 flex gap-2">
             <Stat value={String(standing.alive.kills)} label="Kills" />
             <Stat value={standing.alive.longestKillMeters == null ? "—" : `${Math.round(standing.alive.longestKillMeters)}m`} label="Longest kill" />
             <Stat value={formatDuration(standing.alive.timeAliveSeconds)} label="Time alive" />
-          </summary>
+          </div>
           <KillList kills={standing.alive.killList} limit={10} />
-        </details>
+        </>
       )}
 
       {standing.state === "banned" && standing.ban && (
-        <div className="mt-3 text-center">
+        <div className="mt-4 text-center">
           {banCountdown(standing.ban.expiresAt, now) && (
-            <p className="font-display text-xl text-red-300">{banCountdown(standing.ban.expiresAt, now)}<span className="block text-[9px] uppercase text-muted">ban lifts in</span></p>
+            <p className="font-display text-2xl text-red-300">
+              {banCountdown(standing.ban.expiresAt, now)}
+              <span className="mt-1 block text-[9px] uppercase tracking-wide text-muted">ban lifts in</span>
+            </p>
           )}
-          <SelfUnbanButton banId={standing.ban.banId} pageGamertag={gt} liftPending={standing.ban.liftPending} />
+          <SelfUnbanButton banId={standing.ban.banId} pageGamertag={pageGamertag} liftPending={standing.ban.liftPending} />
         </div>
       )}
     </div>

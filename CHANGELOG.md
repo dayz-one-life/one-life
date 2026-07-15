@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.11.0] - 2026-07-15
+
+### Changed
+- **Player page redesign.** Rebuilt `/players/{slug}` as a single roomy column with everything visible (no expand/collapse): an avatar-free hero with a full-width stat band (Kills shown only when > 0, Longest life always the highlighted stat), state-colored current-standing cards (green alive / red banned), and muted archive cards for past lives — now **paginated** (`?page=`, 10/page, server-side, enriching only the visible slice). The OpenGraph share image is redesigned as a survivor dossier (logo + logo-skull motif, callsign, "surviving since," all-time stats, on Oswald/Space Mono).
+
 ## [0.10.0] - 2026-07-15
 
 ### Added
