@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+- **Character avatars now come only from the game's authoritative `create_entity` signal.** Dropped the unreliable `head_asset` class source — head-warning log lines carry no player identity and mis-attributed characters across players (even cross-gender), surfacing phantoms like "Adam" (a head-model name, not a real persona) and mislabeling real personas (e.g. a Mirek). The RPT parser now uses `create_entity` only; the survivor roster resolves real `Survivor[MF]_<Name>` persona classes (adds the previously-missing **Mirek**, removes the phantom **Adam**), and an undetermined/unknown character shows a neutral silhouette. Migration `0008` rebuilds the `characters` rollup from `create_entity`-only sightings.
 ### Security
 
 ## [0.8.0] - 2026-07-15
