@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.10.0] - 2026-07-15
+
+### Added
 - **Player pages (`/players/{slug}`).** Public, SEO-optimized survivor profile — a cross-server totals
   hero, per-server current standing (alive / banned / idle) with a live ban countdown, expandable
   past-life history (kill lists, vitals, sessions), a dynamic OpenGraph share image, and
@@ -20,10 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GamertagLink` to `/players/{slug}`. A new `/welcome` post-login resolver sends a verified user
   straight to their player page (pending → account page, unlinked → claim flow), and the masthead's
   gamertag chip now points there too.
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.9.1] - 2026-07-15
 
