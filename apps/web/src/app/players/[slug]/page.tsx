@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPlayerPage } from "@/lib/api";
 import { absoluteUrl } from "@/lib/seo";
+import { playerSlug } from "@/lib/slug";
 import { PlayerProfile } from "@/components/player/player-profile";
 import { formatDuration } from "@/components/player/format";
 
@@ -12,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await getPlayerPage(slug).catch(() => null);
   if (!page) return { title: "Survivor not found — One Life" };
   const desc = `${page.totals.kills} kills · ${page.totals.lives} lives · longest life ${formatDuration(page.totals.longestLifeSeconds)}.`;
-  const url = absoluteUrl(`/players/${slug}`);
+  const url = absoluteUrl(`/players/${playerSlug(page.gamertag)}`);
   return {
     title: `${page.gamertag} — One Life DayZ survivor`,
     description: desc,
