@@ -132,7 +132,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
-  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps).
+  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
+  `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
+  — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
+  systemd unit).
 
 ## Commands
 

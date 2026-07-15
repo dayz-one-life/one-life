@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Scheduled server reboots (`apps/rebooter`).** A new always-on worker restarts every **active** server in the `servers` table on the top of each even UTC hour (00:00, 02:00, …, 22:00), best-effort per server (one server's failure is logged and does not abort the rest). Reboots go **live on deploy** — there is no dry-run gate, since a scheduled restart is routine and reversible (unlike the enforcer's bans). Adds `NitradoClient.restartServer()` (POST `/services/{id}/gameservers/restart`), a pure `msUntilNextBoundary()` scheduler that re-aligns to the wall clock each cycle (no interval drift, no double-fire), and registers `rebooter` in the deploy fleet (`deploy/deploy.sh` + README). Requires `NITRADO_TOKEN` set and a `onelife-rebooter` systemd unit on the host.
+
 ### Changed
 ### Deprecated
 ### Removed
