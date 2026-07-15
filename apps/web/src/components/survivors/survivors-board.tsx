@@ -14,6 +14,12 @@ function mapLabel(slug: string): string {
   return SCOPE_LABEL[slug] ?? slug.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const SORT_PHRASE: Record<string, string> = {
+  kills: "kills",
+  time: "time alive",
+  longest: "longest kill",
+};
+
 /** Minimal schema.org ItemList over the visible survivors, for SEO. */
 function itemListLd(page: SurvivorsPage, slug: string | null) {
   const startRank = (page.page - 1) * page.pageSize;
@@ -39,7 +45,8 @@ export function SurvivorsBoard({
   slug: string | null;
   tabs: { slug: string | null; label: string }[];
 }) {
-  const heading = slug ? `${mapLabel(slug)} survivors` : "Survivors";
+  const scope = slug ? `${mapLabel(slug)} survivors` : "survivors";
+  const heading = `Top ${scope} by ${SORT_PHRASE[page.sort]}`;
   const aliveCount = page.total;
   const subtitle =
     aliveCount === 1 ? "1 survivor still drawing breath" : `${aliveCount} survivors still drawing breath`;
@@ -70,6 +77,7 @@ export function SurvivorsBoard({
                 row={row}
                 rank={(page.page - 1) * page.pageSize + i + 1}
                 showMap={slug === null}
+                sort={page.sort}
               />
             </li>
           ))}

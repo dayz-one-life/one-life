@@ -36,4 +36,22 @@ describe("SurvivorsBoard", () => {
     // single-map board -> no per-row badge
     expect(screen.queryByTestId("row-map-badge")).not.toBeInTheDocument();
   });
+
+  test("renders an SEO H1 for a single map + sort", () => {
+    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "kills" };
+    render(<SurvivorsBoard page={page} slug="sakhal" tabs={[]} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Top Sakhal survivors by kills");
+  });
+
+  test("combined board H1 drops the map name and uses time-alive by default", () => {
+    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "time" };
+    render(<SurvivorsBoard page={page} slug={null} tabs={[]} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Top survivors by time alive");
+  });
+
+  test("longest sort H1 reads 'longest kill'", () => {
+    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "longest" };
+    render(<SurvivorsBoard page={page} slug="chernarus" tabs={[]} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Top Chernarus survivors by longest kill");
+  });
 });

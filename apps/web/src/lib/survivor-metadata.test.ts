@@ -11,18 +11,18 @@ describe("buildSurvivorMetadata", () => {
       pageSize: 25,
       leaderName: "Chad",
     });
-    expect(m.alternates?.canonical).toBe("/survivors/chernarus?page=2");
+    expect(m.alternates?.canonical).toBe("/survivors/chernarus/kills?page=2");
     expect(String(m.title)).toMatch(/Chernarus/);
     expect(String(m.title)).toMatch(/Page 2/);
     // prev/next surfaced via `other`
-    expect(m.other?.prev).toBe("/survivors/chernarus");
-    expect(m.other?.next).toBe("/survivors/chernarus?page=3");
+    expect(m.other?.prev).toBe("/survivors/chernarus/kills");
+    expect(m.other?.next).toBe("/survivors/chernarus/kills?page=3");
   });
 
   test("combined board default page has clean canonical and OG", () => {
     const m = buildSurvivorMetadata({
       slug: null,
-      sort: "kills",
+      sort: "time",
       page: 1,
       total: 10,
       pageSize: 25,
@@ -47,7 +47,7 @@ describe("buildSurvivorMetadata", () => {
       pageSize: 25,
       leaderName: "Rick",
     });
-    expect(m.alternates?.canonical).toBe("/survivors/sakhal?sort=longest");
+    expect(m.alternates?.canonical).toBe("/survivors/sakhal/longest");
     expect(String(m.title)).toMatch(/Sakhal/);
     expect(String(m.title)).toMatch(/Longest kill/i);
     expect(String(m.title)).not.toMatch(/Page/);
