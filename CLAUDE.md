@@ -106,6 +106,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (lowercase names, served by Next.js at `/characters/<name>.webp`, e.g. `/characters/lewis.webp`), staged for
   the deferred per-life character-head display — map a life's character name via `/characters/${name.toLowerCase()}.webp`.
   Sourced from the DayZ Fandom wiki (CC BY-SA; attribution required if shipped public-facing).
+- **Survivors leaderboard** ✅: public, mobile-first live leaderboard at `/survivors` (combined,
+  all active slugged servers) and `/survivors/[map]` (single server, by `servers.slug`) — one row
+  per (player × server) for every currently-alive survivor (**alive** = open qualified life:
+  `lives.endedAt IS NULL` and `isLifeQualified`). Each row shows gamertag, map, kills / time alive /
+  longest kill (all **this-life**, i.e. since `life.startedAt`), and a character avatar. Query-param
+  sort (`?sort=kills|time|longest`, default `kills`, always descending) + pagination
+  (`?page=`, 25/page); server-rendered with per-page SEO/OG metadata. Backed by the
+  `getAliveSurvivors` read-model (`packages/read-models/src/survivors.ts`) and the public
+  `GET /survivors[/:slug]` API route. Avatars resolve via `rosterByClass(characterClass).name` →
+  `/characters/<name>.webp` (silhouette fallback for an unknown/no character). Gamertag filtering
+  was scoped out of this pass.
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
@@ -132,7 +143,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
-  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps).
+  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
+  `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
+  — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
+  systemd unit).
 
 ## Commands
 
