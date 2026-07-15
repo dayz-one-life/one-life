@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Player pages (`/players/{slug}`).** Public, SEO-optimized survivor profile — a cross-server totals
+  hero, per-server current standing (alive / banned / idle) with a live ban countdown, expandable
+  past-life history (kill lists, vitals, sessions), a dynamic OpenGraph share image, and
+  `ProfilePage` JSON-LD. Verified owners get a self-unban control that spends a token to lift their
+  own ban (owner + verified-only, four states: hidden/ready/no-tokens/pending). Backed by a new
+  `getPlayerPage` read-model and an extended `GET /players/:gamertag` route.
+
 ### Changed
+- **Gamertags link to player pages site-wide, and verified users land on theirs after login.** The
+  survivor board, kill lists, and death-by attributions now route every gamertag through a shared
+  `GamertagLink` to `/players/{slug}`. A new `/welcome` post-login resolver sends a verified user
+  straight to their player page (pending → account page, unlinked → claim flow), and the masthead's
+  gamertag chip now points there too.
 ### Deprecated
 ### Removed
 ### Fixed

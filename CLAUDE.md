@@ -138,6 +138,21 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `GET /survivors[/:slug]` API route (Zod `sort` default `time`). Avatars resolve via
   `rosterByClass(characterClass).name` → `/characters/<name>.webp` (silhouette fallback for an
   unknown/no character). Gamertag filtering was scoped out of this pass.
+- **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
+  hero, per-server current standing (alive / banned / idle) with a live ban countdown, expandable
+  past-life history (kill lists, vitals, sessions), a dynamic OpenGraph share image, and
+  `ProfilePage` JSON-LD. The slug is the gamertag slugified (`playerSlug`, `@/lib/slug`) and resolved
+  back via `resolveGamertagBySlug` (`packages/read-models/src/player-aggregate.ts`); the page is
+  powered by a new `getPlayerPage` read-model (`packages/read-models/src/player-page.ts`) and an
+  extended `GET /players/:gamertag` API route. **Owner-only self-unban:** the page's signed-in owner
+  (session gamertag matches the page, and their link is **verified** — pending/unverified visitors
+  never see the control) can spend an unban token to lift their own ban, in four states
+  (`UnbanState`: hidden/ready/no-tokens/pending) driven by `SelfUnbanButton`/`UnbanView`
+  (`apps/web/src/components/player/self-unban-button.tsx`). Gamertags across the site (survivor
+  board rows, kill lists, death-by attributions) now route through a shared `GamertagLink` component
+  to `/players/{slug}`. A new `/welcome` post-login resolver (`apps/web/src/app/welcome/page.tsx`)
+  sends a verified user straight to their player page (pending → `/account`, unlinked →
+  `/account/claim`), and the masthead's gamertag chip points there too.
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
