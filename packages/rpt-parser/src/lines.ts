@@ -4,10 +4,10 @@ const TIME_RE = /^(\d{2}):(\d{2}):(\d{2})\.(\d+)/;
 // pending login opens at the terminal login state (uid is populated by then; may still be empty
 // on the earliest states — allow empty). Name may contain spaces → capture up to " (dpnid ".
 const LOGIN_RE = /\[StateMachine\]: Player (.+?) \(dpnid (\d+) uid ([A-F0-9]*)\) Entering (GetNewCharLoginState|GetLoadedCharLoginState)/;
-// model signal (a): only Survivor[MF]_ classes (AI ZmbM_/Animal_ ignored)
+// model signal: only Survivor[MF]_ classes from the authoritative Create entity line
+// (AI ZmbM_/Animal_ ignored). Head-asset warnings are NOT used — they carry no player identity
+// and mis-attribute across players, so create_entity is the single class signal.
 const CREATE_RE = /Create entity type '(Survivor[MF]_[A-Za-z0-9]+)'/;
-// model signal (b): head-asset warning
-const HEAD_RE = /characters\\heads\\([a-z0-9_]+)\.p3d/;
 const CONNECT_RE = /Player (.+?) \(id=([A-F0-9]+) pos=<(-?[\d.]+), (-?[\d.]+), (-?[\d.]+)>\) has connected\./;
 const CHARBLOCK_RE = /<(LOAD EXISTING|CREATE NEW) CHAR>:/;
 const CHARID_RE = /^\s+charID (\d+)/;
@@ -32,10 +32,6 @@ export function parseCreateEntity(line: string): string | null {
   return m ? m[1]! : null;
 }
 
-export function parseHeadWarning(line: string): string | null {
-  const m = HEAD_RE.exec(line);
-  return m ? m[1]! : null;
-}
 
 export type Connect = { gamertag: string; uid: string; x: number; y: number; z: number };
 export function parseConnect(line: string): Connect | null {

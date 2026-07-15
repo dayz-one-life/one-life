@@ -1,34 +1,31 @@
-// Vanilla DayZ console survivor roster. Each survivor head model maps 1:1 to a
-// Survivor[MF]_<Name> class. `_2` head variants map to the same base name
-// (m_niki_2 → SurvivorM_Niki). Derived from the live 1.29 asset-preload section.
+// Vanilla DayZ console survivor roster. The persona NAME comes from the game's authoritative
+// `Create entity type 'Survivor[MF]_<Name>'` log line (create_entity) — NOT from head-model asset
+// names, which do not match persona names (e.g. head `m_adam` is not a persona; there is no "Adam").
+// Each name below has a headshot at apps/web/public/characters/<name>.webp. Unknown/modded classes
+// resolve to null → the UI shows a neutral silhouette.
 
 export type Gender = "female" | "male";
 export type SurvivorClass = { class: string; name: string; gender: Gender; head: string };
 
-const HEADS: Record<Gender, string[]> = {
-  female: ["f_baty", "f_eva_2", "f_frida_2", "f_gabi_2", "f_helga", "f_irena_2", "f_judy", "f_keiko", "f_linda_2", "f_maria_2", "f_naomi"],
-  male: ["m_adam", "m_boris", "m_cyril", "m_denis_2", "m_elias", "m_francis", "m_guo", "m_hassan", "m_indar", "m_jose", "m_kaito", "m_lewis", "m_manua", "m_niki_2", "m_oliver", "m_peter", "m_quinn", "m_rolf", "m_seth", "m_taiki"],
+const PERSONAS: Record<Gender, string[]> = {
+  female: ["Baty", "Eva", "Frida", "Gabi", "Helga", "Irena", "Judy", "Keiko", "Linda", "Maria", "Naomi"],
+  male: ["Boris", "Cyril", "Denis", "Elias", "Francis", "Guo", "Hassan", "Indar", "Jose", "Kaito",
+         "Lewis", "Manua", "Mirek", "Niki", "Oliver", "Peter", "Quinn", "Rolf", "Seth", "Taiki"],
 };
 
-function nameFromHead(head: string): string {
-  const base = head.replace(/^[mf]_/, "").replace(/_2$/, "");
-  return base.charAt(0).toUpperCase() + base.slice(1);
-}
-
-/** "f_linda_2" → "SurvivorF_Linda"; non-head strings → null (forward-compat with game updates). */
-export function classFromHead(head: string): string | null {
-  const m = /^([mf])_/.exec(head);
-  if (!m) return null;
-  return `Survivor${m[1] === "f" ? "F" : "M"}_${nameFromHead(head)}`;
-}
-
-export const SURVIVOR_ROSTER: SurvivorClass[] = (Object.entries(HEADS) as [Gender, string[]][]).flatMap(
-  ([gender, heads]) => heads.map((head) => ({ class: classFromHead(head)!, name: nameFromHead(head), gender, head })),
+export const SURVIVOR_ROSTER: SurvivorClass[] = (Object.entries(PERSONAS) as [Gender, string[]][]).flatMap(
+  ([gender, names]) => names.map((name) => ({
+    class: `Survivor${gender === "female" ? "F" : "M"}_${name}`,
+    name,
+    gender,
+    head: `${gender === "female" ? "f" : "m"}_${name.toLowerCase()}`,
+  })),
 );
 
 const BY_CLASS = new Map(SURVIVOR_ROSTER.map((e) => [e.class, e]));
 
-/** Roster entry for a Survivor[MF]_<Name> class, or null for unknown/modded classes. */
+/** Roster entry for a `Survivor[MF]_<Name>` class, or null for unknown/modded classes
+ *  (forward-compatible with game updates — an unrecognized class → silhouette). */
 export function rosterByClass(cls: string): SurvivorClass | null {
   return BY_CLASS.get(cls) ?? null;
 }
