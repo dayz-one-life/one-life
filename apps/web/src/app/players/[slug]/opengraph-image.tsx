@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { ImageResponse } from "next/og";
 import { getPlayerPage } from "@/lib/api";
 import { heroStats, monthYear } from "@/components/player/format";
@@ -6,8 +7,8 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "One Life survivor profile";
 
-const asset = (name: string) => fetch(new URL(`./${name}`, import.meta.url)).then((r) => r.arrayBuffer());
-const dataUri = (buf: ArrayBuffer) => `data:image/png;base64,${Buffer.from(buf).toString("base64")}`;
+const asset = (name: string) => readFile(new URL(`./${name}`, import.meta.url));
+const dataUri = (buf: Buffer) => `data:image/png;base64,${buf.toString("base64")}`;
 
 export default async function OgImage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
