@@ -8,11 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
-- **Survivors leaderboard control ordering.** Map tabs are now sorted alphabetically by label (with **All maps** always first), and the sort pills are ordered **Time alive → Kills → Longest kill** (matching the new time-alive default).
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
+
+## [0.9.1] - 2026-07-15
+
+### Changed
+- **Survivors leaderboard control ordering.** Map tabs are now sorted alphabetically by label (with **All maps** always first), and the sort pills are ordered **Time alive → Kills → Longest kill** (matching the new time-alive default).
 
 ## [0.9.0] - 2026-07-15
 
