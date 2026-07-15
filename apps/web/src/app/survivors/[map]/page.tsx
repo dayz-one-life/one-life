@@ -38,11 +38,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function SurvivorsMapPage({ params, searchParams }: Props) {
   const { map } = await params;
   const { servers, route } = await resolve(map);
-  if (route.kind === "redirect") redirect(route.to);
-  if (route.kind === "notFound") notFound();
 
   const sp = await searchParams;
   const page = parsePage(sp.page);
+
+  // Preserve ?page across the explicit-default redirect (e.g. /survivors/time?page=2).
+  if (route.kind === "redirect") redirect(page > 1 ? `${route.to}?page=${page}` : route.to);
+  if (route.kind === "notFound") notFound();
+
   const data = await getSurvivors({ slug: route.slug ?? undefined, sort: route.sort, page });
 
   return <SurvivorsBoard page={data} slug={route.slug} tabs={buildTabs(servers)} />;
