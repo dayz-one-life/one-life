@@ -129,3 +129,8 @@ export type PlayerAggregate = {
     aliveAnywhere: boolean;
   };
 };
+
+export type SurvivorSort = "kills" | "time" | "longest";
+export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
+export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
+export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; sort: SurvivorSort; }

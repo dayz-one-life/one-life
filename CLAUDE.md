@@ -106,6 +106,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (lowercase names, served by Next.js at `/characters/<name>.webp`, e.g. `/characters/lewis.webp`), staged for
   the deferred per-life character-head display — map a life's character name via `/characters/${name.toLowerCase()}.webp`.
   Sourced from the DayZ Fandom wiki (CC BY-SA; attribution required if shipped public-facing).
+- **Survivors leaderboard** ✅: public, mobile-first live leaderboard at `/survivors` (combined,
+  all active slugged servers) and `/survivors/[map]` (single server, by `servers.slug`) — one row
+  per (player × server) for every currently-alive survivor (**alive** = open qualified life:
+  `lives.endedAt IS NULL` and `isLifeQualified`). Each row shows gamertag, map, kills / time alive /
+  longest kill (all **this-life**, i.e. since `life.startedAt`), and a character avatar. Query-param
+  sort (`?sort=kills|time|longest`, default `kills`, always descending) + pagination
+  (`?page=`, 25/page); server-rendered with per-page SEO/OG metadata. Backed by the
+  `getAliveSurvivors` read-model (`packages/read-models/src/survivors.ts`) and the public
+  `GET /survivors[/:slug]` API route. Avatars resolve via `rosterByClass(characterClass).name` →
+  `/characters/<name>.webp` (silhouette fallback for an unknown/no character). Gamertag filtering
+  was scoped out of this pass.
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.

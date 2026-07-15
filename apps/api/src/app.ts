@@ -12,6 +12,7 @@ import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerPlayerAggregateRoutes } from "./routes/player-aggregate.js";
 import { registerGlobalRoutes } from "./routes/global.js";
 import { registerAuthMethodsRoute } from "./routes/auth-methods.js";
+import { registerSurvivorsRoutes } from "./routes/survivors.js";
 
 export interface AuthOptions {
   auth: Auth;
@@ -38,5 +39,6 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   registerBoardRoutes(app, db);
   registerPlayerAggregateRoutes(app, db);
   registerGlobalRoutes(app, db);
+  registerSurvivorsRoutes(app, db);
   return app;
 }

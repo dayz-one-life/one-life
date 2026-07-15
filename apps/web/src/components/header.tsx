@@ -10,6 +10,9 @@ export function Masthead() {
       <Link href="/" aria-label="One Life — home">
         <img src="/one-life-horizontal.png" alt="One Life" className="h-9 w-auto" />
       </Link>
+      <Link href="/survivors" className="text-sm text-dim hover:text-bone">
+        Survivors
+      </Link>
       <MastheadSlot status={status} />
     </header>
   );

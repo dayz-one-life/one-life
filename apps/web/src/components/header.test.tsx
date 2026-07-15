@@ -1,8 +1,27 @@
 // apps/web/src/components/header.test.tsx
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Masthead } from "./header";
 import { MastheadSlot } from "./masthead-slot";
 import type { GamertagLink } from "@/lib/types";
+
+function renderMasthead() {
+  const queryClient = new QueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Masthead />
+    </QueryClientProvider>,
+  );
+}
+
+describe("Masthead", () => {
+  it("shows the logo and a Survivors nav link", async () => {
+    renderMasthead();
+    expect(screen.getByAltText(/one life/i)).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /survivors/i })).toHaveAttribute("href", "/survivors");
+  });
+});
 
 const link = (over: Partial<GamertagLink>): GamertagLink => ({
   id: 1, serverId: 1, gamertag: "GHOST_ACTOR", status: "verified",
