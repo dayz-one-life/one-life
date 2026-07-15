@@ -7,19 +7,19 @@ import { buildSurvivorMetadata } from "@/lib/survivor-metadata";
 import { parsePage, buildTabs, resolveSurvivorsRoute } from "@/lib/board-params";
 
 type Props = {
-  params: Promise<{ map: string }>;
+  params: Promise<{ map: string; sort: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-async function resolve(map: string) {
+async function resolve(map: string, sort: string) {
   const servers = await getServers().catch(() => [] as Server[]);
   const slugs = servers.filter((s) => s.slug !== null).map((s) => s.slug as string);
-  return { servers, route: resolveSurvivorsRoute([map], slugs) };
+  return { servers, route: resolveSurvivorsRoute([map, sort], slugs) };
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
-  const { map } = await params;
-  const { route } = await resolve(map);
+  const { map, sort } = await params;
+  const { route } = await resolve(map, sort);
   if (route.kind !== "board") return { title: "Survivors" };
 
   const sp = await searchParams;
@@ -35,9 +35,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   });
 }
 
-export default async function SurvivorsMapPage({ params, searchParams }: Props) {
-  const { map } = await params;
-  const { servers, route } = await resolve(map);
+export default async function SurvivorsMapSortPage({ params, searchParams }: Props) {
+  const { map, sort } = await params;
+  const { servers, route } = await resolve(map, sort);
   if (route.kind === "redirect") redirect(route.to);
   if (route.kind === "notFound") notFound();
 

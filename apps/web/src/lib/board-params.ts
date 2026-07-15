@@ -3,12 +3,6 @@ import type { Server, SurvivorSort } from "./types";
 export const SORTS: SurvivorSort[] = ["kills", "time", "longest"];
 export const DEFAULT_SORT: SurvivorSort = "time";
 
-/** Coerce a raw `sort` query value to a valid `SurvivorSort` (default `time`). */
-export function parseSort(raw: string | string[] | undefined): SurvivorSort {
-  const v = Array.isArray(raw) ? raw[0] : raw;
-  return SORTS.includes(v as SurvivorSort) ? (v as SurvivorSort) : DEFAULT_SORT;
-}
-
 /** Coerce a raw `page` query value to a 1-based page number (default/floor 1). */
 export function parsePage(raw: string | string[] | undefined): number {
   const v = Array.isArray(raw) ? raw[0] : raw;
