@@ -6,3 +6,5 @@ export * from "./qualified.js";
 export * from "./character.js";
 export * from "./claimable.js";
 export * from "./survivors.js";
+export * from "./player-kills.js";
+export * from "./player-page.js";

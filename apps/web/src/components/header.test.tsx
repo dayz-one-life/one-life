@@ -48,7 +48,7 @@ describe("MastheadSlot", () => {
   it("shows the amber gamertag CTA when verified", () => {
     render(<MastheadSlot status={{ kind: "verified", link: link({}) }} />);
     const cta = screen.getByRole("link", { name: "GHOST_ACTOR" });
-    expect(cta).toHaveAttribute("href", "/account");
+    expect(cta).toHaveAttribute("href", "/players/ghost-actor");
     expect(cta.className).toContain("bg-amber");
   });
 });

@@ -28,4 +28,13 @@ describe("GET /players/:gamertag", () => {
     const res = await app.inject({ method: "GET", url: "/players/nobody-here" });
     expect(res.statusCode).toBe(404);
   });
+  it("returns the full player page payload", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/Twhizzle4life" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("standing");
+    expect(body).toHaveProperty("pastLives");
+    expect(body).toHaveProperty("totals");
+    expect(body.gamertag).toBe("Twhizzle4life");
+  });
 });
