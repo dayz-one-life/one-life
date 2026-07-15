@@ -62,4 +62,9 @@ describe("SurvivorRow", () => {
     render(<SurvivorRow rank={2} showMap={false} sort="kills" row={base} />);
     expect(screen.queryByText(/chernarus/i)).not.toBeInTheDocument();
   });
+
+  test("links the gamertag to the player page", () => {
+    render(<SurvivorRow row={{ ...base, gamertag: "xSgt Hartman" }} rank={1} showMap={false} sort="time" />);
+    expect(screen.getByRole("link", { name: "xSgt Hartman" })).toHaveAttribute("href", "/players/xsgt-hartman");
+  });
 });
