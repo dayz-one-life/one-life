@@ -16,7 +16,7 @@ describe("SurvivorControls", () => {
       />
     );
     const longest = screen.getByRole("link", { name: /longest kill/i });
-    expect(longest).toHaveAttribute("href", "/survivors/chernarus?sort=longest");
+    expect(longest).toHaveAttribute("href", "/survivors/chernarus/longest");
     const chern = screen.getByRole("link", { name: "Chernarus" });
     expect(chern).toHaveAttribute("aria-current", "page");
   });
@@ -49,6 +49,6 @@ describe("SurvivorControls", () => {
       />
     );
     const time = screen.getByRole("link", { name: /time alive/i });
-    expect(time).toHaveAttribute("href", "/survivors?sort=time");
+    expect(time).toHaveAttribute("href", "/survivors");
   });
 });
