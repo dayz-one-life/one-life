@@ -102,6 +102,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   survivor roster; the `ingest-worker` RPT pass writes `character_sightings` + a `characters` rollup
   (charID inheritance); `getLifeCharacter` read-model + API life-detail `character` field. Web
   display deferred with the stats dashboard.
+  **Character class = `create_entity` only:** a character's persona is taken solely from the game's
+  authoritative `Create entity type 'Survivor[MF]_<Name>'` RPT line. The old `head_asset` signal was
+  **removed** — head-warning lines carry no player identity and mis-attribute across players (even
+  cross-gender), producing phantoms (e.g. head `m_adam` → non-existent "Adam"). `rosterByClass`
+  (`@onelife/domain`) resolves real `Survivor[MF]_<Name>` classes to the 31 shipped personas by name;
+  unknown/undetermined → `null` → silhouette. (Migration `0008` rebuilt the `characters` rollup from
+  `create_entity`-only sightings.)
   **Character headshots:** the 31 default survivor portraits live at `apps/web/public/characters/<name>.webp`
   (lowercase names, served by Next.js at `/characters/<name>.webp`, e.g. `/characters/lewis.webp`), staged for
   the deferred per-life character-head display — map a life's character name via `/characters/${name.toLowerCase()}.webp`.

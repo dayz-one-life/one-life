@@ -45,7 +45,10 @@ describe("parseRptFile", () => {
     expect(s[0]).toMatchObject({ gamertag: "YrJustBad", charId: 3, kind: "existing", characterClass: "SurvivorM_Cyril" });
   });
 
-  it("resolves class from the head-asset warning when Create entity is absent", () => {
+  it("ignores head-asset warnings — class stays null when Create entity is absent", () => {
+    // Head-asset warnings carry no player identity and mis-attribute across players (even
+    // cross-gender), so they are not a class signal. Without a Create entity line, the sighting
+    // is still emitted (charId intact) but the character is undetermined → null → silhouette.
     const body = [
       "12:00:00.0 [StateMachine]: Player KingSioux82 (dpnid 42 uid AAAABBBBCCCCDDDD1111222233334444AAAABBBB) Entering GetLoadedCharLoginState",
       "12:00:01.0 Warning: No components in dz\\characters\\heads\\f_helga.p3d:geometry",
@@ -53,7 +56,7 @@ describe("parseRptFile", () => {
       "12:00:02.0 <LOAD EXISTING CHAR>:",
       "    charID 9", "    playerID 9", "    dpnid 42", "    uid AAAABBBBCCCCDDDD1111222233334444AAAABBBB",
     ].join("\n");
-    expect(parse(body)[0]).toMatchObject({ characterClass: "SurvivorF_Helga", classSource: "head_asset" });
+    expect(parse(body)[0]).toMatchObject({ charId: 9, characterClass: null, classSource: null });
   });
 
   it("abstains on class (null) for overlapping logins but still emits exact charIds", () => {

@@ -57,6 +57,13 @@
       "when": 1784064028588,
       "tag": "0007_acoustic_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784082409685,
+      "tag": "0008_rebuild_character_classes",
+      "breakpoints": true
     }
   ]
 }

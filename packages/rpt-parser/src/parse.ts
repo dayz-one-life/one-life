@@ -1,7 +1,6 @@
-import { classFromHead } from "@onelife/domain";
 import { headerDate, TimeTracker } from "./timestamps.js";
 import {
-  parseTime, parseLoginOpen, parseCreateEntity, parseHeadWarning, parseConnect,
+  parseTime, parseLoginOpen, parseCreateEntity, parseConnect,
   parseCharBlockStart, parseCharId, parsePlayerId, parseBlockDpnid, parseBlockUid,
 } from "./lines.js";
 
@@ -13,7 +12,7 @@ export type CharacterSighting = {
   playerDbId: number | null;
   kind: "existing" | "new";
   characterClass: string | null;
-  classSource: "create_entity" | "head_asset" | null;
+  classSource: "create_entity" | null;
   x: number | null;
   y: number | null;
   z: number | null;
@@ -24,7 +23,7 @@ type Pending = {
   gamertag: string;
   uid: string;
   characterClass: string | null;
-  classSource: "create_entity" | "head_asset" | null;
+  classSource: "create_entity" | null;
   openedAt: Date;
 };
 type Block = { kind: "existing" | "new"; observedAt: Date; lineIndex: number; charId?: number; playerDbId?: number; dpnid?: string; uid?: string };
@@ -63,7 +62,7 @@ export function parseRptFile(content: string, opts: { offsetMs: number }): Chara
     connect = null;
   };
 
-  const attach = (cls: string, source: "create_entity" | "head_asset") => {
+  const attach = (cls: string, source: "create_entity") => {
     if (pending.size !== 1) return; // overlapping logins → abstain
     const p = [...pending.values()][0]!;
     if (!p.characterClass) { p.characterClass = cls; p.classSource = source; }
@@ -95,9 +94,6 @@ export function parseRptFile(content: string, opts: { offsetMs: number }): Chara
 
     const cls = parseCreateEntity(line);
     if (cls) { attach(cls, "create_entity"); continue; }
-
-    const head = parseHeadWarning(line);
-    if (head) { const hc = classFromHead(head); if (hc) attach(hc, "head_asset"); continue; }
 
     const c = parseConnect(line);
     if (c) { connect = c; continue; }
