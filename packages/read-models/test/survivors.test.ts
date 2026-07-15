@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, kills } from "@onelife/db";
+import { servers, players, lives, kills, rptFiles, characterSightings, characters } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getAliveSurvivors } from "../src/survivors.js";
 
@@ -15,6 +15,38 @@ const svcSakh = Math.floor(Math.random() * 1e8) + 41e7;
 
 let chern: { id: number; slug: string };
 let sakh: { id: number; slug: string };
+let chernRptFileId: number;
+
+async function insertSighting(opts: {
+  serverId: number;
+  gamertag: string;
+  charId: number;
+  characterClass: string | null;
+  observedAt: Date;
+}) {
+  await db.insert(characterSightings).values({
+    serverId: opts.serverId,
+    rptFileId: chernRptFileId,
+    lineIndex: Math.floor(Math.random() * 1e8),
+    uid: `U-${opts.charId}`,
+    gamertag: opts.gamertag,
+    charId: opts.charId,
+    kind: "existing",
+    characterClass: opts.characterClass,
+    observedAt: opts.observedAt,
+  });
+}
+
+async function insertCharacterRollup(opts: { serverId: number; charId: number; characterClass: string | null }) {
+  await db.insert(characters).values({
+    serverId: opts.serverId,
+    charId: opts.charId,
+    uid: `U-${opts.charId}`,
+    characterClass: opts.characterClass,
+    firstSeenAt: hoursAgo(2),
+    lastSeenAt: now,
+  });
+}
 
 // Insert helpers matching the shape of the task brief's illustrative `insertLife`/`insertKill`,
 // adapted onto the real Drizzle schema + test harness. `players` are global (gamertag-unique),
@@ -66,10 +98,14 @@ beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svcSakh, name: "Survivors-Sakhal", map: "sakhal", slug: `survivors-sakhal-${svcSakh}`, active: true }).returning();
   chern = { id: c!.id, slug: c!.slug! };
   sakh = { id: s!.id, slug: s!.slug! };
+  const [f] = await db.insert(rptFiles).values({ serverId: chern.id, path: "/c/survivors.RPT", name: "survivors.RPT" }).returning();
+  chernRptFileId = f!.id;
 });
 
 afterEach(async () => {
   await db.delete(kills).where(inArray(kills.serverId, [chern.id, sakh.id]));
+  await db.delete(characterSightings).where(inArray(characterSightings.serverId, [chern.id, sakh.id]));
+  await db.delete(characters).where(inArray(characters.serverId, [chern.id, sakh.id]));
   await db.delete(lives).where(inArray(lives.serverId, [chern.id, sakh.id]));
   if (insertedGamertags.size > 0) {
     await db.delete(players).where(inArray(players.gamertag, [...insertedGamertags]));
@@ -78,6 +114,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  await db.delete(rptFiles).where(eq(rptFiles.id, chernRptFileId));
   await db.delete(servers).where(inArray(servers.id, [chern.id, sakh.id]));
   await sql.end();
 });
@@ -158,6 +195,23 @@ describe("getAliveSurvivors", () => {
     await insertLife({ serverId: chern.id, gamertag: "Anon", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
     const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
     expect(res.rows[0]?.character).toBeNull();
+  });
+
+  it("resolves character name/head/gender for the open life", async () => {
+    await insertLife({ serverId: chern.id, gamertag: "Helga_Main", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+    await insertSighting({ serverId: chern.id, gamertag: "Helga_Main", charId: 42, characterClass: "SurvivorF_Helga", observedAt: minutesAgo(30) });
+    await insertCharacterRollup({ serverId: chern.id, charId: 42, characterClass: "SurvivorF_Helga" });
+    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const row = res.rows.find((r) => r.gamertag === "Helga_Main")!;
+    expect(row.character).toEqual({ name: "Helga", head: expect.any(String), gender: "female" });
+  });
+
+  it("leaves character null for an unknown/modded class", async () => {
+    await insertLife({ serverId: chern.id, gamertag: "Modded", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+    await insertSighting({ serverId: chern.id, gamertag: "Modded", charId: 7, characterClass: "SurvivorM_ModPack_Xyz", observedAt: minutesAgo(20) });
+    await insertCharacterRollup({ serverId: chern.id, charId: 7, characterClass: "SurvivorM_ModPack_Xyz" });
+    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    expect(res.rows.find((r) => r.gamertag === "Modded")!.character).toBeNull();
   });
 
   it("clamps page to >= 1 and returns empty rows with the real total for an out-of-range page", async () => {

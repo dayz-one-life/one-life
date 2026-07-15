@@ -3,6 +3,8 @@ import { players, lives, servers, sessions, kills } from "@onelife/db";
 import { and, eq, isNull, isNotNull, inArray } from "drizzle-orm";
 import { livePlaytime } from "./playtime.js";
 import { isLifeQualified } from "./qualified.js";
+import { getLifeCharacter } from "./character.js";
+import { rosterByClass } from "@onelife/domain";
 
 export const SURVIVORS_PAGE_SIZE = 25;
 
@@ -148,7 +150,16 @@ export async function getAliveSurvivors(
 
   const total = candidates.length;
   const start = (page - 1) * pageSize;
-  const rows: SurvivorRow[] = candidates.slice(start, start + pageSize).map(({ serverId: _serverId, startedAt: _startedAt, ...row }) => row);
+  const pageCandidates = candidates.slice(start, start + pageSize);
+
+  const rows: SurvivorRow[] = await Promise.all(
+    pageCandidates.map(async ({ serverId, startedAt, ...row }) => {
+      const lc = await getLifeCharacter(db, serverId, row.gamertag, startedAt, null);
+      const rc = lc?.characterClass ? rosterByClass(lc.characterClass) : null;
+      const character: SurvivorCharacter | null = rc ? { name: rc.name, head: rc.head, gender: rc.gender } : null;
+      return { ...row, character };
+    }),
+  );
 
   return { rows, total, page, pageSize, sort };
 }
