@@ -40,6 +40,22 @@ describe("SurvivorControls", () => {
     expect(chern).not.toHaveAttribute("aria-current");
   });
 
+  test("sort chips render in order: time alive, kills, longest kill", () => {
+    render(
+      <SurvivorControls
+        slug={null}
+        sort="time"
+        tabs={[{ slug: null, label: "All maps" }]}
+      />
+    );
+    const chipLabels = ["Time alive", "Kills", "Longest kill"];
+    const rendered = screen
+      .getAllByRole("link")
+      .map((l) => l.textContent)
+      .filter((t) => chipLabels.includes(t ?? ""));
+    expect(rendered).toEqual(["Time alive", "Kills", "Longest kill"]);
+  });
+
   test("time alive chip link points at sort=time and resets page", () => {
     render(
       <SurvivorControls
