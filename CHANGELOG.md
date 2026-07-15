@@ -8,11 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
-- **Survivors leaderboard: path-based sort, time-alive default, SEO H1, one-stat rows.** Sort now lives in the URL **path** instead of a `?sort=` query string — `/survivors/kills`, `/survivors/sakhal`, `/survivors/sakhal/kills` (page stays `?page=`), served by a new `/survivors/[map]/[sort]` route and a pure `resolveSurvivorsRoute` resolver (a depth-1 segment resolves as a reserved **sort word** → combined board, or a **server slug** → that map; the three sort words `kills`/`time`/`longest` are reserved and cannot be server slugs). The **default sort is now time-alive descending** (web + API `GET /survivors`); old `?sort=` links are ignored (render the default), and an explicit-default path (`/survivors/time`) 307-redirects to the bare path (preserving `?page`). Each board page gets an SEO-friendly `<h1>` — `Top {Map} survivors by {sort}` (combined drops the map name). Rows now show **only the stat being sorted by** (the other two are hidden), the character avatar is enlarged (40px → 80px), and the "Longest" label reads "Longest kill". Tie-breaking is **sort-aware**: time → time/kills/longest, kills → kills/time/longest, longest → longest/time/kills, with gamertag as the final deterministic tiebreak (NaN-safe comparator).
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
+
+## [0.9.0] - 2026-07-15
+
+### Changed
+- **Survivors leaderboard: path-based sort, time-alive default, SEO H1, one-stat rows.** Sort now lives in the URL **path** instead of a `?sort=` query string — `/survivors/kills`, `/survivors/sakhal`, `/survivors/sakhal/kills` (page stays `?page=`), served by a new `/survivors/[map]/[sort]` route and a pure `resolveSurvivorsRoute` resolver (a depth-1 segment resolves as a reserved **sort word** → combined board, or a **server slug** → that map; the three sort words `kills`/`time`/`longest` are reserved and cannot be server slugs). The **default sort is now time-alive descending** (web + API `GET /survivors`); old `?sort=` links are ignored (render the default), and an explicit-default path (`/survivors/time`) 307-redirects to the bare path (preserving `?page`). Each board page gets an SEO-friendly `<h1>` — `Top {Map} survivors by {sort}` (combined drops the map name). Rows now show **only the stat being sorted by** (the other two are hidden), the character avatar is enlarged (40px → 80px), and the "Longest" label reads "Longest kill". Tie-breaking is **sort-aware**: time → time/kills/longest, kills → kills/time/longest, longest → longest/time/kills, with gamertag as the final deterministic tiebreak (NaN-safe comparator).
 
 ## [0.8.1] - 2026-07-15
 
