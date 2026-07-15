@@ -26,7 +26,7 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
         <section className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted">Past lives · {page.pastLives.length}</h2>
           <div className="grid gap-2 sm:grid-cols-2">
-            {page.pastLives.map((l) => <PastLifeCard key={`${l.serverId}:${l.lifeId}`} life={l} />)}
+            {page.pastLives.map((l) => <PastLifeCard key={`${l.serverId}:${l.lifeId}`} life={l} now={now} />)}
           </div>
         </section>
       )}
