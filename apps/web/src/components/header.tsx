@@ -31,6 +31,9 @@ export function Masthead() {
       <Link href="/" aria-label="One Life — home">
         <img src="/one-life-horizontal.png" alt="One Life" className="h-9 w-auto" />
       </Link>
+      <Link href="/survivors" className="text-sm text-dim hover:text-bone">
+        Survivors
+      </Link>
       {loading ? (
         <span className={cn(cta, "pointer-events-none opacity-50")} role="status" aria-live="polite">
           <span aria-hidden>…</span>
