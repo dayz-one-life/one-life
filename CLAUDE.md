@@ -139,7 +139,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `rosterByClass(characterClass).name` → `/characters/<name>.webp` (silhouette fallback for an
   unknown/no character). Gamertag filtering was scoped out of this pass.
 - **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
-  hero, per-server current standing (alive / banned / idle) with a live ban countdown, expandable
+  hero, per-server current standing (alive / banned / idle) with a live ban countdown, paginated
   past-life history (kill lists, vitals, sessions), a dynamic OpenGraph share image, and
   `ProfilePage` JSON-LD. The slug is the gamertag slugified (`playerSlug`, `@/lib/slug`) and resolved
   back via `resolveGamertagBySlug` (`packages/read-models/src/player-aggregate.ts`); the page is
@@ -153,6 +153,21 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   to `/players/{slug}`. A new `/welcome` post-login resolver (`apps/web/src/app/welcome/page.tsx`)
   sends a verified user straight to their player page (pending → `/account`, unlinked →
   `/account/claim`), and the masthead's gamertag chip points there too.
+  **Redesign (v0.11.0):** single roomy column, everything always visible (no `<details>`
+  expand/collapse). The hero is **avatar-free** with a full-width stat band via the shared
+  `heroStats` helper (`@/components/player/format`) — always Lives / Deaths / Longest life; **Kills
+  only when > 0**; **Longest life is always the amber-highlighted stat**. Current-standing cards are
+  **state-colored** (green alive / red banned / neutral idle); past-life cards are **muted archive**
+  styling to read as history. Past lives are **paginated** — `getPlayerPage(db, gamertag, now, { page,
+  pageSize })` (`PLAYER_PAST_LIVES_PAGE_SIZE = 10`) gathers the lightweight full set for totals +
+  ordering but **enriches only the visible slice** (O(pageSize) kills/sessions/character), returns
+  `pastLivesTotal/Page/PageSize`, and **no longer returns `heroCharacter`**; `GET /players/:gamertag`
+  takes `?page=` (Zod `.catch(1)`) and the page route's canonical is page-aware
+  (`?page=N` for N>1, `PlayerPagination` control). The OpenGraph image (`opengraph-image.tsx`) is a
+  **survivor dossier** — the real logo + the **logo-skull only** motif, callsign in real casing,
+  "Surviving since {MON YYYY}," and the same `heroStats` readout, rendered in Oswald/Space Mono from
+  co-located `.ttf`/`logo.png`/`skull.png` assets (read via `fs.readFile`, since the Node OG runtime's
+  `fetch` can't read `file:` URLs).
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.

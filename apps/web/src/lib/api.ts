@@ -116,8 +116,8 @@ async function getOrNull<T>(path: string): Promise<T | null> {
   }
 }
 
-export const getPlayerPage = (slug: string) =>
-  getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}`);
+export const getPlayerPage = (slug: string, page?: number) =>
+  getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}${page && page > 1 ? `?page=${page}` : ""}`);
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);

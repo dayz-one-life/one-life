@@ -6,14 +6,21 @@ import { playerSlug } from "@/lib/slug";
 import { PlayerProfile } from "@/components/player/player-profile";
 import { formatDuration } from "@/components/player/format";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+function parsePage(raw?: string): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
+}
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const page = await getPlayerPage(slug).catch(() => null);
+  const pageNum = parsePage((await searchParams).page);
+  const page = await getPlayerPage(slug, pageNum).catch(() => null);
   if (!page) return { title: "Survivor not found — One Life" };
   const desc = `${page.totals.kills} kills · ${page.totals.lives} lives · longest life ${formatDuration(page.totals.longestLifeSeconds)}.`;
-  const url = absoluteUrl(`/players/${playerSlug(page.gamertag)}`);
+  const canonicalBase = absoluteUrl(`/players/${playerSlug(page.gamertag)}`);
+  const url = page.pastLivesPage > 1 ? `${canonicalBase}?page=${page.pastLivesPage}` : canonicalBase;
   return {
     title: `${page.gamertag} — One Life DayZ survivor`,
     description: desc,
@@ -23,9 +30,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function PlayerPageRoute({ params }: Props) {
+export default async function PlayerPageRoute({ params, searchParams }: Props) {
   const { slug } = await params;
-  const page = await getPlayerPage(slug);
+  const pageNum = parsePage((await searchParams).page);
+  const page = await getPlayerPage(slug, pageNum);
   if (!page) notFound();
   return <PlayerProfile page={page} now={new Date()} />;
 }

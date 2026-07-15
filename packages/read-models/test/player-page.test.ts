@@ -77,3 +77,48 @@ describe("getPlayerPage", () => {
     expect(life.sessions).toBe(1);
   });
 });
+
+describe("getPlayerPage pagination", () => {
+  const svcP = Math.floor(Math.random() * 1e8) + 49e7;
+  let srv: number;
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcP, name: "pg-page", map: "chernarusplus", slug: `pgpage-${svcP}`, active: true }).returning();
+    srv = s!.id;
+    const [pl] = await db.insert(players).values({ gamertag: "Prolific", firstSeenAt: hoursAgo(1000), lastSeenAt: now }).returning();
+    // 12 ended qualified lives, each ≥5min playtime so they qualify; newest first by endedAt
+    for (let i = 0; i < 12; i++) {
+      await db.insert(lives).values({
+        serverId: srv, playerId: pl!.id, lifeNumber: i + 1,
+        startedAt: hoursAgo(50 - i * 2), endedAt: hoursAgo(49 - i * 2),
+        playtimeSeconds: 600, deathCause: "pvp", deathByGamertag: `killer${i}`,
+      });
+    }
+  });
+  afterAll(async () => {
+    await db.delete(lives).where(eq(lives.serverId, srv));
+    await db.delete(players).where(eq(players.gamertag, "Prolific"));
+    await db.delete(servers).where(eq(servers.id, srv));
+  });
+
+  it("returns 10 newest on page 1 with the true total", async () => {
+    const pg = (await getPlayerPage(db, "Prolific", now, { page: 1 }))!;
+    expect(pg.pastLivesTotal).toBe(12);
+    expect(pg.pastLivesPage).toBe(1);
+    expect(pg.pastLivesPageSize).toBe(10);
+    expect(pg.pastLives.length).toBe(10);
+    // newest death first
+    expect(pg.pastLives[0]!.endedAt.getTime()).toBeGreaterThan(pg.pastLives[1]!.endedAt.getTime());
+    // totals reflect ALL lives, not the slice
+    expect(pg.totals.deaths).toBe(12);
+  });
+  it("returns the remainder on page 2", async () => {
+    const pg = (await getPlayerPage(db, "Prolific", now, { page: 2 }))!;
+    expect(pg.pastLives.length).toBe(2);
+    expect(pg.pastLivesPage).toBe(2);
+  });
+  it("clamps a too-large page to the last page", async () => {
+    const pg = (await getPlayerPage(db, "Prolific", now, { page: 99 }))!;
+    expect(pg.pastLivesPage).toBe(2);
+    expect(pg.pastLives.length).toBe(2);
+  });
+});

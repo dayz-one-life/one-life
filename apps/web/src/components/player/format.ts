@@ -24,3 +24,30 @@ export function heroStatusLine(page: Pick<PlayerPage, "standing">): string {
   const alive = page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
   return alive.length ? `Alive on ${alive.join(", ")}` : "No open lives";
 }
+
+export type HeroStat = { label: string; value: string; hot: boolean };
+
+export function heroStats(totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }): HeroStat[] {
+  const out: HeroStat[] = [];
+  if (totals.kills > 0) out.push({ label: "Kills", value: String(totals.kills), hot: false });
+  out.push({ label: "Lives", value: String(totals.lives), hot: false });
+  out.push({ label: "Deaths", value: String(totals.deaths), hot: false });
+  out.push({ label: "Longest life", value: formatDuration(totals.longestLifeSeconds), hot: true });
+  return out;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export function monthYear(iso: string): string {
+  const d = new Date(iso);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+export function relativeDate(iso: string, now: Date): string {
+  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) { const w = Math.floor(days / 7); return `${w} week${w > 1 ? "s" : ""} ago`; }
+  const m = Math.floor(days / 30);
+  return `${m} month${m > 1 ? "s" : ""} ago`;
+}

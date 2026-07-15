@@ -37,4 +37,13 @@ describe("GET /players/:gamertag", () => {
     expect(body).toHaveProperty("totals");
     expect(body.gamertag).toBe("Twhizzle4life");
   });
+  it("carries pagination fields and accepts ?page=", async () => {
+    const res = await app.inject({ method: "GET", url: `/players/Twhizzle4life?page=2` });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("pastLivesTotal");
+    expect(body).toHaveProperty("pastLivesPage");
+    expect(body).toHaveProperty("pastLivesPageSize");
+    expect(body).not.toHaveProperty("heroCharacter");
+  });
 });
