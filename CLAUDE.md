@@ -72,12 +72,24 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **One gamertag per user:** a user holds at most one active (`pending`|`verified`) `gamertag_links` row —
   enforced by partial unique index `gamertag_links_user_active_uniq` (migration `0007`) + a
   `409 active_link_exists` guard in `POST /me/gamertag-links`; a `verified` link is admin-release-only.
-  **Masthead account CTA:** the top-bar's right-hand button is a stateful amber CTA (client `Masthead`
-  reusing `useSession`/`useGamertagLinks`/`activeLink`) — **Sign in** → `/login` (signed-out),
-  **Link gamertag** → `/account/claim` (no active link), **{GAMERTAG} (not verified)** → `/account`
-  (pending), **{GAMERTAG}** → `/account` (verified). `QueryProvider` lives at the **root layout** (one
-  app-wide TanStack Query cache), and `useGamertagLinks(enabled)` gates its fetch so logged-out visitors
-  don't 401 on `/api/me/gamertag-links` every page.
+  **Onboarding/status banner + masthead slot:** a persistent site-wide banner under the masthead
+  (`StatusBannerContainer` in the root layout, between `Masthead` and the page) reflects the viewer's
+  onboarding state and carries the primary next action; the masthead's right-hand slot collapses to
+  match. One pure derivation `accountStatus({ signedIn, loading, links })` (`@/lib/account-status`,
+  union `loading|signedOut|unlinked|pending|verified`) is the single source of truth for both surfaces,
+  read via the `useAccountStatus()` hook (`useSession` + `useGamertagLinks` + `activeLink`). **Banner:**
+  signed-out → *"Sign in to claim your gamertag"* (→`/login`); unlinked → *"Link your gamertag…"*
+  (→`/account/claim`); pending → self-contained verification banner (emote chips + live `n/total DONE`
+  progress + expiry countdown + **Cancel claim**, or a **Start a new challenge** re-claim when expired);
+  verified/loading → nothing. **Masthead slot** (`MastheadSlot`): signed-out → empty; unlinked/pending →
+  quiet **Account** link → `/account`; verified → amber **{GAMERTAG}** CTA → `/account`; loading →
+  placeholder. `StatusBanner`/`MastheadSlot` are presentational (unit-tested by props);
+  `useAccountStatus`/`StatusBannerContainer`/`Masthead` are thin hook wrappers (untested, per repo
+  convention). No backend change — `GET /me/gamertag-links` already serializes the challenge, so
+  `useGamertagLinks` adds a **5s `refetchInterval` while a link is pending** (progress ticks live, stops
+  when nothing is pending, and never polls signed-out visitors). `QueryProvider` lives at the **root
+  layout** (one app-wide TanStack Query cache), and `useGamertagLinks(enabled)` gates its fetch so
+  logged-out visitors don't 401 on `/api/me/gamertag-links` every page.
 - **SP3 — Death-ban enforcement** ✅: `apps/enforcer` bans a player 24h when a qualified life dies
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
@@ -131,7 +143,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
-  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps).
+  `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
+  `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
+  — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
+  systemd unit).
 
 ## Commands
 

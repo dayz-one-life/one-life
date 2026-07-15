@@ -65,6 +65,11 @@ export class NitradoClient {
     await this.setBans(bans.filter((b) => b !== gamertag));
   }
 
+  /** Restart this service's game server (fire immediately, no warning message). */
+  async restartServer(): Promise<void> {
+    await this.postJson(`/services/${this.serviceId}/gameservers/restart`, {});
+  }
+
   private parseFilenameTs(name: string): number | null {
     const m = FILENAME_RE.exec(name);
     if (!m) return null;
