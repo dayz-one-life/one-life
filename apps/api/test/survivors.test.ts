@@ -18,14 +18,14 @@ describe("GET /survivors", () => {
     const res = await app.inject({ method: "GET", url: "/survivors" });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toMatchObject({ page: 1, pageSize: 25, sort: "kills" });
+    expect(body).toMatchObject({ page: 1, pageSize: 25, sort: "time" });
     expect(Array.isArray(body.rows)).toBe(true);
   });
 
   it("validates sort + page, coercing invalid to defaults (no 500)", async () => {
     const res = await app.inject({ method: "GET", url: "/survivors?sort=bogus&page=-4" });
     expect(res.statusCode).toBe(200);
-    expect(res.json().sort).toBe("kills");
+    expect(res.json().sort).toBe("time");
     expect(res.json().page).toBe(1);
   });
 

@@ -5,7 +5,7 @@ import { getAliveSurvivors } from "@onelife/read-models";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const query = z.object({
-  sort: z.enum(["kills", "time", "longest"]).catch("kills"),
+  sort: z.enum(["kills", "time", "longest"]).catch("time"),
   page: z.coerce.number().int().positive().catch(1),
 });
 
