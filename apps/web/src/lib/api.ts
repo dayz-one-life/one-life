@@ -1,6 +1,6 @@
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
-  Me, GamertagLink, ClaimResult, PlayerAggregate,
+  Me, GamertagLink, ClaimResult, PlayerPage,
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage,
 } from "./types";
 
@@ -116,8 +116,8 @@ async function getOrNull<T>(path: string): Promise<T | null> {
   }
 }
 
-export const getPlayerAggregate = (gamertag: string) =>
-  getOrNull<PlayerAggregate>(`/api/players/${encodeURIComponent(gamertag)}`);
+export const getPlayerPage = (slug: string) =>
+  getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}`);
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);
