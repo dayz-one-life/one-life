@@ -16,6 +16,8 @@ schedule: **every 2 hours, at the top of an even UTC hour** (00:00, 02:00, 04:00
 - No per-server schedule overrides.
 - No configurable interval or timezone (hard-coded to 2h / even UTC hours).
 - No persistence of reboot history (no new tables, no event log entries).
+- No dry-run gate — a scheduled restart is a routine, reversible operation (unlike a
+  ban), so it goes live as soon as it is released and deployed.
 
 These are deferred; revisit only if a concrete need appears.
 
@@ -48,13 +50,13 @@ async restartServer(): Promise<void> {
 
 ### 2. `apps/rebooter/src/config.ts`
 
-Zod-parsed env, mirroring `enforcer`'s dry-run convention:
+Zod-parsed env:
 
 - `DATABASE_URL` (required) — to read the `servers` table.
 - `NITRADO_TOKEN` (required) — shared fleet token.
-- `REBOOTER_DRY_RUN` — **defaults on** (`!== "false"`). When on, log intended reboots
-  without calling Nitrado. Set `REBOOTER_DRY_RUN=false` to actually restart.
 - `LOG_LEVEL` (optional).
+
+No dry-run flag: reboots are live immediately once deployed.
 
 ### 3. `apps/rebooter/src/schedule.ts` — the one novel piece
 
@@ -79,7 +81,7 @@ Semantics:
   call `restartServer()`.
 - **Best-effort per server:** one server's failure is caught + logged and does *not*
   abort the remaining servers.
-- Under dry-run: log `[dry-run] would restart <name> (#<serviceId>)` instead of calling.
+- Log each restart (`restarting <name> (#<serviceId>)`) for observability.
 
 ### 5. `apps/rebooter/src/main.ts`
 
@@ -102,8 +104,7 @@ main loop ── sleep until next even-UTC-hour boundary ──▶ tick()
                         SELECT * FROM servers WHERE active = true
                                                           │
                         for each server (best-effort):
-                          dry-run ? log intent
-                                  : NitradoClient(token, serviceId).restartServer()
+                          NitradoClient(token, serviceId).restartServer()
 ```
 
 No new tables, no event-log writes, no projections touched.
@@ -121,13 +122,12 @@ No new tables, no event-log writes, no projections touched.
 - `schedule.test.ts` — `msUntilNextBoundary` boundary math: mid-odd-hour, mid-even-hour,
   exactly-on-boundary (returns full interval, not 0), and 23:xx → 00:00 next-day wrap.
 - `tick.test.ts` — using the existing Postgres test harness + a fake Nitrado `fetch`:
-  dry-run logs and makes no HTTP calls; non-dry-run calls restart for each active server;
-  inactive servers are skipped; one server's failure does not abort the others.
+  calls restart for each active server; inactive servers are skipped; one server's
+  failure does not abort the others.
 - `main.ts` stays a thin, untested loop (repo convention for the other workers).
 
 ## Deployment note
 
-The new worker joins the fleet restarted by `deploy/deploy.sh`. `REBOOTER_DRY_RUN`
-defaults on, so a deploy is safe by default; flipping to real reboots is an explicit
-env change — consistent with the platform's dry-run gate for destructive/external-write
-actions.
+The new worker joins the fleet restarted by `deploy/deploy.sh` and begins issuing
+reboots on the next even-UTC-hour boundary as soon as it is released and deployed — no
+gate to flip.
