@@ -12,7 +12,15 @@ export interface AliveStanding { lifeId: number; startedAt: Date; timeAliveSecon
 export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null; }
 export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; }
 export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
-export interface PlayerPage { gamertag: string; verified: boolean; firstSeenAt: Date | null; aliveAnywhere: boolean; heroCharacter: PlayerCharacter | null; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; standing: ServerStanding[]; pastLives: PastLife[]; }
+export interface PlayerPage {
+  gamertag: string; verified: boolean; firstSeenAt: Date | null; aliveAnywhere: boolean;
+  totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number };
+  standing: ServerStanding[];
+  pastLives: PastLife[];
+  pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number;
+}
+
+export const PLAYER_PAST_LIVES_PAGE_SIZE = 10;
 
 const ACTIVE_BAN_STATUSES = ["applied", "pending", "lift_pending"];
 
@@ -26,7 +34,15 @@ async function charShape(db: Database, serverId: number, gamertag: string, start
   return rc ? { name: rc.name, head: rc.head, gender: rc.gender } : null;
 }
 
-export async function getPlayerPage(db: Database, gamertag: string, now: Date): Promise<PlayerPage | null> {
+type LifeRow = NonNullable<Awaited<ReturnType<typeof getPlayerLives>>>[number];
+
+export async function getPlayerPage(
+  db: Database, gamertag: string, now: Date,
+  opts: { page?: number; pageSize?: number } = {},
+): Promise<PlayerPage | null> {
+  const pageSize = opts.pageSize ?? PLAYER_PAST_LIVES_PAGE_SIZE;
+  const reqPage = Math.max(1, Math.trunc(opts.page ?? 1) || 1);
+
   const real = await resolveGamertagBySlug(db, gamertag);
   if (!real) return null;
   gamertag = real;
@@ -37,10 +53,8 @@ export async function getPlayerPage(db: Database, gamertag: string, now: Date): 
   const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified"))).limit(1);
 
   const standing: ServerStanding[] = [];
-  const pastLives: PastLife[] = [];
+  const endedLives: { row: LifeRow; serverId: number; map: string; slug: string }[] = [];
   const totals = { kills: 0, lives: 0, deaths: 0, longestLifeSeconds: 0 };
-  let heroChar: PlayerCharacter | null = null;
-  let heroAt = 0;
 
   for (const s of activeServers) {
     if (!s.slug) continue;
@@ -58,7 +72,6 @@ export async function getPlayerPage(db: Database, gamertag: string, now: Date): 
     for (const l of livesRows) {
       const secs = l.endedAt ? l.playtimeSeconds : (profile?.currentLifeSeconds ?? 0);
       if (secs > totals.longestLifeSeconds) totals.longestLifeSeconds = secs;
-      if (l.startedAt.getTime() > heroAt) { heroAt = l.startedAt.getTime(); heroChar = await charShape(db, s.id, gamertag, l.startedAt, l.endedAt); }
     }
 
     // standing
@@ -76,16 +89,26 @@ export async function getPlayerPage(db: Database, gamertag: string, now: Date): 
     }
     standing.push(card);
 
-    // past lives (ended)
+    // ended lives (lightweight; enriched only for the requested page slice below)
     for (const l of livesRows.filter((r) => r.endedAt !== null)) {
-      const killList = await getLifeKills(db, s.id, gamertag, l.startedAt, l.endedAt);
-      const scRow = await db.select({ c: sql<number>`count(*)::int` }).from(sessions).where(and(eq(sessions.serverId, s.id), eq(sessions.lifeId, l.id)));
-      pastLives.push({ lifeId: l.id, serverId: s.id, map: s.map, slug: s.slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), character: await charShape(db, s.id, gamertag, l.startedAt, l.endedAt), death: { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance }, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
+      endedLives.push({ row: l, serverId: s.id, map: s.map, slug: s.slug });
     }
   }
 
-  if (standing.length === 0 && pastLives.length === 0) return null;
-  pastLives.sort((a, b) => b.endedAt.getTime() - a.endedAt.getTime());
+  const total = endedLives.length;
+  if (standing.length === 0 && total === 0) return null;
 
-  return { gamertag, verified: !!vf, firstSeenAt: p?.firstSeenAt ?? null, aliveAnywhere: standing.some((s) => s.state === "alive"), heroCharacter: heroChar, totals, standing, pastLives };
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(reqPage, totalPages);
+  endedLives.sort((a, b) => b.row.endedAt!.getTime() - a.row.endedAt!.getTime());
+  const pageSlice = endedLives.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+
+  const pastLives: PastLife[] = [];
+  for (const { row: l, serverId, map, slug } of pageSlice) {
+    const killList = await getLifeKills(db, serverId, gamertag, l.startedAt, l.endedAt);
+    const scRow = await db.select({ c: sql<number>`count(*)::int` }).from(sessions).where(and(eq(sessions.serverId, serverId), eq(sessions.lifeId, l.id)));
+    pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), character: await charShape(db, serverId, gamertag, l.startedAt, l.endedAt), death: { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance }, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
+  }
+
+  return { gamertag, verified: !!vf, firstSeenAt: p?.firstSeenAt ?? null, aliveAnywhere: standing.some((s) => s.state === "alive"), totals, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
 }
