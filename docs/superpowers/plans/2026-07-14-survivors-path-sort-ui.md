@@ -779,11 +779,115 @@ git commit -m "feat(api): default survivors sort to time-alive"
 
 ---
 
+### Task 7: Sort-aware tie-breaking in the read-model
+
+**Files:**
+- Modify: `packages/read-models/src/survivors.ts:143-149` (the `candidates.sort(...)` comparator)
+- Test: `packages/read-models/test/survivors.test.ts`
+
+**Interfaces:**
+- Consumes: existing `metricFor(sort, row)` and `SurvivorSort`.
+- Produces: `getAliveSurvivors` orders results by a per-sort metric list, then gamertag:
+  - `time` → time, kills, longest
+  - `kills` → kills, time, longest
+  - `longest` → longest, time, kills
+
+**Context:** These are DB-backed tests — start Postgres first (`docker compose up -d postgres`) and ensure `TEST_DATABASE_URL` is set. `timeAlive` equals `playtimeSeconds` when a life has no open session (the existing tests rely on this). All lives below have `playtimeSeconds > 300`, so they qualify regardless of kills.
+
+- [ ] **Step 1: Write the failing tie-break tests**
+
+Add these three tests inside the `describe("getAliveSurvivors", ...)` block in `packages/read-models/test/survivors.test.ts`:
+
+```ts
+  it("time sort breaks ties by kills, then longest kill", async () => {
+    // equal timeAlive (3600); A has more kills, B has a longer kill.
+    await insertLife({ serverId: chern.id, gamertag: "A_moreKills", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    await insertKill({ serverId: chern.id, killerGamertag: "A_moreKills", victimGamertag: "x1", distance: 100, occurredAt: minutesAgo(30) });
+    await insertKill({ serverId: chern.id, killerGamertag: "A_moreKills", victimGamertag: "x2", distance: 100, occurredAt: minutesAgo(20) });
+    await insertLife({ serverId: chern.id, gamertag: "B_longerKill", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    await insertKill({ serverId: chern.id, killerGamertag: "B_longerKill", victimGamertag: "y1", distance: 900, occurredAt: minutesAgo(30) });
+
+    const res = await getAliveSurvivors(db, { sort: "time", page: 1 }, now);
+    // tie on time -> kills desc wins (A: 2 kills) over B's longer single kill
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["A_moreKills", "B_longerKill"]);
+  });
+
+  it("kills sort breaks ties by time alive (before longest kill)", async () => {
+    // equal kills (1); C has more timeAlive, D has a longer kill.
+    await insertLife({ serverId: chern.id, gamertag: "C_moreTime", endedAt: null, playtimeSeconds: 7200, startedAt: hoursAgo(3) });
+    await insertKill({ serverId: chern.id, killerGamertag: "C_moreTime", victimGamertag: "x1", distance: 100, occurredAt: minutesAgo(30) });
+    await insertLife({ serverId: chern.id, gamertag: "D_longerKill", endedAt: null, playtimeSeconds: 1800, startedAt: hoursAgo(1) });
+    await insertKill({ serverId: chern.id, killerGamertag: "D_longerKill", victimGamertag: "y1", distance: 900, occurredAt: minutesAgo(20) });
+
+    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    // tie on kills -> time desc wins (C) despite D's longer kill
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["C_moreTime", "D_longerKill"]);
+  });
+
+  it("longest sort breaks ties by time alive (before kills)", async () => {
+    // equal longest kill (500); E has more timeAlive, F has more kills.
+    await insertLife({ serverId: chern.id, gamertag: "E_moreTime", endedAt: null, playtimeSeconds: 7200, startedAt: hoursAgo(3) });
+    await insertKill({ serverId: chern.id, killerGamertag: "E_moreTime", victimGamertag: "x1", distance: 500, occurredAt: minutesAgo(30) });
+    await insertLife({ serverId: chern.id, gamertag: "F_moreKills", endedAt: null, playtimeSeconds: 1800, startedAt: hoursAgo(1) });
+    await insertKill({ serverId: chern.id, killerGamertag: "F_moreKills", victimGamertag: "y1", distance: 500, occurredAt: minutesAgo(20) });
+    await insertKill({ serverId: chern.id, killerGamertag: "F_moreKills", victimGamertag: "y2", distance: 300, occurredAt: minutesAgo(10) });
+
+    const res = await getAliveSurvivors(db, { sort: "longest", page: 1 }, now);
+    // tie on longest (500) -> time desc wins (E) despite F's extra kill
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["E_moreTime", "F_moreKills"]);
+  });
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pnpm --filter @onelife/read-models test -- survivors`
+Expected: FAIL on the `kills`-sort and `longest`-sort cases (current comparator always uses time as the sole secondary key, so it happens to satisfy the `time`-sort case but orders the kills/longest ties wrong — kills-sort currently breaks ties by time *only after* an unconditional time key, and longest ties fall back to time then gamertag, so `D_longerKill`/`F_moreKills` orderings differ from expected). Confirm at least the `kills`/`longest` cases are red before implementing.
+
+- [ ] **Step 3: Replace the comparator**
+
+In `packages/read-models/src/survivors.ts`, add a per-sort tiebreak order near `metricFor` (above `getAliveSurvivors`):
+
+```ts
+const TIE_ORDER: Record<SurvivorSort, SurvivorSort[]> = {
+  time: ["time", "kills", "longest"],
+  kills: ["kills", "time", "longest"],
+  longest: ["longest", "time", "kills"],
+};
+```
+
+Then replace the existing `candidates.sort((a, b) => { ... })` block (currently lines 143-149) with:
+
+```ts
+  candidates.sort((a, b) => {
+    for (const key of TIE_ORDER[sort]) {
+      const av = metricFor(key, a);
+      const bv = metricFor(key, b);
+      if (av !== bv) return bv - av; // descending; skip-if-equal avoids -Infinity−(-Infinity)=NaN
+    }
+    return a.gamertag.localeCompare(b.gamertag);
+  });
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pnpm --filter @onelife/read-models test -- survivors`
+Expected: PASS (the three new tests plus all pre-existing survivors tests, including the existing "sorts by the chosen metric desc with deterministic tie-break").
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add packages/read-models/src/survivors.ts packages/read-models/test/survivors.test.ts
+git commit -m "feat(read-models): sort-aware tie-breaking for alive survivors"
+```
+
+---
+
 ## Final verification (after all tasks)
 
 - [ ] `pnpm --filter @onelife/web typecheck` → PASS
 - [ ] `pnpm --filter @onelife/web test` → PASS
 - [ ] `pnpm --filter @onelife/api test -- survivors` → PASS (Postgres up)
+- [ ] `pnpm --filter @onelife/read-models test -- survivors` → PASS (Postgres up)
 - [ ] Manual smoke of the routing table from Task 3 Step 6, plus a visual check that rows show one stat, the avatar is larger, and the H1 reads correctly.
 
 ## Pre-PR steps (handled by the `finishing-a-feature` skill)

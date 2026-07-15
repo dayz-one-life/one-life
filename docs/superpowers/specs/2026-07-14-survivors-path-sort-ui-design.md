@@ -20,6 +20,9 @@ all three stats even when only one is being sorted on — noisy on mobile.
 4. **Bigger character avatar** (~80px).
 5. **Show only the stat being sorted by** (hide the other two).
 6. **Rename "Longest" → "Longest kill"** in the row.
+7. **Sort-aware tie-breaking** in the read-model: the full metric ordering follows the
+   primary sort — time → `time, kills, longest`; kills → `kills, time, longest`;
+   longest → `longest, time, kills` — with gamertag as a final deterministic tiebreak.
 
 ## Design
 
@@ -105,6 +108,23 @@ the 3-col grid:
 
 Row stat label `Longest` → `Longest kill` (matches the sort chip and metadata).
 
+### 7. Sort-aware tie-breaking (read-model)
+
+`getAliveSurvivors` (`packages/read-models/src/survivors.ts`) currently sorts by the primary
+metric, then always time-alive, then gamertag. Replace the fixed tiebreak with an ordered
+list of metric keys per primary sort:
+
+| primary sort | metric order |
+|---|---|
+| time | time, kills, longest |
+| kills | kills, time, longest |
+| longest | longest, time, kills |
+
+Gamertag stays the final deterministic tiebreak. The comparator compares each key descending
+via `if (av !== bv) return bv - av` (skipping equal values), which also avoids the `NaN`
+comparator the current `-Infinity` longest sentinel produces when two rows both have a null
+longest kill.
+
 ## Testing
 
 Repo convention: presentational components are unit-tested by props; thin hook/wrapper
@@ -118,6 +138,8 @@ components are untested.
 - Route-resolution coverage for the `[map]` reserved-word / slug / 404 branches and the
   explicit-default redirect (pure resolver helper, unit-tested).
 - `apps/api/test/survivors.test` — default sort `time`.
+- `packages/read-models/test/survivors.test` — per-sort tie-break ordering (time breaks by
+  kills-then-longest; kills breaks by time-then-longest; longest breaks by time-then-kills).
 
 ## Out of scope
 
