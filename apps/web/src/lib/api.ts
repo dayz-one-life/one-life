@@ -120,4 +120,4 @@ export const getPlayerAggregate = (gamertag: string) =>
   getOrNull<PlayerAggregate>(`/api/players/${encodeURIComponent(gamertag)}`);
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
-  apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + p.slug : ""}?sort=${p.sort}&page=${p.page}`);
+  apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);
