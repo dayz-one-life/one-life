@@ -168,6 +168,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   "Surviving since {MON YYYY}," and the same `heroStats` readout, rendered in Oswald/Space Mono from
   co-located `.ttf`/`logo.png`/`skull.png` assets (read via `fs.readFile`, since the Node OG runtime's
   `fetch` can't read `file:` URLs).
+  **Map naming:** a server's `servers.map` is the DayZ mission **codename** (`chernarusplus`, `sakhal`,
+  `enoch`); player-page display labels come from `mapLabel` (`@/components/player/format` — `enoch` →
+  "Livonia", unknown codenames title-case as a fallback). The per-life API route
+  `GET /players/:gamertag/:map/lives/:n` takes a server **slug** (not a codename) and resolves it via
+  `resolveServerBySlug` — **no hardcoded map allow-list**, so adding a server (e.g. Livonia) stays a
+  pure `servers` insert; an unknown slug is a `404`.
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.

@@ -5,7 +5,10 @@ import { getPlayerPage, getLifeDetail, getPlayerLives, resolveGamertagBySlug, ge
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const gt = z.object({ gamertag: z.string().min(1) });
-const life = z.object({ gamertag: z.string().min(1), map: z.enum(["chernarus", "sakhal"]), n: z.coerce.number().int().positive() });
+// `map` is a server slug, resolved via resolveServerBySlug (which 404s on an unknown
+// slug). It is NOT constrained to a fixed map list here — new servers (e.g. Livonia)
+// must work without editing this route.
+const life = z.object({ gamertag: z.string().min(1), map: z.string().min(1), n: z.coerce.number().int().positive() });
 const pageQ = z.object({ page: z.coerce.number().int().positive().catch(1) });
 
 export function registerPlayerAggregateRoutes(app: FastifyInstance, db: Database): void {

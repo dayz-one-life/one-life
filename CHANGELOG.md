@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+- **Livonia (and any new map) is handled beyond the original Chernarus/Sakhal set.** Player pages now
+  label the `enoch` map codename as "Livonia" (`mapLabel`) instead of the title-cased fallback
+  "Enoch", and the `GET /players/:gamertag/:map/lives/:n` life-detail route no longer validates its
+  server-slug segment against a hardcoded `["chernarus","sakhal"]` allow-list (which 400'd every
+  Livonia request) — it now resolves the slug against the `servers` roster, returning `404` for a
+  genuinely unknown slug. Adding a server stays a pure DB insert, no route edits.
 ### Security
 
 ## [0.11.0] - 2026-07-15

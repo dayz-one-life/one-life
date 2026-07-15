@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, avatarSrc, banCountdown, heroStatusLine, heroStats, monthYear, relativeDate } from "./format";
+import { formatDuration, avatarSrc, banCountdown, heroStatusLine, heroStats, mapLabel, monthYear, relativeDate } from "./format";
 
 describe("player format helpers", () => {
   it("formats durations as Xh Ym", () => {
@@ -19,6 +19,17 @@ describe("player format helpers", () => {
   it("summarizes alive servers", () => {
     const page: any = { standing: [{ state: "alive", map: "chernarusplus" }, { state: "banned", map: "sakhal" }] };
     expect(heroStatusLine(page)).toBe("Alive on Chernarus");
+  });
+});
+
+describe("mapLabel", () => {
+  it("maps known DayZ mission codenames to display labels", () => {
+    expect(mapLabel("chernarusplus")).toBe("Chernarus");
+    expect(mapLabel("sakhal")).toBe("Sakhal");
+    expect(mapLabel("enoch")).toBe("Livonia");
+  });
+  it("title-cases an unknown codename as a fallback", () => {
+    expect(mapLabel("banov")).toBe("Banov");
   });
 });
 
