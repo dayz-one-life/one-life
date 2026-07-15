@@ -126,7 +126,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `/survivors/[map]/time`) `redirect()`s to the bare path (preserving `?page`). **The three sort
   words are reserved — a server's `servers.slug` must never be `kills`/`time`/`longest`** (slugs are
   hand-set; such a slug would be shadowed by the sort route). All board URLs are built by the pure
-  `boardHref` (path-based; drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD). Old
+  `boardHref` (path-based; drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD). The
+  `SurvivorControls` map tabs are alphabetical by label with **All maps** first (`buildTabs`), and the
+  sort pills are ordered **Time alive → Kills → Longest kill**. Old
   `?sort=` query links are ignored (render the default). Each page has an SEO `<h1>` = `Top {Map}
   survivors by {sort}` (combined drops the map name); each row shows gamertag, map, an 80px character
   avatar, and **only the stat being sorted by** (kills / time alive / longest kill, all **this-life**
