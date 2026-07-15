@@ -106,17 +106,29 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (lowercase names, served by Next.js at `/characters/<name>.webp`, e.g. `/characters/lewis.webp`), staged for
   the deferred per-life character-head display — map a life's character name via `/characters/${name.toLowerCase()}.webp`.
   Sourced from the DayZ Fandom wiki (CC BY-SA; attribution required if shipped public-facing).
-- **Survivors leaderboard** ✅: public, mobile-first live leaderboard at `/survivors` (combined,
-  all active slugged servers) and `/survivors/[map]` (single server, by `servers.slug`) — one row
-  per (player × server) for every currently-alive survivor (**alive** = open qualified life:
-  `lives.endedAt IS NULL` and `isLifeQualified`). Each row shows gamertag, map, kills / time alive /
-  longest kill (all **this-life**, i.e. since `life.startedAt`), and a character avatar. Query-param
-  sort (`?sort=kills|time|longest`, default `kills`, always descending) + pagination
-  (`?page=`, 25/page); server-rendered with per-page SEO/OG metadata. Backed by the
-  `getAliveSurvivors` read-model (`packages/read-models/src/survivors.ts`) and the public
-  `GET /survivors[/:slug]` API route. Avatars resolve via `rosterByClass(characterClass).name` →
-  `/characters/<name>.webp` (silhouette fallback for an unknown/no character). Gamertag filtering
-  was scoped out of this pass.
+- **Survivors leaderboard** ✅: public, mobile-first live leaderboard of every currently-alive
+  survivor (**alive** = open qualified life: `lives.endedAt IS NULL` and `isLifeQualified`), one row
+  per (player × server). **Sort lives in the URL path, not a query string** (page stays `?page=`,
+  25/page): `/survivors` (combined, all active slugged servers) and `/survivors/[map]` (single
+  server, by `servers.slug`) show the **default sort = time-alive descending**; a non-default sort is
+  a trailing path segment — `/survivors/kills`, `/survivors/sakhal/longest` (route
+  `/survivors/[map]/[sort]`). One pure `resolveSurvivorsRoute(segments, slugs)`
+  (`apps/web/src/lib/board-params.ts`) drives resolution: a depth-1 segment is a **reserved sort
+  word** (`kills|time|longest` → combined board sorted by it) or a **server slug** (→ that map,
+  default sort), else `notFound()`; an explicit-default path (`/survivors/time`,
+  `/survivors/[map]/time`) `redirect()`s to the bare path (preserving `?page`). **The three sort
+  words are reserved — a server's `servers.slug` must never be `kills`/`time`/`longest`** (slugs are
+  hand-set; such a slug would be shadowed by the sort route). All board URLs are built by the pure
+  `boardHref` (path-based; drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD). Old
+  `?sort=` query links are ignored (render the default). Each page has an SEO `<h1>` = `Top {Map}
+  survivors by {sort}` (combined drops the map name); each row shows gamertag, map, an 80px character
+  avatar, and **only the stat being sorted by** (kills / time alive / longest kill, all **this-life**
+  since `life.startedAt`). Backed by the `getAliveSurvivors` read-model
+  (`packages/read-models/src/survivors.ts`; **sort-aware tie-break** — primary sort → the other two
+  metrics in a fixed order → gamertag, via a NaN-safe skip-if-equal comparator) and the public
+  `GET /survivors[/:slug]` API route (Zod `sort` default `time`). Avatars resolve via
+  `rosterByClass(characterClass).name` → `/characters/<name>.webp` (silhouette fallback for an
+  unknown/no character). Gamertag filtering was scoped out of this pass.
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
