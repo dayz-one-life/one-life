@@ -9,10 +9,10 @@ export function LoginPanel({ providers, magicLink }: { providers: string[]; magi
       providers={providers}
       magicLink={magicLink}
       onMagicLink={async (email) => {
-        await signIn.magicLink({ email, callbackURL: "/account" });
+        await signIn.magicLink({ email, callbackURL: "/welcome" });
       }}
       onSocial={(provider) => {
-        void signIn.social({ provider: provider as "discord" | "google" | "github", callbackURL: "/account" });
+        void signIn.social({ provider: provider as "discord" | "google" | "github", callbackURL: "/welcome" });
       }}
     />
   );

@@ -2,6 +2,7 @@ import type { SurvivorRow as SurvivorRowData, SurvivorSort } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MapBadge } from "./map-badge";
 import { avatarSrc, formatTimeAlive } from "./format";
+import { GamertagLink } from "@/components/gamertag-link";
 
 function Avatar({ row }: { row: SurvivorRowData }) {
   const src = avatarSrc(row.character);
@@ -58,7 +59,7 @@ export function SurvivorRow({
         <span className="w-6 shrink-0 text-right font-mono text-sm text-muted">{rank}</span>
         <Avatar row={row} />
         <div className="flex flex-col">
-          <span className="font-hand text-bone">{row.gamertag}</span>
+          <GamertagLink gamertag={row.gamertag} />
           {showMap && <MapBadge slug={row.slug} />}
         </div>
       </div>
