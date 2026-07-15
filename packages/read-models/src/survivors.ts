@@ -53,6 +53,12 @@ function metricFor(sort: SurvivorSort, row: SurvivorCandidate): number {
   }
 }
 
+const TIE_ORDER: Record<SurvivorSort, SurvivorSort[]> = {
+  time: ["time", "kills", "longest"],
+  kills: ["kills", "time", "longest"],
+  longest: ["longest", "time", "kills"],
+};
+
 /**
  * Currently-alive survivors: players with an open, qualified life on an active, slugged server.
  * `character` is always null here — Task 2 enriches it from `character_sightings`.
@@ -141,10 +147,11 @@ export async function getAliveSurvivors(
   }
 
   candidates.sort((a, b) => {
-    const byMetric = metricFor(sort, b) - metricFor(sort, a);
-    if (byMetric !== 0) return byMetric;
-    const byTime = b.timeAliveSeconds - a.timeAliveSeconds;
-    if (byTime !== 0) return byTime;
+    for (const key of TIE_ORDER[sort]) {
+      const av = metricFor(key, a);
+      const bv = metricFor(key, b);
+      if (av !== bv) return bv - av; // descending; skip-if-equal avoids -Infinity−(-Infinity)=NaN
+    }
     return a.gamertag.localeCompare(b.gamertag);
   });
 
