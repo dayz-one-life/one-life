@@ -94,7 +94,8 @@ loop forever:
 ```
 
 Re-aligning to the wall clock every cycle makes it self-correcting (no interval drift).
-On startup, log whether dry-run is on (matching enforcer's startup warning).
+On startup, log a plain line noting the worker is running and its cadence (there is no
+dry-run gate to report).
 
 ## Data flow
 

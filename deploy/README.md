@@ -49,6 +49,8 @@ sudo journalctl -u onelife-api -f         # tail logs
 - **onelife-rebooter** — restarts every **active** server in the `servers` table on the top of
   every even UTC hour (00:00, 02:00, …, 22:00), using the shared `NITRADO_TOKEN`. Requires a
   `onelife-rebooter` systemd unit on the host (create it alongside the other worker units).
+  **`NITRADO_TOKEN` must be set in `.env`** — unlike `enforcer`, the rebooter treats it as
+  required and will crash-loop under `Restart=always` if it is missing.
 
 ## Environment
 
