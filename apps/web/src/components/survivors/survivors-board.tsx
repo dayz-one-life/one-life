@@ -70,6 +70,7 @@ export function SurvivorsBoard({
                 row={row}
                 rank={(page.page - 1) * page.pageSize + i + 1}
                 showMap={slug === null}
+                sort={page.sort}
               />
             </li>
           ))}
