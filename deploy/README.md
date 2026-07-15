@@ -12,7 +12,7 @@ factory.eli5hq.com). The One Life platform runs as **systemd services** against 
 | Reverse proxy | nginx `dayzonelife.com` vhost | apex serves the app; `www` + `:80` 301 → `https://dayzonelife.com` |
 | Web (Next.js) | `127.0.0.1:3010` | `onelife-web.service`; the ONLY upstream nginx talks to |
 | API (Fastify) | `127.0.0.1:3011` | `onelife-api.service`; reached only via Next.js rewrites, not nginx |
-| Workers | no ports | verifier, projector, enforcer, granter (+ ingest, disabled) |
+| Workers | no ports | verifier, projector, enforcer, granter, rebooter (+ ingest, disabled) |
 | Database | host Postgres `127.0.0.1:5432` | role `onelife`, db `onelife` (+ `onelife_test`) |
 
 **Request flow:** browser → nginx (`:443`) → web (`:3010`). The web app's
@@ -30,7 +30,7 @@ Units live in `/etc/systemd/system/onelife-*.service`. All run as user `acab`,
 
 ```bash
 # status of the fleet
-for s in web api verifier projector enforcer granter ingest; do
+for s in web api verifier projector enforcer granter rebooter ingest; do
   printf "onelife-%-10s %s\n" "$s" "$(systemctl is-active onelife-$s)"; done
 
 sudo systemctl restart onelife-web        # restart one
@@ -46,6 +46,9 @@ sudo journalctl -u onelife-api -f         # tail logs
 - **onelife-ingest** — DB-driven: it sweeps every `servers` row with `active = true`
   (one cached Nitrado client per service id, shared token). With no active servers it
   idles harmlessly. See "Enabling ingest" below.
+- **onelife-rebooter** — restarts every **active** server in the `servers` table on the top of
+  every even UTC hour (00:00, 02:00, …, 22:00), using the shared `NITRADO_TOKEN`. Requires a
+  `onelife-rebooter` systemd unit on the host (create it alongside the other worker units).
 
 ## Environment
 
@@ -101,7 +104,7 @@ pnpm install --frozen-lockfile
 pnpm --filter @onelife/db run db:migrate   # if there are new migrations
 pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
-     onelife-projector onelife-enforcer onelife-granter
+     onelife-projector onelife-enforcer onelife-granter onelife-rebooter
 ```
 </details>
 
