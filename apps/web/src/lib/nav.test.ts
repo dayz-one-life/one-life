@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import { activeNavKey, NAV_ITEMS } from "./nav";
 
 describe("NAV_ITEMS", () => {

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Masthead } from "./header";
 
 const mockStatus = vi.fn();
@@ -39,5 +39,24 @@ describe("Masthead", () => {
     expect(screen.getByRole("button", { name: "Close menu" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Close menu" }));
     expect(screen.queryByRole("button", { name: "Close menu" })).not.toBeInTheDocument();
+  });
+
+  it("shows the loading slot placeholder", () => {
+    mockStatus.mockReturnValue({ kind: "loading" });
+    render(<Masthead />);
+    expect(screen.getByText("Loading account")).toBeInTheDocument();
+  });
+
+  it("renders no slot content when signed out", () => {
+    mockStatus.mockReturnValue({ kind: "signedOut" });
+    render(<Masthead />);
+    expect(screen.queryByText("Account")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("shows the quiet Account link when unlinked or pending", () => {
+    mockStatus.mockReturnValue({ kind: "unlinked" });
+    render(<Masthead />);
+    expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/account");
   });
 });
