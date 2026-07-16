@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
+- Tabloid redesign R1 — "Clean Glossy" design system (Paper/Ink/Red tokens, Oswald + IBM Plex
+  Mono), new dark masthead with the 5-section nav + mobile menu, dark mono footer, front-page
+  shell (manifesto hero, top survivors, sign-in CTA), About page, in-voice teaser pages for
+  News/Obituaries/Fresh Spawns, restyled status banner, brand favicon kit, and the player OG
+  card on the brand palette. Legacy color tokens remap to the new palette as compat shims
+  (removed in R3).
 ### Deprecated
 ### Removed
 ### Fixed

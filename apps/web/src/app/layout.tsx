@@ -4,18 +4,18 @@ import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { QueryProvider } from "@/components/query-provider";
 import { StatusBannerContainer } from "@/components/status-banner-container";
-import { display, hand } from "./fonts";
+import { display, mono } from "./fonts";
 import { SITE_URL } from "@/lib/seo";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "One Life", template: "%s · One Life" },
-  description: "A chronicle of the living and the dead on the One Life DayZ servers.",
+  description: "All the deaths fit to print. One Life is a hardcore permadeath DayZ community — one life per server, a 24-hour ban when it ends, and an obituary that stands forever.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`dark ${display.variable} ${hand.variable}`}>
+    <html lang="en" className={`${display.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <QueryProvider>
           <Masthead />

@@ -188,6 +188,26 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
+- **Tabloid redesign** (R1 shipped): a five-tier visual relaunch replacing the old dark "field
+  journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
+  `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell
+  (this pass), **R2** boards restyle (survivors + player dossier), **R3** controls rail (replaces
+  `/account`, `/account/claim`, the status banner, and the masthead slot), **R4** life timeline +
+  obituary/birth read-model groundwork, **R5+** an LLM content engine that finally writes the
+  News/Obituaries/Fresh Spawns pages. **R1 shipped:** Paper/Ink/Red RGB-triple design tokens
+  (`globals.css` + `tailwind.config.ts`) with the old dark-theme token names kept as **compat
+  shims** re-pointed at the new palette (e.g. `tint` currently holds brand "Bone" — renamed when
+  R3 deletes the shims); a dark masthead with a raster wordmark and the full 5-item nav
+  (News · Obituaries · Fresh Spawns · Survivors · About) plus a full-screen mobile menu; a dark
+  mono footer; a front-page shell (manifesto hero, top-5 survivors, sign-in CTA); a live About
+  page with bureau/server cards; `noindex` in-voice teaser pages for News/Obituaries/Fresh Spawns;
+  a restyled status banner (yellow pending semantic); a brand favicon kit + wordmarks vendored
+  from the sibling `../brand` repo (source of truth, no cross-repo build dependency); and the
+  player OG card moved onto the brand palette. Fonts are Oswald + IBM Plex Mono via
+  `next/font/google`; Anton (the wordmark's display face) ships only inside the raster wordmark
+  assets, never as a webfont. **Voice-first rule:** News/Obituaries/Fresh Spawns stay static
+  teasers — no fake counts, no dry copy — until the R5+ content engine can actually write them;
+  the underlying read-models land ahead of the UI (R4) but the teasers don't retire until R5+.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
