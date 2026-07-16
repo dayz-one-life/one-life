@@ -17,10 +17,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
+        <a
+          href="#content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-yellow focus:px-3 focus:py-2 focus:font-display focus:text-sm focus:font-bold focus:uppercase focus:text-ink"
+        >
+          Skip to content
+        </a>
         <QueryProvider>
           <Masthead />
           <StatusBannerContainer />
-          <div className="flex-1">{children}</div>
+          <div id="content" className="flex-1">{children}</div>
           <Footer />
         </QueryProvider>
       </body>

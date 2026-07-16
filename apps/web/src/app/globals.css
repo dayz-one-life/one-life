@@ -18,6 +18,7 @@
   --archive: 244 242 230;    /* #F4F2E6 past-life card bg */
   --dark-line: 38 38 28;     /* #26261C hairline on dark */
   --dash: 185 183 168;       /* #B9B7A8 dashed borders / pagination ("dash", not "dashed" — avoids colliding with Tailwind's border-dashed style utility) */
+  --red-deep: 196 18 8;      /* #C41208 — small-text error red (5.8:1 on paper) */
   --ink-soft: 51 51 51;      /* #333 body-on-paper */
   --ink-muted: 102 102 102;  /* #666 muted-on-paper */
   --cream-muted: 138 136 120;/* #8A8878 muted-on-dark */
@@ -41,3 +42,8 @@
 }
 
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
+
+:focus-visible {
+  outline: 2px solid rgb(var(--red));
+  outline-offset: 2px;
+}
