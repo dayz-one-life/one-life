@@ -25,7 +25,7 @@ export function PastLifeCard({ life, now }: { life: PastLife; now: Date }) {
       </div>
 
       {life.death?.cause && (
-        <p className="mt-4 rounded-lg bg-red-500/[0.05] px-3 py-2 text-xs text-red-300/90">
+        <p className="mt-4 rounded-lg bg-red/[0.05] px-3 py-2 text-xs text-red/90">
           ☠ {life.death.cause === "pvp" ? "Killed by " : "Died — "}
           {life.death.byGamertag ? <GamertagLink gamertag={life.death.byGamertag} /> : life.death.cause}
           {life.death.weapon ? ` · ${life.death.weapon}` : ""}

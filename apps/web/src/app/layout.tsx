@@ -4,7 +4,7 @@ import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { QueryProvider } from "@/components/query-provider";
 import { StatusBannerContainer } from "@/components/status-banner-container";
-import { display, hand } from "./fonts";
+import { display, mono } from "./fonts";
 import { SITE_URL } from "@/lib/seo";
 
 export const metadata = {
@@ -15,7 +15,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`dark ${display.variable} ${hand.variable}`}>
+    <html lang="en" className={`${display.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <QueryProvider>
           <Masthead />

@@ -3,17 +3,41 @@
 @tailwind utilities;
 
 :root {
-  --bg: 96 25% 6%;         /* #0F120C */
-  --panel: 84 20% 9%;      /* #161A0F */
-  --panel-2: 90 22% 7%;    /* #12160D */
-  --line: 84 23% 16%;      /* #2C3320 */
-  --bone: 66 44% 90%;      /* #EEF0DD */
-  --dim: 72 26% 75%;       /* #C7CDB0 */
-  --muted: 76 20% 55%;     /* #98A077 */
-  --amber: 40 68% 55%;     /* #DCA63F */
-  --blood: 4 55% 53%;      /* #C8433A */
-  --steel: 173 18% 57%;    /* #7FA6A0 */
-  --wash: 70 43% 87%;      /* #E7ECCF */
+  /* Brand palette (brand bible §10.2) — RGB triples for rgb(var() / alpha) */
+  --paper: 251 250 242;      /* #FBFAF2 */
+  --ink: 17 17 17;           /* #111111 */
+  --red: 255 30 18;          /* #FF1E12 — death / breaking */
+  --yellow: 255 227 0;       /* #FFE300 — drama / pending; ink text only */
+  --blue: 21 82 216;         /* #1552D8 — birth / alive */
+  --tint: 238 240 221;       /* #EEF0DD — brand "Bone" surface (see note) */
+  --dark: 12 12 8;           /* #0C0C08 — masthead/footer/panels */
+
+  /* Canvas neutrals */
+  --hairline: 216 214 198;   /* #D8D6C6 row rules */
+  --hairline-2: 228 226 212; /* #E4E2D4 lighter rules */
+  --archive: 244 242 230;    /* #F4F2E6 past-life card bg */
+  --dark-line: 38 38 28;     /* #26261C hairline on dark */
+  --dash: 185 183 168;       /* #B9B7A8 dashed borders / pagination ("dash", not "dashed" — avoids colliding with Tailwind's border-dashed style utility) */
+  --ink-soft: 51 51 51;      /* #333 body-on-paper */
+  --ink-muted: 102 102 102;  /* #666 muted-on-paper */
+  --cream-muted: 138 136 120;/* #8A8878 muted-on-dark */
+  --cream-dim: 201 199 188;  /* #C9C7BC dim-on-dark */
+  --red-soft: 255 107 99;    /* #FF6B63 red lightened for dark bg */
+  --discord: 88 101 242;     /* #5865F2 */
+
+  /* Legacy aliases — re-pointed at the new palette so unrebuilt surfaces
+     stay legible. DO NOT use in new code. Delete at the end of R3. */
+  --bg: var(--paper);
+  --panel: var(--tint);
+  --panel-2: var(--archive);
+  --line: var(--hairline);
+  --bone: var(--ink);
+  --dim: var(--ink-soft);
+  --muted: var(--ink-muted);
+  --wash: var(--tint);
+  --amber: var(--red);
+  --blood: var(--red);
+  --steel: var(--blue);
 }
 
-body { background: hsl(var(--bg)); color: hsl(var(--bone)); }
+body { background: rgb(var(--paper)); color: rgb(var(--ink)); }

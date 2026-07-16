@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 const MAP_STYLES: Record<string, string> = {
-  chernarus: "border-emerald-800 bg-emerald-950 text-emerald-300",
+  chernarus: "border-blue bg-blue text-blue",
   sakhal: "border-sky-800 bg-sky-950 text-sky-300",
 };
 

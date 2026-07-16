@@ -13,7 +13,7 @@ export function PlayerHero({ page }: { page: PlayerPage }) {
         <h1 className="font-display text-4xl text-bone sm:text-5xl">{page.gamertag}</h1>
         {page.verified && (
           <p className="mt-3">
-            <span className="rounded-full border border-emerald-500/40 px-3 py-1 text-xs text-emerald-400">✓ Verified survivor</span>
+            <span className="rounded-full border border-blue/40 px-3 py-1 text-xs text-blue">✓ Verified survivor</span>
           </p>
         )}
         {sub && <p className="mt-3 text-xs text-muted">{sub}</p>}

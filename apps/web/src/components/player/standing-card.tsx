@@ -16,12 +16,12 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 export function StandingCard({ standing, now, pageGamertag }: { standing: ServerStanding; now: Date; pageGamertag: string }) {
   const tone =
-    standing.state === "alive" ? "border-emerald-500/40 bg-emerald-500/[0.06]"
-    : standing.state === "banned" ? "border-red-500/40 bg-red-500/[0.06]"
+    standing.state === "alive" ? "border-blue/40 bg-blue/[0.06]"
+    : standing.state === "banned" ? "border-red/40 bg-red/[0.06]"
     : "border-line";
   const pill =
-    standing.state === "alive" ? "bg-emerald-500/15 text-emerald-300"
-    : standing.state === "banned" ? "bg-red-500/15 text-red-300"
+    standing.state === "alive" ? "bg-blue/15 text-blue"
+    : standing.state === "banned" ? "bg-red/15 text-red"
     : "bg-white/10 text-muted";
   const sub =
     standing.state === "alive" && standing.alive ? `Alive ${formatDuration(standing.alive.timeAliveSeconds)}`
@@ -54,7 +54,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
       {standing.state === "banned" && standing.ban && (
         <div className="mt-4 text-center">
           {banCountdown(standing.ban.expiresAt, now) && (
-            <p className="font-display text-2xl text-red-300">
+            <p className="font-display text-2xl text-red">
               {banCountdown(standing.ban.expiresAt, now)}
               <span className="mt-1 block text-[9px] uppercase tracking-wide text-muted">ban lifts in</span>
             </p>
