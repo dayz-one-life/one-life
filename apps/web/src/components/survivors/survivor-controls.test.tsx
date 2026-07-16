@@ -67,4 +67,38 @@ describe("SurvivorControls", () => {
     const time = screen.getByRole("link", { name: /time alive/i });
     expect(time).toHaveAttribute("href", "/survivors");
   });
+
+  test("active map tab is solid ink; inactive is outlined", () => {
+    render(
+      <SurvivorControls
+        slug={null}
+        sort="time"
+        tabs={[
+          { slug: null, label: "All maps" },
+          { slug: "chernarus", label: "Chernarus" },
+        ]}
+      />
+    );
+    const all = screen.getByRole("link", { name: "All maps" });
+    expect(all).toHaveAttribute("aria-current", "page");
+    expect(all.className).toContain("bg-ink");
+    const cherno = screen.getByRole("link", { name: "Chernarus" });
+    expect(cherno.className).toContain("border-ink");
+    expect(cherno.className).not.toContain(" bg-ink");
+  });
+
+  test("active sort is red with a red underline; inactive is muted", () => {
+    render(
+      <SurvivorControls
+        slug={null}
+        sort="kills"
+        tabs={[{ slug: null, label: "All maps" }]}
+      />
+    );
+    const kills = screen.getByRole("link", { name: "Kills" });
+    expect(kills).toHaveAttribute("aria-current", "page");
+    expect(kills.className).toContain("text-red");
+    expect(kills.className).toContain("border-red");
+    expect(screen.getByRole("link", { name: "Time alive" }).className).toContain("text-ink-muted");
+  });
 });
