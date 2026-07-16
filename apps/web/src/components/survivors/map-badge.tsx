@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 const MAP_STYLES: Record<string, string> = {
-  chernarus: "border-blue bg-blue text-blue",
-  sakhal: "border-sky-800 bg-sky-950 text-sky-300",
+  chernarus: "border-hairline bg-tint text-ink-soft",
+  sakhal: "border-hairline bg-tint text-ink-soft",
 };
 
 const DEFAULT_STYLE = "border-line bg-panel-2 text-muted";
