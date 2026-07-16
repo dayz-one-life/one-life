@@ -47,3 +47,21 @@ describe("GET /players/:gamertag", () => {
     expect(body).not.toHaveProperty("heroCharacter");
   });
 });
+
+describe("GET /players/:gamertag/:map/lives/:n", () => {
+  beforeAll(async () => {
+    // A Livonia (enoch) server — its slug must resolve, not be rejected by a hardcoded map allow-list.
+    const [liv] = await db.insert(servers).values({ nitradoServiceId: 302, name: "Livonia", map: "enoch", slug: "pa-livonia" }).returning();
+    const [p] = await db.insert(players).values({ gamertag: "LivoniaLad" }).returning();
+    await db.insert(lives).values({ serverId: liv!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-10T12:00:00Z"), playtimeSeconds: 600 });
+  });
+  it("resolves a life on a server whose slug is outside the original chernarus/sakhal set", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/LivoniaLad/pa-livonia/lives/1" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().life.lifeNumber).toBe(1);
+  });
+  it("unknown server slug → 404, not a validation 400", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/LivoniaLad/no-such-map/lives/1" });
+    expect(res.statusCode).toBe(404);
+  });
+});

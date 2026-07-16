@@ -15,7 +15,7 @@ export function banCountdown(expiresAt: string | null, now: Date): string | null
   return formatDuration((new Date(expiresAt).getTime() - now.getTime()) / 1000);
 }
 
-const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal" };
+const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
 export function mapLabel(map: string): string {
   return MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 }
