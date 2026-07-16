@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import type { AccountStatus } from "@/lib/account-status";
 import { playerSlug } from "@/lib/slug";
 
-const cta = "ml-auto inline-flex items-center justify-center rounded-md bg-amber px-4 py-2 text-sm font-medium text-black hover:opacity-90";
-const account = "ml-auto text-sm text-dim underline decoration-line underline-offset-4 hover:text-amber";
+const cta = "font-mono text-xs font-bold uppercase tracking-[.06em] text-paper border-b-2 border-red hover:text-red";
+const account = "font-mono text-xs uppercase tracking-[.06em] text-cream-dim hover:text-paper";
 
 export function MastheadSlot({ status }: { status: AccountStatus }) {
   if (status.kind === "loading") {
