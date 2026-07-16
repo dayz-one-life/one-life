@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import type { AccountStatus } from "@/lib/account-status";
 import type { Challenge } from "@/lib/types";
