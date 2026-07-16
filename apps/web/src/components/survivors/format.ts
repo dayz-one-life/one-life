@@ -32,7 +32,7 @@ export function dekLine(total: number): string {
 }
 
 export function showingLine(page: number, pageSize: number, total: number): string {
-  const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
+  const from = Math.min((page - 1) * pageSize + 1, to);
   return `Showing ${from}–${to} of ${total} still breathing`;
 }

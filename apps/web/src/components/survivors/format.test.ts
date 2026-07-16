@@ -42,4 +42,7 @@ describe("showingLine", () => {
     expect(showingLine(1, 25, 56)).toBe("Showing 1–25 of 56 still breathing");
     expect(showingLine(3, 25, 56)).toBe("Showing 51–56 of 56 still breathing");
   });
+  test("clamps an out-of-range page", () => {
+    expect(showingLine(4, 25, 56)).toBe("Showing 56–56 of 56 still breathing");
+  });
 });
