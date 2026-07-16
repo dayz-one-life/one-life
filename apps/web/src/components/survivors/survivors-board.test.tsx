@@ -26,15 +26,15 @@ describe("SurvivorsBoard", () => {
     expect(screen.getByText("Chad")).toBeInTheDocument();
   });
 
-  test("shows map badges only on the combined board", () => {
+  test("shows the per-row map only on the combined board", () => {
     const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "kills" };
     const { rerender } = render(<SurvivorsBoard page={page} slug={null} tabs={[]} />);
-    // combined board -> per-row map badge present
-    expect(screen.getByTestId("row-map-badge")).toBeInTheDocument();
+    // combined board -> per-row map shown
+    expect(screen.getByText("chernarus")).toBeInTheDocument();
 
     rerender(<SurvivorsBoard page={page} slug="chernarus" tabs={[]} />);
-    // single-map board -> no per-row badge
-    expect(screen.queryByTestId("row-map-badge")).not.toBeInTheDocument();
+    // single-map board -> no per-row map text
+    expect(screen.queryByText("chernarus")).not.toBeInTheDocument();
   });
 
   test("renders an SEO H1 for a single map + sort", () => {
