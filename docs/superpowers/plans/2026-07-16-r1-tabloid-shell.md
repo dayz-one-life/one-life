@@ -19,6 +19,7 @@
 - **Assets source of truth:** `/Users/steveharmeyer/Development/dayz-one-life/brand` (sibling repo). The web app vendors copies; never edit assets in place here.
 - **Workflow:** all commits on `feature/tabloid-shell`. Test: `pnpm turbo run test --concurrency=1` (web-only iteration: `pnpm --filter web test`). Typecheck: `pnpm turbo run typecheck`.
 - **Legacy tokens** (`--bg --panel --panel-2 --line --bone --dim --muted --wash --amber --blood --steel`, `font-hand`) are compat shims — keep them working until R3 removes their last consumers. Do not use them in NEW components; new code uses the new token names only.
+- **Test files import vitest APIs explicitly** (`import { describe, it, expect, vi } from "vitest"` — only the names used). The tsconfig does not load vitest globals types; relying on globals fails `pnpm turbo run typecheck --filter=@onelife/web`.
 
 ---
 
@@ -692,6 +693,7 @@ git commit -m "feat(web): tabloid masthead — dark bar, centered wordmark, 5-it
 ```tsx
 // apps/web/src/components/footer.test.tsx
 import { render, screen } from "@testing-library/react";
+import { it, expect } from "vitest";
 import { Footer } from "./footer";
 
 it("renders the paper's colophon line on the dark bar", () => {
@@ -917,7 +919,7 @@ git commit -m "feat(web): restyle status banner to tabloid notice bar; yellow pe
 ```tsx
 // apps/web/src/components/front-page/front-page.test.tsx
 import { render, screen } from "@testing-library/react";
-import { vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SurvivorRow } from "@/lib/types";
 import { Hero } from "./hero";
 import { TopSurvivors } from "./top-survivors";
@@ -1126,6 +1128,7 @@ git commit -m "feat(web): front-page shell — manifesto hero, top survivors, si
 
 ```ts
 // apps/web/src/lib/server-blurbs.test.ts
+import { describe, it, expect } from "vitest";
 import { serverTagline, formatOrList, countWord } from "./server-blurbs";
 
 describe("serverTagline", () => {
@@ -1373,6 +1376,7 @@ git commit -m "feat(web): About page — manifesto, rules of record, live bureau
 ```tsx
 // apps/web/src/components/teaser-page.test.tsx
 import { render, screen } from "@testing-library/react";
+import { it, expect } from "vitest";
 import { TeaserPage } from "./teaser-page";
 
 it("renders kicker, screamer, line, and the survivors escape hatch", () => {
