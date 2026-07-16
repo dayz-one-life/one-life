@@ -123,6 +123,10 @@ describe("showingLine", () => {
     expect(showingLine(1, 25, 56)).toBe("Showing 1–25 of 56 still breathing");
     expect(showingLine(3, 25, 56)).toBe("Showing 51–56 of 56 still breathing");
   });
+
+  test("clamps an out-of-range page", () => {
+    expect(showingLine(4, 25, 56)).toBe("Showing 56–56 of 56 still breathing");
+  });
 });
 ```
 
@@ -146,8 +150,8 @@ export function dekLine(total: number): string {
 }
 
 export function showingLine(page: number, pageSize: number, total: number): string {
-  const from = (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
+  const from = Math.min((page - 1) * pageSize + 1, to);
   return `Showing ${from}–${to} of ${total} still breathing`;
 }
 ```
