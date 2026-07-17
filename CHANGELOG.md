@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Tabloid redesign R4 — life timeline + obituary/birth groundwork. A public per-life page at
+  `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero with a factual
+  `Life {n} · {Map}` headline and a Time-alive/Kills/Longest-kill/Sessions/Qualified stat band,
+  and a newest-first event timeline (birth → life qualified → sessions, with quiet runs grouped
+  into "Sessions N–M" → kills with a "Longest kill" chip → death, or a live "Still drawing
+  breath" row). Captions are deterministic and factual (editorial prose is R5); death rows carry
+  the vitals at death (energy/water/bleed) — the per-life kill/vitals detail R2 dropped from
+  funeral cards now lives here. While a life is still alive a "Positions withheld" notice
+  renders (voice-only — no coordinates are stored or shown). Standing cards and funeral cards
+  gain `TIMELINE →` links (via a pure `lifeHref`). Backed by a `getLifeTimeline` read-model and
+  the extended `GET /players/:gamertag/:map/lives/:n` route (now returns kills + qualification
+  timing + display fields). R5 groundwork behind the still-static teasers: `getObituaries`
+  (recent qualified deaths) and `getFreshSpawns` (recent qualified births) read-models sharing a
+  `qualifiedLifeCondition` predicate, exposed at public `GET /obituaries` and `GET /fresh-spawns`.
 ### Changed
 - Tabloid redesign R1 — "Clean Glossy" design system (Paper/Ink/Red tokens, Oswald + IBM Plex
   Mono), new dark masthead with the 5-section nav + mobile menu, dark mono footer, front-page
