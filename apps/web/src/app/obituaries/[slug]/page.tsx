@@ -6,7 +6,6 @@ import { ObituaryArticleView } from "@/components/obituaries/obituary-article";
 import { articleLd, absoluteUrl } from "@/lib/seo";
 import { obituaryHref } from "@/lib/obituary-format";
 import { playerSlug } from "@/lib/slug";
-import { mapLabel } from "@/components/player/format";
 
 type Props = { params: Promise<{ slug: string }> };
 
