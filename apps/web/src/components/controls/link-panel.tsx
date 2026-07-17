@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { searchClaimableGamertags } from "@/lib/api";
+import { GamertagAutocomplete } from "./gamertag-autocomplete";
 
 /** Unlinked rail state (canvas 10d): dark claim panel with claimable-tag autocomplete. */
 export function LinkTagPanel({
@@ -13,34 +14,6 @@ export function LinkTagPanel({
   error: string | null;
 }) {
   const [tag, setTag] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-
-  // Race guards: drop out-of-order responses; don't re-search right after a pick.
-  const searchSeq = useRef(0);
-  const skipSearch = useRef(false);
-
-  useEffect(() => {
-    if (skipSearch.current) {
-      skipSearch.current = false;
-      return;
-    }
-    const q = tag.trim();
-    if (q.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const t = setTimeout(() => {
-      const seq = ++searchSeq.current;
-      searchClaimableGamertags(q)
-        .then((results) => {
-          if (seq === searchSeq.current) setSuggestions(results);
-        })
-        .catch(() => {
-          if (seq === searchSeq.current) setSuggestions([]);
-        });
-    }, 200);
-    return () => clearTimeout(t);
-  }, [tag]);
 
   return (
     <section className="bg-dark p-5">
@@ -58,34 +31,14 @@ export function LinkTagPanel({
         <label htmlFor="rail-gamertag" className="sr-only">
           Gamertag
         </label>
-        <input
+        <GamertagAutocomplete
           id="rail-gamertag"
           value={tag}
-          onChange={(e) => setTag(e.target.value)}
-          autoComplete="off"
+          onChange={setTag}
+          fetchSuggestions={searchClaimableGamertags}
           placeholder="GAMERTAG…"
-          className="w-full border border-paper bg-[#111] px-3 py-2.5 font-mono text-[13px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted"
+          inputClassName="w-full border border-paper bg-[#111] px-3 py-2.5 font-mono text-[13px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted"
         />
-        {suggestions.length > 0 && (
-          <ul className="border border-t-0 border-dark-line bg-[#111]">
-            {suggestions.map((s) => (
-              <li key={s}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    skipSearch.current = true;
-                    searchSeq.current++; // invalidate any in-flight search
-                    setTag(s);
-                    setSuggestions([]);
-                  }}
-                  className="w-full px-3 py-2 text-left font-mono text-xs uppercase text-cream-dim hover:bg-[#1A1A12] hover:text-paper"
-                >
-                  {s}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
         <button
           type="submit"
           disabled={pending || !tag.trim()}
