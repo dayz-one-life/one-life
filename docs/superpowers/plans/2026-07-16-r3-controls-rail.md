@@ -590,6 +590,12 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 export function useModalBehavior(open: boolean, onClose: () => void): RefObject<HTMLDivElement | null> {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  // Keep the latest onClose in a ref so the effect depends only on `open` —
+  // an inline arrow at the call site must not re-fire the effect (focus steal).
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -598,7 +604,7 @@ export function useModalBehavior(open: boolean, onClose: () => void): RefObject<
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && panelRef.current) {
@@ -623,7 +629,7 @@ export function useModalBehavior(open: boolean, onClose: () => void): RefObject<
       document.body.style.overflow = prevOverflow;
       restoreRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return panelRef;
 }
