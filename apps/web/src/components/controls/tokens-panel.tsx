@@ -13,6 +13,7 @@ export function TokensPanel({
   onSend,
   onSetReferrer,
   showReferrer = true,
+  boxed = false,
 }: {
   balance: number;
   send: MutationView;
@@ -20,6 +21,7 @@ export function TokensPanel({
   onSend: (gamertag: string) => void;
   onSetReferrer: (gamertag: string) => void;
   showReferrer?: boolean;
+  boxed?: boolean;
 }) {
   const [to, setTo] = useState("");
   const [ref, setRef] = useState("");
@@ -37,7 +39,7 @@ export function TokensPanel({
   };
 
   return (
-    <section className="bg-dark p-5">
+    <section className={boxed ? "border border-dark-line p-4" : "bg-dark p-5"}>
       <div className="flex items-center justify-between">
         <h2 className="font-display text-[15px] font-bold uppercase tracking-[.1em] text-paper">Unban tokens</h2>
         <span className="font-display text-[26px] font-bold leading-none text-paper">{balance}</span>
