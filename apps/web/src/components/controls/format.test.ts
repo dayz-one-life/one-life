@@ -59,6 +59,10 @@ describe("serverFactLine", () => {
     const [c] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 22920, 1)]);
     expect(serverFactLine(c!)).toBe("Qualified · 6h 22m this life · 1 kill");
   });
+  test("alive line pluralizes zero kills", () => {
+    const [c] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 22920, 0)]);
+    expect(serverFactLine(c!)).toBe("Qualified · 6h 22m this life · 0 kills");
+  });
   test("idle line is the grace invitation", () => {
     const [c] = serverCards([server({})], []);
     expect(serverFactLine(c!)).toBe("Spawn in any time. First 5 minutes are free.");
@@ -108,5 +112,9 @@ describe("pillStatus", () => {
   test("verified with nothing going on: no active life, muted", () => {
     const cards = serverCards([server({})], []);
     expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "No active life", tone: "muted" });
+  });
+  test("banned with no expiry (lift pending) falls back to the plain banned line", () => {
+    const cards = serverCards([server({ id: 2, slug: "sakhal", map: "sakhal" })], [bannedStanding("sakhal", "sakhal", null)]);
+    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal banned", tone: "red" });
   });
 });
