@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.14.0] - 2026-07-17
+
+### Added
+- Tabloid redesign R5a — the newsdesk + Obituaries. A new `articles` table + `apps/newsdesk`
+  sweep worker turn every qualified death into an obituary written in the One Life tabloid voice
+  via OpenRouter, behind a dry-run gate (`NEWSDESK_DRY_RUN` defaults `true`). The Obituaries
+  section goes live (retiring the static teaser): a reverse-chron `/obituaries` feed and a full
+  interior article at `/obituaries/[slug]` — headline, byline, lede/body, an in-voice pull quote,
+  a factual Rap Sheet, the R4-powered "Final Reload" timeline, tags, "More From the Morgue," a
+  `NewsArticle` JSON-LD block, and a dynamic OG image. Facts (Rap Sheet, Final Reload) are read
+  models only — the LLM writes voice, never invents events (Fog Rule: map dateline, never
+  coordinates). Backed by `getPublishedObituaries`/`getObituaryBySlug` and public `GET /obituaries`
+  (now published articles) + `GET /obituaries/:slug`.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+- JSON-LD script tags now serialize through a shared `ldScript()` helper that escapes `<`/`>`/`&`,
+  so LLM-authored obituary text (or any field) can't break out of `<script type="application/ld+json">`.
+  Applied to all three sinks (obituary article, player profile, survivors board).
+
 ## [0.13.0] - 2026-07-17
 
 ### Added

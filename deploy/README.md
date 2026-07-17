@@ -12,7 +12,7 @@ factory.eli5hq.com). The One Life platform runs as **systemd services** against 
 | Reverse proxy | nginx `dayzonelife.com` vhost | apex serves the app; `www` + `:80` 301 → `https://dayzonelife.com` |
 | Web (Next.js) | `127.0.0.1:3010` | `onelife-web.service`; the ONLY upstream nginx talks to |
 | API (Fastify) | `127.0.0.1:3011` | `onelife-api.service`; reached only via Next.js rewrites, not nginx |
-| Workers | no ports | verifier, projector, enforcer, granter, rebooter (+ ingest, disabled) |
+| Workers | no ports | verifier, projector, enforcer, granter, rebooter, newsdesk (+ ingest, disabled) |
 | Database | host Postgres `127.0.0.1:5432` | role `onelife`, db `onelife` (+ `onelife_test`) |
 
 **Request flow:** browser → nginx (`:443`) → web (`:3010`). The web app's
@@ -30,7 +30,7 @@ Units live in `/etc/systemd/system/onelife-*.service`. All run as user `acab`,
 
 ```bash
 # status of the fleet
-for s in web api verifier projector enforcer granter rebooter ingest; do
+for s in web api verifier projector enforcer granter rebooter newsdesk ingest; do
   printf "onelife-%-10s %s\n" "$s" "$(systemctl is-active onelife-$s)"; done
 
 sudo systemctl restart onelife-web        # restart one
@@ -51,6 +51,12 @@ sudo journalctl -u onelife-api -f         # tail logs
   `onelife-rebooter` systemd unit on the host (create it alongside the other worker units).
   **`NITRADO_TOKEN` must be set in `.env`** — unlike `enforcer`, the rebooter treats it as
   required and will crash-loop under `Restart=always` if it is missing.
+- **onelife-newsdesk** — sweeps qualified deaths lacking a published obituary, generates each in
+  the One Life voice via OpenRouter, and publishes it. Requires a `onelife-newsdesk` systemd unit
+  on the host (create it alongside the other worker units). Needs `DATABASE_URL`,
+  `OPENROUTER_API_KEY`, and `NEWSDESK_MODEL` (default `anthropic/claude-sonnet-5`) in `.env`.
+  **`NEWSDESK_DRY_RUN` defaults `true`** — obituaries are logged, not generated or stored (no
+  OpenRouter credits spent); set `false` to actually generate and write them.
 
 ## Environment
 
@@ -106,7 +112,7 @@ pnpm install --frozen-lockfile
 pnpm --filter @onelife/db run db:migrate   # if there are new migrations
 pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
-     onelife-projector onelife-enforcer onelife-granter onelife-rebooter
+     onelife-projector onelife-enforcer onelife-granter onelife-rebooter onelife-newsdesk
 ```
 </details>
 
