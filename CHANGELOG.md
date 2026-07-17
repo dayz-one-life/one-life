@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Discord obituary notifier — `apps/newsdesk` posts a plain link to every published obituary into a
+  Discord channel via an incoming webhook (Discord unfurls the page's OpenGraph card). Delivery is
+  tracked and retried via a new nullable `articles.discord_posted_at` column + partial index
+  (migration `0010`): a sweep runs each loop iteration (its own try/catch), reads
+  published-but-unposted obituaries oldest-death-first, posts each link, and stamps the row on
+  success — so a transient Discord/DB outage, a worker restart, or the dry-run→live switch never
+  drops an obituary, and the back-catalogue drains on first live run. Gated by
+  `DISCORD_OBITUARY_WEBHOOK_URL` (empty = disabled no-op) and the existing `NEWSDESK_DRY_RUN`
+  (dry-run logs the intended post, does not send); per-tick cap `NEWSDESK_DISCORD_MAX_PER_TICK`
+  (default 10). Additive migration — a normal deploy, no `--rebuild`.
 ### Changed
 ### Deprecated
 ### Removed
