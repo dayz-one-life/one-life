@@ -13,6 +13,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.12.0] - 2026-07-17
+
+### Added
+- Tabloid redesign R4 — life timeline + obituary/birth groundwork. A public per-life page at
+  `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero with a factual
+  `Life {n} · {Map}` headline and a Time-alive/Kills/Longest-kill/Sessions/Qualified stat band,
+  and a newest-first event timeline (birth → life qualified → sessions, with quiet runs grouped
+  into "Sessions N–M" → kills with a "Longest kill" chip → death, or a live "Still drawing
+  breath" row). Captions are deterministic and factual (editorial prose is R5); death rows carry
+  the vitals at death (energy/water/bleed) — the per-life kill/vitals detail R2 dropped from
+  funeral cards now lives here. While a life is still alive a "Positions withheld" notice
+  renders (voice-only — no coordinates are stored or shown). Standing cards and funeral cards
+  gain `TIMELINE →` links (via a pure `lifeHref`). Backed by a `getLifeTimeline` read-model and
+  the extended `GET /players/:gamertag/:map/lives/:n` route (now returns kills + qualification
+  timing + display fields). R5 groundwork behind the still-static teasers: `getObituaries`
+  (recent qualified deaths) and `getFreshSpawns` (recent qualified births) read-models sharing a
+  `qualifiedLifeCondition` predicate, exposed at public `GET /obituaries` and `GET /fresh-spawns`.
+### Changed
+- Tabloid redesign R1 — "Clean Glossy" design system (Paper/Ink/Red tokens, Oswald + IBM Plex
+  Mono), new dark masthead with the 5-section nav + mobile menu, dark mono footer, front-page
+  shell (manifesto hero, top survivors, sign-in CTA), About page, in-voice teaser pages for
+  News/Obituaries/Fresh Spawns, restyled status banner, brand favicon kit, and the player OG
+  card on the brand palette. Legacy color tokens remap to the new palette as compat shims
+  (removed in R3).
+- Tabloid redesign R2 — boards restyle. Survivors board per canvas 13a: tiered rows by global
+  rank (rank 1 hero row on tint with 76px portrait + stat label, ranks 2–3 podium with 60px
+  portraits, 4+ compact text rows), skewed map chips + mono sort links, mono-box pagination
+  with a clamped "Showing x–y of N still breathing" line, quiet-coast empty state; the visible
+  h1 becomes "Survivors"/"{Map} survivors" (the SEO phrase stays in `<title>`/OG metadata).
+  Player dossier per 13b: avatar-free hero with first-seen over-line, blue "Alive ×N" skew
+  badge, red Verified stamp, stat band with **Deaths as the red stat** (OG card inherits);
+  2-col state-colored standing cards (blue Alive / red Banned with 4px red left border,
+  kills-this-life list, ban-lifts box, "Spend 1 token — skip the wait" self-unban CTA);
+  past lives become compact archive "funeral cards" (counts only — kill lists/vitals return
+  with the R4 life timeline). Route-level loading skeletons for all board + dossier pages;
+  board a11y (decorative square portraits with lazy-loading hygiene, non-focusable disabled
+  pagination edges, aria-hidden glyphs); site basics: skip-to-content link, global red
+  `:focus-visible` ring, and a `red-deep` token for small-size error text.
+- Tabloid redesign R3 — controls rail. A single account surface driven by one
+  `accountStatus`-based data layer (`useControls`/`useControlsActions`): a persistent desktop
+  **controls rail** (root-layout `xl:` two-column grid — main column + 380px rail) and a mobile
+  floating **pill + bottom sheet** (canvas 10a–d), each reflecting the viewer's state —
+  signed-out sign-in CTA, unlinked in-rail gamertag link (autocomplete), pending in-rail emote
+  "prove it's you" challenge, verified identity + unban-token wallet + per-server standing cards
+  (alive/no-life/banned with live ban countdown + self-unban CTA). The mobile menu and sheet
+  share a `useModalBehavior` hook (focus trap, Escape, scroll lock, focus restore). Login page
+  restyled into the tabloid language. Token **transfer and referrer** now resolve a verified
+  **gamertag** (case-insensitive) instead of a raw user id.
+### Deprecated
+### Removed
+- Retired the standalone account surface — `/account` and `/account/claim` pages, the
+  site-wide status banner, and the masthead account slot — replaced by the R3 controls rail /
+  pill. Deleted the last legacy design-token aliases (`--bg/--panel/--line/--amber/--blood/…`)
+  and the `font-hand` shim now that nothing consumes them, and renamed the `tint` surface token
+  to `bone`. Removed the legacy `ui/` primitives (Button/Input/Table).
+### Fixed
+- Consolidated R1/R2 carried-forward duplication: one shared pagination-box style, one
+  `CharacterImage` (with `characterSrc`) behind both the survivor portrait and player avatar,
+  one shared dossier `Stat`, a discriminated `SkewCta` href|onClick union, and richer loading
+  skeletons; plus `activeNavKey` exact-segment matching and singular/plural count copy.
+### Security
+
 ## [0.11.1] - 2026-07-16
 
 ### Fixed

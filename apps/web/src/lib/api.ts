@@ -1,7 +1,7 @@
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
   Me, GamertagLink, ClaimResult, PlayerPage,
-  GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage,
+  GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
 } from "./types";
 
 export class ApiError extends Error {
@@ -102,10 +102,10 @@ export type TokenWalletData = { balance: number; transactions: TokenTransaction[
 export const getTokens = () => apiGet<TokenWalletData>("/api/me/tokens");
 export const redeemToken = (banId?: number) =>
   apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
-export const transferToken = (toUserId: string) =>
-  apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toUserId });
-export const setReferrer = (referrerUserId: string) =>
-  apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerUserId });
+export const transferToken = (toGamertag: string) =>
+  apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
+export const setReferrer = (referrerGamertag: string) =>
+  apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
 
 async function getOrNull<T>(path: string): Promise<T | null> {
   try {
@@ -118,6 +118,9 @@ async function getOrNull<T>(path: string): Promise<T | null> {
 
 export const getPlayerPage = (slug: string, page?: number) =>
   getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}${page && page > 1 ? `?page=${page}` : ""}`);
+
+export const getPlayerLife = (slug: string, map: string, n: number) =>
+  getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);

@@ -33,6 +33,9 @@ export type Life = {
   deathByGamertag: string | null;
   deathWeapon: string | null;
   deathDistance: number | null;
+  energyAtDeath: number | null;
+  waterAtDeath: number | null;
+  bleedSourcesAtDeath: number | null;
   playtimeSeconds: number;
 };
 
@@ -84,7 +87,6 @@ export type Challenge = { sequence: string[]; progressIndex: number; expiresAt: 
 
 export type GamertagLink = {
   id: number;
-  serverId: number;
   gamertag: string;
   status: "pending" | "verified" | "cancelled";
   verifiedAt: string | null;
@@ -93,7 +95,6 @@ export type GamertagLink = {
 
 export type ClaimResult = {
   linkId: number;
-  serverId: number;
   gamertag: string;
   status: "pending";
   challenge: Challenge;
@@ -132,7 +133,7 @@ export type PlayerAggregate = {
 
 export type PlayerCharacter = { name: string | null; head: string | null; gender: string | null };
 export type PlayerKill = { victimGamertag: string; weapon: string | null; distanceMeters: number | null; occurredAt: string };
-export type AliveStanding = { lifeId: number; startedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[] };
+export type AliveStanding = { lifeId: number; lifeNumber: number; startedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[] };
 export type BanStanding = { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean; triggeringLifeNumber: number | null };
 export type ServerStanding = { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null };
 export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
@@ -142,3 +143,16 @@ export type SurvivorSort = "kills" | "time" | "longest";
 export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; sort: SurvivorSort; }
+
+export type LifeCharacterDto = { charId: number; characterClass: string | null; name: string | null; gender: string | null; sightings: number; confidence: "exact" | "ambiguous" };
+export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
+export type LifeTimelineData = {
+  life: Life;
+  sessions: Session[];
+  character: LifeCharacterDto | null;
+  kills: PlayerKill[];
+  qualifiedAt: QualifiedAtDto | null;
+  gamertag: string;
+  map: string;
+  slug: string;
+};

@@ -1,54 +1,33 @@
-// apps/web/src/components/header.test.tsx
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi } from "vitest";
 import { Masthead } from "./header";
-import { MastheadSlot } from "./masthead-slot";
-import type { GamertagLink } from "@/lib/types";
 
-function renderMasthead() {
-  const queryClient = new QueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <Masthead />
-    </QueryClientProvider>,
-  );
-}
+const mockPathname = vi.fn(() => "/survivors");
+vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
 
 describe("Masthead", () => {
-  it("shows the logo and a Survivors nav link", async () => {
-    renderMasthead();
-    expect(screen.getByAltText(/one life/i)).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: /survivors/i })).toHaveAttribute("href", "/survivors");
+  it("renders the wordmark home link and all five nav items", () => {
+    render(<Masthead />);
+    expect(screen.getByRole("link", { name: "One Life — home" })).toHaveAttribute("href", "/");
+    for (const label of ["News", "Obituaries", "Fresh Spawns", "Survivors", "About"]) {
+      expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
+    }
   });
-});
 
-const link = (over: Partial<GamertagLink>): GamertagLink => ({
-  id: 1, serverId: 1, gamertag: "GHOST_ACTOR", status: "verified",
-  verifiedAt: "2026-07-14T00:00:00Z", challenge: null, ...over,
-});
+  it("marks the active section with aria-current and red", () => {
+    mockPathname.mockReturnValue("/survivors/sakhal");
+    render(<Masthead />);
+    const link = screen.getAllByRole("link", { name: "Survivors" })[0]!;
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(link.className).toContain("text-red");
+  });
 
-describe("MastheadSlot", () => {
-  it("renders nothing when signed out", () => {
-    const { container } = render(<MastheadSlot status={{ kind: "signedOut" }} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-  it("shows a loading placeholder", () => {
-    render(<MastheadSlot status={{ kind: "loading" }} />);
-    expect(screen.getByRole("status")).toBeInTheDocument();
-  });
-  it("shows a quiet Account link when unlinked or pending", () => {
-    render(<MastheadSlot status={{ kind: "unlinked" }} />);
-    expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/account");
-  });
-  it("shows the pending user a quiet Account link", () => {
-    render(<MastheadSlot status={{ kind: "pending", link: link({ status: "pending", verifiedAt: null }) }} />);
-    expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/account");
-  });
-  it("shows the amber gamertag CTA when verified", () => {
-    render(<MastheadSlot status={{ kind: "verified", link: link({}) }} />);
-    const cta = screen.getByRole("link", { name: "GHOST_ACTOR" });
-    expect(cta).toHaveAttribute("href", "/players/ghost-actor");
-    expect(cta.className).toContain("bg-amber");
+  it("opens and closes the mobile menu", async () => {
+    render(<Masthead />);
+    await userEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(screen.getByRole("button", { name: "Close menu" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close menu" }));
+    expect(screen.queryByRole("button", { name: "Close menu" })).not.toBeInTheDocument();
   });
 });

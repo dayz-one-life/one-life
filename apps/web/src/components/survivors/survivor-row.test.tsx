@@ -13,58 +13,53 @@ const base = {
 };
 
 describe("SurvivorRow", () => {
-  test("kills sort shows only the Kills stat, with gamertag, map badge, and avatar", () => {
-    render(<SurvivorRow rank={1} showMap sort="kills" row={base} />);
-    expect(screen.getByText("Chad")).toBeInTheDocument();
-    expect(screen.getByText("Kills")).toBeInTheDocument();
-    expect(screen.getByText("11")).toBeInTheDocument();
-    // other stats hidden
-    expect(screen.queryByText("Time alive")).not.toBeInTheDocument();
-    expect(screen.queryByText("Longest kill")).not.toBeInTheDocument();
-    expect(screen.getByText(/chernarus/i)).toBeInTheDocument();
-    expect(screen.getByRole("img")).toHaveAttribute("src", "/characters/boris.webp");
-  });
-
-  test("time sort shows only the Time alive stat", () => {
-    render(<SurvivorRow rank={1} showMap={false} sort="time" row={base} />);
+  // Portraits are decorative (alt="") so they have no img role — query the DOM directly.
+  test("hero row (rank 1) shows portrait, stat label, and kills sub-line under time sort", () => {
+    const { container } = render(<SurvivorRow rank={1} showMap sort="time" row={base} />);
+    const img = container.querySelector("img")!;
+    expect(img).toHaveAttribute("src", "/characters/boris.webp");
+    expect(img).toHaveAttribute("width", "76");
+    expect(img).toHaveAttribute("alt", "");
+    expect(img).toHaveAttribute("loading", "lazy");
     expect(screen.getByText("Time alive")).toBeInTheDocument();
     expect(screen.getByText("6h 43m")).toBeInTheDocument();
-    expect(screen.queryByText("Kills")).not.toBeInTheDocument();
+    expect(screen.getByText("chernarus · 11 kills")).toBeInTheDocument();
   });
 
-  test("longest sort shows the Longest kill stat and a dash for a null value", () => {
-    render(
-      <SurvivorRow
-        rank={2}
-        showMap={false}
-        sort="longest"
-        row={{ ...base, gamertag: "Pacifist", longestKillMeters: null, character: null }}
-      />
-    );
-    expect(screen.getByText("Longest kill")).toBeInTheDocument();
+  test("hero row omits the kills suffix when sorting by kills", () => {
+    render(<SurvivorRow rank={1} showMap sort="kills" row={base} />);
+    expect(screen.getByText("chernarus")).toBeInTheDocument();
+    expect(screen.queryByText(/11 kills/)).not.toBeInTheDocument();
+    expect(screen.getByText("11")).toBeInTheDocument(); // the stat itself
+  });
+
+  test("podium row (rank 2) has a 60px portrait and no stat label", () => {
+    const { container } = render(<SurvivorRow rank={2} showMap={false} sort="time" row={base} />);
+    const img = container.querySelector("img")!;
+    expect(img).toHaveAttribute("width", "60");
+    expect(screen.queryByText("Time alive")).not.toBeInTheDocument();
+    expect(screen.getByText("6h 43m")).toBeInTheDocument();
+  });
+
+  test("compact row (rank 4) has no portrait and inline map", () => {
+    const { container } = render(<SurvivorRow rank={4} showMap sort="longest" row={base} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("chernarus")).toBeInTheDocument();
+    expect(screen.getByText("341m")).toBeInTheDocument();
+  });
+
+  test("null longest kill renders an em dash", () => {
+    render(<SurvivorRow rank={5} showMap={false} sort="longest" row={{ ...base, longestKillMeters: null }} />);
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  test("renders an inline silhouette fallback (no broken img) when character is null", () => {
-    render(
-      <SurvivorRow
-        rank={3}
-        showMap={false}
-        sort="time"
-        row={{ ...base, character: null }}
-      />
-    );
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/unknown survivor/i)).toBeInTheDocument();
+  test("unknown character renders no img (silhouette fallback is decorative)", () => {
+    const { container } = render(<SurvivorRow rank={1} showMap={false} sort="time" row={{ ...base, character: null }} />);
+    expect(container.querySelector("img")).toBeNull();
   });
 
-  test("hides the map badge when showMap is false", () => {
-    render(<SurvivorRow rank={2} showMap={false} sort="kills" row={base} />);
-    expect(screen.queryByText(/chernarus/i)).not.toBeInTheDocument();
-  });
-
-  test("links the gamertag to the player page", () => {
-    render(<SurvivorRow row={{ ...base, gamertag: "xSgt Hartman" }} rank={1} showMap={false} sort="time" />);
-    expect(screen.getByRole("link", { name: "xSgt Hartman" })).toHaveAttribute("href", "/players/xsgt-hartman");
+  test("gamertag links to the player page", () => {
+    render(<SurvivorRow rank={3} showMap={false} sort="time" row={base} />);
+    expect(screen.getByRole("link", { name: "Chad" })).toHaveAttribute("href", "/players/chad");
   });
 });

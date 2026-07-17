@@ -10,8 +10,25 @@ describe("PlayerPagination", () => {
   it("links to page 2 and bare page 1", () => {
     render(<PlayerPagination slug="legend" page={1} total={25} pageSize={10} />);
     expect(screen.getByRole("link", { name: /older/i })).toHaveAttribute("href", "/players/legend?page=2");
-    // Newer on page 1 points at bare /players/legend
-    expect(screen.getByRole("link", { name: /newer/i })).toHaveAttribute("href", "/players/legend");
     expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
+  });
+
+  it("edges: first page has no Newer link, a real Older link", () => {
+    render(<PlayerPagination slug="yrjustbad" page={1} total={25} pageSize={10} />);
+    expect(screen.queryByRole("link", { name: /Newer/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Older/ })).toHaveAttribute("href", "/players/yrjustbad?page=2");
+    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
+  });
+
+  it("edges: last page has no Older link, a real Newer link", () => {
+    render(<PlayerPagination slug="yrjustbad" page={3} total={25} pageSize={10} />);
+    expect(screen.queryByRole("link", { name: /Older/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Newer/ })).toHaveAttribute("href", "/players/yrjustbad?page=2");
+    expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
+  });
+
+  it("hidden with a single page", () => {
+    const { container } = render(<PlayerPagination slug="x" page={1} total={5} pageSize={10} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

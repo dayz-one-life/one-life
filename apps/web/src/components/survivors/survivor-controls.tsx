@@ -19,7 +19,7 @@ export function SurvivorControls({
   tabs: { slug: string | null; label: string }[];
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-ink pb-3.5">
       <div className="flex flex-wrap gap-2">
         {tabs.map((tab) => {
           const active = tab.slug === slug;
@@ -29,10 +29,8 @@ export function SurvivorControls({
               href={boardHref(tab.slug, sort, 1)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "rounded border px-3 py-1 text-sm",
-                active
-                  ? "border-amber/60 bg-amber/10 text-amber"
-                  : "border-line bg-panel text-muted hover:text-bone"
+                "-skew-x-[5deg] px-3 pb-0.5 pt-1 font-display text-xs font-semibold uppercase tracking-[.09em]",
+                active ? "bg-ink text-paper" : "border border-ink text-ink hover:bg-ink hover:text-paper"
               )}
             >
               {tab.label}
@@ -41,7 +39,7 @@ export function SurvivorControls({
         })}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="ml-auto flex flex-wrap gap-x-5 gap-y-2 font-mono text-[11.5px] uppercase tracking-[.05em]">
         {SORT_CHIPS.map((chip) => {
           const active = chip.sort === sort;
           return (
@@ -50,10 +48,7 @@ export function SurvivorControls({
               href={boardHref(slug, chip.sort, 1)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "rounded-full border px-3 py-1 text-xs uppercase tracking-wide",
-                active
-                  ? "border-amber/60 bg-amber/10 text-amber"
-                  : "border-line bg-panel-2 text-muted hover:text-bone"
+                active ? "border-b-2 border-red pb-0.5 font-bold text-red" : "text-ink-muted hover:text-ink"
               )}
             >
               {chip.label}

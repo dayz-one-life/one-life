@@ -60,6 +60,7 @@ describe("getPlayerPage", () => {
     expect(alive.alive!.kills).toBe(1);
     expect(alive.alive!.longestKillMeters).toBe(312);
     expect(alive.alive!.killList[0]!.victimGamertag).toBe("BanditKing");
+    expect(alive.alive?.lifeNumber).toBeGreaterThanOrEqual(1);
   });
   it("has a banned standing on Sakhal with a lift time", async () => {
     const pg = (await getPlayerPage(db, "Legend", now))!;

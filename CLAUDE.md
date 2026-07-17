@@ -72,20 +72,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **One gamertag per user:** a user holds at most one active (`pending`|`verified`) `gamertag_links` row —
   enforced by partial unique index `gamertag_links_user_active_uniq` (migration `0007`) + a
   `409 active_link_exists` guard in `POST /me/gamertag-links`; a `verified` link is admin-release-only.
-  **Onboarding/status banner + masthead slot:** a persistent site-wide banner under the masthead
-  (`StatusBannerContainer` in the root layout, between `Masthead` and the page) reflects the viewer's
-  onboarding state and carries the primary next action; the masthead's right-hand slot collapses to
-  match. One pure derivation `accountStatus({ signedIn, loading, links })` (`@/lib/account-status`,
-  union `loading|signedOut|unlinked|pending|verified`) is the single source of truth for both surfaces,
-  read via the `useAccountStatus()` hook (`useSession` + `useGamertagLinks` + `activeLink`). **Banner:**
-  signed-out → *"Sign in to claim your gamertag"* (→`/login`); unlinked → *"Link your gamertag…"*
-  (→`/account/claim`); pending → self-contained verification banner (emote chips + live `n/total DONE`
-  progress + expiry countdown + **Cancel claim**, or a **Start a new challenge** re-claim when expired);
-  verified/loading → nothing. **Masthead slot** (`MastheadSlot`): signed-out → empty; unlinked/pending →
-  quiet **Account** link → `/account`; verified → amber **{GAMERTAG}** CTA → `/account`; loading →
-  placeholder. `StatusBanner`/`MastheadSlot` are presentational (unit-tested by props);
-  `useAccountStatus`/`StatusBannerContainer`/`Masthead` are thin hook wrappers (untested, per repo
-  convention). No backend change — `GET /me/gamertag-links` already serializes the challenge, so
+  **Account surface = the controls rail (R3, replaced the status banner + masthead slot).** The whole
+  onboarding/account surface is the R3 controls rail — see the Tabloid redesign section. One pure
+  derivation `accountStatus({ signedIn, loading, links })` (`@/lib/account-status`, union
+  `loading|signedOut|unlinked|pending|verified`) remains the single source of truth, read via
+  `useAccountStatus()` (`useSession` + `useGamertagLinks` + `activeLink`). **`/account` and
+  `/account/claim` no longer exist** (404); the link/verify flows moved in-rail.
+  No backend change — `GET /me/gamertag-links` already serializes the challenge, so
   `useGamertagLinks` adds a **5s `refetchInterval` while a link is pending** (progress ticks live, stops
   when nothing is pending, and never polls signed-out visitors). `QueryProvider` lives at the **root
   layout** (one app-wide TanStack Query cache), and `useGamertagLinks(enabled)` gates its fetch so
@@ -129,10 +122,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `boardHref` (path-based; drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD). The
   `SurvivorControls` map tabs are alphabetical by label with **All maps** first (`buildTabs`), and the
   sort pills are ordered **Time alive → Kills → Longest kill**. Old
-  `?sort=` query links are ignored (render the default). Each page has an SEO `<h1>` = `Top {Map}
-  survivors by {sort}` (combined drops the map name); each row shows gamertag, map, an 80px character
-  avatar, and **only the stat being sorted by** (kills / time alive / longest kill, all **this-life**
-  since `life.startedAt`). Backed by the `getAliveSurvivors` read-model
+  `?sort=` query links are ignored (render the default). **R2 restyle:** the visible `<h1>` is
+  `Survivors` / `{Map} survivors` (the full SEO phrase `Top {Map} survivors by {sort}` lives only in
+  `<title>`/OG via `survivor-metadata.ts`); rows are **tiered by global rank** (`tierFor`,
+  `@/components/survivors/format`): rank 1 = hero row on tint with a 76px square portrait and the
+  only stat label, ranks 2–3 = podium rows with 60px portraits, 4+ (and all of pages 2+) = compact
+  text rows with no portrait. Every row still shows **only the stat being sorted by** (kills / time
+  alive / longest kill, all **this-life** since `life.startedAt`); portraits are decorative
+  (`alt=""`, no img role — tests query the DOM directly). Pagination is a mono-box bar with a
+  clamped `showingLine` and non-focusable disabled edges; board + dossier routes have `loading.tsx`
+  skeletons (`@/components/skeletons`). Backed by the `getAliveSurvivors` read-model
   (`packages/read-models/src/survivors.ts`; **sort-aware tie-break** — primary sort → the other two
   metrics in a fixed order → gamertag, via a NaN-safe skip-if-equal comparator) and the public
   `GET /survivors[/:slug]` API route (Zod `sort` default `time`). Avatars resolve via
@@ -140,7 +139,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   unknown/no character). Gamertag filtering was scoped out of this pass.
 - **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
   hero, per-server current standing (alive / banned / idle) with a live ban countdown, paginated
-  past-life history (kill lists, vitals, sessions), a dynamic OpenGraph share image, and
+  past-life history (since R2: compact **funeral cards** — map, dateline, death line, and a
+  kills/longest-kill/sessions counts strip only; the per-life kill lists + vitals now live on the
+  R4 life-timeline page, reached via `TIMELINE →` links on the standing + funeral cards), a
+  dynamic OpenGraph share image, and
   `ProfilePage` JSON-LD. The slug is the gamertag slugified (`playerSlug`, `@/lib/slug`) and resolved
   back via `resolveGamertagBySlug` (`packages/read-models/src/player-aggregate.ts`); the page is
   powered by a new `getPlayerPage` read-model (`packages/read-models/src/player-page.ts`) and an
@@ -150,13 +152,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (`UnbanState`: hidden/ready/no-tokens/pending) driven by `SelfUnbanButton`/`UnbanView`
   (`apps/web/src/components/player/self-unban-button.tsx`). Gamertags across the site (survivor
   board rows, kill lists, death-by attributions) now route through a shared `GamertagLink` component
-  to `/players/{slug}`. A new `/welcome` post-login resolver (`apps/web/src/app/welcome/page.tsx`)
-  sends a verified user straight to their player page (pending → `/account`, unlinked →
-  `/account/claim`), and the masthead's gamertag chip points there too.
+  to `/players/{slug}`. A `/welcome` post-login resolver (`apps/web/src/app/welcome/page.tsx`)
+  sends a verified user straight to their player page and everyone else to `/` (the rail carries the
+  next action). Since R3, `SelfUnbanButton` reads the balance from the shared `["tokens"]` query and
+  invalidates `["tokens"]`+`["player-page"]` on redeem, so the dossier and the rail stay in sync.
   **Redesign (v0.11.0):** single roomy column, everything always visible (no `<details>`
   expand/collapse). The hero is **avatar-free** with a full-width stat band via the shared
   `heroStats` helper (`@/components/player/format`) — always Lives / Deaths / Longest life; **Kills
-  only when > 0**; **Longest life is always the amber-highlighted stat**. Current-standing cards are
+  only when > 0**; since R2, **Deaths is the red-highlighted (`hot`) stat** (the OG card inherits
+  this via `heroStats`), plus a first-seen over-line (`aliveMaps` helper), a blue `Alive ×N` skew
+  badge, and a red rubber-stamp Verified mark. Current-standing cards are
   **state-colored** (green alive / red banned / neutral idle); past-life cards are **muted archive**
   styling to read as history. Past lives are **paginated** — `getPlayerPage(db, gamertag, now, { page,
   pageSize })` (`PLAYER_PAST_LIVES_PAGE_SIZE = 10`) gathers the lightweight full set for totals +
@@ -188,6 +193,69 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
+- **Tabloid redesign** (R1+R2+R3+R4 shipped): a five-tier visual relaunch replacing the old dark "field
+  journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
+  `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
+  **R2** boards restyle (survivors + player dossier;
+  spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail
+  (spec `docs/superpowers/specs/2026-07-16-r3-controls-rail-design.md`), **R4** life timeline +
+  obituary/birth read-model groundwork (spec
+  `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5+** an LLM content engine
+  that finally writes the News/Obituaries/Fresh Spawns pages.
+  **R4 shipped — the life timeline + R5 groundwork.** A public per-life page at
+  `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero (`LifeHero`, the life's
+  resolved `getLifeCharacter` → `/characters/<name>.webp`) with a **factual** `Life {n} · {mapLabel}`
+  headline (editorial headlines are R5) + a Time-alive/Kills/Longest-kill/Sessions/Qualified stat
+  band, and a newest-first event **`Timeline`** (`@/components/life/`). The event list is built by a
+  pure **`buildTimeline(data, now)`** (`@/lib/life-timeline`): birth → life qualified → session
+  starts (consecutive **kill-free** sessions collapse into one `Sessions N–M` row) → kills (a yellow
+  **Longest kill** chip on the max-distance kill) → the terminal `death` row (carrying the
+  **vitals at death** — energy/water/bleed — this is where R2's dropped per-life detail returns) or,
+  for an open life, a live **Still drawing breath** row. **Captions are deterministic + factual — no
+  LLM** (voice-first; editorial prose is R5). **Location is voice-only:** a "Positions withheld"
+  notice renders **only while a life is alive**; no coordinates are stored or shown anywhere (kills/
+  deaths carry no coords). Standing + funeral cards link in via a pure **`lifeHref(gamertag, mapSlug,
+  lifeNumber)`** (`@/lib/life-href`); `AliveStanding` gained a `lifeNumber` for the alive-standing
+  link. Backed by **`getLifeTimeline`** (`packages/read-models/src/life-timeline.ts`, composing
+  `getLifeDetail` + `getLifeKills` + `getLifeCharacter` + `lifeQualifiedAt`) and the extended
+  `GET /players/:gamertag/:map/lives/:n` route (now returns `kills` + `qualifiedAt` + `gamertag`/`map`/
+  `slug`). **R5 groundwork behind the still-static teasers:** `getObituaries` (qualified deaths,
+  `endedAt` desc) + `getFreshSpawns` (qualified births — alive or dead — newest `startedAt` first,
+  `qualifiedAt` enriched on the page slice), sharing a **`qualifiedLifeCondition(db)`** SQL predicate
+  (`pvp OR playtimeSeconds>=300 OR a kill in [startedAt, endedAt]`; `servers.slug` passes through
+  nullable, un-slugged servers are **not** dropped), served at public `GET /obituaries` +
+  `GET /fresh-spawns`. No UI consumes those two yet — the News/Obituaries/Fresh Spawns teasers stay
+  static until R5.
+  **R3 shipped — the controls rail is the whole account surface.** Root layout is an `xl:`
+  two-column grid (`max-w-[1440px]`, `[minmax(0,1fr)_380px]`): pages flow in the main column
+  (ink right-border at `xl`), the **`ControlsRail`** (`@/components/controls/`) is the sticky right
+  column, and below `xl` a fixed **`ControlsPill` + `ControlsSheet`** (bottom sheet) replace it. All
+  three surfaces are driven by **`useControls`/`useControlsActions`** over the `accountStatus` union:
+  signed-out → sign-in CTA (rail only; no pill); unlinked → identity + in-rail gamertag link panel
+  (autocomplete over `GET /players/search`, race-guarded); pending → in-rail "prove it's you" emote
+  challenge (live via the 5s poll); verified → identity + Verified stamp + **tokens panel** (balance,
+  send-by-gamertag, quiet referrer) + **server cards** (alive/no-life/banned; banned shows a live ban
+  countdown + the shared `SelfUnbanButton` spend CTA) + profile/sign-out footer. Presentational
+  pieces are props-only + unit-tested; `useControls`/containers are thin (untested, per convention).
+  The mobile menu and sheet share **`useModalBehavior`** (`@/lib/use-modal-behavior` — focus trap,
+  Escape, scroll lock, focus restore; keyed on `open` only via an `onCloseRef` so parent re-renders
+  don't steal focus). **`POST /me/tokens/transfer` and `POST /me/referrer` take a verified gamertag**
+  (`{ toGamertag }`/`{ referrerGamertag }`, resolved case-insensitively against verified
+  `gamertag_links`; `not_verified` on miss), not a raw user id. **R3 also closed the R1 compat-shim
+  story:** the legacy token aliases and `font-hand` are deleted, `--tint` was renamed **`--bone`**
+  (brand "Bone" surface), the `ui/` primitives (Button/Input/Table) are gone, and the login page was
+  restyled into the tabloid language. **R1 shipped:** Paper/Ink/Red RGB-triple design tokens
+  (`globals.css` + `tailwind.config.ts`); a dark masthead with a raster wordmark and the full 5-item nav
+  (News · Obituaries · Fresh Spawns · Survivors · About) plus a full-screen mobile menu; a dark
+  mono footer; a front-page shell (manifesto hero, top-5 survivors, sign-in CTA); a live About
+  page with bureau/server cards; `noindex` in-voice teaser pages for News/Obituaries/Fresh Spawns;
+  a brand favicon kit + wordmarks vendored
+  from the sibling `../brand` repo (source of truth, no cross-repo build dependency); and the
+  player OG card moved onto the brand palette. Fonts are Oswald + IBM Plex Mono via
+  `next/font/google`; Anton (the wordmark's display face) ships only inside the raster wordmark
+  assets, never as a webfont. **Voice-first rule:** News/Obituaries/Fresh Spawns stay static
+  teasers — no fake counts, no dry copy — until the R5+ content engine can actually write them;
+  the underlying read-models land ahead of the UI (R4) but the teasers don't retire until R5+.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 

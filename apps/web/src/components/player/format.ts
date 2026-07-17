@@ -1,13 +1,8 @@
-import type { PlayerCharacter, PlayerPage } from "@/lib/types";
+import type { ServerStanding } from "@/lib/types";
 
 export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
-}
-
-export function avatarSrc(character: PlayerCharacter | null): string | null {
-  if (!character || !character.name) return null;
-  return `/characters/${character.name.toLowerCase()}.webp`;
 }
 
 export function banCountdown(expiresAt: string | null, now: Date): string | null {
@@ -20,9 +15,8 @@ export function mapLabel(map: string): string {
   return MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function heroStatusLine(page: Pick<PlayerPage, "standing">): string {
-  const alive = page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
-  return alive.length ? `Alive on ${alive.join(", ")}` : "No open lives";
+export function aliveMaps(page: { standing: Array<Pick<ServerStanding, "state" | "map">> }): string[] {
+  return page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
 }
 
 export type HeroStat = { label: string; value: string; hot: boolean };
@@ -31,8 +25,8 @@ export function heroStats(totals: { kills: number; lives: number; deaths: number
   const out: HeroStat[] = [];
   if (totals.kills > 0) out.push({ label: "Kills", value: String(totals.kills), hot: false });
   out.push({ label: "Lives", value: String(totals.lives), hot: false });
-  out.push({ label: "Deaths", value: String(totals.deaths), hot: false });
-  out.push({ label: "Longest life", value: formatDuration(totals.longestLifeSeconds), hot: true });
+  out.push({ label: "Deaths", value: String(totals.deaths), hot: true });
+  out.push({ label: "Longest life", value: formatDuration(totals.longestLifeSeconds), hot: false });
   return out;
 }
 
