@@ -1,0 +1,2 @@
+ALTER TABLE "articles" ALTER COLUMN "death_at" DROP NOT NULL;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "articles_kind_status_born_idx" ON "articles" USING btree ("kind","status","life_started_at");
