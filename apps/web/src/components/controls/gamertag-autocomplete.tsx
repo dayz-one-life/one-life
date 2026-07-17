@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Controlled gamertag input with a debounced, race-guarded suggestion dropdown.
- *  `fetchSuggestions` is injected; `exclude` (case-insensitive) drops the current player. */
+ *  `fetchSuggestions` is injected; `exclude` (case-insensitive) drops the current player.
+ *  Pass a STABLE `fetchSuggestions` reference (a module-level function, not an inline arrow) — an unstable one re-arms the 200ms debounce every render. */
 export function GamertagAutocomplete({
   value,
   onChange,

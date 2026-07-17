@@ -61,4 +61,14 @@ describe("TokensPanel", () => {
     expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
   });
+
+  test("referrer suggests verified players and excludes the current player", async () => {
+    vi.mocked(searchVerifiedGamertags).mockResolvedValueOnce(["MeGamer", "OtherGuy"]);
+    render(
+      <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("Referred by"), { target: { value: "Ga" } });
+    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+  });
 });
