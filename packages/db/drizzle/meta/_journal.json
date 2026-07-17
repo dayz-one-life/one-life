@@ -64,6 +64,13 @@
       "when": 1784082409685,
       "tag": "0008_rebuild_character_classes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784309972965,
+      "tag": "0009_create_articles",
+      "breakpoints": true
     }
   ]
 }
