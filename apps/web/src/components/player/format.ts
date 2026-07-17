@@ -20,11 +20,6 @@ export function mapLabel(map: string): string {
   return MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function heroStatusLine(page: Pick<PlayerPage, "standing">): string {
-  const alive = page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
-  return alive.length ? `Alive on ${alive.join(", ")}` : "No open lives";
-}
-
 export function aliveMaps(page: Pick<PlayerPage, "standing">): string[] {
   return page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
 }
