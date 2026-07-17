@@ -203,8 +203,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5a** the newsdesk + Obituaries
   content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), **R5b**
   Birth Notices / Fresh Spawns (spec
-  `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), with **R5d** (News)
-  next.
+  `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), with **R5c** (article
+  images) and **R5d** (News feed + news-led home) next.
   **R5b shipped — Birth Notices / Fresh Spawns.** The `apps/newsdesk` worker gains a second pass that
   writes an in-voice **Birth Notice** ("The Nursery") for every qualified life going forward, behind
   the shared dry-run gate and a **forward-only** `NEWSDESK_BIRTH_SINCE` cutoff (unset ⇒ birth pass
