@@ -345,21 +345,23 @@ export const characters = pgTable("characters", {
   byCharId: index("characters_char_idx").on(t.serverId, t.charId),
 }));
 
-// ── Content engine (R5). Durable side-table — generated editorial content (obituaries first);
-// never truncated by projector rebuild. One row per (kind, life); a failed generation writes a
-// status='failed' stub (content null, attempts bumped) so retries are bounded. ──
+// ── Content engine (R5). Durable side-table — generated editorial content (obituaries first).
+// Like `bans`, it references ONLY `servers` and keys the life by the rebuild-stable natural tuple
+// (server_id, gamertag, life_started_at) — NO players/lives FK, so a projector rebuild
+// (TRUNCATE players,lives ... RESTART IDENTITY CASCADE) neither cascade-wipes it nor stales its
+// keys. One row per (kind, life); a failed generation writes a status='failed' stub (content null,
+// attempts bumped) so retries are bounded. ──
 export const articles = pgTable("articles", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   kind: text("kind").notNull(),                                       // 'obituary'
   status: text("status").notNull().default("published"),             // published|failed
   slug: text("slug"),                                                // null on a failed stub
-  playerId: bigint("player_id", { mode: "number" }).notNull().references(() => players.id),
   serverId: integer("server_id").notNull().references(() => servers.id),
-  lifeId: bigint("life_id", { mode: "number" }).notNull().references(() => lives.id),
-  gamertag: text("gamertag").notNull(),
+  gamertag: text("gamertag").notNull(),                              // natural-key: player identity
   map: text("map").notNull(),                                         // servers.map codename
   mapSlug: text("map_slug"),                                         // servers.slug (nullable)
   lifeNumber: integer("life_number").notNull(),
+  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }).notNull(), // natural-key: which life
   deathAt: timestamp("death_at", { withTimezone: true }).notNull(),  // lives.ended_at — feed ordering
   timeAliveSeconds: integer("time_alive_seconds").notNull().default(0),
   kills: integer("kills").notNull().default(0),
@@ -382,7 +384,7 @@ export const articles = pgTable("articles", {
   generatedAt: timestamp("generated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqKindLife: uniqueIndex("articles_kind_life_uniq").on(t.kind, t.lifeId),
+  uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq").on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt),
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
 }));

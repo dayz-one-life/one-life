@@ -1,5 +1,5 @@
 {
-  "id": "fbcf5696-6fac-4ecb-9daa-31ff3274c588",
+  "id": "b5d6b050-8555-457f-a18a-0e628406edd1",
   "prevId": "1f59ad43-7ec8-4413-b9e9-1d9aa347f14e",
   "version": "7",
   "dialect": "postgresql",
@@ -239,21 +239,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "player_id": {
-          "name": "player_id",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
         "server_id": {
           "name": "server_id",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "life_id": {
-          "name": "life_id",
-          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
@@ -278,6 +266,12 @@
         "life_number": {
           "name": "life_number",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "life_started_at": {
+          "name": "life_started_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
@@ -413,8 +407,8 @@
         }
       },
       "indexes": {
-        "articles_kind_life_uniq": {
-          "name": "articles_kind_life_uniq",
+        "articles_kind_server_gamertag_life_uniq": {
+          "name": "articles_kind_server_gamertag_life_uniq",
           "columns": [
             {
               "expression": "kind",
@@ -423,7 +417,19 @@
               "nulls": "last"
             },
             {
-              "expression": "life_id",
+              "expression": "server_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "gamertag",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "life_started_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -478,38 +484,12 @@
         }
       },
       "foreignKeys": {
-        "articles_player_id_players_id_fk": {
-          "name": "articles_player_id_players_id_fk",
-          "tableFrom": "articles",
-          "tableTo": "players",
-          "columnsFrom": [
-            "player_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "articles_server_id_servers_id_fk": {
           "name": "articles_server_id_servers_id_fk",
           "tableFrom": "articles",
           "tableTo": "servers",
           "columnsFrom": [
             "server_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "articles_life_id_lives_id_fk": {
-          "name": "articles_life_id_lives_id_fk",
-          "tableFrom": "articles",
-          "tableTo": "lives",
-          "columnsFrom": [
-            "life_id"
           ],
           "columnsTo": [
             "id"

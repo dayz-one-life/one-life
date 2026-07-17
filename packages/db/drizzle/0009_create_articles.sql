@@ -3,13 +3,12 @@ CREATE TABLE IF NOT EXISTS "articles" (
 	"kind" text NOT NULL,
 	"status" text DEFAULT 'published' NOT NULL,
 	"slug" text,
-	"player_id" bigint NOT NULL,
 	"server_id" integer NOT NULL,
-	"life_id" bigint NOT NULL,
 	"gamertag" text NOT NULL,
 	"map" text NOT NULL,
 	"map_slug" text,
 	"life_number" integer NOT NULL,
+	"life_started_at" timestamp with time zone NOT NULL,
 	"death_at" timestamp with time zone NOT NULL,
 	"time_alive_seconds" integer DEFAULT 0 NOT NULL,
 	"kills" integer DEFAULT 0 NOT NULL,
@@ -34,23 +33,11 @@ CREATE TABLE IF NOT EXISTS "articles" (
 );
 --> statement-breakpoint
 DO $$ BEGIN
- ALTER TABLE "articles" ADD CONSTRAINT "articles_player_id_players_id_fk" FOREIGN KEY ("player_id") REFERENCES "public"."players"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
  ALTER TABLE "articles" ADD CONSTRAINT "articles_server_id_servers_id_fk" FOREIGN KEY ("server_id") REFERENCES "public"."servers"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
 --> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "articles" ADD CONSTRAINT "articles_life_id_lives_id_fk" FOREIGN KEY ("life_id") REFERENCES "public"."lives"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "articles_kind_life_uniq" ON "articles" USING btree ("kind","life_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "articles_kind_server_gamertag_life_uniq" ON "articles" USING btree ("kind","server_id","gamertag","life_started_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "articles_slug_uniq" ON "articles" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "articles_kind_status_death_idx" ON "articles" USING btree ("kind","status","death_at");
