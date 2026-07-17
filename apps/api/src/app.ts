@@ -14,6 +14,7 @@ import { registerGlobalRoutes } from "./routes/global.js";
 import { registerAuthMethodsRoute } from "./routes/auth-methods.js";
 import { registerSurvivorsRoutes } from "./routes/survivors.js";
 import { registerObituariesRoutes } from "./routes/obituaries.js";
+import { registerFreshSpawnsRoutes } from "./routes/fresh-spawns.js";
 
 export interface AuthOptions {
   auth: Auth;
@@ -42,5 +43,6 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   registerGlobalRoutes(app, db);
   registerSurvivorsRoutes(app, db);
   registerObituariesRoutes(app, db);
+  registerFreshSpawnsRoutes(app, db);
   return app;
 }
