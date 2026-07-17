@@ -1,6 +1,7 @@
 import type { SurvivorRow as SurvivorRowData, SurvivorSort } from "@/lib/types";
-import { avatarSrc, formatTimeAlive, tierFor } from "./format";
+import { formatTimeAlive, tierFor } from "./format";
 import { GamertagLink } from "@/components/gamertag-link";
+import { CharacterImage } from "@/components/character-image";
 
 /** The single stat shown for a given sort. */
 function statFor(sort: SurvivorSort, row: SurvivorRowData): { label: string; value: string } {
@@ -13,33 +14,6 @@ function statFor(sort: SurvivorSort, row: SurvivorRowData): { label: string; val
     default:
       return { label: "Time alive", value: formatTimeAlive(row.timeAliveSeconds) };
   }
-}
-
-function Portrait({ row, size }: { row: SurvivorRowData; size: number }) {
-  const src = avatarSrc(row.character);
-  const box = { width: size, height: size };
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt=""
-        width={size}
-        height={size}
-        loading="lazy"
-        decoding="async"
-        style={box}
-        className="border border-hairline object-cover"
-      />
-    );
-  }
-  return (
-    <span aria-hidden="true" style={box} className="flex items-center justify-center border border-hairline bg-tint text-ink-muted">
-      <svg viewBox="0 0 24 24" width={size * 0.5} height={size * 0.5} fill="currentColor" aria-hidden="true">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-      </svg>
-    </span>
-  );
 }
 
 /** Mono sub-line under the gamertag: map (combined board) and, on the hero row, a kills flourish. */
@@ -67,9 +41,9 @@ export function SurvivorRow({
   if (tier === "hero") {
     const sub = subLine(row, sort, showMap, true);
     return (
-      <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-tint px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
+      <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-bone px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[40px] font-bold leading-none text-red">{rank}</span>
-        <Portrait row={row} size={76} />
+        <CharacterImage character={row.character} size={76} />
         <div className="min-w-0">
           <GamertagLink gamertag={row.gamertag} className="font-display text-xl font-bold uppercase leading-none text-ink sm:text-[26px]" />
           {sub && <div className="mt-1 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</div>}
@@ -87,7 +61,7 @@ export function SurvivorRow({
     return (
       <div className="grid grid-cols-[40px_60px_1fr_auto] items-center gap-x-3 border-b border-hairline px-2 py-3 sm:grid-cols-[56px_60px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[28px] font-bold leading-none text-red">{rank}</span>
-        <Portrait row={row} size={60} />
+        <CharacterImage character={row.character} size={60} />
         <div className="min-w-0">
           <GamertagLink gamertag={row.gamertag} className="font-display text-lg font-bold uppercase leading-none text-ink sm:text-[21px]" />
           {sub && <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</div>}

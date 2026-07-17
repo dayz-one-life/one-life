@@ -1,6 +1,6 @@
 import type { PlayerPage } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import { heroStats, monthYear, aliveMaps } from "./format";
+import { Stat } from "./stat";
 
 export function PlayerHero({ page }: { page: PlayerPage }) {
   const stats = heroStats(page.totals);
@@ -29,12 +29,7 @@ export function PlayerHero({ page }: { page: PlayerPage }) {
       </div>
       <div className="mt-5 grid grid-cols-2 gap-y-4 sm:flex sm:gap-x-9">
         {stats.map((st) => (
-          <div key={st.label}>
-            <span className={cn("block font-display text-[32px] font-bold leading-none", st.hot ? "text-red" : "text-ink")}>
-              {st.value}
-            </span>
-            <span className="mt-1 block font-mono text-[10px] uppercase tracking-[.08em] text-ink-muted">{st.label}</span>
-          </div>
+          <Stat key={st.label} value={st.value} label={st.label} size="lg" hot={st.hot} />
         ))}
       </div>
     </header>

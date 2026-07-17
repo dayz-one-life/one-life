@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { PlayerHero } from "./player-hero";
 import type { PlayerPage } from "@/lib/types";
@@ -59,8 +59,8 @@ describe("PlayerHero", () => {
 
   test("Deaths is the red stat", () => {
     render(<PlayerHero page={page()} />);
-    const deathsLabel = screen.getByText("Deaths");
-    const value = deathsLabel.previousElementSibling as HTMLElement;
+    const block = screen.getByText("Deaths").closest("div")!;
+    const value = within(block).getByText(String(page().totals.deaths));
     expect(value.className).toContain("text-red");
   });
 });

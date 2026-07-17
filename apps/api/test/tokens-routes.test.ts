@@ -89,8 +89,43 @@ describe("token routes", () => {
   });
 
   it("set-referrer 400s (not_verified) for an unknown referrer", async () => {
-    const res = await app.inject({ method: "POST", url: "/me/referrer", headers: authed(), payload: { referrerUserId: "ghost-user" } });
+    const res = await app.inject({ method: "POST", url: "/me/referrer", headers: authed(), payload: { referrerGamertag: "GhostNobody999" } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe("not_verified");
+  });
+
+  it("transfers a token by gamertag, case-insensitively", async () => {
+    const otherId = `tok-other-${svc}`;
+    await sql`INSERT INTO "user" (id, name, email, email_verified, created_at, updated_at)
+              VALUES (${otherId}, 'Other', ${`other${svc}@example.com`}, true, now(), now())`;
+    await db.insert(gamertagLinks).values({ userId: otherId, gamertag: `OtherGT${svc}`, status: "verified" });
+
+    await grant(db, { userId, kind: "verification", idempotencyKey: `transfer-test:${svc}` });
+
+    const res = await app.inject({
+      method: "POST", url: "/me/tokens/transfer",
+      headers: { cookie, "content-type": "application/json", host: "localhost", origin: "http://localhost" },
+      payload: { toGamertag: `othergt${svc}` }, // lower-cased on purpose
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+
+    // cleanup so the sender's balance assertions elsewhere stay valid is not needed —
+    // this suite creates its own grants; just remove the counterparty rows. Both sides of the
+    // transfer reference otherId (recipient's own row, and the sender's row via counterparty_user_id),
+    // so both must go before the FK-checked user delete below.
+    await sql`DELETE FROM token_transactions WHERE user_id = ${otherId} OR counterparty_user_id = ${otherId}`;
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, otherId));
+    await sql`DELETE FROM "user" WHERE id = ${otherId}`;
+  });
+
+  it("transfer 400s (not_verified) for an unknown gamertag", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/me/tokens/transfer",
+      headers: { cookie, "content-type": "application/json", host: "localhost", origin: "http://localhost" },
+      payload: { toGamertag: "NobodyEver999" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: "not_verified" });
   });
 });

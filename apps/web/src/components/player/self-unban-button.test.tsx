@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, test } from "vitest";
-import { UnbanView } from "./self-unban-button";
+import { UnbanView, unbanStateOf } from "./self-unban-button";
 
 describe("UnbanView", () => {
   it("shows spend button when owner has tokens", () => {
@@ -16,7 +16,7 @@ describe("UnbanView", () => {
     render(<UnbanView state="pending" balance={2} onRedeem={() => {}} />);
     expect(screen.getByText(/unban pending/i)).toBeInTheDocument();
   });
-  it("renders nothing when not owner", () => {
+  it("renders nothing in the hidden state", () => {
     const { container } = render(<UnbanView state="hidden" balance={0} onRedeem={() => {}} />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -37,5 +37,11 @@ describe("UnbanView", () => {
   test("pending state renders the mono notice", () => {
     render(<UnbanView state="pending" balance={0} onRedeem={() => {}} />);
     expect(screen.getByText("Unban pending — lifting shortly…")).toBeInTheDocument();
+  });
+
+  test("unbanStateOf: pending wins, then balance decides", () => {
+    expect(unbanStateOf(true, 5)).toBe("pending");
+    expect(unbanStateOf(false, 2)).toBe("ready");
+    expect(unbanStateOf(false, 0)).toBe("no-tokens");
   });
 });

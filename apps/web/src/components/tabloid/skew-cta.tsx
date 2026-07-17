@@ -11,16 +11,18 @@ const tones = {
 const base =
   "inline-block -skew-x-[5deg] px-5 py-2.5 font-display text-sm font-semibold uppercase tracking-[.06em] hover:opacity-90 disabled:opacity-50";
 
-export function SkewCta({
-  href, onClick, tone = "red", disabled, children,
-}: {
-  href?: string; onClick?: () => void; tone?: keyof typeof tones; disabled?: boolean; children: ReactNode;
-}) {
-  const className = cn(base, tones[tone]);
-  if (href) return <Link href={href} className={className}>{children}</Link>;
+type Common = { tone?: keyof typeof tones; children: ReactNode };
+type AsLink = Common & { href: string; onClick?: never; disabled?: never };
+type AsButton = Common & { onClick: () => void; href?: never; disabled?: boolean };
+
+export function SkewCta(props: AsLink | AsButton) {
+  const className = cn(base, tones[props.tone ?? "red"]);
+  if ("href" in props && props.href !== undefined) {
+    return <Link href={props.href} className={className}>{props.children}</Link>;
+  }
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={className}>
-      {children}
+    <button type="button" onClick={props.onClick} disabled={props.disabled} className={className}>
+      {props.children}
     </button>
   );
 }

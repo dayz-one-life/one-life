@@ -45,4 +45,31 @@ describe("PastLifeCard", () => {
     render(<PastLifeCard life={life({ sessions: 1 })} now={now} />);
     expect(screen.getByText("1 session")).toBeInTheDocument();
   });
+
+  test("singular kill", () => {
+    render(<PastLifeCard life={life({ kills: 1 })} now={now} />);
+    expect(screen.getByText("1 kill")).toBeInTheDocument();
+  });
+
+  test("pvp death with an unknown killer reads 'Killed by unknown'", () => {
+    render(
+      <PastLifeCard
+        life={life({ death: { cause: "pvp", byGamertag: null, weapon: null, distanceMeters: null } })}
+        now={now}
+      />,
+    );
+    expect(screen.getByText(/Killed by\s*unknown/)).toBeInTheDocument();
+  });
+
+  test("named killer line pins the 'Killed by' prefix and singular kill count", () => {
+    render(
+      <PastLifeCard
+        life={life({ kills: 1, death: { cause: "pvp", byGamertag: "YrJustBad", weapon: "VSS", distanceMeters: 5 } })}
+        now={now}
+      />,
+    );
+    expect(screen.getByText(/Killed by/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "YrJustBad" })).toBeInTheDocument();
+    expect(screen.getByText("1 kill")).toBeInTheDocument();
+  });
 });

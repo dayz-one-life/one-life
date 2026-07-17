@@ -72,20 +72,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **One gamertag per user:** a user holds at most one active (`pending`|`verified`) `gamertag_links` row —
   enforced by partial unique index `gamertag_links_user_active_uniq` (migration `0007`) + a
   `409 active_link_exists` guard in `POST /me/gamertag-links`; a `verified` link is admin-release-only.
-  **Onboarding/status banner + masthead slot:** a persistent site-wide banner under the masthead
-  (`StatusBannerContainer` in the root layout, between `Masthead` and the page) reflects the viewer's
-  onboarding state and carries the primary next action; the masthead's right-hand slot collapses to
-  match. One pure derivation `accountStatus({ signedIn, loading, links })` (`@/lib/account-status`,
-  union `loading|signedOut|unlinked|pending|verified`) is the single source of truth for both surfaces,
-  read via the `useAccountStatus()` hook (`useSession` + `useGamertagLinks` + `activeLink`). **Banner:**
-  signed-out → *"Sign in to claim your gamertag"* (→`/login`); unlinked → *"Link your gamertag…"*
-  (→`/account/claim`); pending → self-contained verification banner (emote chips + live `n/total DONE`
-  progress + expiry countdown + **Cancel claim**, or a **Start a new challenge** re-claim when expired);
-  verified/loading → nothing. **Masthead slot** (`MastheadSlot`): signed-out → empty; unlinked/pending →
-  quiet **Account** link → `/account`; verified → amber **{GAMERTAG}** CTA → `/account`; loading →
-  placeholder. `StatusBanner`/`MastheadSlot` are presentational (unit-tested by props);
-  `useAccountStatus`/`StatusBannerContainer`/`Masthead` are thin hook wrappers (untested, per repo
-  convention). No backend change — `GET /me/gamertag-links` already serializes the challenge, so
+  **Account surface = the controls rail (R3, replaced the status banner + masthead slot).** The whole
+  onboarding/account surface is the R3 controls rail — see the Tabloid redesign section. One pure
+  derivation `accountStatus({ signedIn, loading, links })` (`@/lib/account-status`, union
+  `loading|signedOut|unlinked|pending|verified`) remains the single source of truth, read via
+  `useAccountStatus()` (`useSession` + `useGamertagLinks` + `activeLink`). **`/account` and
+  `/account/claim` no longer exist** (404); the link/verify flows moved in-rail.
+  No backend change — `GET /me/gamertag-links` already serializes the challenge, so
   `useGamertagLinks` adds a **5s `refetchInterval` while a link is pending** (progress ticks live, stops
   when nothing is pending, and never polls signed-out visitors). `QueryProvider` lives at the **root
   layout** (one app-wide TanStack Query cache), and `useGamertagLinks(enabled)` gates its fetch so
@@ -158,9 +151,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (`UnbanState`: hidden/ready/no-tokens/pending) driven by `SelfUnbanButton`/`UnbanView`
   (`apps/web/src/components/player/self-unban-button.tsx`). Gamertags across the site (survivor
   board rows, kill lists, death-by attributions) now route through a shared `GamertagLink` component
-  to `/players/{slug}`. A new `/welcome` post-login resolver (`apps/web/src/app/welcome/page.tsx`)
-  sends a verified user straight to their player page (pending → `/account`, unlinked →
-  `/account/claim`), and the masthead's gamertag chip points there too.
+  to `/players/{slug}`. A `/welcome` post-login resolver (`apps/web/src/app/welcome/page.tsx`)
+  sends a verified user straight to their player page and everyone else to `/` (the rail carries the
+  next action). Since R3, `SelfUnbanButton` reads the balance from the shared `["tokens"]` query and
+  invalidates `["tokens"]`+`["player-page"]` on redeem, so the dossier and the rail stay in sync.
   **Redesign (v0.11.0):** single roomy column, everything always visible (no `<details>`
   expand/collapse). The hero is **avatar-free** with a full-width stat band via the shared
   `heroStats` helper (`@/components/player/format`) — always Lives / Deaths / Longest life; **Kills
@@ -198,21 +192,38 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1+R2 shipped): a five-tier visual relaunch replacing the old dark "field
+- **Tabloid redesign** (R1+R2+R3 shipped): a five-tier visual relaunch replacing the old dark "field
   journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
   `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
   **R2** boards restyle (survivors + player dossier;
-  spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail (replaces
-  `/account`, `/account/claim`, the status banner, and the masthead slot), **R4** life timeline +
+  spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail
+  (spec `docs/superpowers/specs/2026-07-16-r3-controls-rail-design.md`), **R4** life timeline +
   obituary/birth read-model groundwork, **R5+** an LLM content engine that finally writes the
-  News/Obituaries/Fresh Spawns pages. **R1 shipped:** Paper/Ink/Red RGB-triple design tokens
-  (`globals.css` + `tailwind.config.ts`) with the old dark-theme token names kept as **compat
-  shims** re-pointed at the new palette (e.g. `tint` currently holds brand "Bone" — renamed when
-  R3 deletes the shims); a dark masthead with a raster wordmark and the full 5-item nav
+  News/Obituaries/Fresh Spawns pages.
+  **R3 shipped — the controls rail is the whole account surface.** Root layout is an `xl:`
+  two-column grid (`max-w-[1440px]`, `[minmax(0,1fr)_380px]`): pages flow in the main column
+  (ink right-border at `xl`), the **`ControlsRail`** (`@/components/controls/`) is the sticky right
+  column, and below `xl` a fixed **`ControlsPill` + `ControlsSheet`** (bottom sheet) replace it. All
+  three surfaces are driven by **`useControls`/`useControlsActions`** over the `accountStatus` union:
+  signed-out → sign-in CTA (rail only; no pill); unlinked → identity + in-rail gamertag link panel
+  (autocomplete over `GET /players/search`, race-guarded); pending → in-rail "prove it's you" emote
+  challenge (live via the 5s poll); verified → identity + Verified stamp + **tokens panel** (balance,
+  send-by-gamertag, quiet referrer) + **server cards** (alive/no-life/banned; banned shows a live ban
+  countdown + the shared `SelfUnbanButton` spend CTA) + profile/sign-out footer. Presentational
+  pieces are props-only + unit-tested; `useControls`/containers are thin (untested, per convention).
+  The mobile menu and sheet share **`useModalBehavior`** (`@/lib/use-modal-behavior` — focus trap,
+  Escape, scroll lock, focus restore; keyed on `open` only via an `onCloseRef` so parent re-renders
+  don't steal focus). **`POST /me/tokens/transfer` and `POST /me/referrer` take a verified gamertag**
+  (`{ toGamertag }`/`{ referrerGamertag }`, resolved case-insensitively against verified
+  `gamertag_links`; `not_verified` on miss), not a raw user id. **R3 also closed the R1 compat-shim
+  story:** the legacy token aliases and `font-hand` are deleted, `--tint` was renamed **`--bone`**
+  (brand "Bone" surface), the `ui/` primitives (Button/Input/Table) are gone, and the login page was
+  restyled into the tabloid language. **R1 shipped:** Paper/Ink/Red RGB-triple design tokens
+  (`globals.css` + `tailwind.config.ts`); a dark masthead with a raster wordmark and the full 5-item nav
   (News · Obituaries · Fresh Spawns · Survivors · About) plus a full-screen mobile menu; a dark
   mono footer; a front-page shell (manifesto hero, top-5 survivors, sign-in CTA); a live About
   page with bureau/server cards; `noindex` in-voice teaser pages for News/Obituaries/Fresh Spawns;
-  a restyled status banner (yellow pending semantic); a brand favicon kit + wordmarks vendored
+  a brand favicon kit + wordmarks vendored
   from the sibling `../brand` repo (source of truth, no cross-repo build dependency); and the
   player OG card moved onto the brand palette. Fonts are Oswald + IBM Plex Mono via
   `next/font/google`; Anton (the wordmark's display face) ships only inside the raster wordmark

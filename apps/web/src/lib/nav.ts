@@ -8,12 +8,14 @@ export const NAV_ITEMS = [
 
 export type NavKey = (typeof NAV_ITEMS)[number]["key"];
 
+const inSection = (pathname: string, base: string) => pathname === base || pathname.startsWith(base + "/");
+
 /** Which nav item a pathname lights up. Player pages belong to the Survivors section. */
 export function activeNavKey(pathname: string): NavKey | null {
-  if (pathname.startsWith("/news")) return "news";
-  if (pathname.startsWith("/obituaries")) return "obituaries";
-  if (pathname.startsWith("/fresh-spawns")) return "fresh-spawns";
-  if (pathname.startsWith("/survivors") || pathname.startsWith("/players")) return "survivors";
-  if (pathname.startsWith("/about")) return "about";
+  if (inSection(pathname, "/news")) return "news";
+  if (inSection(pathname, "/obituaries")) return "obituaries";
+  if (inSection(pathname, "/fresh-spawns")) return "fresh-spawns";
+  if (inSection(pathname, "/survivors") || inSection(pathname, "/players")) return "survivors";
+  if (inSection(pathname, "/about")) return "about";
   return null;
 }

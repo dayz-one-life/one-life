@@ -4,15 +4,7 @@ import { PlayerAvatar } from "./player-avatar";
 import { KillList } from "./kill-list";
 import { SelfUnbanButton } from "./self-unban-button";
 import { formatDuration, banCountdown, mapLabel } from "./format";
-
-function Stat({ value, label, muted = false }: { value: string; label: string; muted?: boolean }) {
-  return (
-    <div>
-      <span className={cn("block font-display text-[21px] font-bold leading-none", muted ? "text-dash" : "text-ink")}>{value}</span>
-      <span className="mt-0.5 block font-mono text-[9.5px] uppercase tracking-[.07em] text-ink-muted">{label}</span>
-    </div>
-  );
-}
+import { Stat } from "./stat";
 
 export function StandingCard({ standing, now, pageGamertag }: { standing: ServerStanding; now: Date; pageGamertag: string }) {
   const alive = standing.state === "alive";

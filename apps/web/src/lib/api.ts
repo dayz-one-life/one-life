@@ -102,10 +102,10 @@ export type TokenWalletData = { balance: number; transactions: TokenTransaction[
 export const getTokens = () => apiGet<TokenWalletData>("/api/me/tokens");
 export const redeemToken = (banId?: number) =>
   apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
-export const transferToken = (toUserId: string) =>
-  apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toUserId });
-export const setReferrer = (referrerUserId: string) =>
-  apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerUserId });
+export const transferToken = (toGamertag: string) =>
+  apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
+export const setReferrer = (referrerGamertag: string) =>
+  apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
 
 async function getOrNull<T>(path: string): Promise<T | null> {
   try {

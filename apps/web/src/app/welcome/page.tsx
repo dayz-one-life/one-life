@@ -7,8 +7,8 @@ export const metadata = { robots: { index: false, follow: false } };
 
 /**
  * Post-login resolver: sends a signed-in user to the right next step —
- * verified -> their player page, pending -> the account page (verification
- * banner), otherwise -> the claim flow.
+ * verified -> their player page, otherwise -> the home page, where the
+ * controls rail / mobile pill carries the next action (link/verify).
  */
 export default async function Welcome() {
   const session = await apiGet<{ user?: { id: string } }>("/api/auth/get-session").catch(() => null);
@@ -16,6 +16,5 @@ export default async function Welcome() {
   const links = await getGamertagLinks().catch(() => []);
   const link = activeLink(links);
   if (link?.status === "verified") redirect(`/players/${playerSlug(link.gamertag)}`);
-  if (link?.status === "pending") redirect("/account");
-  redirect("/account/claim");
+  redirect("/");
 }

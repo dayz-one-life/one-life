@@ -33,7 +33,7 @@ describe("SkewCta", () => {
     expect(link.className).toContain("bg-red");
   });
   it("renders a button with tone + disabled", () => {
-    render(<SkewCta tone="dark" disabled>Send</SkewCta>);
+    render(<SkewCta tone="dark" disabled onClick={() => {}}>Send</SkewCta>);
     const btn = screen.getByRole("button", { name: "Send" });
     expect(btn).toBeDisabled();
     expect(btn.className).toContain("bg-dark");

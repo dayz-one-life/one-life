@@ -84,7 +84,6 @@ export type Challenge = { sequence: string[]; progressIndex: number; expiresAt: 
 
 export type GamertagLink = {
   id: number;
-  serverId: number;
   gamertag: string;
   status: "pending" | "verified" | "cancelled";
   verifiedAt: string | null;
@@ -93,7 +92,6 @@ export type GamertagLink = {
 
 export type ClaimResult = {
   linkId: number;
-  serverId: number;
   gamertag: string;
   status: "pending";
   challenge: Challenge;
