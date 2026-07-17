@@ -29,7 +29,7 @@ const bannedStanding = (slug: string, map: string, expiresAt: string | null): Se
     ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt, liftPending: false, triggeringLifeNumber: 1 },
   });
 
-const VERIFIED: AccountStatus = { kind: "verified", link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null } };
+const VERIFIED: AccountStatus = { kind: "verified", link: { id: 1, serverId: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null } };
 
 describe("initialOf", () => {
   test("uppercases the first character", () => expect(initialOf("boots")).toBe("B"));
@@ -92,11 +92,11 @@ describe("pillStatus", () => {
     expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal ban lifts in 13h 58m", tone: "red" });
   });
   test("pending shows emote progress in yellow", () => {
-    const st: AccountStatus = { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 1, expiresAt: "2026-07-17T00:00:00Z", expired: false } } };
+    const st: AccountStatus = { kind: "pending", link: { id: 1, serverId: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 1, expiresAt: "2026-07-17T00:00:00Z", expired: false } } };
     expect(pillStatus(st, [], NOW)).toEqual({ text: "Verify: 1/3 done", tone: "yellow" });
   });
   test("expired pending says so", () => {
-    const st: AccountStatus = { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm"], progressIndex: 0, expiresAt: "2026-07-15T00:00:00Z", expired: true } } };
+    const st: AccountStatus = { kind: "pending", link: { id: 1, serverId: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm"], progressIndex: 0, expiresAt: "2026-07-15T00:00:00Z", expired: true } } };
     expect(pillStatus(st, [], NOW)).toEqual({ text: "Verification expired", tone: "yellow" });
   });
   test("unlinked invites the link", () => {
