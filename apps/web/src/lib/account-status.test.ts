@@ -3,7 +3,7 @@ import { accountStatus, hasPendingLink } from "./account-status";
 import type { GamertagLink } from "./types";
 
 const link = (over: Partial<GamertagLink>): GamertagLink => ({
-  id: 1, serverId: 1, gamertag: "GHOST_ACTOR", status: "pending",
+  id: 1, gamertag: "GHOST_ACTOR", status: "pending",
   verifiedAt: null, challenge: null, ...over,
 });
 

@@ -1,16 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { Masthead } from "./header";
 
-const mockStatus = vi.fn();
-vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus() }));
 const mockPathname = vi.fn(() => "/survivors");
 vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
 
 describe("Masthead", () => {
-  beforeEach(() => mockStatus.mockReturnValue({ kind: "signedOut" }));
-
   it("renders the wordmark home link and all five nav items", () => {
     render(<Masthead />);
     expect(screen.getByRole("link", { name: "One Life — home" })).toHaveAttribute("href", "/");
@@ -27,36 +23,11 @@ describe("Masthead", () => {
     expect(link.className).toContain("text-red");
   });
 
-  it("shows the verified gamertag chip", () => {
-    mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "YrJustBad" } });
-    render(<Masthead />);
-    expect(screen.getByRole("link", { name: "YrJustBad" }).className).toContain("border-red");
-  });
-
   it("opens and closes the mobile menu", async () => {
     render(<Masthead />);
     await userEvent.click(screen.getByRole("button", { name: "Open menu" }));
     expect(screen.getByRole("button", { name: "Close menu" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Close menu" }));
     expect(screen.queryByRole("button", { name: "Close menu" })).not.toBeInTheDocument();
-  });
-
-  it("shows the loading slot placeholder", () => {
-    mockStatus.mockReturnValue({ kind: "loading" });
-    render(<Masthead />);
-    expect(screen.getByText("Loading account")).toBeInTheDocument();
-  });
-
-  it("renders no slot content when signed out", () => {
-    mockStatus.mockReturnValue({ kind: "signedOut" });
-    render(<Masthead />);
-    expect(screen.queryByText("Account")).not.toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
-
-  it("shows the quiet Account link when unlinked or pending", () => {
-    mockStatus.mockReturnValue({ kind: "unlinked" });
-    render(<Masthead />);
-    expect(screen.getByRole("link", { name: "Account" })).toHaveAttribute("href", "/account");
   });
 });

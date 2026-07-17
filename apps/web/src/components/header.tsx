@@ -2,11 +2,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { useAccountStatus } from "@/lib/use-account-status";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { MastheadSlot } from "./masthead-slot";
 
 function NavLinks({ active, onNavigate, className }: {
   active: string | null; onNavigate?: () => void; className?: string;
@@ -29,7 +27,6 @@ function NavLinks({ active, onNavigate, className }: {
 }
 
 export function Masthead() {
-  const status = useAccountStatus();
   const pathname = usePathname();
   const active = activeNavKey(pathname ?? "/");
   const [open, setOpen] = useState(false);
@@ -52,9 +49,6 @@ export function Masthead() {
         <Link href="/" aria-label="One Life — home">
           <img src="/brand/wordmark-primary@2x.png" alt="One Life" className="h-auto w-[150px] md:w-[280px]" />
         </Link>
-        <div className="absolute right-4">
-          <MastheadSlot status={status} />
-        </div>
       </div>
 
       <nav

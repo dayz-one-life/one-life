@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { QueryProvider } from "@/components/query-provider";
-import { StatusBannerContainer } from "@/components/status-banner-container";
+import { ControlsRail } from "@/components/controls/rail";
+import { MobileControls } from "@/components/controls/mobile-controls";
 import { display, mono } from "./fonts";
 import { SITE_URL } from "@/lib/seo";
 
@@ -25,8 +26,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </a>
         <QueryProvider>
           <Masthead />
-          <StatusBannerContainer />
-          <div id="content" className="flex-1">{children}</div>
+          <div
+            id="content"
+            className="mx-auto w-full max-w-[1440px] flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:px-10"
+          >
+            <div className="min-w-0 pb-24 xl:border-r xl:border-ink xl:pb-0 xl:pr-8">{children}</div>
+            <ControlsRail />
+          </div>
+          <MobileControls />
           <Footer />
         </QueryProvider>
       </body>

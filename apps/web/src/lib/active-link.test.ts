@@ -3,7 +3,7 @@ import { activeLink } from "./active-link";
 import type { GamertagLink } from "./types";
 
 const link = (over: Partial<GamertagLink>): GamertagLink => ({
-  id: 1, serverId: 0, gamertag: "GT", status: "cancelled", verifiedAt: null, challenge: null, ...over,
+  id: 1, gamertag: "GT", status: "cancelled", verifiedAt: null, challenge: null, ...over,
 });
 
 describe("activeLink", () => {
