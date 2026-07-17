@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Tabloid redesign R5b — Birth Notices / Fresh Spawns. The newsdesk worker gains a second pass that
+  writes an in-voice **Birth Notice** ("The Nursery") for every qualified life going forward, behind
+  the shared dry-run gate and a **forward-only** `NEWSDESK_BIRTH_SINCE` cutoff (unset ⇒ birth pass
+  off). Reuses the durable `articles` table with a new `kind='birth_notice'` (migration `0010`:
+  `death_at` nullable + a born-order index). The story material is the player's **global cross-life
+  priors** (`getPlayerPriors`), not the thin current life. The `/fresh-spawns` teaser is retired for a
+  real feed + slim interior at `/fresh-spawns/[slug]` (one paragraph + pull quote + "The Priors" box +
+  a "still drawing breath" status line), a `NewsArticle` JSON-LD block, and a dynamic OG image. New
+  public `GET /birth-notices` + `GET /birth-notices/:slug`. The home page gains two content blocks —
+  Latest Obituaries and Latest Fresh Spawns. Facts come from read-models only; the LLM writes voice
+  (Fog Rule: map dateline, never coordinates — the subject is still alive).
 ### Changed
 ### Deprecated
 ### Removed
