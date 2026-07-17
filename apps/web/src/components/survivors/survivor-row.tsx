@@ -23,7 +23,6 @@ function Portrait({ row, size }: { row: SurvivorRowData; size: number }) {
       <img
         src={src}
         alt=""
-        role="img"
         width={size}
         height={size}
         loading="lazy"

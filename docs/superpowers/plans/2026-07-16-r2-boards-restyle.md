@@ -320,9 +320,10 @@ const base = {
 };
 
 describe("SurvivorRow", () => {
+  // Portraits are decorative (alt="") so they have no img role — query the DOM directly.
   test("hero row (rank 1) shows portrait, stat label, and kills sub-line under time sort", () => {
-    render(<SurvivorRow rank={1} showMap sort="time" row={base} />);
-    const img = screen.getByRole("img");
+    const { container } = render(<SurvivorRow rank={1} showMap sort="time" row={base} />);
+    const img = container.querySelector("img")!;
     expect(img).toHaveAttribute("src", "/characters/boris.webp");
     expect(img).toHaveAttribute("width", "76");
     expect(img).toHaveAttribute("alt", "");
@@ -340,15 +341,15 @@ describe("SurvivorRow", () => {
   });
 
   test("podium row (rank 2) has a 60px portrait and no stat label", () => {
-    render(<SurvivorRow rank={2} showMap={false} sort="time" row={base} />);
-    expect(screen.getByRole("img")).toHaveAttribute("width", "60");
+    const { container } = render(<SurvivorRow rank={2} showMap={false} sort="time" row={base} />);
+    expect(container.querySelector("img")).toHaveAttribute("width", "60");
     expect(screen.queryByText("Time alive")).not.toBeInTheDocument();
     expect(screen.getByText("6h 43m")).toBeInTheDocument();
   });
 
   test("compact row (rank 4) has no portrait and inline map", () => {
-    render(<SurvivorRow rank={4} showMap sort="longest" row={base} />);
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    const { container } = render(<SurvivorRow rank={4} showMap sort="longest" row={base} />);
+    expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("chernarus")).toBeInTheDocument();
     expect(screen.getByText("341m")).toBeInTheDocument();
   });
@@ -359,8 +360,8 @@ describe("SurvivorRow", () => {
   });
 
   test("unknown character renders no img (silhouette fallback is decorative)", () => {
-    render(<SurvivorRow rank={1} showMap={false} sort="time" row={{ ...base, character: null }} />);
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    const { container } = render(<SurvivorRow rank={1} showMap={false} sort="time" row={{ ...base, character: null }} />);
+    expect(container.querySelector("img")).toBeNull();
   });
 
   test("gamertag links to the player page", () => {
