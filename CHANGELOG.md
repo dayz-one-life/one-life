@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.14.0] - 2026-07-17
+
+### Added
 - Tabloid redesign R5a — the newsdesk + Obituaries. A new `articles` table + `apps/newsdesk`
   sweep worker turn every qualified death into an obituary written in the One Life tabloid voice
   via OpenRouter, behind a dry-run gate (`NEWSDESK_DRY_RUN` defaults `true`). The Obituaries
