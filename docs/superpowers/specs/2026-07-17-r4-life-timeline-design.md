@@ -117,8 +117,9 @@ The timeline needs kills and qualification timing, which the current per-life pa
   slug, lifeNumber, `{ cause, byGamertag, weapon, distanceMeters }`, timeAliveSeconds,
   endedAt. Returns `{ rows, total, page, pageSize }`.
 - **`getFreshSpawns(db, { page, pageSize })`** — recent **qualified** lives (births),
-  ordered by qualification time desc, paginated. Row: gamertag + slug, map + slug,
-  lifeNumber, startedAt, qualifiedAt. Returns `{ rows, total, page, pageSize }`.
+  ordered by birth time (`startedAt`) desc — freshest spawn first — paginated. Row:
+  gamertag + slug, map + slug, lifeNumber, startedAt, and `qualifiedAt` enriched on the
+  page slice. Returns `{ rows, total, page, pageSize }`.
 - Public paginated **`GET /obituaries`** + **`GET /fresh-spawns`** API routes (Zod `page`
   `.catch(1)`), fully tested. **No UI wiring** — the teasers stay static. Pure foundation
   R5 consumes.

@@ -140,8 +140,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
   hero, per-server current standing (alive / banned / idle) with a live ban countdown, paginated
   past-life history (since R2: compact **funeral cards** — map, dateline, death line, and a
-  kills/longest-kill/sessions counts strip only; kill lists + vitals return with the R4 life
-  timeline), a dynamic OpenGraph share image, and
+  kills/longest-kill/sessions counts strip only; the per-life kill lists + vitals now live on the
+  R4 life-timeline page, reached via `TIMELINE →` links on the standing + funeral cards), a
+  dynamic OpenGraph share image, and
   `ProfilePage` JSON-LD. The slug is the gamertag slugified (`playerSlug`, `@/lib/slug`) and resolved
   back via `resolveGamertagBySlug` (`packages/read-models/src/player-aggregate.ts`); the page is
   powered by a new `getPlayerPage` read-model (`packages/read-models/src/player-page.ts`) and an
@@ -192,14 +193,39 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1+R2+R3 shipped): a five-tier visual relaunch replacing the old dark "field
+- **Tabloid redesign** (R1+R2+R3+R4 shipped): a five-tier visual relaunch replacing the old dark "field
   journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
   `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
   **R2** boards restyle (survivors + player dossier;
   spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail
   (spec `docs/superpowers/specs/2026-07-16-r3-controls-rail-design.md`), **R4** life timeline +
-  obituary/birth read-model groundwork, **R5+** an LLM content engine that finally writes the
-  News/Obituaries/Fresh Spawns pages.
+  obituary/birth read-model groundwork (spec
+  `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5+** an LLM content engine
+  that finally writes the News/Obituaries/Fresh Spawns pages.
+  **R4 shipped — the life timeline + R5 groundwork.** A public per-life page at
+  `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero (`LifeHero`, the life's
+  resolved `getLifeCharacter` → `/characters/<name>.webp`) with a **factual** `Life {n} · {mapLabel}`
+  headline (editorial headlines are R5) + a Time-alive/Kills/Longest-kill/Sessions/Qualified stat
+  band, and a newest-first event **`Timeline`** (`@/components/life/`). The event list is built by a
+  pure **`buildTimeline(data, now)`** (`@/lib/life-timeline`): birth → life qualified → session
+  starts (consecutive **kill-free** sessions collapse into one `Sessions N–M` row) → kills (a yellow
+  **Longest kill** chip on the max-distance kill) → the terminal `death` row (carrying the
+  **vitals at death** — energy/water/bleed — this is where R2's dropped per-life detail returns) or,
+  for an open life, a live **Still drawing breath** row. **Captions are deterministic + factual — no
+  LLM** (voice-first; editorial prose is R5). **Location is voice-only:** a "Positions withheld"
+  notice renders **only while a life is alive**; no coordinates are stored or shown anywhere (kills/
+  deaths carry no coords). Standing + funeral cards link in via a pure **`lifeHref(gamertag, mapSlug,
+  lifeNumber)`** (`@/lib/life-href`); `AliveStanding` gained a `lifeNumber` for the alive-standing
+  link. Backed by **`getLifeTimeline`** (`packages/read-models/src/life-timeline.ts`, composing
+  `getLifeDetail` + `getLifeKills` + `getLifeCharacter` + `lifeQualifiedAt`) and the extended
+  `GET /players/:gamertag/:map/lives/:n` route (now returns `kills` + `qualifiedAt` + `gamertag`/`map`/
+  `slug`). **R5 groundwork behind the still-static teasers:** `getObituaries` (qualified deaths,
+  `endedAt` desc) + `getFreshSpawns` (qualified births — alive or dead — newest `startedAt` first,
+  `qualifiedAt` enriched on the page slice), sharing a **`qualifiedLifeCondition(db)`** SQL predicate
+  (`pvp OR playtimeSeconds>=300 OR a kill in [startedAt, endedAt]`; `servers.slug` passes through
+  nullable, un-slugged servers are **not** dropped), served at public `GET /obituaries` +
+  `GET /fresh-spawns`. No UI consumes those two yet — the News/Obituaries/Fresh Spawns teasers stay
+  static until R5.
   **R3 shipped — the controls rail is the whole account surface.** Root layout is an `xl:`
   two-column grid (`max-w-[1440px]`, `[minmax(0,1fr)_380px]`): pages flow in the main column
   (ink right-border at `xl`), the **`ControlsRail`** (`@/components/controls/`) is the sticky right
