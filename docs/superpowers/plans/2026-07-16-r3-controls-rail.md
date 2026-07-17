@@ -1281,17 +1281,29 @@ export function LinkTagPanel({
 }) {
   const [tag, setTag] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Race guards: drop out-of-order responses; don't re-search right after a pick.
+  const searchSeq = useRef(0);
+  const skipSearch = useRef(false);
 
   useEffect(() => {
+    if (skipSearch.current) {
+      skipSearch.current = false;
+      return;
+    }
     const q = tag.trim();
     if (q.length < 2) {
       setSuggestions([]);
       return;
     }
     const t = setTimeout(() => {
+      const seq = ++searchSeq.current;
       searchClaimableGamertags(q)
-        .then(setSuggestions)
-        .catch(() => setSuggestions([]));
+        .then((results) => {
+          if (seq === searchSeq.current) setSuggestions(results);
+        })
+        .catch(() => {
+          if (seq === searchSeq.current) setSuggestions([]);
+        });
     }, 200);
     return () => clearTimeout(t);
   }, [tag]);
@@ -1327,6 +1339,8 @@ export function LinkTagPanel({
                 <button
                   type="button"
                   onClick={() => {
+                    skipSearch.current = true;
+                    searchSeq.current++; // invalidate any in-flight search
                     setTag(s);
                     setSuggestions([]);
                   }}
