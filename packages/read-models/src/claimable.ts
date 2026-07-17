@@ -13,3 +13,11 @@ export async function searchClaimableGamertags(db: Database, prefix: string, lim
     .orderBy(asc(players.gamertag)).limit(limit);
   return rows.map((r) => r.g);
 }
+
+/** Verified gamertags (autocomplete source for token transfer + referral). */
+export async function searchVerifiedGamertags(db: Database, prefix: string, limit: number): Promise<string[]> {
+  const rows = await db.select({ g: gamertagLinks.gamertag }).from(gamertagLinks)
+    .where(and(ilike(gamertagLinks.gamertag, `${prefix}%`), eq(gamertagLinks.status, "verified")))
+    .orderBy(asc(gamertagLinks.gamertag)).limit(limit);
+  return rows.map((r) => r.g);
+}

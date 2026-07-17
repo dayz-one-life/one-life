@@ -1,10 +1,9 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
+import { GamertagAutocomplete } from "./gamertag-autocomplete";
+import { searchVerifiedGamertags } from "@/lib/api";
 
 export type MutationView = { pending: boolean; error: string | null; ok: boolean };
-
-const darkInput =
-  "min-w-0 flex-1 border border-dark-line bg-[#111] px-3 py-2 font-mono text-[11.5px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper";
 
 export function TokensPanel({
   balance,
@@ -14,6 +13,7 @@ export function TokensPanel({
   onSetReferrer,
   showReferrer = true,
   boxed = false,
+  myGamertag,
 }: {
   balance: number;
   send: MutationView;
@@ -22,6 +22,7 @@ export function TokensPanel({
   onSetReferrer: (gamertag: string) => void;
   showReferrer?: boolean;
   boxed?: boolean;
+  myGamertag?: string;
 }) {
   const [to, setTo] = useState("");
   const [ref, setRef] = useState("");
@@ -45,13 +46,15 @@ export function TokensPanel({
         <span className="font-display text-[26px] font-bold leading-none text-paper">{balance}</span>
       </div>
       <form onSubmit={submitSend} className="mt-3 flex gap-2 border-t border-dark-line pt-3">
-        <input
+        <GamertagAutocomplete
           aria-label="Send a token to a verified player"
           placeholder="SEND TO VERIFIED PLAYER…"
           value={to}
-          onChange={(e) => setTo(e.target.value)}
-          autoComplete="off"
-          className={darkInput}
+          onChange={setTo}
+          fetchSuggestions={searchVerifiedGamertags}
+          exclude={myGamertag}
+          className="min-w-0 flex-1"
+          inputClassName="w-full border border-dark-line bg-[#111] px-3 py-2 font-mono text-[11.5px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper"
         />
         <button
           type="submit"
@@ -68,13 +71,15 @@ export function TokensPanel({
       {showReferrer && !referrer.ok && (
         <>
           <form onSubmit={submitRef} className="mt-3 flex items-center gap-2 border-t border-dark-line pt-3">
-            <input
+            <GamertagAutocomplete
               aria-label="Referred by"
               placeholder="REFERRED BY…"
               value={ref}
-              onChange={(e) => setRef(e.target.value)}
-              autoComplete="off"
-              className={darkInput}
+              onChange={setRef}
+              fetchSuggestions={searchVerifiedGamertags}
+              exclude={myGamertag}
+              className="min-w-0 flex-1"
+              inputClassName="w-full border border-dark-line bg-[#111] px-3 py-2 font-mono text-[11.5px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper"
             />
             <button
               type="submit"
