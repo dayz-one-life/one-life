@@ -27,7 +27,7 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
         {data.gamertag}&apos;s dossier
       </Link>
 
-      <div className="mt-3 flex gap-6 border-b-[3px] border-ink pb-5">
+      <div className="mt-3 flex flex-col gap-5 border-b-[3px] border-ink pb-5 sm:flex-row sm:gap-6">
         <div className="w-[132px] flex-none">
           <CharacterImage character={{ name: data.character?.name ?? null }} size={132} dim={!view.alive} />
           <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">Snapshot · this life</p>
@@ -46,7 +46,7 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
           <h1 className="mt-1 font-display text-5xl font-bold uppercase leading-[.92] text-ink md:text-6xl">
             Life {data.life.lifeNumber} · {map}
           </h1>
-          <div className="mt-4 grid grid-cols-[repeat(5,auto)] justify-start gap-x-8 gap-y-0">
+          <div className="mt-4 flex flex-wrap gap-x-7 gap-y-3">
             <Stat value={formatDuration(h.timeAliveSeconds)} label="Time alive" />
             <Stat value={String(h.kills)} label="Kills" />
             <Stat value={h.longestKillMeters == null ? "—" : `${Math.round(h.longestKillMeters)}m`} label="Longest kill" />
