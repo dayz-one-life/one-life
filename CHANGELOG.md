@@ -17,12 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   models only — the LLM writes voice, never invents events (Fog Rule: map dateline, never
   coordinates). Backed by `getPublishedObituaries`/`getObituaryBySlug` and public `GET /obituaries`
   (now published articles) + `GET /obituaries/:slug`.
-- Controls rail: the **Send to verified player** and **Referred by** token fields now autocomplete
-  over verified players, excluding the signed-in user. Backed by a new `searchVerifiedGamertags`
-  read-model and a public `GET /players/search/verified` route (the verified mirror of the claim
-  field's `/players/search`). The claim field and both token fields now share one
-  `<GamertagAutocomplete>` component (debounce, race guard, skip-after-pick, overlay dropdown);
-  self-exclusion is client-side and case-insensitive.
 ### Changed
 ### Deprecated
 ### Removed
@@ -31,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON-LD script tags now serialize through a shared `ldScript()` helper that escapes `<`/`>`/`&`,
   so LLM-authored obituary text (or any field) can't break out of `<script type="application/ld+json">`.
   Applied to all three sinks (obituary article, player profile, survivors board).
+
+## [0.13.0] - 2026-07-17
+
+### Added
+- Controls rail: the **Send to verified player** and **Referred by** token fields now autocomplete
+  over verified players, excluding the signed-in user. Backed by a new `searchVerifiedGamertags`
+  read-model and a public `GET /players/search/verified` route (the verified mirror of the claim
+  field's `/players/search`). The claim field and both token fields now share one
+  `<GamertagAutocomplete>` component (debounce, race guard, skip-after-pick, overlay dropdown);
+  self-exclusion is client-side and case-insensitive.
 
 ## [0.12.1] - 2026-07-17
 
