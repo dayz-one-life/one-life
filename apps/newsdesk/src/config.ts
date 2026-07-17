@@ -9,6 +9,9 @@ const schema = z.object({
   NEWSDESK_BATCH_CAP: z.coerce.number().int().positive().default(10),
   NEWSDESK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
   NEWSDESK_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.7),
+  DISCORD_OBITUARY_WEBHOOK_URL: z.string().default(""),
+  SITE_URL: z.string().default("https://dayzonelife.com"),
+  NEWSDESK_DISCORD_MAX_PER_TICK: z.coerce.number().int().positive().default(10),
   LOG_LEVEL: z.string().default("info"),
 });
 
@@ -21,6 +24,9 @@ export type Config = {
   batchCap: number;
   maxAttempts: number;
   temperature: number;
+  discordWebhookUrl: string;
+  siteUrl: string;
+  discordMaxPerTick: number;
   logLevel: string;
 };
 
@@ -36,6 +42,9 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     batchCap: p.NEWSDESK_BATCH_CAP,
     maxAttempts: p.NEWSDESK_MAX_ATTEMPTS,
     temperature: p.NEWSDESK_TEMPERATURE,
+    discordWebhookUrl: p.DISCORD_OBITUARY_WEBHOOK_URL,
+    siteUrl: p.SITE_URL,
+    discordMaxPerTick: p.NEWSDESK_DISCORD_MAX_PER_TICK,
     logLevel: p.LOG_LEVEL,
   };
 }
