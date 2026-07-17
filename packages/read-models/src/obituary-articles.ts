@@ -83,6 +83,7 @@ export async function getPublishedObituaries(
       headline: r.headline!,
       lede: r.lede!,
       tags: r.tags ?? [],
+      deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
     })),
     total: totalRow[0]?.c ?? 0,
     page,
@@ -120,7 +121,7 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     kills: r.kills,
     longestKillMeters: r.longestKillMeters,
     cause: r.cause,
-    deathAt: r.deathAt,
+    deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
     body: r.body ?? "",
     pullQuote: r.pullQuoteText ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" } : null,
     sessions: facts.sessions ?? 0,
