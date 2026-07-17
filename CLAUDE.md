@@ -231,12 +231,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (ink right-border at `xl`), the **`ControlsRail`** (`@/components/controls/`) is the sticky right
   column, and below `xl` a fixed **`ControlsPill` + `ControlsSheet`** (bottom sheet) replace it. All
   three surfaces are driven by **`useControls`/`useControlsActions`** over the `accountStatus` union:
-  signed-out → sign-in CTA (rail only; no pill); unlinked → identity + in-rail gamertag link panel
-  (autocomplete over `GET /players/search`, race-guarded); pending → in-rail "prove it's you" emote
-  challenge (live via the 5s poll); verified → identity + Verified stamp + **tokens panel** (balance,
-  send-by-gamertag, quiet referrer) + **server cards** (alive/no-life/banned; banned shows a live ban
-  countdown + the shared `SelfUnbanButton` spend CTA) + profile/sign-out footer. Presentational
+  signed-out → sign-in CTA (rail; on mobile a fixed **`SignInPill`** floating box → `/login`, so
+  logged-out mobile visitors don't scroll to the footer to sign in); unlinked → identity + in-rail
+  gamertag link panel (autocomplete over `GET /players/search`, race-guarded); pending → in-rail
+  "prove it's you" emote challenge (live via the 5s poll); verified → identity + Verified stamp +
+  **tokens panel** (balance, send-by-gamertag, quiet referrer) + **server cards** (alive/no-life/banned;
+  banned shows a live ban countdown + the shared `SelfUnbanButton` spend CTA). The **sign-out footer
+  renders in every signed-in state** (rail `SignedInFooter` + mobile sheet) — the profile link only
+  appears when verified — so an unlinked/pending user can always log out. Presentational
   pieces are props-only + unit-tested; `useControls`/containers are thin (untested, per convention).
+  The web API client **`apiSend` attaches `content-type: application/json` only when a body is present** —
+  a bodyless `DELETE` (cancel claim) with the header set is rejected by Fastify as an empty JSON body (400).
   The mobile menu and sheet share **`useModalBehavior`** (`@/lib/use-modal-behavior` — focus trap,
   Escape, scroll lock, focus restore; keyed on `open` only via an `onCloseRef` so parent re-renders
   don't steal focus). **`POST /me/tokens/transfer` and `POST /me/referrer` take a verified gamertag**

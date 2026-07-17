@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
-import { ControlsPillView } from "./pill";
+import { ControlsPillView, SignInPill } from "./pill";
 
 const line = { text: "Sakhal ban lifts in 13h 58m", tone: "red" as const };
 
@@ -25,5 +25,15 @@ describe("ControlsPillView", () => {
     );
     expect(screen.getByText("Link your gamertag →")).toBeInTheDocument();
     expect(screen.queryByText("tok")).not.toBeInTheDocument();
+  });
+});
+
+describe("SignInPill", () => {
+  test("links to /login with the sign-in CTA", () => {
+    render(<SignInPill />);
+    const link = screen.getByRole("link", { name: "Sign in" });
+    expect(link).toHaveAttribute("href", "/login");
+    expect(screen.getByText("Get in the paper.")).toBeInTheDocument();
+    expect(screen.getByText("Sign in →")).toBeInTheDocument();
   });
 });
