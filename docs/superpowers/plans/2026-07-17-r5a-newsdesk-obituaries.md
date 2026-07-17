@@ -16,8 +16,8 @@
 - **Fog Rule:** map/dateline only; **no coordinates** anywhere (consistent with R4). Deaths are past-tense so cause/killer/weapon are fair.
 - **Ethics bans (hard):** no slurs; no real-person attacks; punch **up** at big killers, never **down** at fresh-spawn victims; pull-quote attributions stay anonymous/in-voice; no sincerity clichés / wink / corporate-speak.
 - **Dry-run default:** the worker ships `NEWSDESK_DRY_RUN` defaulting **true** (no OpenRouter call, no write) — flip to `false` to spend. Mirrors `enforcer`/`granter`.
-- **Durable table:** `articles` is NEVER added to `apps/projector/src/rebuild.ts`'s `TRUNCATE` list; it IS added to `packages/test-support/src/global-setup.ts`'s `APP_TABLES`.
-- **Idempotency:** one obituary per death — unique `(kind, life_id)`. Re-runs never duplicate.
+- **Durable table (natural-key, no projection FK):** `articles` must survive `deploy.sh --rebuild`, which runs `TRUNCATE players, lives, ... RESTART IDENTITY CASCADE`. Therefore `articles` references **only `servers.id`** (stable) — **never `players.id`/`lives.id`** (a FK to a truncated table would cascade-wipe obituaries, and `RESTART IDENTITY` would stale any stored `life_id`). It keys the life by the **rebuild-stable natural tuple** `(server_id, gamertag, life_started_at)`, exactly like `bans`. It is NEVER added to `apps/projector/src/rebuild.ts`'s `TRUNCATE` list; it IS added to `packages/test-support/src/global-setup.ts`'s `APP_TABLES`.
+- **Idempotency:** one obituary per death — unique `(kind, server_id, gamertag, life_started_at)`. Re-runs (and rebuilds) never duplicate.
 - **Test command:** package-scoped `pnpm --filter <name> test` / `pnpm --filter <name> typecheck`; whole repo `pnpm turbo run test --concurrency=1` + `pnpm turbo run typecheck`. DB suites need `TEST_DATABASE_URL` (name must end `_test`); this dev machine's Postgres is on host **:5434** (`docker compose up -d postgres`, gitignored override). ESM import idiom: `.js` extensions on TS source imports.
 - **No `Date.now()` in pure/render code** — pass `now: Date` explicitly (repo convention).
 
@@ -44,28 +44,30 @@
 - Test: `packages/read-models/test/articles-schema.test.ts` (schema smoke test)
 
 **Interfaces:**
-- Produces: the `articles` Drizzle table, importable as `import { articles } from "@onelife/db"`. Columns (JS keys): `id, kind, status, slug, playerId, serverId, lifeId, gamertag, map, mapSlug, lifeNumber, deathAt, timeAliveSeconds, kills, longestKillMeters, cause, headline, lede, body, pullQuoteText, pullQuoteAttribution, tags, facts, promptVersion, model, attempts, lastError, imageUrl, imagePrompt, imageKind, generatedAt, createdAt`.
+- Produces: the `articles` Drizzle table, importable as `import { articles } from "@onelife/db"`. Columns (JS keys): `id, kind, status, slug, serverId, gamertag, map, mapSlug, lifeNumber, lifeStartedAt, deathAt, timeAliveSeconds, kills, longestKillMeters, cause, headline, lede, body, pullQuoteText, pullQuoteAttribution, tags, facts, promptVersion, model, attempts, lastError, imageUrl, imagePrompt, imageKind, generatedAt, createdAt`. **Only `serverId` is a FK (→ servers.id); the life is identified by the natural tuple `(serverId, gamertag, lifeStartedAt)` — no `players`/`lives` FK.**
 
 > **TDD order (execute test-first):** write the schema smoke test in **Step 5 FIRST** and run `pnpm --filter @onelife/read-models test -- articles-schema` — Expected: **FAIL** with `relation "articles" does not exist` (the table/migration don't exist yet). Only then do Steps 1–4 (schema + APP_TABLES + migration), and Step 6 re-runs it to green. The steps are ordered schema-first only for reading; the fail-first run must happen before the schema lands.
 
 - [ ] **Step 1: Add the `articles` table to `schema.ts`** (append at end of file — `bigserial, integer, text, timestamp, jsonb, doublePrecision, uniqueIndex, index` are already imported):
 
 ```ts
-// ── Content engine (R5). Durable side-table — generated editorial content (obituaries first);
-// never truncated by projector rebuild. One row per (kind, life); a failed generation writes a
-// status='failed' stub (content null, attempts bumped) so retries are bounded. ──
+// ── Content engine (R5). Durable side-table — generated editorial content (obituaries first).
+// Like `bans`, it references ONLY `servers` and keys the life by the rebuild-stable natural tuple
+// (server_id, gamertag, life_started_at) — NO players/lives FK, so a projector rebuild
+// (TRUNCATE players,lives ... RESTART IDENTITY CASCADE) neither cascade-wipes it nor stales its
+// keys. One row per (kind, life); a failed generation writes a status='failed' stub (content null,
+// attempts bumped) so retries are bounded. ──
 export const articles = pgTable("articles", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   kind: text("kind").notNull(),                                       // 'obituary'
   status: text("status").notNull().default("published"),             // published|failed
   slug: text("slug"),                                                // null on a failed stub
-  playerId: bigint("player_id", { mode: "number" }).notNull().references(() => players.id),
   serverId: integer("server_id").notNull().references(() => servers.id),
-  lifeId: bigint("life_id", { mode: "number" }).notNull().references(() => lives.id),
-  gamertag: text("gamertag").notNull(),
+  gamertag: text("gamertag").notNull(),                              // natural-key: player identity
   map: text("map").notNull(),                                         // servers.map codename
   mapSlug: text("map_slug"),                                         // servers.slug (nullable)
   lifeNumber: integer("life_number").notNull(),
+  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }).notNull(), // natural-key: which life
   deathAt: timestamp("death_at", { withTimezone: true }).notNull(),  // lives.ended_at — feed ordering
   timeAliveSeconds: integer("time_alive_seconds").notNull().default(0),
   kills: integer("kills").notNull().default(0),
@@ -88,11 +90,12 @@ export const articles = pgTable("articles", {
   generatedAt: timestamp("generated_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqKindLife: uniqueIndex("articles_kind_life_uniq").on(t.kind, t.lifeId),
+  uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq").on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt),
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
 }));
 ```
+> `bigint` is no longer needed by this table (the projection-id columns are gone); leave the existing schema.ts imports untouched — other tables still use `bigint`.
 
 - [ ] **Step 2: Add `"articles"` to `APP_TABLES`** in `packages/test-support/src/global-setup.ts` (append to the array, e.g. after `"characters"`) so tests get a clean table each run:
 
@@ -105,7 +108,7 @@ export const articles = pgTable("articles", {
 ```bash
 pnpm --filter @onelife/db exec drizzle-kit generate --name=create_articles
 ```
-Expected: writes `packages/db/drizzle/0009_create_articles.sql`, `drizzle/meta/0009_snapshot.json`, and appends `{ "idx": 9, ... "tag": "0009_create_articles" ... }` to `drizzle/meta/_journal.json`. **Do NOT hand-edit the snapshot/journal.** The emitted `.sql` must contain `CREATE TABLE IF NOT EXISTS "articles"` with the 3 indexes and 3 FK `DO $$ ... duplicate_object ...` blocks. If `drizzle-kit` cannot run in this environment, STOP and report BLOCKED (do not hand-author the meta files — a mismatched snapshot breaks the next migration).
+Expected: writes `packages/db/drizzle/0009_create_articles.sql`, `drizzle/meta/0009_snapshot.json`, and appends `{ "idx": 9, ... "tag": "0009_create_articles" ... }` to `drizzle/meta/_journal.json`. **Do NOT hand-edit the snapshot/journal.** The emitted `.sql` must contain `CREATE TABLE IF NOT EXISTS "articles"` with the 3 indexes and exactly **one** FK `DO $$ ... duplicate_object ...` block (`server_id` → `servers`; there are NO `players`/`lives` FKs). If `drizzle-kit` cannot run in this environment, STOP and report BLOCKED (do not hand-author the meta files — a mismatched snapshot breaks the next migration).
 
 - [ ] **Step 4: Do NOT touch `apps/projector/src/rebuild.ts`.** Verify (read it) that its `TRUNCATE TABLE` list does not and will not include `articles` — obituaries are durable.
 
@@ -119,42 +122,38 @@ import { eq } from "drizzle-orm";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
-let serverId: number, lifeId: number, playerId: number;
+const startedAt = new Date("2026-07-10T00:00:00Z");
+let serverId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ar", map: "chernarusplus", slug: `ar-${svc}`, active: true }).returning();
   serverId = s!.id;
-  const [p] = await db.insert(players).values({ gamertag: `ar-${svc}` }).returning();
-  playerId = p!.id;
-  const [l] = await db.insert(lives).values({ serverId, playerId, lifeNumber: 1, startedAt: new Date("2026-07-10T00:00:00Z"), endedAt: new Date("2026-07-10T02:00:00Z"), deathCause: "pvp", playtimeSeconds: 7200 }).returning();
-  lifeId = l!.id;
 });
 afterAll(async () => {
   await db.delete(articles).where(eq(articles.serverId, serverId));
-  await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.id, playerId));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
 
 describe("articles table", () => {
-  it("stores a published obituary row with tags + facts jsonb and reads it back", async () => {
+  it("stores a published obituary keyed on the natural life tuple, with tags + facts jsonb", async () => {
     await db.insert(articles).values({
-      kind: "obituary", status: "published", slug: `the-end-${lifeId}`,
-      playerId, serverId, lifeId, gamertag: `ar-${svc}`, map: "chernarusplus", mapSlug: `ar-${svc}`,
-      lifeNumber: 1, deathAt: new Date("2026-07-10T02:00:00Z"), timeAliveSeconds: 7200, kills: 3,
-      longestKillMeters: 210.5, cause: "pvp", headline: "H", lede: "L", body: "B",
-      pullQuoteText: "q", pullQuoteAttribution: "a rival", tags: ["Obituaries", "Chernarus"],
-      facts: { sessions: 2, killerGamertag: "Killer", weapon: "M4" }, promptVersion: "obituary-v1",
-      model: "test", attempts: 1, generatedAt: new Date("2026-07-10T03:00:00Z"),
+      kind: "obituary", status: "published", slug: `the-end-${svc}`,
+      serverId, gamertag: `ar-${svc}`, map: "chernarusplus", mapSlug: `ar-${svc}`,
+      lifeNumber: 1, lifeStartedAt: startedAt, deathAt: new Date("2026-07-10T02:00:00Z"),
+      timeAliveSeconds: 7200, kills: 3, longestKillMeters: 210.5, cause: "pvp",
+      headline: "H", lede: "L", body: "B", pullQuoteText: "q", pullQuoteAttribution: "a rival",
+      tags: ["Obituaries", "Chernarus"], facts: { sessions: 2, killerGamertag: "Killer", weapon: "M4" },
+      promptVersion: "obituary-v1", model: "test", attempts: 1, generatedAt: new Date("2026-07-10T03:00:00Z"),
     });
-    const [row] = await db.select().from(articles).where(eq(articles.lifeId, lifeId));
+    const [row] = await db.select().from(articles).where(eq(articles.serverId, serverId));
     expect(row!.tags).toEqual(["Obituaries", "Chernarus"]);
     expect((row!.facts as { sessions: number }).sessions).toBe(2);
     expect(row!.imageUrl).toBeNull(); // reserved R5c column present + nullable
   });
 });
 ```
+> The smoke test no longer imports/seeds `players`/`lives` — the article is self-contained via the natural key. Update the import line to `import { servers, articles } from "@onelife/db";`.
 
 - [ ] **Step 6: Run the test.** `pnpm --filter @onelife/read-models test -- articles-schema` — Expected: PASS (globalSetup runs `migrateDb`, applying `0009`). Then `pnpm --filter @onelife/db typecheck` — Expected: clean.
 
@@ -184,8 +183,8 @@ describe("articles table", () => {
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles } from "@onelife/db";
-import { eq, inArray } from "drizzle-orm";
+import { servers, articles } from "@onelife/db";
+import { eq } from "drizzle-orm";
 import { getPublishedObituaries, getObituaryBySlug } from "../src/obituary-articles.js";
 
 const { db, sql } = getTestDb();
@@ -193,37 +192,24 @@ const svc = Math.floor(Math.random() * 1e8) + 52e7;
 const t0 = new Date("2026-07-12T00:00:00Z");
 const hrs = (h: number) => new Date(t0.getTime() + h * 3600_000);
 let serverId: number;
-const pids: number[] = [];
-const lifeIds: number[] = [];
 
-async function seedLife(tag: string, endH: number) {
-  const [p] = await db.insert(players).values({ gamertag: tag }).returning();
-  pids.push(p!.id);
-  const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(endH - 1), endedAt: hrs(endH), deathCause: "pvp", playtimeSeconds: 3600 }).returning();
-  lifeIds.push(l!.id);
-  return { playerId: p!.id, lifeId: l!.id };
-}
+// The articles table no longer FKs to players/lives, so seed articles directly against a server;
+// distinct lifeStartedAt keeps the natural key (kind, serverId, gamertag, lifeStartedAt) unique.
+const base = (over: Record<string, unknown>) => ({
+  kind: "obituary", serverId, gamertag: `oa-${svc}`, map: "chernarusplus", mapSlug: `oa-${svc}`, lifeNumber: 1, ...over,
+});
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ob", map: "chernarusplus", slug: `oa-${svc}`, active: true }).returning();
   serverId = s!.id;
-  const early = await seedLife(`oa-early-${svc}`, 2);
-  const late = await seedLife(`oa-late-${svc}`, 5);
-  const failed = await seedLife(`oa-failed-${svc}`, 9);
-  const base = (o: { playerId: number; lifeId: number }, over: Record<string, unknown>) => ({
-    kind: "obituary", playerId: o.playerId, serverId, lifeId: o.lifeId, gamertag: `oa-${svc}`,
-    map: "chernarusplus", mapSlug: `oa-${svc}`, lifeNumber: 1, ...over,
-  });
   await db.insert(articles).values([
-    base(early, { status: "published", slug: `early-${early.lifeId}`, deathAt: hrs(2), timeAliveSeconds: 3600, kills: 1, longestKillMeters: 12, cause: "pvp", headline: "Early Death", lede: "e-lede", body: "e-body", tags: ["Obituaries", "Chernarus"], pullQuoteText: "q1", pullQuoteAttribution: "a coast source", facts: { sessions: 2, killerGamertag: "K1", weapon: "AK" }, generatedAt: hrs(2) }),
-    base(late, { status: "published", slug: `late-${late.lifeId}`, deathAt: hrs(5), timeAliveSeconds: 3600, kills: 4, longestKillMeters: 300, cause: "pvp", headline: "Late Death", lede: "l-lede", body: "l-body", tags: ["Obituaries"], facts: { sessions: 1, killerGamertag: null, weapon: null }, generatedAt: hrs(5) }),
-    base(failed, { status: "failed", slug: null, deathAt: hrs(9), attempts: 3, lastError: "boom" }),
+    base({ status: "published", slug: `early-${svc}`, lifeStartedAt: hrs(1), deathAt: hrs(2), timeAliveSeconds: 3600, kills: 1, longestKillMeters: 12, cause: "pvp", headline: "Early Death", lede: "e-lede", body: "e-body", tags: ["Obituaries", "Chernarus"], pullQuoteText: "q1", pullQuoteAttribution: "a coast source", facts: { sessions: 2, killerGamertag: "K1", weapon: "AK" }, generatedAt: hrs(2) }),
+    base({ status: "published", slug: `late-${svc}`, lifeStartedAt: hrs(4), deathAt: hrs(5), timeAliveSeconds: 3600, kills: 4, longestKillMeters: 300, cause: "pvp", headline: "Late Death", lede: "l-lede", body: "l-body", tags: ["Obituaries"], facts: { sessions: 1, killerGamertag: null, weapon: null }, generatedAt: hrs(5) }),
+    base({ status: "failed", slug: null, lifeStartedAt: hrs(8), deathAt: hrs(9), attempts: 3, lastError: "boom" }),
   ]);
 });
 afterAll(async () => {
   await db.delete(articles).where(eq(articles.serverId, serverId));
-  await db.delete(lives).where(inArray(lives.id, lifeIds));
-  await db.delete(players).where(inArray(players.id, pids));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
@@ -420,12 +406,12 @@ export * from "./obituary-articles.js";
 **Interfaces:**
 - Consumes: `articles`, `lives`, `players`, `servers` (`@onelife/db`); `qualifiedLifeCondition` (`@onelife/read-models`).
 - Produces:
-  - `interface ObituaryTarget { lifeId: number; serverId: number; playerId: number; gamertag: string; map: string; mapSlug: string | null; lifeNumber: number; endedAt: Date; }`
-  - `findObituaryTargets(db, { limit, maxAttempts }): Promise<ObituaryTarget[]>` — qualified dead lives with no published obituary and no exhausted failed stub, newest death first.
-  - `obituarySlug(headline: string, lifeId: number): string`
-  - `interface PublishInput { target: ObituaryTarget; facts: ObituaryFacts; obituary: Obituary; promptVersion: string; model: string; now: Date; }` (types imported from Task 4/5 — see note)
-  - `publishObituary(db, input: PublishInput): Promise<void>` — upsert a published row on `(kind, life_id)`.
-  - `recordObituaryFailure(db, input: { target: ObituaryTarget; error: string }): Promise<void>` — upsert a `status='failed'` stub, `attempts += 1`.
+  - `interface ObituaryTarget { lifeId: number; serverId: number; gamertag: string; map: string; mapSlug: string | null; lifeNumber: number; lifeStartedAt: Date; endedAt: Date; }` (`lifeId` is the CURRENT id, used transiently to load `getLifeTimeline` within the tick — it is **never stored**; the article is keyed by the natural tuple `serverId`+`gamertag`+`lifeStartedAt`.)
+  - `findObituaryTargets(db, { limit, maxAttempts }): Promise<ObituaryTarget[]>` — qualified dead lives with no published obituary and no exhausted failed stub (anti-join on the natural key), newest death first.
+  - `obituarySlug(headline: string, gamertag: string, serverId: number, lifeNumber: number): string` — deterministic + rebuild-stable + unique per life.
+  - `interface PublishInput { target: ObituaryTarget; facts: PublishFacts; obituary: PublishObituary; promptVersion: string; model: string; now: Date; }`
+  - `publishObituary(db, input: PublishInput): Promise<void>` — upsert a published row on the natural key `(kind, server_id, gamertag, life_started_at)`.
+  - `recordObituaryFailure(db, input: { target: ObituaryTarget; error: string }): Promise<void>` — upsert a `status='failed'` stub on the same natural key, `attempts += 1`.
 
 > **Sequencing note:** `PublishInput` references `ObituaryFacts` (Task 4) and `Obituary` (Task 5). To keep this task self-contained and testable first, define `publishObituary` against a **structural input** it needs directly (below) — it does not import Task 4/5 types; the tick (Task 7) passes matching objects. This avoids a forward type dependency.
 
@@ -511,11 +497,11 @@ async function seedLife(tag: string, over: Record<string, unknown>) {
   pids.push(p!.id);
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(0), ...over }).returning();
   lifeIds.push(l!.id);
-  return { playerId: p!.id, lifeId: l!.id, gamertag: tag };
+  return { lifeId: l!.id, gamertag: tag, lifeStartedAt: hrs(0) };
 }
 
-let qualified: { playerId: number; lifeId: number; gamertag: string };
-let unqualified: { playerId: number; lifeId: number; gamertag: string };
+let qualified: { lifeId: number; gamertag: string; lifeStartedAt: Date };
+let unqualified: { lifeId: number; gamertag: string; lifeStartedAt: Date };
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "nd", map: "chernarusplus", slug: `nd-${svc}`, active: true }).returning();
@@ -533,14 +519,14 @@ afterAll(async () => {
   await sql.end();
 });
 
-const targetFor = (o: { playerId: number; lifeId: number; gamertag: string }, endH: number): ObituaryTarget => ({
-  lifeId: o.lifeId, serverId, playerId: o.playerId, gamertag: o.gamertag,
-  map: "chernarusplus", mapSlug: `nd-${svc}`, lifeNumber: 1, endedAt: hrs(endH),
+const targetFor = (o: { lifeId: number; gamertag: string; lifeStartedAt: Date }, endH: number): ObituaryTarget => ({
+  lifeId: o.lifeId, serverId, gamertag: o.gamertag,
+  map: "chernarusplus", mapSlug: `nd-${svc}`, lifeNumber: 1, lifeStartedAt: o.lifeStartedAt, endedAt: hrs(endH),
 });
 
 describe("obituarySlug", () => {
-  it("slugifies the headline and appends the life id for uniqueness", () => {
-    expect(obituarySlug("The King Is Dead. A Chicken Is Wanted.", 42)).toBe("the-king-is-dead-a-chicken-is-wanted-42");
+  it("composes a stable unique slug from headline + gamertag + server + life number", () => {
+    expect(obituarySlug("The King Is Dead. A Chicken.", "xX_Sn1per_Xx", 7, 4)).toBe("the-king-is-dead-a-chicken-xx-sn1per-xx-7-4");
   });
 });
 
@@ -561,9 +547,10 @@ describe("findObituaryTargets", () => {
     });
     const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3 });
     expect(targets.find((t) => t.lifeId === qualified.lifeId)).toBeUndefined();
-    const [row] = await db.select().from(articles).where(eq(articles.lifeId, qualified.lifeId));
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, qualified.gamertag));
     expect(row!.status).toBe("published");
-    expect(row!.slug).toBe(`gone-${qualified.lifeId}`);
+    expect(row!.slug).toMatch(/^gone-nd-q-/);
+    expect(row!.slug!.endsWith(`-${serverId}-1`)).toBe(true);
     expect(row!.attempts).toBe(1);
   });
 
@@ -593,13 +580,13 @@ import { and, eq, desc, isNotNull, notExists, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
 export interface ObituaryTarget {
-  lifeId: number;
+  lifeId: number;         // CURRENT id — transient (loads getLifeTimeline in the tick); never stored
   serverId: number;
-  playerId: number;
   gamertag: string;
   map: string;
   mapSlug: string | null;
   lifeNumber: number;
+  lifeStartedAt: Date;    // natural-key: which life (rebuild-stable)
   endedAt: Date;
 }
 
@@ -631,18 +618,23 @@ export interface PublishInput {
   now: Date;
 }
 
-/** Deterministic, unique per obituary (one obituary per life): slugified headline + life id. */
-export function obituarySlug(headline: string, lifeId: number): string {
-  const base = headline
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 70)
-    .replace(/-+$/g, "");
-  return `${base || "obituary"}-${lifeId}`;
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-/** Qualified dead lives that need an obituary: no published article and no exhausted failed stub. */
+/** Deterministic, rebuild-stable, unique per life: headline + gamertag + serverId + lifeNumber
+ *  (all natural, rebuild-stable values — no projection row id). */
+export function obituarySlug(headline: string, gamertag: string, serverId: number, lifeNumber: number): string {
+  const h = slugify(headline).slice(0, 60).replace(/-+$/g, "") || "obituary";
+  const g = slugify(gamertag) || "survivor";
+  return `${h}-${g}-${serverId}-${lifeNumber}`;
+}
+
+// The article's identity is the natural life tuple — the conflict target for both upserts.
+const CONFLICT = [articles.kind, articles.serverId, articles.gamertag, articles.lifeStartedAt];
+
+/** Qualified dead lives that need an obituary: no published article and no exhausted failed stub.
+ *  Anti-joins `articles` on the natural key (server + gamertag + life_started_at). */
 export async function findObituaryTargets(
   db: Database,
   opts: { limit: number; maxAttempts: number },
@@ -651,11 +643,11 @@ export async function findObituaryTargets(
     .select({
       lifeId: lives.id,
       serverId: lives.serverId,
-      playerId: lives.playerId,
       gamertag: players.gamertag,
       map: servers.map,
       mapSlug: servers.slug,
       lifeNumber: lives.lifeNumber,
+      lifeStartedAt: lives.startedAt,
       endedAt: lives.endedAt,
     })
     .from(lives)
@@ -665,7 +657,7 @@ export async function findObituaryTargets(
       and(
         isNotNull(lives.endedAt),
         qualifiedLifeCondition(db),
-        // no blocking article row: published, or failed-but-exhausted
+        // no blocking article for this life (natural key): published, or failed-but-exhausted
         notExists(
           db
             .select({ x: sql`1` })
@@ -673,7 +665,9 @@ export async function findObituaryTargets(
             .where(
               and(
                 eq(articles.kind, "obituary"),
-                eq(articles.lifeId, lives.id),
+                eq(articles.serverId, lives.serverId),
+                eq(articles.gamertag, players.gamertag),
+                eq(articles.lifeStartedAt, lives.startedAt),
                 sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
               ),
             ),
@@ -686,25 +680,24 @@ export async function findObituaryTargets(
   return rows.map((r) => ({ ...r, endedAt: r.endedAt! }));
 }
 
-const IDENTITY = (t: ObituaryTarget, deathAt: Date) => ({
+const IDENTITY = (t: ObituaryTarget) => ({
   kind: "obituary" as const,
-  playerId: t.playerId,
   serverId: t.serverId,
-  lifeId: t.lifeId,
   gamertag: t.gamertag,
+  lifeStartedAt: t.lifeStartedAt,
   map: t.map,
   mapSlug: t.mapSlug,
   lifeNumber: t.lifeNumber,
-  deathAt,
+  deathAt: t.endedAt,
 });
 
-/** Upsert a published obituary on (kind, life_id). Bumps attempts, sets status='published'. */
+/** Upsert a published obituary on the natural key. Bumps attempts, sets status='published'. */
 export async function publishObituary(db: Database, input: PublishInput): Promise<void> {
   const { target: t, facts, obituary: o } = input;
   const values = {
-    ...IDENTITY(t, t.endedAt),
+    ...IDENTITY(t),
     status: "published" as const,
-    slug: obituarySlug(o.headline, t.lifeId),
+    slug: obituarySlug(o.headline, t.gamertag, t.serverId, t.lifeNumber),
     timeAliveSeconds: facts.timeAliveSeconds,
     kills: facts.kills,
     longestKillMeters: facts.longestKillMeters,
@@ -724,22 +717,22 @@ export async function publishObituary(db: Database, input: PublishInput): Promis
     .insert(articles)
     .values({ ...values, attempts: 1 })
     .onConflictDoUpdate({
-      target: [articles.kind, articles.lifeId],
+      target: CONFLICT,
       set: { ...values, attempts: sql`${articles.attempts} + 1`, lastError: null },
     });
 }
 
-/** Upsert a failed stub on (kind, life_id): attempts += 1, status='failed'. */
+/** Upsert a failed stub on the natural key: attempts += 1, status='failed'. */
 export async function recordObituaryFailure(
   db: Database,
   input: { target: ObituaryTarget; error: string },
 ): Promise<void> {
-  const id = IDENTITY(input.target, input.target.endedAt);
+  const id = IDENTITY(input.target);
   await db
     .insert(articles)
     .values({ ...id, status: "failed", attempts: 1, lastError: input.error })
     .onConflictDoUpdate({
-      target: [articles.kind, articles.lifeId],
+      target: CONFLICT,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: input.error },
     });
 }
@@ -1481,23 +1474,24 @@ afterAll(async () => {
 
 describe("newsdeskTick", () => {
   it("dry-run: never calls the client and writes nothing", async () => {
-    const lid = await seedQualifiedDeath(`tk-dry-${svc}`, 2);
+    await seedQualifiedDeath(`tk-dry-${svc}`, 2);
     const c = calls(okClient());
     const r = await newsdeskTick(db, deps({ client: c.client, dryRun: true }));
     expect(r.dryRun).toBe(true);
     expect(c.count()).toBe(0);
-    const rows = await db.select().from(articles).where(eq(articles.lifeId, lid));
+    const rows = await db.select().from(articles).where(eq(articles.gamertag, `tk-dry-${svc}`));
     expect(rows).toHaveLength(0);
   });
 
   it("live: generates and publishes an obituary, and is idempotent on re-run", async () => {
-    const lid = await seedQualifiedDeath(`tk-live-${svc}`, 3);
+    await seedQualifiedDeath(`tk-live-${svc}`, 3);
     const r1 = await newsdeskTick(db, deps({ batchCap: 50 }));
     expect(r1.generated).toBeGreaterThanOrEqual(1);
-    const [row] = await db.select().from(articles).where(eq(articles.lifeId, lid));
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, `tk-live-${svc}`));
     expect(row!.status).toBe("published");
     expect(row!.headline).toBe("A Death On The Coast");
-    expect(row!.slug).toBe(`a-death-on-the-coast-${lid}`);
+    expect(row!.slug).toMatch(/^a-death-on-the-coast-tk-live-/);
+    expect(row!.slug!.endsWith(`-${serverId}-1`)).toBe(true);
     const before = (await db.select().from(articles).where(eq(articles.serverId, serverId))).length;
     await newsdeskTick(db, deps({ batchCap: 50 }));
     const after = (await db.select().from(articles).where(eq(articles.serverId, serverId))).length;
@@ -1505,10 +1499,10 @@ describe("newsdeskTick", () => {
   });
 
   it("failure: records a failed stub with an incremented attempt", async () => {
-    const lid = await seedQualifiedDeath(`tk-fail-${svc}`, 5);
+    await seedQualifiedDeath(`tk-fail-${svc}`, 5);
     const r = await newsdeskTick(db, deps({ client: failClient(), batchCap: 50 }));
     expect(r.failed).toBeGreaterThanOrEqual(1);
-    const [row] = await db.select().from(articles).where(eq(articles.lifeId, lid));
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, `tk-fail-${svc}`));
     expect(row!.status).toBe("failed");
     expect(row!.attempts).toBe(1);
     expect(row!.lastError).toMatch(/boom/);
@@ -1656,35 +1650,29 @@ loop();
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles } from "@onelife/db";
+import { servers, articles } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { buildApp } from "../src/app.js";
 
 const { db, sql } = getTestDb();
 const app = buildApp(db);
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
-let serverId: number, playerId: number, lifeId: number;
+let serverId: number;
 const slug = `obit-api-${svc}`;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "oa", map: "chernarusplus", slug: `oa-${svc}`, active: true }).returning();
   serverId = s!.id;
-  const [p] = await db.insert(players).values({ gamertag: `oa-${svc}` }).returning();
-  playerId = p!.id;
-  const [l] = await db.insert(lives).values({ serverId, playerId, lifeNumber: 1, startedAt: new Date("2026-07-10T00:00:00Z"), endedAt: new Date("2026-07-10T02:00:00Z"), deathCause: "pvp", playtimeSeconds: 7200 }).returning();
-  lifeId = l!.id;
   await db.insert(articles).values({
-    kind: "obituary", status: "published", slug, playerId, serverId, lifeId, gamertag: `oa-${svc}`,
-    map: "chernarusplus", mapSlug: `oa-${svc}`, lifeNumber: 1, deathAt: new Date("2026-07-10T02:00:00Z"),
-    timeAliveSeconds: 7200, kills: 2, longestKillMeters: 90, cause: "pvp", headline: "H", lede: "L", body: "B",
-    pullQuoteText: "q", pullQuoteAttribution: "a rival", tags: ["Obituaries"],
-    facts: { sessions: 1, killerGamertag: "K", weapon: "M4" }, generatedAt: new Date("2026-07-10T03:00:00Z"),
+    kind: "obituary", status: "published", slug, serverId, gamertag: `oa-${svc}`,
+    map: "chernarusplus", mapSlug: `oa-${svc}`, lifeNumber: 1, lifeStartedAt: new Date("2026-07-10T00:00:00Z"),
+    deathAt: new Date("2026-07-10T02:00:00Z"), timeAliveSeconds: 7200, kills: 2, longestKillMeters: 90,
+    cause: "pvp", headline: "H", lede: "L", body: "B", pullQuoteText: "q", pullQuoteAttribution: "a rival",
+    tags: ["Obituaries"], facts: { sessions: 1, killerGamertag: "K", weapon: "M4" }, generatedAt: new Date("2026-07-10T03:00:00Z"),
   });
 });
 afterAll(async () => {
   await db.delete(articles).where(eq(articles.serverId, serverId));
-  await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(eq(players.id, playerId));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
