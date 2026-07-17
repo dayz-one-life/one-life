@@ -299,7 +299,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
   `newsdesk` (obituary generation sweep; **`NEWSDESK_DRY_RUN` defaults `true`** — logs intended
   obituaries without calling OpenRouter or writing; set `false` to generate; needs
-  `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`),
+  `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`; in the `deploy.sh`
+  restart fleet, so releases pick it up — needs a `onelife-newsdesk` systemd unit on the host),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
   systemd unit).
