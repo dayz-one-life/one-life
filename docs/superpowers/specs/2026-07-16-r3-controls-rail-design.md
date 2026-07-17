@@ -75,7 +75,8 @@ One client hook `useControls()` (`apps/web/src/lib/use-controls.ts`) wraps:
   `useGamertagLinks` keeps emote progress live; no polling when nothing is pending).
 - `GET /me` — provider list for the `VIA {PROVIDER}` line (first account's providerId).
 - `GET /me/tokens` — balance. Enabled while signed in.
-- `GET /servers` — active server list (public; cached, no auth gating).
+- `GET /servers` — active server list (public endpoint; fetched only while signed in —
+  the signed-out rail doesn't need it).
 - `GET /players/{gamertag}` — per-server standing + ban countdowns, enabled only when
   verified (same payload the dossier uses; `standing: ServerStanding[]`).
 
