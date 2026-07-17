@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
+import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { MastheadSlot } from "./masthead-slot";
@@ -32,6 +33,7 @@ export function Masthead() {
   const pathname = usePathname();
   const active = activeNavKey(pathname ?? "/");
   const [open, setOpen] = useState(false);
+  const panelRef = useModalBehavior(open, () => setOpen(false));
 
   return (
     <header className="bg-dark">
@@ -65,7 +67,14 @@ export function Masthead() {
       <div className="mt-4 border-t border-dark-line md:hidden" />
 
       {open && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center gap-8 bg-dark pt-24">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          ref={panelRef}
+          tabIndex={-1}
+          className="fixed inset-0 z-50 flex flex-col items-center gap-8 bg-dark pt-24"
+        >
           <button
             type="button"
             aria-label="Close menu"
