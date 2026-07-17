@@ -32,6 +32,29 @@ function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; 
   };
 }
 
+/** Footer shown in every signed-in state so a signed-in user can always sign out (the
+ *  profile link only appears once a gamertag is verified). */
+function SignedInFooter({ profileSlug }: { profileSlug?: string }) {
+  return (
+    <div className="flex justify-between border-t border-hairline pt-2.5 font-mono text-[11px] uppercase tracking-[.05em]">
+      {profileSlug ? (
+        <Link href={`/players/${profileSlug}`} className="font-bold text-ink hover:text-red">
+          Your profile →
+        </Link>
+      ) : (
+        <span />
+      )}
+      <button
+        type="button"
+        onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
+        className="text-ink-muted hover:text-red"
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
 /** Desktop controls rail (canvas 10a/10d) — the right column of the root layout at xl+. */
 export function ControlsRail() {
   const c = useControls();
@@ -98,25 +121,20 @@ export function ControlsRail() {
             redeeming={a.redeem.isPending}
           />
         ))}
-        <div className="flex justify-between border-t border-hairline pt-2.5 font-mono text-[11px] uppercase tracking-[.05em]">
-          <Link href={`/players/${slug}`} className="font-bold text-ink hover:text-red">
-            Your profile →
-          </Link>
-          <button
-            type="button"
-            onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
-            className="text-ink-muted hover:text-red"
-          >
-            Sign out
-          </button>
-        </div>
       </>
     );
   }
 
+  const signedIn =
+    c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
+  const profileSlug = c.status.kind === "verified" ? playerSlug(c.status.link.gamertag) : undefined;
+
   return (
     <aside aria-label="Player controls" className="hidden py-8 pl-7 xl:sticky xl:top-0 xl:block xl:max-h-screen xl:self-start xl:overflow-y-auto">
-      <div className="flex flex-col gap-4">{body}</div>
+      <div className="flex flex-col gap-4">
+        {body}
+        {signedIn && <SignedInFooter profileSlug={profileSlug} />}
+      </div>
     </aside>
   );
 }

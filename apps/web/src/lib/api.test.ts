@@ -66,6 +66,26 @@ describe("apiSend", () => {
     expect((init as RequestInit).method).toBe("POST");
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ serverId: 1, gamertag: "X" });
   });
+
+  it("sets content-type only when a body is present", async () => {
+    const f = mockFetch(201, {});
+    global.fetch = f as unknown as typeof fetch;
+    await apiSend("POST", "/api/me/gamertag-links", { gamertag: "X" });
+    const [, init] = f.mock.calls[0]!;
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/json");
+  });
+
+  it("sends a bodyless DELETE with no body and no content-type header (avoids Fastify's empty-JSON-body 400)", async () => {
+    const f = mockFetch(200, { status: "cancelled" });
+    global.fetch = f as unknown as typeof fetch;
+    await apiSend("DELETE", "/api/me/gamertag-links/2");
+    const [, init] = f.mock.calls[0]!;
+    expect((init as RequestInit).method).toBe("DELETE");
+    expect((init as RequestInit).body).toBeUndefined();
+    const headers = (init as RequestInit).headers as Record<string, string> | undefined;
+    expect(headers?.["content-type"]).toBeUndefined();
+  });
 });
 
 describe("ApiError", () => {

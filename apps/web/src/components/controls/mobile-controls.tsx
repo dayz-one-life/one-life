@@ -7,7 +7,7 @@ import { playerSlug } from "@/lib/slug";
 import { useControls, useControlsActions } from "./use-controls";
 import { pillStatus, serverCards, transferErrorLabel } from "./format";
 import { AvatarDisc } from "./identity-row";
-import { ControlsPillView } from "./pill";
+import { ControlsPillView, SignInPill } from "./pill";
 import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { LinkTagPanel } from "./link-panel";
@@ -27,8 +27,10 @@ export function MobileControls() {
   const c = useControls();
   const a = useControlsActions();
   const [open, setOpen] = useState(false);
-  const signedIn = c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
-  if (!signedIn) return null;
+  // Loading: render nothing (avoids pop-in until auth resolves). Signed-out: a floating sign-in
+  // box so mobile visitors don't have to scroll to the footer to log in.
+  if (c.status.kind === "loading") return null;
+  if (c.status.kind === "signedOut") return <SignInPill />;
 
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
@@ -110,22 +112,24 @@ export function MobileControls() {
                 redeeming={a.redeem.isPending}
               />
             ))}
-            <div className="flex justify-between font-mono text-[10px] uppercase tracking-[.06em]">
-              {slug && (
-                <Link href={`/players/${slug}`} className="text-cream-dim hover:text-paper">
-                  Your profile →
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
-                className="text-cream-muted hover:text-paper"
-              >
-                Sign out
-              </button>
-            </div>
           </>
         )}
+        <div className="flex justify-between font-mono text-[10px] uppercase tracking-[.06em]">
+          {slug ? (
+            <Link href={`/players/${slug}`} className="text-cream-dim hover:text-paper">
+              Your profile →
+            </Link>
+          ) : (
+            <span />
+          )}
+          <button
+            type="button"
+            onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
+            className="text-cream-muted hover:text-paper"
+          >
+            Sign out
+          </button>
+        </div>
       </ControlsSheet>
     </>
   );
