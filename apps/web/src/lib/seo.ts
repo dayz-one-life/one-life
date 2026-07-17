@@ -16,3 +16,19 @@ export function breadcrumbLd(items: { name: string; url: string }[]) {
     itemListElement: items.map((it, i) => ({ "@type": "ListItem", position: i + 1, name: it.name, item: absoluteUrl(it.url) })),
   };
 }
+
+export function articleLd(
+  a: { headline: string; lede: string; gamertag: string; deathAt: string },
+  url: string,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: a.headline,
+    description: a.lede,
+    url,
+    datePublished: a.deathAt,
+    about: { "@type": "Person", name: a.gamertag },
+    isPartOf: { "@type": "CollectionPage", name: "Obituaries", url: absoluteUrl("/obituaries") },
+  };
+}
