@@ -12,6 +12,15 @@ export function useModalBehavior(open: boolean, onClose: () => void): RefObject<
   const panelRef = useRef<HTMLDivElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
+  // Inline arrows at call sites (e.g. `() => setOpen(false)`) get a new identity
+  // every render; keep the latest onClose in a ref so the main effect depends
+  // only on `open` — otherwise every parent re-render while open re-fires the
+  // effect and yanks focus back onto the panel.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
@@ -19,7 +28,7 @@ export function useModalBehavior(open: boolean, onClose: () => void): RefObject<
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key === "Tab" && panelRef.current) {
@@ -44,7 +53,7 @@ export function useModalBehavior(open: boolean, onClose: () => void): RefObject<
       document.body.style.overflow = prevOverflow;
       restoreRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return panelRef;
 }

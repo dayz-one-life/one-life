@@ -5,6 +5,7 @@ import { useModalBehavior } from "./use-modal-behavior";
 
 function Harness({ onClose }: { onClose?: () => void }) {
   const [open, setOpen] = useState(false);
+  const [, setBump] = useState(0);
   const close = () => { setOpen(false); onClose?.(); };
   const ref = useModalBehavior(open, close);
   return (
@@ -13,6 +14,7 @@ function Harness({ onClose }: { onClose?: () => void }) {
       {open && (
         <div role="dialog" aria-modal="true" ref={ref} tabIndex={-1}>
           <button>first</button>
+          <button onClick={() => setBump((b) => b + 1)}>bump</button>
           <button>last</button>
         </div>
       )}
@@ -48,5 +50,14 @@ describe("useModalBehavior", () => {
     last.focus();
     fireEvent.keyDown(document, { key: "Tab" });
     expect(screen.getByText("first")).toHaveFocus();
+  });
+
+  test("parent re-renders while open do not yank focus back to the panel", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByText("open"));
+    const last = screen.getByText("last");
+    last.focus();
+    fireEvent.click(screen.getByText("bump")); // re-render → new inline onClose identity
+    expect(last).toHaveFocus();
   });
 });
