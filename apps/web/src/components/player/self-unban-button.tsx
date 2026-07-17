@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/lib/auth-client";
 import { useGamertagLinks } from "@/lib/use-gamertag-links";
 import { activeLink } from "@/lib/active-link";
@@ -65,6 +65,7 @@ export function SelfUnbanButton({
   const isOwner = !!session?.user && link?.status === "verified" && link.gamertag === pageGamertag;
   const [pending, setPending] = useState(liftPending);
   const tokens = useQuery({ queryKey: ["tokens"], queryFn: getTokens, enabled: isOwner });
+  const qc = useQueryClient();
 
   if (!isOwner) return <UnbanView state="hidden" balance={0} onRedeem={() => {}} />;
 
@@ -74,6 +75,8 @@ export function SelfUnbanButton({
     setPending(true);
     try {
       await redeemToken(banId);
+      void qc.invalidateQueries({ queryKey: ["tokens"] });
+      void qc.invalidateQueries({ queryKey: ["player-page"] });
     } catch {
       setPending(false);
     }

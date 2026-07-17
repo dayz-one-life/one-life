@@ -33,6 +33,7 @@ export function ControlsPillView({
       onClick={onOpen}
       aria-expanded={open}
       aria-haspopup="dialog"
+      aria-controls="controls-sheet"
       className="fixed inset-x-3.5 bottom-3.5 z-40 flex min-h-[44px] items-center gap-3 border-2 border-red bg-dark px-4 py-2.5 text-left shadow-[0_10px_30px_rgba(0,0,0,.35)] xl:hidden"
     >
       <AvatarDisc name={name} size={30} />

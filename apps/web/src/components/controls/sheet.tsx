@@ -27,6 +27,7 @@ export function ControlsSheet({
     <div className="fixed inset-0 z-50 xl:hidden">
       <div aria-hidden className="absolute inset-0 bg-dark/55" onClick={onClose} />
       <div
+        id="controls-sheet"
         role="dialog"
         aria-modal="true"
         aria-label="Player controls"
