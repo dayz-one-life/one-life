@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
+import { searchClaimableGamertags } from "@/lib/api";
 import type { Challenge } from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
@@ -35,6 +36,31 @@ describe("LinkTagPanel", () => {
     expect(onClaim).toHaveBeenCalledWith("BootsColdwater");
     rerender(<LinkTagPanel onClaim={onClaim} pending={false} error="That gamertag is already claimed by someone." />);
     expect(screen.getByText("That gamertag is already claimed by someone.")).toBeInTheDocument();
+  });
+
+  test("picking a suggestion does not reopen the dropdown after the debounce window", async () => {
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
+    fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
+    const suggestion = await screen.findByRole("button", { name: "BOOTSCOLDWATER" });
+    fireEvent.click(suggestion);
+    await new Promise((r) => setTimeout(r, 250));
+    expect(screen.queryByRole("button", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+  });
+
+  test("a stale slow response cannot overwrite newer results", async () => {
+    const mock = vi.mocked(searchClaimableGamertags);
+    let resolveFirst: (v: string[]) => void = () => {};
+    mock.mockImplementationOnce(() => new Promise((res) => { resolveFirst = res; }));
+    mock.mockImplementationOnce(async () => ["BOOTSNCATS99"]);
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
+    fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
+    await new Promise((r) => setTimeout(r, 250)); // first (hanging) request issued
+    fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "BootsN" } });
+    await screen.findByRole("button", { name: "BOOTSNCATS99" }); // second resolves
+    resolveFirst(["BOOTSCOLDWATER"]); // stale response lands late
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("button", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "BOOTSNCATS99" })).toBeInTheDocument();
   });
 });
 
