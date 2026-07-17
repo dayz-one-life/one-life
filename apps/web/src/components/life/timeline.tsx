@@ -69,11 +69,11 @@ function EventRow({ e }: { e: TimelineEvent }) {
   );
 }
 
-export function Timeline({ view }: { view: LifeTimelineView }) {
+export function Timeline({ view, heading = "The record so far" }: { view: LifeTimelineView; heading?: string }) {
   return (
     <div>
       {view.alive && <WithheldBar />}
-      <h2 className="mt-7 font-display text-xl font-bold uppercase tracking-[.1em] text-ink">The record so far</h2>
+      <h2 className="mt-7 font-display text-xl font-bold uppercase tracking-[.1em] text-ink">{heading}</h2>
       <div className="mt-4">
         {view.events.map((e, idx) => (
           <EventRow key={`${e.kind}-${idx}`} e={e} />
