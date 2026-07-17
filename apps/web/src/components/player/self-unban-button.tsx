@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/lib/auth-client";
 import { useGamertagLinks } from "@/lib/use-gamertag-links";
 import { activeLink } from "@/lib/active-link";
@@ -44,6 +45,11 @@ export function UnbanView({
   );
 }
 
+/** Shared unban CTA state: lift already pending > has tokens > broke. */
+export function unbanStateOf(liftPending: boolean, balance: number): UnbanState {
+  return liftPending ? "pending" : balance > 0 ? "ready" : "no-tokens";
+}
+
 export function SelfUnbanButton({
   banId,
   pageGamertag,
@@ -58,27 +64,12 @@ export function SelfUnbanButton({
   const link = activeLink(links.data);
   const isOwner = !!session?.user && link?.status === "verified" && link.gamertag === pageGamertag;
   const [pending, setPending] = useState(liftPending);
-  const [tokens, setTokens] = useState<number | null>(null);
-
-  // Fetch the balance as a side effect once ownership is established — not during render.
-  useEffect(() => {
-    if (!isOwner) return;
-    let cancelled = false;
-    getTokens()
-      .then((t) => {
-        if (!cancelled) setTokens(t.balance);
-      })
-      .catch(() => {
-        if (!cancelled) setTokens(0);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOwner]);
+  const tokens = useQuery({ queryKey: ["tokens"], queryFn: getTokens, enabled: isOwner });
 
   if (!isOwner) return <UnbanView state="hidden" balance={0} onRedeem={() => {}} />;
 
-  const state: UnbanState = pending ? "pending" : (tokens ?? 0) > 0 ? "ready" : "no-tokens";
+  const balance = tokens.data?.balance ?? 0;
+  const state = unbanStateOf(pending, balance);
   const onRedeem = async () => {
     setPending(true);
     try {
@@ -87,5 +78,5 @@ export function SelfUnbanButton({
       setPending(false);
     }
   };
-  return <UnbanView state={state} balance={tokens ?? 0} onRedeem={onRedeem} />;
+  return <UnbanView state={state} balance={balance} onRedeem={onRedeem} />;
 }
