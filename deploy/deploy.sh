@@ -26,9 +26,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# All eight units, in a safe stop order (consumers/HTTP first, projector last).
+# All nine units, in a safe stop order (consumers/HTTP first, projector last).
 # Start order is the reverse, so the projector leads and re-folds ASAP.
-SERVICES=(web api verifier enforcer granter rebooter ingest projector)
+SERVICES=(web api verifier enforcer granter rebooter newsdesk ingest projector)
 
 WEB_URL="http://127.0.0.1:3010/"        # onelife-web (nginx's only upstream)
 API_URL="http://127.0.0.1:3011/"        # onelife-api (liveness only; no /health route)

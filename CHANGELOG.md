@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+- `deploy/deploy.sh` now restarts `onelife-newsdesk` on every deploy — it was missing from the
+  `SERVICES` fleet array, so after a release the obituary worker kept running stale code until a
+  manual `systemctl restart`. Also added the newsdesk env keys (`OPENROUTER_API_KEY`,
+  `NEWSDESK_MODEL`, `NEWSDESK_DRY_RUN`, safe-default dry-run) to `.env.example`.
 ### Security
 
 ## [0.14.0] - 2026-07-17
