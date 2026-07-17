@@ -8,3 +8,4 @@ export * from "./claimable.js";
 export * from "./survivors.js";
 export * from "./player-kills.js";
 export * from "./player-page.js";
+export * from "./life-timeline.js";

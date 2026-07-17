@@ -64,4 +64,16 @@ describe("GET /players/:gamertag/:map/lives/:n", () => {
     const res = await app.inject({ method: "GET", url: "/players/LivoniaLad/no-such-map/lives/1" });
     expect(res.statusCode).toBe(404);
   });
+
+  it("GET /players/:gamertag/:map/lives/:n returns timeline data with display fields", async () => {
+    // uses this file's existing seeded gamertag/slug/life (LivoniaLad / pa-livonia / life 1)
+    const res = await app.inject({ method: "GET", url: "/players/LivoniaLad/pa-livonia/lives/1" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.gamertag).toBe("LivoniaLad");
+    expect(body.map).toBeTruthy();
+    expect(Array.isArray(body.kills)).toBe(true);
+    expect(body).toHaveProperty("qualifiedAt");
+    expect(Array.isArray(body.sessions)).toBe(true);
+  });
 });
