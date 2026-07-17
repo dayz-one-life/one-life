@@ -1,0 +1,63 @@
+import { describe, it, expect } from "vitest";
+import { buildObituaryFacts, timeAliveLabel } from "../src/facts.js";
+import type { ObituaryTarget } from "../src/pg-store.js";
+
+const target: ObituaryTarget = {
+  lifeId: 1, serverId: 1, gamertag: "Boots", map: "chernarusplus",
+  mapSlug: "chernarus", lifeNumber: 3, lifeStartedAt: new Date("2026-07-09T02:00:00Z"), endedAt: new Date("2026-07-10T02:00:00Z"),
+};
+
+function timeline(over: Partial<{ life: Record<string, unknown>; kills: unknown[]; sessions: unknown[] }> = {}) {
+  return {
+    life: { deathCause: "pvp", deathByGamertag: "Sn1per", deathWeapon: "M4", playtimeSeconds: 7200, ...(over.life ?? {}) },
+    sessions: over.sessions ?? [{}, {}],
+    kills: over.kills ?? [{ distanceMeters: 120 }, { distanceMeters: 300 }, { distanceMeters: null }],
+    character: null,
+    qualifiedAt: null,
+  } as unknown as import("@onelife/read-models").LifeTimeline;
+}
+
+describe("timeAliveLabel", () => {
+  it("uses days over 24h, else h/m", () => {
+    expect(timeAliveLabel(7200)).toBe("2h 0m");
+    expect(timeAliveLabel(90000)).toBe("1d 1h");
+    expect(timeAliveLabel(90)).toBe("1m");
+  });
+});
+
+describe("buildObituaryFacts", () => {
+  it("derives kills, longest kill, sessions, cause category, killer, weapon", () => {
+    const f = buildObituaryFacts(target, timeline());
+    expect(f.kills).toBe(3);
+    expect(f.longestKillMeters).toBe(300);
+    expect(f.sessions).toBe(2);
+    expect(f.causeCategory).toBe("pvp");
+    expect(f.killerGamertag).toBe("Sn1per");
+    expect(f.weapon).toBe("M4");
+    expect(f.timeAliveSeconds).toBe(7200);
+    expect(f.endedAt).toBe("2026-07-10T02:00:00.000Z");
+  });
+
+  it("flags a legend by kills", () => {
+    const f = buildObituaryFacts(target, timeline({ kills: Array.from({ length: 25 }, () => ({ distanceMeters: 10 })) }));
+    expect(f.isLegend).toBe(true);
+  });
+
+  it("flags a fresh-spawn victim (short pvp life) and NOT a legend", () => {
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "pvp", deathByGamertag: "Camper", deathWeapon: "SKS", playtimeSeconds: 600 }, kills: [] }));
+    expect(f.freshSpawnVictim).toBe(true);
+    expect(f.isLegend).toBe(false);
+  });
+
+  it("classifies a non-pvp death as environment, killer null", () => {
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "bled_out", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }));
+    expect(f.causeCategory).toBe("environment");
+    expect(f.killerGamertag).toBeNull();
+    expect(f.freshSpawnVictim).toBe(false);
+  });
+
+  it("classifies a missing cause as unknown", () => {
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: null, deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }));
+    expect(f.causeCategory).toBe("unknown");
+  });
+});

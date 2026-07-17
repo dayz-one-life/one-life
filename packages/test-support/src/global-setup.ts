@@ -27,6 +27,7 @@ const APP_TABLES = [
   "rpt_files",
   "character_sightings",
   "characters",
+  "articles",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */

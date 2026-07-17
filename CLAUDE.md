@@ -193,15 +193,27 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1+R2+R3+R4 shipped): a five-tier visual relaunch replacing the old dark "field
+- **Tabloid redesign** (R1+R2+R3+R4+R5a shipped): a five-tier visual relaunch replacing the old dark "field
   journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
   `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
   **R2** boards restyle (survivors + player dossier;
   spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail
   (spec `docs/superpowers/specs/2026-07-16-r3-controls-rail-design.md`), **R4** life timeline +
   obituary/birth read-model groundwork (spec
-  `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5+** an LLM content engine
-  that finally writes the News/Obituaries/Fresh Spawns pages.
+  `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5a** the newsdesk + Obituaries
+  content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), with
+  **R5b** (Birth Notices / Fresh Spawns) next.
+  **R5a shipped — the newsdesk + Obituaries.** A new durable `articles` table + the `apps/newsdesk`
+  sweep worker turn every qualified death into an obituary written in the One Life tabloid voice via
+  OpenRouter, behind a dry-run gate (`NEWSDESK_DRY_RUN` defaults `true`). The Obituaries section goes
+  live, retiring the static teaser: a reverse-chron `/obituaries` feed and a full interior article at
+  `/obituaries/[slug]` — headline, byline, lede/body, an in-voice pull quote, a factual Rap Sheet, the
+  R4-powered "Final Reload" timeline, tags, "More From the Morgue," a `NewsArticle` JSON-LD block, and
+  a dynamic OG image. Facts (Rap Sheet, Final Reload) are read models only — the LLM writes voice,
+  never invents events (Fog Rule: map dateline, never coordinates). Backed by
+  `getPublishedObituaries`/`getObituaryBySlug` (`packages/read-models/src/obituary-articles.ts`) and
+  public `GET /obituaries` (now published articles) + `GET /obituaries/:slug`. News and Fresh Spawns
+  stay static teasers until R5b/R5d.
   **R4 shipped — the life timeline + R5 groundwork.** A public per-life page at
   `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero (`LifeHero`, the life's
   resolved `getLifeCharacter` → `/characters/<name>.webp`) with a **factual** `Life {n} · {mapLabel}`
@@ -266,13 +278,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   from the sibling `../brand` repo (source of truth, no cross-repo build dependency); and the
   player OG card moved onto the brand palette. Fonts are Oswald + IBM Plex Mono via
   `next/font/google`; Anton (the wordmark's display face) ships only inside the raster wordmark
-  assets, never as a webfont. **Voice-first rule:** News/Obituaries/Fresh Spawns stay static
-  teasers — no fake counts, no dry copy — until the R5+ content engine can actually write them;
-  the underlying read-models land ahead of the UI (R4) but the teasers don't retire until R5+.
+  assets, never as a webfont. **Voice-first rule:** each section's static teaser — no fake counts,
+  no dry copy — stays up until the content engine can actually write it; the underlying
+  read-models land ahead of the UI (R4) but a teaser doesn't retire until its content-engine slice
+  ships. **Obituaries' teaser retired as of R5a**; News and Fresh Spawns stay static until R5b/R5d.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
-- **packages:** `db` (18-table schema + migrations), `domain` (zod events, emote/weapon dicts),
+- **packages:** `db` (schema + migrations, now including the durable `articles` table — the content
+  engine's store for LLM-generated obituaries/birth notices; never truncated on rebuild),
+  `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
@@ -282,6 +297,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
+  `newsdesk` (obituary generation sweep; **`NEWSDESK_DRY_RUN` defaults `true`** — logs intended
+  obituaries without calling OpenRouter or writing; set `false` to generate; needs
+  `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
   systemd unit).

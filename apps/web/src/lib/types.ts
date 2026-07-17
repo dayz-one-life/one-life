@@ -156,3 +156,27 @@ export type LifeTimelineData = {
   map: string;
   slug: string;
 };
+
+export type ObituaryCard = {
+  slug: string;
+  gamertag: string;
+  map: string;
+  mapSlug: string | null;
+  lifeNumber: number;
+  headline: string;
+  lede: string;
+  tags: string[];
+  timeAliveSeconds: number;
+  kills: number;
+  longestKillMeters: number | null;
+  cause: string | null;
+  deathAt: string;
+};
+export type ObituariesFeed = { rows: ObituaryCard[]; total: number; page: number; pageSize: number };
+export type ObituaryArticle = ObituaryCard & {
+  body: string;
+  pullQuote: { text: string; attribution: string } | null;
+  sessions: number;
+  killerGamertag: string | null;
+  weapon: string | null;
+};
