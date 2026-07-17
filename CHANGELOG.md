@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+### Security
+
+## [0.12.1] - 2026-07-17
+
+### Fixed
 - Controls rail: **Cancel claim** now works. The web API client (`apiSend`) sent
   `content-type: application/json` on every request, so a bodyless `DELETE` (cancelling a
   pending gamertag claim) was rejected by Fastify with `400 FST_ERR_CTP_EMPTY_JSON_BODY`
