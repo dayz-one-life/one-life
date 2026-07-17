@@ -33,6 +33,9 @@ export type Life = {
   deathByGamertag: string | null;
   deathWeapon: string | null;
   deathDistance: number | null;
+  energyAtDeath: number | null;
+  waterAtDeath: number | null;
+  bleedSourcesAtDeath: number | null;
   playtimeSeconds: number;
 };
 
@@ -140,3 +143,16 @@ export type SurvivorSort = "kills" | "time" | "longest";
 export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; sort: SurvivorSort; }
+
+export type LifeCharacterDto = { charId: number; characterClass: string | null; name: string | null; gender: string | null; sightings: number; confidence: "exact" | "ambiguous" };
+export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
+export type LifeTimelineData = {
+  life: Life;
+  sessions: Session[];
+  character: LifeCharacterDto | null;
+  kills: PlayerKill[];
+  qualifiedAt: QualifiedAtDto | null;
+  gamertag: string;
+  map: string;
+  slug: string;
+};
