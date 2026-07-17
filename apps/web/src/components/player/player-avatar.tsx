@@ -17,17 +17,21 @@ export function PlayerAvatar({
     return (
       <img
         src={src}
-        alt={character?.name ?? "survivor"}
+        alt=""
+        width={size}
+        height={size}
+        loading="lazy"
+        decoding="async"
         style={box}
-        className={cn("rounded-full border border-line object-cover", dim && "opacity-60 grayscale")}
+        className={cn("border border-hairline object-cover", dim && "opacity-60 grayscale")}
       />
     );
   }
   return (
     <span
-      aria-label="Unknown survivor"
+      aria-hidden="true"
       style={box}
-      className={cn("flex items-center justify-center rounded-full border border-line bg-panel-2 text-muted", dim && "opacity-60")}
+      className={cn("flex items-center justify-center border border-hairline bg-tint text-ink-muted", dim && "opacity-60")}
     >
       <svg viewBox="0 0 24 24" width={size * 0.5} height={size * 0.5} fill="currentColor" aria-hidden="true">
         <circle cx="12" cy="8" r="4" />
