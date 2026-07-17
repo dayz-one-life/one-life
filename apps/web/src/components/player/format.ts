@@ -1,13 +1,8 @@
-import type { PlayerCharacter, PlayerPage } from "@/lib/types";
+import type { PlayerPage } from "@/lib/types";
 
 export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
-}
-
-export function avatarSrc(character: PlayerCharacter | null): string | null {
-  if (!character || !character.name) return null;
-  return `/characters/${character.name.toLowerCase()}.webp`;
 }
 
 export function banCountdown(expiresAt: string | null, now: Date): string | null {

@@ -27,7 +27,7 @@ export function PastLifeCard({ life, now }: { life: PastLife; now: Date }) {
       )}
 
       <p className="mt-2.5 flex flex-wrap gap-x-5 border-t border-hairline-2 pt-2 font-mono text-[11px] uppercase text-ink-soft">
-        <span>{life.kills} kills</span>
+        <span>{life.kills} kill{life.kills === 1 ? "" : "s"}</span>
         <span>{life.longestKillMeters == null ? "—" : `${Math.round(life.longestKillMeters)}m`} longest kill</span>
         <span>{life.sessions} session{life.sessions === 1 ? "" : "s"}</span>
       </p>

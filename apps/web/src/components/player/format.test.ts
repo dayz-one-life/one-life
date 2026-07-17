@@ -1,14 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, avatarSrc, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
+import { formatDuration, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
 
 describe("player format helpers", () => {
   it("formats durations as Xh Ym", () => {
     expect(formatDuration(3720)).toBe("1h 2m");
     expect(formatDuration(-5)).toBe("0h 0m");
-  });
-  it("builds avatar src from character name", () => {
-    expect(avatarSrc({ name: "Helga", head: null, gender: null })).toBe("/characters/helga.webp");
-    expect(avatarSrc(null)).toBeNull();
   });
   it("computes ban countdown, clamped at zero", () => {
     const now = new Date("2026-07-14T12:00:00Z");

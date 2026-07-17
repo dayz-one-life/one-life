@@ -45,4 +45,9 @@ describe("PastLifeCard", () => {
     render(<PastLifeCard life={life({ sessions: 1 })} now={now} />);
     expect(screen.getByText("1 session")).toBeInTheDocument();
   });
+
+  test("singular kill", () => {
+    render(<PastLifeCard life={life({ kills: 1 })} now={now} />);
+    expect(screen.getByText("1 kill")).toBeInTheDocument();
+  });
 });

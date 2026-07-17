@@ -118,7 +118,7 @@ export default async function AboutPage() {
       {servers.length > 0 && (
         <section aria-labelledby="servers-heading" className="mt-10">
           <h2 id="servers-heading" className="border-b-[3px] border-ink pb-2 font-display text-2xl font-bold uppercase">
-            {countWord(servers.length)} servers
+            {countWord(servers.length)} server{servers.length === 1 ? "" : "s"}
           </h2>
           <div className="grid gap-4 py-5 md:grid-cols-3">
             {servers.map((s) => (

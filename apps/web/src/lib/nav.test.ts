@@ -24,4 +24,9 @@ describe("activeNavKey", () => {
   ])("%s → %s", (path, key) => {
     expect(activeNavKey(path)).toBe(key);
   });
+
+  it("a lookalike segment does not light the section", () => {
+    expect(activeNavKey("/newsroom")).toBe(null);
+    expect(activeNavKey("/news/some-story")).toBe("news");
+  });
 });

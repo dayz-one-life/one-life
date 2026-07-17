@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SurvivorSort } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { pageBox, pageBoxLink, pageBoxOff } from "@/components/pagination-box";
 import { boardHref } from "./links";
 import { showingLine } from "./format";
 
@@ -13,10 +14,6 @@ function pageWindow(page: number, totalPages: number): number[] {
   for (let n = start; n <= end; n++) pages.push(n);
   return pages;
 }
-
-const box = "flex min-h-[44px] min-w-[44px] items-center justify-center px-3 font-mono text-[12.5px] uppercase";
-const boxLink = "border border-dash text-ink hover:border-ink";
-const boxOff = "select-none border border-hairline-2 text-ink-muted opacity-60";
 
 export function Pagination({
   slug,
@@ -43,35 +40,35 @@ export function Pagination({
       </span>
       <div className="flex flex-wrap gap-2">
         {showPrev ? (
-          <Link href={boardHref(slug, sort, page - 1)} className={cn(box, boxLink)}>
+          <Link href={boardHref(slug, sort, page - 1)} className={cn(pageBox, pageBoxLink)}>
             <span aria-hidden>← </span>Prev
           </Link>
         ) : (
-          <span aria-hidden className={cn(box, boxOff)}>← Prev</span>
+          <span aria-hidden className={cn(pageBox, pageBoxOff)}>← Prev</span>
         )}
 
         {pageWindow(page, totalPages).map((n) => {
           const active = n === page;
           if (active) {
             return (
-              <span key={n} aria-current="page" className={cn(box, "bg-ink text-paper")}>
+              <span key={n} aria-current="page" className={cn(pageBox, "bg-ink text-paper")}>
                 {n}
               </span>
             );
           }
           return (
-            <Link key={n} href={boardHref(slug, sort, n)} className={cn(box, boxLink)}>
+            <Link key={n} href={boardHref(slug, sort, n)} className={cn(pageBox, pageBoxLink)}>
               {n}
             </Link>
           );
         })}
 
         {showNext ? (
-          <Link href={boardHref(slug, sort, page + 1)} className={cn(box, boxLink)}>
+          <Link href={boardHref(slug, sort, page + 1)} className={cn(pageBox, pageBoxLink)}>
             Next<span aria-hidden> →</span>
           </Link>
         ) : (
-          <span aria-hidden className={cn(box, boxOff)}>Next →</span>
+          <span aria-hidden className={cn(pageBox, pageBoxOff)}>Next →</span>
         )}
       </div>
     </nav>

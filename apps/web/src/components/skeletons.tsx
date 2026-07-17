@@ -20,7 +20,12 @@ export function BoardSkeleton() {
       <div className="border-b border-hairline py-4">
         <Bar className="h-[76px]" />
       </div>
-      {Array.from({ length: 9 }, (_, i) => (
+      {Array.from({ length: 2 }, (_, i) => (
+        <div key={`p${i}`} className="border-b border-hairline py-3.5">
+          <Bar className="h-[60px]" />
+        </div>
+      ))}
+      {Array.from({ length: 7 }, (_, i) => (
         <div key={i} className="border-b border-hairline-2 py-3">
           <Bar className="h-6" />
         </div>
@@ -44,11 +49,19 @@ export function DossierSkeleton() {
           <Bar className="h-12 w-24" />
         </div>
       </div>
-      <div className="mt-7 grid gap-5 md:grid-cols-2">
-        <Bar className="h-48" />
-        <Bar className="h-48" />
-        <Bar className="h-36" />
-        <Bar className="h-36" />
+      <div className="mt-7">
+        <Bar className="h-5 w-44" />
+        <div className="mt-3 grid gap-5 md:grid-cols-2">
+          <Bar className="h-40" />
+          <Bar className="h-40" />
+        </div>
+      </div>
+      <div className="mt-8">
+        <Bar className="h-5 w-56" />
+        <div className="mt-3 grid gap-5 md:grid-cols-2">
+          <Bar className="h-32" />
+          <Bar className="h-32" />
+        </div>
       </div>
     </main>
   );
