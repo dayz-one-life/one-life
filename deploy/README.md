@@ -57,6 +57,14 @@ sudo journalctl -u onelife-api -f         # tail logs
   `OPENROUTER_API_KEY`, and `NEWSDESK_MODEL` (default `anthropic/claude-sonnet-5`) in `.env`.
   **`NEWSDESK_DRY_RUN` defaults `true`** — obituaries are logged, not generated or stored (no
   OpenRouter credits spent); set `false` to actually generate and write them.
+  To also post each published obituary into Discord, set `DISCORD_OBITUARY_WEBHOOK_URL` (an
+  incoming-webhook URL — a **secret**; keep it only in the host `.env`, never commit it) plus
+  `SITE_URL` (default `https://dayzonelife.com`, used to build the absolute obituary link) and
+  optionally `NEWSDESK_DISCORD_MAX_PER_TICK` (default `10`, the per-sweep post cap that drains the
+  back-catalogue on first live run). Empty webhook ⇒ the notifier is a no-op; it respects
+  `NEWSDESK_DRY_RUN`. Delivery is tracked in `articles.discord_posted_at`, so obituaries published
+  while the webhook was unset are posted once it is set. Ships in migration `0010` — a normal
+  `./deploy/deploy.sh` (migrate) picks it up, no `--rebuild`.
 
 ## Environment
 
