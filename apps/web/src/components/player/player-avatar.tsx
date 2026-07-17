@@ -31,7 +31,7 @@ export function PlayerAvatar({
     <span
       aria-hidden="true"
       style={box}
-      className={cn("flex items-center justify-center border border-hairline bg-tint text-ink-muted", dim && "opacity-60")}
+      className={cn("flex items-center justify-center border border-hairline bg-bone text-ink-muted", dim && "opacity-60")}
     >
       <svg viewBox="0 0 24 24" width={size * 0.5} height={size * 0.5} fill="currentColor" aria-hidden="true">
         <circle cx="12" cy="8" r="4" />

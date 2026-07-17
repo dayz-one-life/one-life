@@ -17,9 +17,9 @@ import { ServerCard } from "./server-cards";
 function RailSkeleton() {
   return (
     <div aria-busy="true" className="flex flex-col gap-4">
-      <div aria-hidden className="h-10 animate-pulse bg-tint" />
-      <div aria-hidden className="h-40 animate-pulse bg-tint" />
-      <div aria-hidden className="h-24 animate-pulse bg-tint" />
+      <div aria-hidden className="h-10 animate-pulse bg-bone" />
+      <div aria-hidden className="h-40 animate-pulse bg-bone" />
+      <div aria-hidden className="h-24 animate-pulse bg-bone" />
     </div>
   );
 }

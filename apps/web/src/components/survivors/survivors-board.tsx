@@ -59,7 +59,7 @@ export function SurvivorsBoard({
       </div>
 
       {page.rows.length === 0 ? (
-        <p className="mt-6 bg-tint px-6 py-8 text-center font-mono text-sm uppercase tracking-[.05em] text-ink-muted">
+        <p className="mt-6 bg-bone px-6 py-8 text-center font-mono text-sm uppercase tracking-[.05em] text-ink-muted">
           The coast is quiet. No qualified survivors on record.
         </p>
       ) : (

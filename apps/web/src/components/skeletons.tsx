@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 function Bar({ className }: { className?: string }) {
-  return <div aria-hidden className={cn("animate-pulse bg-tint", className)} />;
+  return <div aria-hidden className={cn("animate-pulse bg-bone", className)} />;
 }
 
 /** Route-level loading state for the survivors board — mirrors the board's container metrics. */

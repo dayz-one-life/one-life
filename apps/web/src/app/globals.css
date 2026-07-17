@@ -9,7 +9,7 @@
   --red: 255 30 18;          /* #FF1E12 — death / breaking */
   --yellow: 255 227 0;       /* #FFE300 — drama / pending; ink text only */
   --blue: 21 82 216;         /* #1552D8 — birth / alive */
-  --tint: 238 240 221;       /* #EEF0DD — brand "Bone" surface (see note) */
+  --bone: 238 240 221;       /* #EEF0DD — brand "Bone" surface */
   --dark: 12 12 8;           /* #0C0C08 — masthead/footer/panels */
 
   /* Canvas neutrals */
@@ -25,20 +25,6 @@
   --cream-dim: 201 199 188;  /* #C9C7BC dim-on-dark */
   --red-soft: 255 107 99;    /* #FF6B63 red lightened for dark bg */
   --discord: 88 101 242;     /* #5865F2 */
-
-  /* Legacy aliases — re-pointed at the new palette so unrebuilt surfaces
-     stay legible. DO NOT use in new code. Delete at the end of R3. */
-  --bg: var(--paper);
-  --panel: var(--tint);
-  --panel-2: var(--archive);
-  --line: var(--hairline);
-  --bone: var(--ink);
-  --dim: var(--ink-soft);
-  --muted: var(--ink-muted);
-  --wash: var(--tint);
-  --amber: var(--red);
-  --blood: var(--red);
-  --steel: var(--blue);
 }
 
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }

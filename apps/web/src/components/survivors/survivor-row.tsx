@@ -33,7 +33,7 @@ function Portrait({ row, size }: { row: SurvivorRowData; size: number }) {
     );
   }
   return (
-    <span aria-hidden="true" style={box} className="flex items-center justify-center border border-hairline bg-tint text-ink-muted">
+    <span aria-hidden="true" style={box} className="flex items-center justify-center border border-hairline bg-bone text-ink-muted">
       <svg viewBox="0 0 24 24" width={size * 0.5} height={size * 0.5} fill="currentColor" aria-hidden="true">
         <circle cx="12" cy="8" r="4" />
         <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
@@ -67,7 +67,7 @@ export function SurvivorRow({
   if (tier === "hero") {
     const sub = subLine(row, sort, showMap, true);
     return (
-      <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-tint px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
+      <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-bone px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[40px] font-bold leading-none text-red">{rank}</span>
         <Portrait row={row} size={76} />
         <div className="min-w-0">
