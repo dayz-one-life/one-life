@@ -36,7 +36,7 @@ describe("StandingCard", () => {
     expect((container.firstChild as HTMLElement).className).toContain("border-l-red");
     expect(screen.getByText("Ban lifts in")).toBeInTheDocument();
     expect(screen.getByText(/2h 0m/)).toBeInTheDocument();
-    expect(screen.getByText("Died — awaiting respawn")).toBeInTheDocument();
+    expect(screen.getByText(/Died — awaiting respawn/)).toBeInTheDocument();
   });
 
   it("null longest kill renders a muted dash", () => {
@@ -48,5 +48,17 @@ describe("StandingCard", () => {
       />
     );
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+});
+
+describe("StandingCard timeline link", () => {
+  it("alive standing links to that life's timeline", () => {
+    const standing: any = {
+      serverId: 1, map: "sakhal", slug: "sakhal", state: "alive", character: null,
+      alive: { lifeId: 5, lifeNumber: 3, startedAt: "2026-07-16T00:00:00Z", timeAliveSeconds: 3600, kills: 0, longestKillMeters: null, killList: [] },
+      ban: null,
+    };
+    wrap(<StandingCard standing={standing} now={now} pageGamertag="YrJustBad" />);
+    expect(screen.getByRole("link", { name: /timeline/i })).toHaveAttribute("href", "/players/yrjustbad/sakhal/lives/3");
   });
 });

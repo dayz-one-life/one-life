@@ -20,7 +20,7 @@ const standing = (over: Partial<ServerStanding>): ServerStanding => ({
 const aliveStanding = (slug: string, map: string, secs: number, kills = 0): ServerStanding =>
   standing({
     slug, map, state: "alive",
-    alive: { lifeId: 1, startedAt: "2026-07-16T05:00:00Z", timeAliveSeconds: secs, kills, longestKillMeters: null, killList: [] },
+    alive: { lifeId: 1, lifeNumber: 1, startedAt: "2026-07-16T05:00:00Z", timeAliveSeconds: secs, kills, longestKillMeters: null, killList: [] },
   });
 
 const bannedStanding = (slug: string, map: string, expiresAt: string | null): ServerStanding =>

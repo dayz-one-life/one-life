@@ -1,8 +1,10 @@
+import Link from "next/link";
 import type { PastLife } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
+import { lifeHref } from "@/lib/life-href";
 import { formatDuration, mapLabel, relativeDate } from "./format";
 
-export function PastLifeCard({ life, now }: { life: PastLife; now: Date }) {
+export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Date; gamertag: string }) {
   const death = life.death;
   return (
     <section className="border border-hairline border-t-4 border-t-ink bg-archive px-5 py-4">
@@ -30,6 +32,12 @@ export function PastLifeCard({ life, now }: { life: PastLife; now: Date }) {
         <span>{life.kills} kill{life.kills === 1 ? "" : "s"}</span>
         <span>{life.longestKillMeters == null ? "—" : `${Math.round(life.longestKillMeters)}m`} longest kill</span>
         <span>{life.sessions} session{life.sessions === 1 ? "" : "s"}</span>
+      </p>
+
+      <p className="mt-2 text-right">
+        <Link href={lifeHref(gamertag, life.slug, life.lifeNumber)} className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted underline hover:text-red">
+          Timeline <span aria-hidden>→</span>
+        </Link>
       </p>
     </section>
   );

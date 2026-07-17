@@ -1,5 +1,7 @@
+import Link from "next/link";
 import type { ServerStanding } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { lifeHref } from "@/lib/life-href";
 import { PlayerAvatar } from "./player-avatar";
 import { KillList } from "./kill-list";
 import { SelfUnbanButton } from "./self-unban-button";
@@ -13,6 +15,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
     alive && standing.alive ? `Alive ${formatDuration(standing.alive.timeAliveSeconds)}`
     : banned ? "Died — awaiting respawn"
     : "No open life";
+  const timelineLifeNumber = alive && standing.alive ? standing.alive.lifeNumber : banned ? standing.ban?.triggeringLifeNumber ?? null : null;
 
   return (
     <section className={cn("border border-hairline bg-white p-5", banned && "border-l-4 border-l-red")}>
@@ -20,7 +23,17 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
         <PlayerAvatar character={standing.character} size={48} dim={!alive} />
         <div className="min-w-0 flex-1">
           <p className="font-display text-[19px] font-bold uppercase leading-none text-ink">{mapLabel(standing.map)}</p>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">{sub}</p>
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">
+            {sub}
+            {timelineLifeNumber != null && (
+              <>
+                {" · "}
+                <Link href={lifeHref(pageGamertag, standing.slug, timelineLifeNumber)} className="underline hover:text-red">
+                  Timeline <span aria-hidden>→</span>
+                </Link>
+              </>
+            )}
+          </p>
         </div>
         <span
           className={cn(
