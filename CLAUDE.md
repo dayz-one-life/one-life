@@ -258,7 +258,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   Escape, scroll lock, focus restore; keyed on `open` only via an `onCloseRef` so parent re-renders
   don't steal focus). **`POST /me/tokens/transfer` and `POST /me/referrer` take a verified gamertag**
   (`{ toGamertag }`/`{ referrerGamertag }`, resolved case-insensitively against verified
-  `gamertag_links`; `not_verified` on miss), not a raw user id. **R3 also closed the R1 compat-shim
+  `gamertag_links`; `not_verified` on miss), not a raw user id. **Both token fields (send + referrer)
+  autocomplete over verified players, excluding the signed-in user** — a `searchVerifiedGamertags`
+  read-model (`packages/read-models/src/claimable.ts`, verified mirror of `searchClaimableGamertags`)
+  served at public `GET /players/search/verified` (a static route alongside `/players/search`), with
+  client-side case-insensitive self-exclusion. The claim field and both token fields share one
+  presentational **`<GamertagAutocomplete>`** (`@/components/controls/gamertag-autocomplete` — debounce,
+  race guard, skip-after-pick, absolutely-positioned overlay dropdown; `fetchSuggestions` is injected,
+  so pass a **stable** reference); `TokensPanel` takes `myGamertag?` (from `rail`/`mobile-controls`)
+  as its `exclude`. **R3 also closed the R1 compat-shim
   story:** the legacy token aliases and `font-hand` are deleted, `--tint` was renamed **`--bone`**
   (brand "Bone" surface), the `ui/` primitives (Button/Input/Table) are gone, and the login page was
   restyled into the tabloid language. **R1 shipped:** Paper/Ink/Red RGB-triple design tokens

@@ -67,4 +67,14 @@ describe("player + life routes", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual([]);
   });
+  it("returns verified gamertags matching a prefix", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/search/verified?q=Al" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(["Alpha"]);
+  });
+  it("returns an empty array below the min query length for the verified search", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/search/verified?q=A" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
+  });
 });

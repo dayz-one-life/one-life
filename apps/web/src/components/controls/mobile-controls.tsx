@@ -100,6 +100,7 @@ export function MobileControls() {
               referrer={mutView(a.refer)}
               onSend={(gt) => a.send.mutate(gt)}
               onSetReferrer={() => {}}
+              myGamertag={gamertag ?? undefined}
             />
             {cards.map((card) => (
               <SheetServerRow

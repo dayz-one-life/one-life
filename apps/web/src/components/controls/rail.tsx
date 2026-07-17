@@ -106,6 +106,7 @@ export function ControlsRail() {
           referrer={mutView(a.refer)}
           onSend={(gt) => a.send.mutate(gt)}
           onSetReferrer={(gt) => a.refer.mutate(gt)}
+          myGamertag={gamertag}
         />
         <h2 className="border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink">
           Your servers

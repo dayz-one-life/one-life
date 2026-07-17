@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   models only — the LLM writes voice, never invents events (Fog Rule: map dateline, never
   coordinates). Backed by `getPublishedObituaries`/`getObituaryBySlug` and public `GET /obituaries`
   (now published articles) + `GET /obituaries/:slug`.
+- Controls rail: the **Send to verified player** and **Referred by** token fields now autocomplete
+  over verified players, excluding the signed-in user. Backed by a new `searchVerifiedGamertags`
+  read-model and a public `GET /players/search/verified` route (the verified mirror of the claim
+  field's `/players/search`). The claim field and both token fields now share one
+  `<GamertagAutocomplete>` component (debounce, race guard, skip-after-pick, overlay dropdown);
+  self-exclusion is client-side and case-insensitive.
 ### Changed
 ### Deprecated
 ### Removed

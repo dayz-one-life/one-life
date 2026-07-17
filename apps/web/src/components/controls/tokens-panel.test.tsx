@@ -1,6 +1,11 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { TokensPanel } from "./tokens-panel";
+import { searchVerifiedGamertags } from "@/lib/api";
+
+vi.mock("@/lib/api", () => ({
+  searchVerifiedGamertags: vi.fn(async () => [] as string[]),
+}));
 
 const idle = { pending: false, error: null, ok: false };
 
@@ -45,5 +50,25 @@ describe("TokensPanel", () => {
     expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
     rerender(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} showReferrer={false} />);
     expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
+  });
+
+  test("send suggests verified players and excludes the current player", async () => {
+    vi.mocked(searchVerifiedGamertags).mockResolvedValueOnce(["MeGamer", "OtherGuy"]);
+    render(
+      <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("Send a token to a verified player"), { target: { value: "Ga" } });
+    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+  });
+
+  test("referrer suggests verified players and excludes the current player", async () => {
+    vi.mocked(searchVerifiedGamertags).mockResolvedValueOnce(["MeGamer", "OtherGuy"]);
+    render(
+      <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("Referred by"), { target: { value: "Ga" } });
+    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 });
