@@ -1,5 +1,5 @@
 import type { SurvivorsPage } from "@/lib/types";
-import { absoluteUrl } from "@/lib/seo";
+import { absoluteUrl, ldScript } from "@/lib/seo";
 import { SurvivorControls } from "./survivor-controls";
 import { SurvivorRow } from "./survivor-row";
 import { Pagination } from "./pagination";
@@ -46,7 +46,7 @@ export function SurvivorsBoard({
     <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd(page, slug)) }}
+        dangerouslySetInnerHTML={{ __html: ldScript(itemListLd(page, slug)) }}
       />
 
       <header className="border-b-[3px] border-ink pb-4">

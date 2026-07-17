@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 ### Fixed
 ### Security
+- JSON-LD script tags now serialize through a shared `ldScript()` helper that escapes `<`/`>`/`&`,
+  so LLM-authored obituary text (or any field) can't break out of `<script type="application/ld+json">`.
+  Applied to all three sinks (obituary article, player profile, survivors board).
 
 ## [0.12.1] - 2026-07-17
 

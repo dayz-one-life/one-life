@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getObituary, getObituariesFeed, getPlayerLife } from "@/lib/api";
 import { buildTimeline, type LifeTimelineView } from "@/lib/life-timeline";
 import { ObituaryArticleView } from "@/components/obituaries/obituary-article";
-import { articleLd, absoluteUrl } from "@/lib/seo";
+import { articleLd, absoluteUrl, ldScript } from "@/lib/seo";
 import { obituaryHref } from "@/lib/obituary-format";
 import { playerSlug } from "@/lib/slug";
 
@@ -43,7 +43,7 @@ export default async function ObituaryPage({ params }: Props) {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldScript(ld) }} />
       <ObituaryArticleView article={article} more={more} finalReload={finalReload} now={now} />
     </>
   );

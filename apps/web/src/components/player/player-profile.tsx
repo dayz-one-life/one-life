@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { PlayerPage } from "@/lib/types";
-import { absoluteUrl, profileLd } from "@/lib/seo";
+import { absoluteUrl, profileLd, ldScript } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { PlayerHero } from "./player-hero";
 import { StandingCard } from "./standing-card";
@@ -19,7 +19,7 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldScript(ld) }} />
 
       <Link href="/survivors" className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted hover:text-red">
         <span aria-hidden>← </span>Survivors
