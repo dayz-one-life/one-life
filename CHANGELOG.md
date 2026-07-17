@@ -28,9 +28,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   board a11y (decorative square portraits with lazy-loading hygiene, non-focusable disabled
   pagination edges, aria-hidden glyphs); site basics: skip-to-content link, global red
   `:focus-visible` ring, and a `red-deep` token for small-size error text.
+- Tabloid redesign R3 — controls rail. A single account surface driven by one
+  `accountStatus`-based data layer (`useControls`/`useControlsActions`): a persistent desktop
+  **controls rail** (root-layout `xl:` two-column grid — main column + 380px rail) and a mobile
+  floating **pill + bottom sheet** (canvas 10a–d), each reflecting the viewer's state —
+  signed-out sign-in CTA, unlinked in-rail gamertag link (autocomplete), pending in-rail emote
+  "prove it's you" challenge, verified identity + unban-token wallet + per-server standing cards
+  (alive/no-life/banned with live ban countdown + self-unban CTA). The mobile menu and sheet
+  share a `useModalBehavior` hook (focus trap, Escape, scroll lock, focus restore). Login page
+  restyled into the tabloid language. Token **transfer and referrer** now resolve a verified
+  **gamertag** (case-insensitive) instead of a raw user id.
 ### Deprecated
 ### Removed
+- Retired the standalone account surface — `/account` and `/account/claim` pages, the
+  site-wide status banner, and the masthead account slot — replaced by the R3 controls rail /
+  pill. Deleted the last legacy design-token aliases (`--bg/--panel/--line/--amber/--blood/…`)
+  and the `font-hand` shim now that nothing consumes them, and renamed the `tint` surface token
+  to `bone`. Removed the legacy `ui/` primitives (Button/Input/Table).
 ### Fixed
+- Consolidated R1/R2 carried-forward duplication: one shared pagination-box style, one
+  `CharacterImage` (with `characterSrc`) behind both the survivor portrait and player avatar,
+  one shared dossier `Stat`, a discriminated `SkewCta` href|onClick union, and richer loading
+  skeletons; plus `activeNavKey` exact-segment matching and singular/plural count copy.
 ### Security
 
 ## [0.11.1] - 2026-07-16
