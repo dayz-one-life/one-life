@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { generateObituary, type CompletionClient } from "../src/generate.js";
+import { generateObituary, generateBirthNotice, type CompletionClient } from "../src/generate.js";
 import type { ObituaryFacts } from "../src/facts.js";
-import { generateBirthNotice } from "../src/generate.js";
 import type { BirthFacts } from "../src/birth-facts.js";
 
 const facts: ObituaryFacts = {
