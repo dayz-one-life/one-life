@@ -382,9 +382,11 @@ export const articles = pgTable("articles", {
   imagePrompt: text("image_prompt"),                                // reserved for R5c
   imageKind: text("image_kind"),                                    // reserved for R5c
   generatedAt: timestamp("generated_at", { withTimezone: true }),
+  discordPostedAt: timestamp("discord_posted_at", { withTimezone: true }), // set when the obituary link was posted to Discord; NULL = unposted
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq").on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt),
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
+  discordUnpostedIdx: index("articles_discord_unposted_idx").on(t.deathAt).where(sql`${t.status} = 'published' AND ${t.discordPostedAt} IS NULL`),
 }));

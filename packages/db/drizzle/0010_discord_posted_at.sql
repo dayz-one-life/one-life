@@ -1,0 +1,2 @@
+ALTER TABLE "articles" ADD COLUMN "discord_posted_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "articles_discord_unposted_idx" ON "articles" USING btree ("death_at") WHERE "articles"."status" = 'published' AND "articles"."discord_posted_at" IS NULL;
