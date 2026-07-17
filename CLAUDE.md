@@ -129,10 +129,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `boardHref` (path-based; drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD). The
   `SurvivorControls` map tabs are alphabetical by label with **All maps** first (`buildTabs`), and the
   sort pills are ordered **Time alive → Kills → Longest kill**. Old
-  `?sort=` query links are ignored (render the default). Each page has an SEO `<h1>` = `Top {Map}
-  survivors by {sort}` (combined drops the map name); each row shows gamertag, map, an 80px character
-  avatar, and **only the stat being sorted by** (kills / time alive / longest kill, all **this-life**
-  since `life.startedAt`). Backed by the `getAliveSurvivors` read-model
+  `?sort=` query links are ignored (render the default). **R2 restyle:** the visible `<h1>` is
+  `Survivors` / `{Map} survivors` (the full SEO phrase `Top {Map} survivors by {sort}` lives only in
+  `<title>`/OG via `survivor-metadata.ts`); rows are **tiered by global rank** (`tierFor`,
+  `@/components/survivors/format`): rank 1 = hero row on tint with a 76px square portrait and the
+  only stat label, ranks 2–3 = podium rows with 60px portraits, 4+ (and all of pages 2+) = compact
+  text rows with no portrait. Every row still shows **only the stat being sorted by** (kills / time
+  alive / longest kill, all **this-life** since `life.startedAt`); portraits are decorative
+  (`alt=""`, no img role — tests query the DOM directly). Pagination is a mono-box bar with a
+  clamped `showingLine` and non-focusable disabled edges; board + dossier routes have `loading.tsx`
+  skeletons (`@/components/skeletons`). Backed by the `getAliveSurvivors` read-model
   (`packages/read-models/src/survivors.ts`; **sort-aware tie-break** — primary sort → the other two
   metrics in a fixed order → gamertag, via a NaN-safe skip-if-equal comparator) and the public
   `GET /survivors[/:slug]` API route (Zod `sort` default `time`). Avatars resolve via
@@ -140,7 +146,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   unknown/no character). Gamertag filtering was scoped out of this pass.
 - **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
   hero, per-server current standing (alive / banned / idle) with a live ban countdown, paginated
-  past-life history (kill lists, vitals, sessions), a dynamic OpenGraph share image, and
+  past-life history (since R2: compact **funeral cards** — map, dateline, death line, and a
+  kills/longest-kill/sessions counts strip only; kill lists + vitals return with the R4 life
+  timeline), a dynamic OpenGraph share image, and
   `ProfilePage` JSON-LD. The slug is the gamertag slugified (`playerSlug`, `@/lib/slug`) and resolved
   back via `resolveGamertagBySlug` (`packages/read-models/src/player-aggregate.ts`); the page is
   powered by a new `getPlayerPage` read-model (`packages/read-models/src/player-page.ts`) and an
@@ -156,7 +164,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **Redesign (v0.11.0):** single roomy column, everything always visible (no `<details>`
   expand/collapse). The hero is **avatar-free** with a full-width stat band via the shared
   `heroStats` helper (`@/components/player/format`) — always Lives / Deaths / Longest life; **Kills
-  only when > 0**; **Longest life is always the amber-highlighted stat**. Current-standing cards are
+  only when > 0**; since R2, **Deaths is the red-highlighted (`hot`) stat** (the OG card inherits
+  this via `heroStats`), plus a first-seen over-line (`aliveMaps` helper), a blue `Alive ×N` skew
+  badge, and a red rubber-stamp Verified mark. Current-standing cards are
   **state-colored** (green alive / red banned / neutral idle); past-life cards are **muted archive**
   styling to read as history. Past lives are **paginated** — `getPlayerPage(db, gamertag, now, { page,
   pageSize })` (`PLAYER_PAST_LIVES_PAGE_SIZE = 10`) gathers the lightweight full set for totals +
@@ -188,10 +198,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1 shipped): a five-tier visual relaunch replacing the old dark "field
+- **Tabloid redesign** (R1+R2 shipped): a five-tier visual relaunch replacing the old dark "field
   journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
-  `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell
-  (this pass), **R2** boards restyle (survivors + player dossier), **R3** controls rail (replaces
+  `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
+  **R2** boards restyle (survivors + player dossier;
+  spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail (replaces
   `/account`, `/account/claim`, the status banner, and the masthead slot), **R4** life timeline +
   obituary/birth read-model groundwork, **R5+** an LLM content engine that finally writes the
   News/Obituaries/Fresh Spawns pages. **R1 shipped:** Paper/Ink/Red RGB-triple design tokens

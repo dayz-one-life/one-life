@@ -4,7 +4,7 @@ import { useSession } from "@/lib/auth-client";
 import { useGamertagLinks } from "@/lib/use-gamertag-links";
 import { activeLink } from "@/lib/active-link";
 import { getTokens, redeemToken } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { SkewCta } from "@/components/tabloid/skew-cta";
 
 export type UnbanState = "hidden" | "ready" | "no-tokens" | "pending";
 
@@ -20,27 +20,24 @@ export function UnbanView({
   if (state === "hidden") return null;
   if (state === "pending") {
     return (
-      <p className="mt-3 rounded bg-panel-2 px-3 py-2 text-center text-sm text-muted">
-        ⏳ Unban pending — lifting shortly…
+      <p className="mt-3 bg-tint px-3 py-2 text-center font-mono text-xs uppercase tracking-[.05em] text-ink-soft">
+        Unban pending — lifting shortly…
       </p>
     );
   }
   const ready = state === "ready";
   return (
-    <div className="mt-3">
-      <button
-        onClick={ready ? onRedeem : undefined}
-        disabled={!ready}
-        className={cn(
-          "w-full rounded px-3 py-2 text-sm font-hand",
-          ready ? "bg-amber text-black" : "border border-line text-muted",
-        )}
-      >
-        {ready ? "Spend 1 token to unban now" : "No unban tokens"}
-      </button>
-      <p className="mt-1 text-center text-xs text-muted">
+    <div className="mt-3 text-center">
+      {ready ? (
+        <SkewCta onClick={onRedeem}>Spend 1 token — skip the wait</SkewCta>
+      ) : (
+        <p className="border border-dashed border-dash px-3 py-2 font-mono text-xs uppercase tracking-[.05em] text-red-deep">
+          No unban tokens
+        </p>
+      )}
+      <p className="mt-2 font-mono text-[11px] text-ink-muted">
         {ready
-          ? `🎟️ You have ${balance} unban token${balance === 1 ? "" : "s"}`
+          ? `You have ${balance} unban token${balance === 1 ? "" : "s"}`
           : "Earn tokens monthly, by referral, or on verification"}
       </p>
     </div>

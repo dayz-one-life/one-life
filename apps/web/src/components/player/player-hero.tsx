@@ -1,28 +1,39 @@
 import type { PlayerPage } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { heroStats, monthYear, heroStatusLine } from "./format";
+import { heroStats, monthYear, aliveMaps } from "./format";
 
 export function PlayerHero({ page }: { page: PlayerPage }) {
   const stats = heroStats(page.totals);
-  const since = page.firstSeenAt ? monthYear(page.firstSeenAt) : null;
-  const status = page.aliveAnywhere ? heroStatusLine(page) : null;
-  const sub = [since ? `First seen ${since}` : null, status].filter(Boolean).join(" · ");
+  const alive = aliveMaps(page);
+  const overline = page.firstSeenAt
+    ? `First seen ${monthYear(page.firstSeenAt)}${alive.length ? ` · alive on ${alive.join(", ")}` : ""}`
+    : null;
+
   return (
-    <header className="space-y-6">
-      <div className="text-center">
-        <h1 className="font-display text-4xl text-bone sm:text-5xl">{page.gamertag}</h1>
-        {page.verified && (
-          <p className="mt-3">
-            <span className="rounded-full border border-blue/40 px-3 py-1 text-xs text-blue">✓ Verified survivor</span>
-          </p>
+    <header className="border-b-[3px] border-ink pb-6">
+      {overline && (
+        <p className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{overline}</p>
+      )}
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h1 className="font-display text-5xl font-bold uppercase leading-[.92] text-ink sm:text-6xl">{page.gamertag}</h1>
+        {alive.length > 0 && (
+          <span className="-skew-x-[5deg] bg-blue px-2.5 pb-0.5 pt-1 font-display text-xs font-bold uppercase tracking-[.1em] text-white">
+            {alive.length > 1 ? `Alive ×${alive.length}` : "Alive"}
+          </span>
         )}
-        {sub && <p className="mt-3 text-xs text-muted">{sub}</p>}
+        {page.verified && (
+          <span className="-rotate-6 border-2 border-red px-2.5 pb-0.5 pt-1 font-display text-xs font-bold uppercase tracking-[.12em] text-red">
+            Verified
+          </span>
+        )}
       </div>
-      <div className="flex overflow-hidden rounded-xl border border-line">
-        {stats.map((st, i) => (
-          <div key={st.label} className={cn("flex-1 bg-panel-2 px-2 py-4 text-center", i > 0 && "border-l border-line")}>
-            <span className={cn("block font-display text-2xl", st.hot ? "text-amber" : "text-bone")}>{st.value}</span>
-            <span className="mt-1 block text-[9px] uppercase tracking-wide text-muted">{st.label}</span>
+      <div className="mt-5 grid grid-cols-2 gap-y-4 sm:flex sm:gap-x-9">
+        {stats.map((st) => (
+          <div key={st.label}>
+            <span className={cn("block font-display text-[32px] font-bold leading-none", st.hot ? "text-red" : "text-ink")}>
+              {st.value}
+            </span>
+            <span className="mt-1 block font-mono text-[10px] uppercase tracking-[.08em] text-ink-muted">{st.label}</span>
           </div>
         ))}
       </div>

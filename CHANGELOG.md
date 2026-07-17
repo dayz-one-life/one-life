@@ -14,6 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   News/Obituaries/Fresh Spawns, restyled status banner, brand favicon kit, and the player OG
   card on the brand palette. Legacy color tokens remap to the new palette as compat shims
   (removed in R3).
+- Tabloid redesign R2 — boards restyle. Survivors board per canvas 13a: tiered rows by global
+  rank (rank 1 hero row on tint with 76px portrait + stat label, ranks 2–3 podium with 60px
+  portraits, 4+ compact text rows), skewed map chips + mono sort links, mono-box pagination
+  with a clamped "Showing x–y of N still breathing" line, quiet-coast empty state; the visible
+  h1 becomes "Survivors"/"{Map} survivors" (the SEO phrase stays in `<title>`/OG metadata).
+  Player dossier per 13b: avatar-free hero with first-seen over-line, blue "Alive ×N" skew
+  badge, red Verified stamp, stat band with **Deaths as the red stat** (OG card inherits);
+  2-col state-colored standing cards (blue Alive / red Banned with 4px red left border,
+  kills-this-life list, ban-lifts box, "Spend 1 token — skip the wait" self-unban CTA);
+  past lives become compact archive "funeral cards" (counts only — kill lists/vitals return
+  with the R4 life timeline). Route-level loading skeletons for all board + dossier pages;
+  board a11y (decorative square portraits with lazy-loading hygiene, non-focusable disabled
+  pagination edges, aria-hidden glyphs); site basics: skip-to-content link, global red
+  `:focus-visible` ring, and a `red-deep` token for small-size error text.
 ### Deprecated
 ### Removed
 ### Fixed

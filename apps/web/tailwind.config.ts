@@ -11,6 +11,7 @@ export default {
         paper: v("paper"),
         ink: v("ink"),
         red: v("red"),
+        "red-deep": v("red-deep"),
         yellow: v("yellow"),
         blue: v("blue"),
         tint: v("tint"),

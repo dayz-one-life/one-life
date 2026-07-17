@@ -8,8 +8,9 @@ describe("GamertagLink", () => {
     const link = screen.getByRole("link", { name: "xSgt Hartman" });
     expect(link).toHaveAttribute("href", "/players/xsgt-hartman");
   });
-  it("uses the hand font utility", () => {
+  it("renders the gamertag text and link", () => {
     render(<GamertagLink gamertag="Twhizzle4life" />);
-    expect(screen.getByRole("link").className).toContain("font-hand");
+    const link = screen.getByRole("link", { name: "Twhizzle4life" });
+    expect(link).toHaveAttribute("href", "/players/twhizzle4life");
   });
 });
