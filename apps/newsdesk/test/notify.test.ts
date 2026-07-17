@@ -6,10 +6,12 @@ import type { DiscordPostResult } from "../src/discord.js";
 const FAKE_DB = {} as any; // fake store ignores db
 
 function row(id: number, slug: string): UnpostedObituary {
-  return { id, slug, headline: "H", gamertag: "Tag" };
+  return { id, slug, gamertag: "Tag" };
 }
 
-function makeDeps(over: Partial<NotifyDeps> & { rows?: UnpostedObituary[]; postResults?: DiscordPostResult[] }) {
+function makeDeps(
+  over: Partial<NotifyDeps> & { rows?: UnpostedObituary[]; postResults?: DiscordPostResult[]; markThrows?: boolean },
+) {
   const marked: number[] = [];
   const logs: { level: string; obj: unknown; msg?: string }[] = [];
   const seenLimits: number[] = [];
@@ -31,6 +33,7 @@ function makeDeps(over: Partial<NotifyDeps> & { rows?: UnpostedObituary[]; postR
         return (over.rows ?? []).slice(0, opts.limit);
       },
       markObituaryPosted: async (_db, id) => {
+        if (over.markThrows) throw new Error("stamp db error");
         marked.push(id);
       },
     },
@@ -77,6 +80,18 @@ describe("notifyDiscord", () => {
     const { deps, seenLimits } = makeDeps({ maxPerTick: 3, rows: [] });
     await notifyDiscord(FAKE_DB, deps);
     expect(seenLimits).toEqual([3]);
+  });
+
+  it("continues and warns (does not abort the batch) if the stamp fails after a successful post", async () => {
+    const { deps, logs, getPostCalls } = makeDeps({
+      rows: [row(1, "a"), row(2, "b")],
+      postResults: [{ ok: true }, { ok: true }],
+      markThrows: true,
+    });
+    const res = await notifyDiscord(FAKE_DB, deps);
+    expect(res).toEqual({ posted: 2, failed: 0, disabled: false }); // both delivered
+    expect(getPostCalls()).toBe(2); // did not abort after the first stamp failure
+    expect(logs.some((l) => l.level === "warn" && String(l.msg).includes("stamp failed"))).toBe(true);
   });
 
   it("stops posting on a 429 and does not touch remaining rows", async () => {

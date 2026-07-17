@@ -23,7 +23,14 @@ export type NotifyResult = { posted: number; failed: number; disabled: boolean }
 
 /** Post published-but-unposted obituary links to Discord, oldest death first, and stamp each on
  *  success. Idempotent + self-retrying: delivery state lives in the table, so a transient outage,
- *  worker restart, or the dry-run→live switch never drops an obituary. */
+ *  worker restart, or the dry-run→live switch never drops an obituary.
+ *
+ *  Delivery is AT-LEAST-ONCE. The POST and the discord_posted_at stamp are two non-atomic steps and
+ *  a plain webhook has no idempotency key, so if a post succeeds but the stamp write fails, the row
+ *  stays unposted and re-posts next tick (a rare duplicate). We stamp only AFTER a confirmed post —
+ *  the inverse (stamp first) would DROP obituaries on a post failure, which the design forbids.
+ *  Assumes a single newsdesk instance (one systemd unit); concurrent instances would race the
+ *  unlocked SELECT. */
 export async function notifyDiscord(db: Database, deps: NotifyDeps): Promise<NotifyResult> {
   if (!deps.webhookUrl) return { posted: 0, failed: 0, disabled: true };
 
@@ -41,8 +48,14 @@ export async function notifyDiscord(db: Database, deps: NotifyDeps): Promise<Not
 
     const res = await deps.post(deps.webhookUrl, url);
     if (res.ok) {
-      await deps.store.markObituaryPosted(db, row.id, deps.now);
-      posted++;
+      posted++; // delivered — count it even if the stamp below fails (message did go out)
+      try {
+        await deps.store.markObituaryPosted(db, row.id, deps.now);
+      } catch (e) {
+        // Delivered but not stamped: keep going (one transient DB blip must not stall the batch);
+        // the row re-posts next tick. Distinct warning so the rare duplicate is diagnosable.
+        deps.log.warn?.({ err: e, id: row.id }, "Discord post delivered but stamp failed — may re-post next tick");
+      }
     } else if (res.rateLimited) {
       deps.log.warn?.({ retryAfterSeconds: res.retryAfterSeconds }, "Discord rate limited; stopping sweep (retries next tick)");
       break;

@@ -164,8 +164,7 @@ export async function recordObituaryFailure(
 export interface UnpostedObituary {
   id: number;
   slug: string;          // filtered NOT NULL below
-  headline: string | null;
-  gamertag: string;
+  gamertag: string;      // for log context (dry-run / failure lines)
 }
 
 /** Published obituaries not yet posted to Discord — oldest death first (backlog replays in order). */
@@ -174,7 +173,7 @@ export async function findUnpostedObituaries(
   opts: { limit: number },
 ): Promise<UnpostedObituary[]> {
   const rows = await db
-    .select({ id: articles.id, slug: articles.slug, headline: articles.headline, gamertag: articles.gamertag })
+    .select({ id: articles.id, slug: articles.slug, gamertag: articles.gamertag })
     .from(articles)
     .where(
       and(
