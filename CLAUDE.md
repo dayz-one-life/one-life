@@ -284,6 +284,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   Typecheck: `pnpm turbo run typecheck`.
 - Local Postgres: `docker compose up -d postgres`. **Note:** a gitignored
   `docker-compose.override.yml` may remap the host port (this dev machine uses 5434, not 5432).
+  `.gitignore` covers OS cruft (`.DS_Store`); prefer `git add -p`/explicit paths over `git add -A`
+  at the repo root so stray untracked files don't ride into a commit.
 - Deploy (prod): `./deploy/deploy.sh` deploys the latest release tag (build → backup → migrate →
   restart fleet → health-check); add `--rebuild` for releases that change projection-table shape
   (truncate + re-fold from the event log). See `deploy/README.md`.

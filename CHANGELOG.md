@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the desktop rail and the mobile sheet (the profile link still appears only when verified).
 - Signed-out visitors on mobile get a floating **Sign in** box (the mobile counterpart of the
   rail's sign-in CTA), so logging in no longer means scrolling to the page footer.
+- Repo hygiene: stopped tracking `.DS_Store` and added it (plus `**/.DS_Store`) to `.gitignore`.
 ### Security
 
 ## [0.12.0] - 2026-07-17
