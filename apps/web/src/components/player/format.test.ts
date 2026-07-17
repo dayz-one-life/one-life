@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatDuration, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
+import type { ServerStanding } from "@/lib/types";
 
 describe("player format helpers", () => {
   it("formats durations as Xh Ym", () => {
@@ -41,11 +42,11 @@ describe("heroStats", () => {
 
 describe("aliveMaps", () => {
   it("aliveMaps lists alive servers by label", () => {
-    const standing = [
+    const standing: Array<Pick<ServerStanding, "state" | "map">> = [
       { state: "alive", map: "sakhal" },
       { state: "banned", map: "chernarusplus" },
       { state: "alive", map: "enoch" },
-    ] as never;
+    ];
     expect(aliveMaps({ standing })).toEqual(["Sakhal", "Livonia"]);
   });
 });

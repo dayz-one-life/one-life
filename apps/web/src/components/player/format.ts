@@ -1,4 +1,4 @@
-import type { PlayerPage } from "@/lib/types";
+import type { ServerStanding } from "@/lib/types";
 
 export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -15,7 +15,7 @@ export function mapLabel(map: string): string {
   return MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function aliveMaps(page: Pick<PlayerPage, "standing">): string[] {
+export function aliveMaps(page: { standing: Array<Pick<ServerStanding, "state" | "map">> }): string[] {
   return page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
 }
 
