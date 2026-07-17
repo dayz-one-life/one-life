@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { players, gamertagLinks, user } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
-import { searchClaimableGamertags } from "../src/index.js";
+import { searchClaimableGamertags, searchVerifiedGamertags } from "../src/index.js";
 import { getTestDb } from "@onelife/test-support";
 
 const { db, sql } = getTestDb();
@@ -27,5 +27,14 @@ describe("searchClaimableGamertags", () => {
   it("prefix-matches unverified gamertags, case-insensitively, excluding verified ones", async () => {
     const rows = await searchClaimableGamertags(db, "Al", 10);
     expect(rows).toEqual(["Alalpha"]);
+  });
+});
+
+describe("searchVerifiedGamertags", () => {
+  it("prefix-matches only verified gamertags, case-insensitively", async () => {
+    expect(await searchVerifiedGamertags(db, "al", 10)).toEqual(["Alpha"]);
+  });
+  it("returns nothing when no verified gamertag matches the prefix", async () => {
+    expect(await searchVerifiedGamertags(db, "Bet", 10)).toEqual([]);
   });
 });

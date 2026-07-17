@@ -100,6 +100,8 @@ export const cancelGamertagLink = (id: number) =>
   apiSend<{ status: string }>("DELETE", `/api/me/gamertag-links/${id}`);
 export const searchClaimableGamertags = (q: string) =>
   apiGet<string[]>(`/api/players/search?q=${encodeURIComponent(q)}`);
+export const searchVerifiedGamertags = (q: string) =>
+  apiGet<string[]>(`/api/players/search/verified?q=${encodeURIComponent(q)}`);
 
 export type TokenTransaction = { id: number; delta: number; kind: string; createdAt: string };
 export type TokenWalletData = { balance: number; transactions: TokenTransaction[] };

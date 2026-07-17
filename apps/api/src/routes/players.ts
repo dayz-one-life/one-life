@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import { z } from "zod";
-import { getPlayerProfile, getPlayerLives, getLifeDetail, searchClaimableGamertags } from "@onelife/read-models";
+import { getPlayerProfile, getPlayerLives, getLifeDetail, searchClaimableGamertags, searchVerifiedGamertags } from "@onelife/read-models";
 
 const gamertagParams = z.object({ serverId: z.coerce.number().int().positive(), gamertag: z.string().min(1) });
 const lifeParams = z.object({ serverId: z.coerce.number().int().positive(), lifeId: z.coerce.number().int().positive() });
@@ -12,6 +12,13 @@ export function registerPlayerRoutes(app: FastifyInstance, db: Database): void {
     const prefix = q.success ? q.data.q.trim() : "";
     if (prefix.length < 2) return [];
     return searchClaimableGamertags(db, prefix, 10);
+  });
+
+  app.get("/players/search/verified", async (req) => {
+    const q = z.object({ q: z.string() }).safeParse(req.query);
+    const prefix = q.success ? q.data.q.trim() : "";
+    if (prefix.length < 2) return [];
+    return searchVerifiedGamertags(db, prefix, 10);
   });
 
   app.get("/servers/:serverId/players/:gamertag", async (req, reply) => {
