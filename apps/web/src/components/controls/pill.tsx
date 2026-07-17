@@ -1,6 +1,26 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { AvatarDisc } from "./identity-row";
 import type { PillLine, ServerCardData } from "./format";
+
+/** Floating mobile sign-in box for signed-out visitors — the mobile counterpart of the rail's
+ *  sign-in CTA, so a logged-out reader never has to scroll to the footer to sign in. */
+export function SignInPill() {
+  return (
+    <Link
+      href="/login"
+      aria-label="Sign in"
+      className="fixed inset-x-3.5 bottom-3.5 z-40 flex min-h-[44px] items-center justify-between gap-3 border-2 border-red bg-dark px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,.35)] xl:hidden"
+    >
+      <span className="font-display text-sm font-bold uppercase tracking-[.08em] leading-tight text-paper">
+        Get in the paper.
+      </span>
+      <span className="flex-none font-mono text-[11px] font-bold uppercase tracking-[.06em] text-red-soft">
+        Sign in →
+      </span>
+    </Link>
+  );
+}
 
 const TONE: Record<PillLine["tone"], string> = {
   red: "text-red-soft",

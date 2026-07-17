@@ -22,20 +22,24 @@ describe("ControlsRail", () => {
     expect(screen.queryByText("Unban tokens")).not.toBeInTheDocument();
   });
 
-  test("unlinked: identity + link panel", () => {
+  test("unlinked: identity + link panel + sign out (no profile link)", () => {
     (useControls as Mock).mockReturnValue({ ...base, status: { kind: "unlinked" } });
     render(<ControlsRail />);
     expect(screen.getByText("Via discord · No gamertag")).toBeInTheDocument();
     expect(screen.getByText("Link your gamertag.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Your profile →" })).not.toBeInTheDocument();
   });
 
-  test("pending: prove-it panel", () => {
+  test("pending: prove-it panel + sign out (no profile link)", () => {
     (useControls as Mock).mockReturnValue({
       ...base,
       status: { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 0, expiresAt: "2027-01-01T00:00:00Z", expired: false } } },
     });
     render(<ControlsRail />);
     expect(screen.getByText("Prove it's you")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Your profile →" })).not.toBeInTheDocument();
   });
 
   test("verified: identity + tokens + servers header + footer links", () => {
