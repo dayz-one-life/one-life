@@ -8,7 +8,7 @@ export const OBITUARIES_PAGE_SIZE = 20;
 export interface Obituary {
   gamertag: string;
   map: string;
-  slug: string;
+  slug: string | null;
   lifeNumber: number;
   cause: string | null;
   byGamertag: string | null;
@@ -32,9 +32,7 @@ export async function getObituaries(
 ): Promise<ObituariesPage> {
   const pageSize = opts.pageSize ?? OBITUARIES_PAGE_SIZE;
   const page = Math.max(1, Math.trunc(opts.page) || 1);
-  // servers.slug is nullable in the schema; Obituary.slug is not, so — consistent with the
-  // survivors board (getAliveSurvivors) — only slugged servers are eligible.
-  const where = and(isNotNull(lives.endedAt), isNotNull(servers.slug), qualifiedLifeCondition(db));
+  const where = and(isNotNull(lives.endedAt), qualifiedLifeCondition(db));
 
   const rows = await db
     .select({
@@ -65,7 +63,7 @@ export async function getObituaries(
     .where(where);
 
   return {
-    rows: rows.map((r) => ({ ...r, slug: r.slug!, endedAt: r.endedAt! })),
+    rows: rows.map((r) => ({ ...r, slug: r.slug, endedAt: r.endedAt! })),
     total: totalRow[0]?.c ?? 0,
     page,
     pageSize,
