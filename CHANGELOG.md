@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.12.0] - 2026-07-17
+
+### Added
 - Tabloid redesign R4 — life timeline + obituary/birth groundwork. A public per-life page at
   `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero with a factual
   `Life {n} · {Map}` headline and a Time-alive/Kills/Longest-kill/Sessions/Qualified stat band,
