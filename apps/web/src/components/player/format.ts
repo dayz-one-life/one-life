@@ -25,14 +25,18 @@ export function heroStatusLine(page: Pick<PlayerPage, "standing">): string {
   return alive.length ? `Alive on ${alive.join(", ")}` : "No open lives";
 }
 
+export function aliveMaps(page: Pick<PlayerPage, "standing">): string[] {
+  return page.standing.filter((s) => s.state === "alive").map((s) => mapLabel(s.map));
+}
+
 export type HeroStat = { label: string; value: string; hot: boolean };
 
 export function heroStats(totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }): HeroStat[] {
   const out: HeroStat[] = [];
   if (totals.kills > 0) out.push({ label: "Kills", value: String(totals.kills), hot: false });
   out.push({ label: "Lives", value: String(totals.lives), hot: false });
-  out.push({ label: "Deaths", value: String(totals.deaths), hot: false });
-  out.push({ label: "Longest life", value: formatDuration(totals.longestLifeSeconds), hot: true });
+  out.push({ label: "Deaths", value: String(totals.deaths), hot: true });
+  out.push({ label: "Longest life", value: formatDuration(totals.longestLifeSeconds), hot: false });
   return out;
 }
 

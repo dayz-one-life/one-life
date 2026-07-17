@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, avatarSrc, banCountdown, heroStatusLine, heroStats, mapLabel, monthYear, relativeDate } from "./format";
+import { formatDuration, avatarSrc, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
 
 describe("player format helpers", () => {
   it("formats durations as Xh Ym", () => {
@@ -16,10 +16,6 @@ describe("player format helpers", () => {
     expect(banCountdown("2026-07-14T11:00:00Z", now)).toBe("0h 0m");
     expect(banCountdown(null, now)).toBeNull();
   });
-  it("summarizes alive servers", () => {
-    const page: any = { standing: [{ state: "alive", map: "chernarusplus" }, { state: "banned", map: "sakhal" }] };
-    expect(heroStatusLine(page)).toBe("Alive on Chernarus");
-  });
 });
 
 describe("mapLabel", () => {
@@ -34,16 +30,27 @@ describe("mapLabel", () => {
 });
 
 describe("heroStats", () => {
-  it("drops Kills when 0 and always highlights Longest life", () => {
-    const s = heroStats({ kills: 0, lives: 7, deaths: 6, longestLifeSeconds: 3600 });
-    expect(s.map((x) => x.label)).toEqual(["Lives", "Deaths", "Longest life"]);
-    expect(s.find((x) => x.hot)!.label).toBe("Longest life");
+  it("heroStats highlights Deaths, not Longest life", () => {
+    const stats = heroStats({ kills: 2, lives: 4, deaths: 2, longestLifeSeconds: 82440 });
+    expect(stats.map((s) => s.label)).toEqual(["Kills", "Lives", "Deaths", "Longest life"]);
+    expect(stats.find((s) => s.label === "Deaths")?.hot).toBe(true);
+    expect(stats.find((s) => s.label === "Longest life")?.hot).toBe(false);
   });
-  it("includes Kills when > 0, and only Longest life is hot", () => {
-    const s = heroStats({ kills: 42, lives: 7, deaths: 6, longestLifeSeconds: 3600 });
-    expect(s.map((x) => x.label)).toEqual(["Kills", "Lives", "Deaths", "Longest life"]);
-    expect(s.filter((x) => x.hot).map((x) => x.label)).toEqual(["Longest life"]);
-    expect(s[0]).toMatchObject({ value: "42", hot: false });
+
+  it("heroStats omits Kills at zero", () => {
+    const stats = heroStats({ kills: 0, lives: 1, deaths: 0, longestLifeSeconds: 60 });
+    expect(stats.map((s) => s.label)).toEqual(["Lives", "Deaths", "Longest life"]);
+  });
+});
+
+describe("aliveMaps", () => {
+  it("aliveMaps lists alive servers by label", () => {
+    const standing = [
+      { state: "alive", map: "sakhal" },
+      { state: "banned", map: "chernarusplus" },
+      { state: "alive", map: "enoch" },
+    ] as never;
+    expect(aliveMaps({ standing })).toEqual(["Sakhal", "Livonia"]);
   });
 });
 
