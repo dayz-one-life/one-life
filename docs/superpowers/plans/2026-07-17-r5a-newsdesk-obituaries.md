@@ -766,8 +766,8 @@ import { buildObituaryFacts, timeAliveLabel } from "../src/facts.js";
 import type { ObituaryTarget } from "../src/pg-store.js";
 
 const target: ObituaryTarget = {
-  lifeId: 1, serverId: 1, playerId: 1, gamertag: "Boots", map: "chernarusplus",
-  mapSlug: "chernarus", lifeNumber: 3, endedAt: new Date("2026-07-10T02:00:00Z"),
+  lifeId: 1, serverId: 1, gamertag: "Boots", map: "chernarusplus",
+  mapSlug: "chernarus", lifeNumber: 3, lifeStartedAt: new Date("2026-07-10T00:00:00Z"), endedAt: new Date("2026-07-10T02:00:00Z"),
 };
 
 function timeline(over: Partial<{ life: Record<string, unknown>; kills: unknown[]; sessions: unknown[] }> = {}) {
