@@ -11,7 +11,7 @@ describe("mapParsedToEvents", () => {
   });
   it("maps a death + position pair preserving order", () => {
     const parsed: ParsedLine[] = [
-      { kind: "death", victim: "V", dayzId: "V=", cause: "pvp", killer: "K", weapon: "M4A1", distance: 153.4, energy: null, water: null, bleedSources: null },
+      { kind: "death", victim: "V", dayzId: "V=", cause: "pvp", killer: "K", weapon: "M4A1", distance: 153.4, energy: null, water: null, bleedSources: null, deathEntity: null },
       { kind: "position", gamertag: "V", x: 1, y: 2 },
     ];
     const out = mapParsedToEvents(parsed);

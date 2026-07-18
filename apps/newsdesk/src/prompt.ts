@@ -33,6 +33,13 @@ export function describeDeath(facts: ObituaryFacts): string {
     dehydration: "dehydration — they ran out of water",
     bled_out: "bled out",
     mauled: "mauled — bleeding out after an animal or infected attack",
+    wolf: "killed by a wolf",
+    bear: "killed by a bear",
+    animal: "killed by a wild animal",
+    infected: "killed by the infected",
+    fall: "died in a fall",
+    vehicle: "killed by a vehicle",
+    explosion: "killed in an explosion",
     environmental: facts.cause ? facts.cause.replace(/_/g, " ") : "the environment",
     unknown: "unknown",
   };

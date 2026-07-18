@@ -1,12 +1,14 @@
 import type { Database } from "@onelife/db";
 import { players, lives, servers, kills } from "@onelife/db";
 import { and, eq, lt, sql } from "drizzle-orm";
+import { causeFamily } from "@onelife/domain";
 
 export interface PlayerPriors {
   livesLived: number;              // count of PRIOR lives (startedAt < beforeLifeStartedAt); excludes current
   longestLifeSeconds: number;      // best prior life; 0 if none
   totalKills: number;              // confirmed kills across all prior lives
   usualDeathCause: string | null;  // most-common death cause across prior lives; null if none
+                                    // may be a cause-family token (e.g. "animal") since stage 2
   lastDeathCause: string | null;   // cause of most-recent prior death; null if none
   bestLifeMap: string | null;      // servers.map of the longest prior life; null if none
 }
@@ -54,10 +56,14 @@ export async function getPlayerPriors(
     }
   }
 
-  // usual death cause = mode across non-null causes (first-inserted wins on a tie → oldest life)
+  // usual death cause = mode across non-null cause FAMILIES (wolf/bear/animal group as "animal";
+  // first-inserted wins on a tie -> oldest life)
   const counts = new Map<string, number>();
   for (const l of priorLives) {
-    if (l.deathCause) counts.set(l.deathCause, (counts.get(l.deathCause) ?? 0) + 1);
+    if (l.deathCause) {
+      const fam = causeFamily(l.deathCause);
+      counts.set(fam, (counts.get(fam) ?? 0) + 1);
+    }
   }
   let usualDeathCause: string | null = null;
   let bestCount = 0;

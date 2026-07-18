@@ -6,10 +6,23 @@ const WEAPON_RE = /with (.+?)(?: from ([\d.]+) meters)?\s*$/u;
 const STATS_RE = /Stats>\s*Water:\s*([\d.]+)\s*Energy:\s*([\d.]+)\s*Bleed sources:\s*(\d+)/u;
 const DEATH_VERB_RE = /\b(died|committed suicide|bled out|drowned|killed by)\b/u;
 
+const KILLED_BY_ENTITY_RE = /killed by ([A-Za-z0-9_]+)/u;
+// Ordered entity dict (first match wins). Only class-name patterns confirmable from DayZ
+// conventions ship; anything else stays "environment" with the entity captured — the
+// backfill-death-causes survey logs unmapped entities so this dict can grow (vehicle, explosion).
+const ENTITY_CAUSES: readonly [RegExp, DeathCause][] = [
+  [/^Animal_CanisLupus/, "wolf"],
+  [/^Animal_UrsusArctos/, "bear"],
+  [/^Animal_/, "animal"],
+  [/^Zmb/, "infected"],
+  [/^FallDamage$/, "fall"],
+];
+
 export function parseDeath(raw: string): {
   victim: string; dayzId: string; cause: DeathCause;
   killer: string | null; weapon: string | null; distance: number | null;
   energy: number | null; water: number | null; bleedSources: number | null;
+  deathEntity: string | null;
 } | null {
   if (raw.includes("hit by")) return null;
   const m = DEATH_RE.exec(raw);
@@ -25,7 +38,7 @@ export function parseDeath(raw: string): {
       distance = w[2] != null && w[2] !== "" ? parseFloat(w[2]) : null;
     }
     return { victim: k[1]!, dayzId: k[2]!, cause: "pvp", killer: k[3]!, weapon, distance,
-      energy: null, water: null, bleedSources: null };
+      energy: null, water: null, bleedSources: null, deathEntity: null };
   }
 
   const tail = m[3]!;
@@ -33,11 +46,13 @@ export function parseDeath(raw: string): {
   // Precision: only a real death verb is a death — a bare (DEAD) marker (a corpse re-listed in the
   // next PlayerList snapshot) is NOT. This kills the delayed-DEAD-reappearance duplicate at the source.
   if (!DEATH_VERB_RE.test(lower)) return null;
+  const entity = KILLED_BY_ENTITY_RE.exec(tail)?.[1] ?? null;
+  const entityCause = entity ? ENTITY_CAUSES.find(([re]) => re.test(entity))?.[1] ?? null : null;
   const cause: DeathCause =
     lower.includes("bled out") ? "bled_out" :
     lower.includes("drowned") ? "drowned" :
     lower.includes("committed suicide") ? "suicide" :
-    lower.includes("killed by") ? "environment" :
+    lower.includes("killed by") ? (entityCause ?? "environment") :
     lower.includes("died") ? "died" : "unknown";
 
   const s = STATS_RE.exec(tail);
@@ -46,5 +61,5 @@ export function parseDeath(raw: string): {
   const bleedSources = s ? parseInt(s[3]!, 10) : null;
 
   return { victim: m[1]!, dayzId: m[2]!, cause, killer: null, weapon: null, distance: null,
-    energy, water, bleedSources };
+    energy, water, bleedSources, deathEntity: lower.includes("killed by") ? entity : null };
 }

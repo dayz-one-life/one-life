@@ -71,6 +71,13 @@ describe("describeDeath", () => {
     const s = describeDeath(mkFacts({ causeCategory: "environment", cause: "bled_out", verdict: null }));
     expect(s).toBe("bled out (not a player kill).");
   });
+
+  it("describeDeath: named killers read qualitatively", () => {
+    expect(describeDeath(mkFacts({ causeCategory: "environment", cause: "wolf", verdict: { cause: "wolf", confidence: "high", conditions: ["healthy"] } })))
+      .toBe("killed by a wolf (not a player kill). They were in good health at the end.");
+    expect(describeDeath(mkFacts({ causeCategory: "environment", cause: "fall", verdict: { cause: "fall", confidence: "high", conditions: [] } })))
+      .toBe("died in a fall (not a player kill).");
+  });
 });
 
 describe("parseObituary", () => {

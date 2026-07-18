@@ -60,6 +60,14 @@ describe("eligibleCategories — obituary gates", () => {
     const cats = eligibleCategories("obituary", { causeCategory: "environment", cause: "died", verdict: { cause: "starvation", confidence: "high", conditions: [] } });
     expect(cats.map((c) => c.slug)).not.toContain("suspect-at-large");
   });
+  it("stage-2 cause tokens light the dormant gates with zero gate changes", () => {
+    const slugs = (cause: string) =>
+      eligibleCategories("obituary", { causeCategory: "environment", cause }).map((c) => c.slug);
+    expect(slugs("wolf")).toContain("suspect-at-large");
+    expect(slugs("bear")).toContain("suspect-at-large");
+    expect(slugs("fall")).toContain("gravity-undefeated");
+    expect(slugs("vehicle")).toContain("driver-not-pictured"); // reserved token, gate ready
+  });
 });
 
 describe("eligibleCategories — birth gates", () => {

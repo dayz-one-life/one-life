@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyDeath, type RecentHit } from "../src/death-verdict.js";
+import { classifyDeath, causeFamily, type RecentHit } from "../src/death-verdict.js";
 
 const infected: RecentHit = { attackerType: "infected", attackerLabel: "Infected", secondsBeforeDeath: 30 };
 const playerHit: RecentHit = { attackerType: "player", attackerLabel: "PlayerName", secondsBeforeDeath: 45 };
@@ -96,5 +96,29 @@ describe("classifyDeath", () => {
     const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [boundary]);
     expect(v.cause).toBe("starvation");
     expect(v.confidence).toBe("low");
+  });
+
+  it("stage-2 entity mechanisms pass through at high confidence (wolf, healthy)", () => {
+    const v = classifyDeath({ mechanism: "wolf", energy: 500, water: 500, bleedSources: 2, weapon: null }, []);
+    expect(v.cause).toBe("wolf");
+    expect(v.confidence).toBe("high");
+    expect(v.conditions).toEqual(["healthy"]); // the wolf explains its own bleed — not "bleeding"
+  });
+
+  it("entity mechanism keeps real conditions (fall while starving)", () => {
+    const v = classifyDeath({ mechanism: "fall", energy: 0, water: 500, bleedSources: 0, weapon: null }, []);
+    expect(v.cause).toBe("fall");
+    expect(v.conditions).toEqual(["starving"]);
+  });
+});
+
+describe("causeFamily", () => {
+  it("groups the animal kingdom, passes everything else through", () => {
+    expect(causeFamily("wolf")).toBe("animal");
+    expect(causeFamily("bear")).toBe("animal");
+    expect(causeFamily("animal")).toBe("animal");
+    expect(causeFamily("pvp")).toBe("pvp");
+    expect(causeFamily("fall")).toBe("fall");
+    expect(causeFamily("died")).toBe("died");
   });
 });
