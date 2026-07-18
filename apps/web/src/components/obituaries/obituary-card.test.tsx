@@ -12,7 +12,7 @@ const card: Card = {
   slug: "the-king-is-dead-9", gamertag: "xX_Sn1per_Xx", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 4, headline: "The King Is Dead. A Chicken Is Wanted.", lede: "He arrived with a flare.",
   tags: ["Obituaries", "Chernarus"], timeAliveSeconds: 3456000, kills: 212, longestKillMeters: 410,
-  cause: "pvp", deathAt: "2026-07-10T22:16:00Z", imageUrl: null, imageCaption: null,
+  cause: "pvp", deathAt: "2026-07-10T22:16:00Z",
 };
 
 describe("ObituaryCard", () => {
@@ -32,10 +32,5 @@ describe("ObituaryCard", () => {
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
     expect(document.querySelector("article")?.firstElementChild?.tagName).toBe("P");
-  });
-  test("renders a thumbnail inside a flex row when imageUrl is present", () => {
-    render(<ObituaryCard card={{ ...card, imageUrl: "/media/thumbs/x.png" }} now={new Date("2026-07-12T00:00:00Z")} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });

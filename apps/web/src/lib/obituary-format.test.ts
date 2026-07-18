@@ -6,7 +6,7 @@ const now = new Date("2026-07-12T00:00:00Z");
 const card: ObituaryCard = {
   slug: "gone-42", gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus", lifeNumber: 3,
   headline: "H", lede: "L", tags: ["Obituaries"], timeAliveSeconds: 7200, kills: 3,
-  longestKillMeters: 210, cause: "pvp", deathAt: "2026-07-10T00:00:00Z", imageUrl: null, imageCaption: null,
+  longestKillMeters: 210, cause: "pvp", deathAt: "2026-07-10T00:00:00Z",
 };
 
 describe("obituary hrefs", () => {

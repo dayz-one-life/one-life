@@ -13,7 +13,6 @@ const card: Card = {
   slug: "new-fool-ashore-3", gamertag: "xX_Sn1per_Xx", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "Another Fool Washes Ashore", lede: "The tide brought us one more.",
   tags: ["Fresh Spawns", "Chernarus"], bornAt: "2026-07-17T10:00:00Z", minutesToQualify: 6, priorLives: 2,
-  imageUrl: null, imageCaption: null,
 };
 
 describe("BirthNoticeCard", () => {
@@ -34,10 +33,5 @@ describe("BirthNoticeCard", () => {
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
     expect(document.querySelector("article")?.firstElementChild?.tagName).toBe("P");
-  });
-  test("renders a thumbnail inside a flex row when imageUrl is present", () => {
-    render(<BirthNoticeCard card={{ ...card, imageUrl: "/media/thumbs/x.png" }} now={now} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });

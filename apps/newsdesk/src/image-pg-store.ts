@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { articles, articleImages } from "@onelife/db";
-import { and, eq, desc, isNull, isNotNull, sql } from "drizzle-orm";
+import { and, eq, desc, isNull, isNotNull, notInArray, sql } from "drizzle-orm";
 import type { GeneratedImage } from "./openrouter.js";
 import type { RecentCover } from "./image-scene.js";
 import { pngDimensions } from "./image-png.js";
@@ -38,6 +38,9 @@ export async function findImageTargets(
         isNull(articles.imageUrl),
         isNotNull(articles.slug),
         sql`${articles.imageAttempts} < ${opts.maxAttempts}`,
+        // Images are reserved for news/editorial — obituaries and birth notices never get one.
+        // A future 'news' kind is not excluded here, so it becomes image-eligible automatically.
+        notInArray(articles.kind, ["obituary", "birth_notice"]),
       ),
     )
     .orderBy(desc(articles.createdAt))

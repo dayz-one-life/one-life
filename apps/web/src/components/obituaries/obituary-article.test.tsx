@@ -14,7 +14,7 @@ const article: ObituaryArticle = {
   tags: ["Obituaries", "Chernarus"], timeAliveSeconds: 3456000, kills: 212, longestKillMeters: 410,
   cause: "pvp", deathAt: "2026-07-10T22:16:00Z", body: "He left 212 kills behind.",
   pullQuote: { text: "You do not get a second life.", attribution: "a rival" }, sessions: 30,
-  killerGamertag: "Chicken", weapon: "Reload", imageUrl: null, imageCaption: null, verdict: null,
+  killerGamertag: "Chicken", weapon: "Reload", verdict: null,
 };
 
 describe("ObituaryArticleView", () => {
@@ -32,12 +32,5 @@ describe("ObituaryArticleView", () => {
   test("renders no hero image when imageUrl is absent", () => {
     render(<ObituaryArticleView article={article} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
     expect(document.querySelector("img")).toBeNull();
-  });
-
-  test("renders the hero image and caption when imageUrl is present", () => {
-    const withImage = { ...article, imageUrl: "/media/heroes/x.png", imageCaption: "LAST KNOWN PHOTO" };
-    render(<ObituaryArticleView article={withImage} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(screen.getByText("LAST KNOWN PHOTO")).toBeInTheDocument();
   });
 });

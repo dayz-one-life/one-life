@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { BirthNoticeCard as Card } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
 import { birthNoticeHref, birthDateline } from "@/lib/birth-format";
@@ -34,16 +33,7 @@ export function BirthNoticeCard({ card, now }: { card: Card; now: Date }) {
   );
   return (
     <article className="border-b border-hairline py-6">
-      {card.imageUrl ? (
-        <div className="flex gap-4">
-          <div className="relative hidden h-24 w-24 shrink-0 overflow-hidden border border-hairline sm:block">
-            <Image src={card.imageUrl} alt="" fill sizes="96px" className="object-cover" />
-          </div>
-          <div className="min-w-0 flex-1">{content}</div>
-        </div>
-      ) : (
-        content
-      )}
+      {content}
     </article>
   );
 }

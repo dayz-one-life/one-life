@@ -38,12 +38,6 @@ describe("getPublishedObituaries", () => {
     const mine = res.rows.filter((r) => r.gamertag === `oa-${svc}`);
     expect(mine.map((r) => r.headline)).toEqual(["Late Death", "Early Death"]);
     expect(mine.every((r) => typeof r.slug === "string")).toBe(true);
-    const early = mine.find((r) => r.headline === "Early Death")!;
-    expect(early.imageUrl).toBe("/media/heroes/x.png");
-    expect(early.imageCaption).toBe("LAST KNOWN PHOTO");
-    const late = mine.find((r) => r.headline === "Late Death")!;
-    expect(late.imageUrl).toBeNull();
-    expect(late.imageCaption).toBeNull();
   });
   it("paginates", async () => {
     const res = await getPublishedObituaries(db, { page: 1, pageSize: 1 });
@@ -64,16 +58,7 @@ describe("getObituaryBySlug", () => {
     expect(a!.sessions).toBe(2);
     expect(a!.killerGamertag).toBe("K1");
     expect(a!.weapon).toBe("AK");
-    expect(a!.imageUrl).toBe("/media/heroes/x.png");
-    expect(a!.imageCaption).toBe("LAST KNOWN PHOTO");
     expect(a!.verdict).toEqual({ cause: "mauled", confidence: "high", conditions: ["bleeding", "hunted"] });
-  });
-  it("returns null image fields when absent", async () => {
-    const feed = await getPublishedObituaries(db, { page: 1, pageSize: 50 });
-    const slug = feed.rows.find((r) => r.headline === "Late Death")!.slug;
-    const a = await getObituaryBySlug(db, slug);
-    expect(a!.imageUrl).toBeNull();
-    expect(a!.imageCaption).toBeNull();
   });
   it("returns null verdict when facts carry no verdict (legacy article)", async () => {
     const feed = await getPublishedObituaries(db, { page: 1, pageSize: 50 });
