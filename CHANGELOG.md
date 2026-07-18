@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.16.0] - 2026-07-18
+
+### Added
 - Discord obituary notifier — `apps/newsdesk` posts a plain link to every published obituary into a
   Discord channel via an incoming webhook (Discord unfurls the page's OpenGraph card). Delivery is
   tracked and retried via a new nullable `articles.discord_posted_at` column + partial index
