@@ -218,10 +218,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   obituaries, 13 Nursery categories for birth notices) plus an LLM escape hatch and a
   last-8-covers recency exclusion (`recentCovers`, `apps/newsdesk/src/image-pg-store.ts`); the
   scene-writer call returns `{caption, scene}` — the caption is stored verbatim in
-  `articles.image_caption` and rendered under the hero photo. Cause-substring category gates
-  (vehicle/fall/wolf/bear) are **dormant** on today's coarse ADM cause vocabulary (`pvp|bled_out|
-  drowned|suicide|environment|died|unknown`) — they light up automatically if the parser ever
-  learns richer causes; a gate that never matches simply never fires. **Hard rails ride every
+  `articles.image_caption` and rendered under the hero photo. Cause-substring category gates: the
+  wolf/bear/animal and fall gates are **live** as of death-cause fidelity stage 2 (the parser emits
+  `wolf|bear|animal|infected|fall`); the vehicle gate stays **dormant** pending the backfill's
+  entity survey. **Hard rails ride every
   prompt:** imply-don't-depict (never a corpse or gore — also doubles as the image-model
   content-filter workaround), the Fog Rule for images (generic unidentifiable locales, a living
   subject stays deniable), and no legible text/logos/real-person likenesses. **Models:**
@@ -372,7 +372,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   bare `died` as "Unknown". **Deploy runbook (stage-2 release):** normal deploy → on the host run
   `apps/projector` `backfill-death-causes` (re-parses `raw_lines`, upgrade-only, prints the
   unmapped-entity survey — feed it back into the dict) → projection rebuild
-  (`./deploy/deploy.sh --rebuild`). Frozen `articles.facts` stay coarse (forward-only); lives,
+  (`./deploy/deploy.sh --rebuild`, or `pnpm --filter @onelife/projector run rebuild` directly on
+  the host). Frozen `articles.facts` stay coarse (forward-only); lives,
   priors, and web surfaces update retroactively.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)

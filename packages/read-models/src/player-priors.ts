@@ -8,6 +8,7 @@ export interface PlayerPriors {
   longestLifeSeconds: number;      // best prior life; 0 if none
   totalKills: number;              // confirmed kills across all prior lives
   usualDeathCause: string | null;  // most-common death cause across prior lives; null if none
+                                    // may be a cause-family token (e.g. "animal") since stage 2
   lastDeathCause: string | null;   // cause of most-recent prior death; null if none
   bestLifeMap: string | null;      // servers.map of the longest prior life; null if none
 }

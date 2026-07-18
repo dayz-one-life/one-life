@@ -27,10 +27,9 @@ export const STARVE_ENERGY_MAX = 1;     // Energy ≈ 0 (game reports 0 when out
 export const DEHYDRATE_WATER_MAX = 1;   // Water ≈ 0
 export const RECENT_HIT_WINDOW_S = 120; // "recent" damage window feeding cause inference
 
+const ENTITY_MECHANISM_LIST = ["wolf", "bear", "animal", "infected", "fall", "vehicle", "explosion"] as const satisfies readonly DeathVerdict["cause"][];
 /** Stage-2 mechanism tokens from the parser's entity dict — stated causes, never inferred over. */
-export const ENTITY_MECHANISMS: ReadonlySet<string> = new Set([
-  "wolf", "bear", "animal", "infected", "fall", "vehicle", "explosion",
-]);
+export const ENTITY_MECHANISMS: ReadonlySet<string> = new Set(ENTITY_MECHANISM_LIST);
 
 /**
  * Cause family for aggregation (the priors mode): the finer stage-2 vocabulary must not fragment

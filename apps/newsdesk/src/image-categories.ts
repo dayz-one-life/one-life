@@ -1,8 +1,10 @@
 // The scene-category menu (spec §4). Categories are RAILS for the scene-writer LLM: code filters
 // to facts-eligible entries before prompting, so the model never sees a category it can't use.
-// Cause-string gates (vehicle/fall/wolf/bear) are substring predicates over the coarse ADM cause
-// vocabulary (pvp|bled_out|drowned|suicide|environment|died|unknown today) — a gate that never
-// matches simply never fires; the category sits dormant until the parser learns richer causes.
+// Cause-string gates (vehicle/fall/wolf/bear) are substring predicates over the ADM cause
+// vocabulary. As of death-cause fidelity stage 2, the parser emits
+// wolf|bear|animal|infected|fall, so the wolf/bear/animal and fall gates are live; the vehicle
+// gate stays dormant pending the backfill's entity survey — a gate that never matches simply
+// never fires.
 
 export type ArticleKind = "obituary" | "birth_notice";
 export type FactsSnapshot = Record<string, unknown>;
