@@ -54,3 +54,45 @@ export function openrouterClient(cfg: { apiKey: string; model: string; temperatu
       openrouterComplete({ apiKey: cfg.apiKey, model: cfg.model, system, user, temperature: cfg.temperature }),
   };
 }
+
+export interface GeneratedImage { bytes: Buffer; contentType: string }
+
+/** The injectable seam the image tick depends on (mirror of CompletionClient). Model is per-call
+ *  so the tick can pick workhorse vs flagship; quality is fixed per deployment. */
+export interface ImageClient { generate(req: { prompt: string; model: string }): Promise<GeneratedImage> }
+
+/** OpenRouter unified image API. Returns raw bytes — the API only ever answers base64, never a
+ *  hosted URL. gpt-image models accept no aspect/size/format params; canvas is model-default. */
+export async function openrouterImage(args: {
+  apiKey: string; model: string; prompt: string; quality: string;
+}): Promise<GeneratedImage> {
+  const res = await fetch("https://openrouter.ai/api/v1/images", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      "Content-Type": "application/json",
+      "X-Title": "One Life Newsdesk",
+    },
+    body: JSON.stringify({ model: args.model, prompt: args.prompt, quality: args.quality, n: 1 }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = (await res.json()) as { error?: { message?: string } };
+      detail = body?.error?.message ?? JSON.stringify(body);
+    } catch {
+      detail = await res.text().catch(() => "");
+    }
+    throw new Error(`OpenRouter image request failed (${res.status}): ${detail}`);
+  }
+  const data = (await res.json()) as { data?: { b64_json?: string; media_type?: string }[] };
+  const img = data?.data?.[0];
+  if (!img?.b64_json) throw new Error("OpenRouter returned no image data");
+  return { bytes: Buffer.from(img.b64_json, "base64"), contentType: img.media_type ?? "image/png" };
+}
+
+export function openrouterImageClient(cfg: { apiKey: string; quality: string }): ImageClient {
+  return {
+    generate: ({ prompt, model }) => openrouterImage({ apiKey: cfg.apiKey, model, prompt, quality: cfg.quality }),
+  };
+}
