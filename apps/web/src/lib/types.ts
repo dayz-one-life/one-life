@@ -144,6 +144,8 @@ export interface SurvivorCharacter { name: string | null; head: string | null; g
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; sort: SurvivorSort; }
 
+export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
+
 export type LifeCharacterDto = { charId: number; characterClass: string | null; name: string | null; gender: string | null; sightings: number; confidence: "exact" | "ambiguous" };
 export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
 export type LifeTimelineData = {

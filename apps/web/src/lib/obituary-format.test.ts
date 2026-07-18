@@ -36,6 +36,10 @@ describe("rapSheetFacts", () => {
     const facts = rapSheetFacts({ ...card, longestKillMeters: null });
     expect(facts.map((f) => f.label)).not.toContain("Longest kill");
   });
+  it("rapSheetFacts prefers the classified verdict for the Cause row", () => {
+    const facts = rapSheetFacts({ timeAliveSeconds: 3600, kills: 0, longestKillMeters: null, cause: "died", verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] } });
+    expect(facts[facts.length - 1]).toEqual({ label: "Cause", value: "Likely starvation", hot: true });
+  });
 });
 
 describe("obituaryShowingLine", () => {
