@@ -1,5 +1,6 @@
 import type { LifeTimelineView, TimelineEvent } from "@/lib/life-timeline";
 import { GamertagLink } from "@/components/gamertag-link";
+import { verdictPhrase } from "@/lib/cause-format";
 
 const DOT: Record<TimelineEvent["marker"], string> = {
   blue: "bg-blue",
@@ -51,7 +52,7 @@ function EventRow({ e }: { e: TimelineEvent }) {
               {e.cause === "pvp" ? (
                 <>Killed by {e.byGamertag ? <GamertagLink gamertag={e.byGamertag} /> : "unknown"}</>
               ) : (
-                <>Died — {e.cause ?? "unknown"}</>
+                <>Died — {verdictPhrase(e.verdict, e.cause)}</>
               )}
             </p>
             <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">

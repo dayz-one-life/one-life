@@ -13,6 +13,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) }],
     qualifiedAt: { at: at(5), by: "playtime" }, character: null,
+    verdict: null,
     ...over,
   };
 }
@@ -50,5 +51,16 @@ describe("Timeline", () => {
     const d = data({ kills: [{ victimGamertag: "V", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(120) }] });
     render(<Timeline view={buildTimeline(d, now)} />);
     expect(screen.getByText("Longest kill")).toBeInTheDocument();
+  });
+
+  test("non-pvp death row renders the classified verdict phrase", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const d = data({
+      kills: [],
+      verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
+      life: { ...data().life, endedAt: at(360), deathCause: "environment", deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: 0, waterAtDeath: 10, bleedSourcesAtDeath: 0, playtimeSeconds: 21600 },
+    });
+    render(<Timeline view={buildTimeline(d, now)} />);
+    expect(screen.getByText(/Died — Likely starvation/i)).toBeInTheDocument();
   });
 });
