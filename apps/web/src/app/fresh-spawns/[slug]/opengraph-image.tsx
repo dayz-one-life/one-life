@@ -9,6 +9,27 @@ export const alt = "One Life birth notice";
 
 const asset = (name: string) => readFile(new URL(`./${name}`, import.meta.url));
 
+const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:3001";
+
+// satori can't reliably render webp data-URIs (nor anything outside png/jpeg) — a type outside
+// this pair falls back to null so the caller renders the spec-mandated text-only layout instead
+// of a 500.
+const EMBEDDABLE_CONTENT_TYPES = new Set(["image/png", "image/jpeg"]);
+
+async function heroDataUri(imageUrl: string | null): Promise<string | null> {
+  if (!imageUrl) return null;
+  try {
+    const res = await fetch(`${API_ORIGIN}${imageUrl}`);
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type") ?? "image/png";
+    if (!EMBEDDABLE_CONTENT_TYPES.has(type)) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:${type};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 export default async function OgImage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const [article, oswald, mono, monoBold] = await Promise.all([
@@ -17,27 +38,39 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
     asset("plex-mono-400.ttf"),
     asset("plex-mono-700.ttf"),
   ]);
+  const hero = await heroDataUri(article?.imageUrl ?? null);
 
   const headline = article?.headline ?? "A Birth Notice";
   const line = article ? birthDateline(article.map, article.bornAt, new Date()) : "ONE LIFE · THE NURSERY";
   const facts = article ? priorsFacts(article) : [];
   const readout = facts.length > 0 ? facts : [{ label: "Priors", value: "First life", hot: false }];
 
+  const textColumn = [
+    <div key="head" style={{ display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 22, letterSpacing: 2, color: "#7FA8FF", textTransform: "uppercase" }}>Birth Notice · {line}</div>
+      <div style={{ display: "flex", fontFamily: "Oswald", fontWeight: 700, fontSize: 78, lineHeight: 1.02, textTransform: "uppercase", marginTop: 20, maxWidth: 1000 }}>{headline}</div>
+    </div>,
+    <div key="facts" style={{ display: "flex", gap: 48 }}>
+      {readout.map((f) => (
+        <div key={f.label} style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", fontFamily: "Oswald", fontWeight: 700, fontSize: 44, color: f.hot ? "#FF6B63" : "#FBFAF2" }}>{f.value}</div>
+          <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 18, letterSpacing: 1.5, color: "#8A8878", textTransform: "uppercase", marginTop: 4 }}>{f.label}</div>
+        </div>
+      ))}
+    </div>,
+  ];
+
   return new ImageResponse(
-    (
+    hero ? (
+      <div style={{ width: "100%", height: "100%", display: "flex", background: "#0C0C08", color: "#FBFAF2" }}>
+        <img src={hero} style={{ display: "flex", width: "38%", height: "100%", objectFit: "cover" }} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 64 }}>
+          {textColumn}
+        </div>
+      </div>
+    ) : (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#0C0C08", color: "#FBFAF2", padding: 64 }}>
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 22, letterSpacing: 2, color: "#7FA8FF", textTransform: "uppercase" }}>Birth Notice · {line}</div>
-          <div style={{ display: "flex", fontFamily: "Oswald", fontWeight: 700, fontSize: 78, lineHeight: 1.02, textTransform: "uppercase", marginTop: 20, maxWidth: 1000 }}>{headline}</div>
-        </div>
-        <div style={{ display: "flex", gap: 48 }}>
-          {readout.map((f) => (
-            <div key={f.label} style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "flex", fontFamily: "Oswald", fontWeight: 700, fontSize: 44, color: f.hot ? "#FF6B63" : "#FBFAF2" }}>{f.value}</div>
-              <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 18, letterSpacing: 1.5, color: "#8A8878", textTransform: "uppercase", marginTop: 4 }}>{f.label}</div>
-            </div>
-          ))}
-        </div>
+        {textColumn}
       </div>
     ),
     {

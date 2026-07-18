@@ -171,6 +171,8 @@ export type ObituaryCard = {
   longestKillMeters: number | null;
   cause: string | null;
   deathAt: string;
+  imageUrl: string | null;
+  imageCaption: string | null;
 };
 export type ObituariesFeed = { rows: ObituaryCard[]; total: number; page: number; pageSize: number };
 export type ObituaryArticle = ObituaryCard & {
@@ -193,6 +195,8 @@ export type BirthNoticeCard = {
   bornAt: string;
   minutesToQualify: number | null;
   priorLives: number;
+  imageUrl: string | null;
+  imageCaption: string | null;
 };
 export type BirthNoticesFeed = { rows: BirthNoticeCard[]; total: number; page: number; pageSize: number };
 export type BirthNoticeArticle = BirthNoticeCard & {

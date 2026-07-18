@@ -193,7 +193,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1+R2+R3+R4+R5a+R5b shipped): a five-tier visual relaunch replacing the old
+- **Tabloid redesign** (R1+R2+R3+R4+R5a+R5b+R5c shipped): a five-tier visual relaunch replacing the old
   dark "field journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
   `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
   **R2** boards restyle (survivors + player dossier;
@@ -203,8 +203,51 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5a** the newsdesk + Obituaries
   content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), **R5b**
   Birth Notices / Fresh Spawns (spec
-  `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), with **R5c** (article
-  images) and **R5d** (News feed + news-led home) next.
+  `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), **R5c** article
+  images, with **R5d** (News feed + news-led home) next.
+  **R5c shipped — Article Images.** Every published obituary and birth notice gets **one** AI
+  tabloid photo (`image_kind='hero'`; `card`/`breaking` are reserved for later verticals) via a
+  **fourth** `apps/newsdesk` pass (`imageTick`) — forward (fresh articles first) + backfill,
+  behind the shared `NEWSDESK_DRY_RUN` gate plus its own **`NEWSDESK_IMAGES_ENABLED`** kill switch
+  (default `true`; a broken image pipeline must never stop the prose). **Art direction is
+  vendored VERBATIM** from brand-bible §10.4 into `apps/newsdesk/src/image-prompt.ts`
+  (`IMAGE_STYLE` + `IMAGE_ANTISLOP` constants — source of truth
+  `../brand/content-engine/image_prompt.py`; change the brand repo first, then re-vendor).
+  **Scene variety** is a
+  facts-gated category menu (`apps/newsdesk/src/image-categories.ts` — 16 Morgue categories for
+  obituaries, 13 Nursery categories for birth notices) plus an LLM escape hatch and a
+  last-8-covers recency exclusion (`recentCovers`, `apps/newsdesk/src/image-pg-store.ts`); the
+  scene-writer call returns `{caption, scene}` — the caption is stored verbatim in
+  `articles.image_caption` and rendered under the hero photo. Cause-substring category gates
+  (vehicle/fall/wolf/bear) are **dormant** on today's coarse ADM cause vocabulary (`pvp|bled_out|
+  drowned|suicide|environment|died|unknown`) — they light up automatically if the parser ever
+  learns richer causes; a gate that never matches simply never fires. **Hard rails ride every
+  prompt:** imply-don't-depict (never a corpse or gore — also doubles as the image-model
+  content-filter workaround), the Fog Rule for images (generic unidentifiable locales, a living
+  subject stays deniable), and no legible text/logos/real-person likenesses. **Models:**
+  `NEWSDESK_IMAGE_MODEL` (default `openai/gpt-5-image-mini`) for the workhorse pass,
+  `NEWSDESK_IMAGE_MODEL_FLAGSHIP` (default `openai/gpt-5.4-image-2`) reserved for legends,
+  `NEWSDESK_IMAGE_QUALITY` (default `low`, ~$0.003/image measured, ~$0.004/article all-in).
+  **gpt-image models return a square ~1024 canvas — no aspect-ratio parameter exists**; the 4:5
+  hero crop and 1:1 feed thumbnails are render-side `object-cover` crops, not model output.
+  **Storage is bytes in Postgres**, a new durable `article_images` table (migration `0012`;
+  `article_id` PK/FK to `articles.id` ON DELETE CASCADE, `bytea` + `content_type` +
+  `width`/`height`; in `APP_TABLES`, never truncated on rebuild — `pg_dump` covers images the same
+  as prose). The full assembled prompt is stored in `articles.image_prompt` for provenance (no
+  separate prompt-version string), `articles.image_model` records which model generated it, and
+  `articles.image_attempts`/`image_error` are retry counters **independent of** the text-generation
+  attempt counter. **Serving:** API `GET /media/heroes/:file` (`apps/api/src/routes/media.ts`) —
+  a filename allow-list regex doubles as the traversal guard, an immutable long-cache header, and
+  the query requires `articles.image_url IS NOT NULL` so a half-written row 404s instead of
+  serving orphan bytes; this finally exercises the long-dangling `/media/:path*` rewrite in
+  `apps/web/next.config.ts` and is the **first `next/image` use in the repo** (automatic webp +
+  resize; same-origin needs no `remotePatterns` config). **Web:** a shared `ArticleHero`
+  (`apps/web/src/components/shared/article-hero.tsx` — 4:5 crop + mono caption, red for obituaries/
+  blue for birth notices) renders on both `/obituaries/[slug]` and `/fresh-spawns/[slug]`; 1:1
+  thumbnails render on the feed cards and the two home content blocks (a text-only article — no
+  image yet — renders the prior DOM exactly, unchanged); the OG cards for both kinds gain a 38%
+  photo panel (fetch → data URI; any fetch failure falls back to the prior text-only card); the
+  `NewsArticle` JSON-LD block gains an `image` field; feed skeletons gained matching thumb boxes.
   **R5b shipped — Birth Notices / Fresh Spawns.** The `apps/newsdesk` worker gains a second pass that
   writes an in-voice **Birth Notice** ("The Nursery") for every qualified life going forward, behind
   the shared dry-run gate and a **forward-only** `NEWSDESK_BIRTH_SINCE` cutoff (unset ⇒ birth pass
@@ -312,7 +355,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - **packages:** `db` (schema + migrations, now including the durable `articles` table — the content
   engine's store for LLM-generated obituaries/birth notices; never truncated on rebuild; gained
   `discord_posted_at` + the `articles_discord_unposted_idx` partial index in migration `0010` for
-  the Discord obituary notifier),
+  the Discord obituary notifier; gained the durable `article_images` table (bytes in Postgres) plus
+  `image_caption`/`image_model`/`image_attempts`/`image_error` columns on `articles` in migration
+  `0012` for R5c article images — also never truncated on rebuild),
   `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
@@ -326,7 +371,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
-  `newsdesk` (obituary + birth-notice generation sweep, run as **two passes** each interval; **`NEWSDESK_DRY_RUN`
+  `newsdesk` (obituary + birth-notice generation sweep, run as **four passes** each interval; **`NEWSDESK_DRY_RUN`
   defaults `true`** — logs intended articles without calling OpenRouter or writing; set `false` to
   generate; needs `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`. The
   birth-notice pass is additionally gated by **`NEWSDESK_BIRTH_SINCE`** — an ISO-8601 cutoff
@@ -341,7 +386,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (empty = disabled) + `NEWSDESK_DRY_RUN` (dry-run logs, does not send); per-tick cap
   `NEWSDESK_DISCORD_MAX_PER_TICK` (default 10). Delivery is **at-least-once** and assumes a **single
   newsdesk instance** — the sweep reads unposted rows without a row lock. The webhook client uses
-  global `fetch` (no SDK). Design: `docs/superpowers/specs/2026-07-17-discord-obituary-notifier-design.md`),
+  global `fetch` (no SDK). Design: `docs/superpowers/specs/2026-07-17-discord-obituary-notifier-design.md`.
+  **Fourth pass — article images (R5c):** `imageTick` generates the one AI hero photo per published
+  article (forward first with fresh articles, backfill trailing), under `NEWSDESK_DRY_RUN` plus its own
+  **`NEWSDESK_IMAGES_ENABLED`** kill switch (default `true`). Image env vars: `NEWSDESK_IMAGE_MODEL`
+  (default `openai/gpt-5-image-mini`), `NEWSDESK_IMAGE_MODEL_FLAGSHIP` (default
+  `openai/gpt-5.4-image-2`, reserved for legends), `NEWSDESK_IMAGE_QUALITY` (default `low`). See the
+  Tabloid redesign R5c entry for the full art-direction/storage/serving picture),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
   systemd unit).

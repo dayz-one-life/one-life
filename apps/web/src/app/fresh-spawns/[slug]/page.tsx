@@ -28,7 +28,8 @@ export default async function BirthNoticePage({ params }: Props) {
   const now = new Date();
   const feed = await getBirthNoticesFeed(1).catch(() => ({ rows: [], total: 0, page: 1, pageSize: 20 }));
   const more = feed.rows.filter((r) => r.slug !== article.slug).slice(0, 4);
-  const ld = birthNoticeLd(article, absoluteUrl(birthNoticeHref(slug)));
+  const ldImage = article.imageUrl ? absoluteUrl(article.imageUrl) : undefined;
+  const ld = birthNoticeLd(article, absoluteUrl(birthNoticeHref(slug)), ldImage);
 
   return (
     <>

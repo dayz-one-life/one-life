@@ -64,3 +64,17 @@ describe("newsdesk config — NEWSDESK_BIRTH_SINCE (forward-only birth cutoff)",
     expect(loadConfig({ ...BASE, NEWSDESK_BIRTH_SINCE: "2026-07-17T00:00:00Z" }).dryRun).toBe(true);
   });
 });
+
+describe("newsdesk config — article images (R5c)", () => {
+  it("image defaults: workhorse mini, flagship 5.4, quality low, enabled", () => {
+    const c = loadConfig({ DATABASE_URL: "x" });
+    expect(c.imageModel).toBe("openai/gpt-5-image-mini");
+    expect(c.imageFlagshipModel).toBe("openai/gpt-5.4-image-2");
+    expect(c.imageQuality).toBe("low");
+    expect(c.imagesEnabled).toBe(true);
+  });
+  it("NEWSDESK_IMAGES_ENABLED=false disables; anything else keeps it on", () => {
+    expect(loadConfig({ DATABASE_URL: "x", NEWSDESK_IMAGES_ENABLED: "false" }).imagesEnabled).toBe(false);
+    expect(loadConfig({ DATABASE_URL: "x", NEWSDESK_IMAGES_ENABLED: "0" }).imagesEnabled).toBe(true);
+  });
+});

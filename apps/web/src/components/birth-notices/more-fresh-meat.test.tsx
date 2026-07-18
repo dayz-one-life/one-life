@@ -6,6 +6,7 @@ import type { BirthNoticeCard } from "@/lib/types";
 const row: BirthNoticeCard = {
   slug: "r-1", gamertag: "Boots", map: "sakhal", mapSlug: "sakhal", lifeNumber: 1,
   headline: "Ashore And Doomed", lede: "L", tags: [], bornAt: "2026-07-17T10:00:00Z", minutesToQualify: null, priorLives: 0,
+  imageUrl: null, imageCaption: null,
 };
 
 describe("MoreFreshMeat", () => {
