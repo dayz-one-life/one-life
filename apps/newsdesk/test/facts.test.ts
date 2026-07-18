@@ -7,13 +7,21 @@ const target: ObituaryTarget = {
   mapSlug: "chernarus", lifeNumber: 3, lifeStartedAt: new Date("2026-07-09T02:00:00Z"), endedAt: new Date("2026-07-10T02:00:00Z"),
 };
 
-function timeline(over: Partial<{ life: Record<string, unknown>; kills: unknown[]; sessions: unknown[] }> = {}) {
+function timeline(over: Partial<{ life: Record<string, unknown>; kills: unknown[]; sessions: unknown[]; verdict: unknown; ordeals: unknown; hpLow: unknown }> = {}) {
   return {
-    life: { deathCause: "pvp", deathByGamertag: "Sn1per", deathWeapon: "M4", playtimeSeconds: 7200, ...(over.life ?? {}) },
+    life: { deathCause: "pvp", deathByGamertag: "Sn1per", deathWeapon: "M4", deathDistance: null, playtimeSeconds: 7200, ...(over.life ?? {}) },
     sessions: over.sessions ?? [{}, {}],
     kills: over.kills ?? [{ distanceMeters: 120 }, { distanceMeters: 300 }, { distanceMeters: null }],
     character: null,
     qualifiedAt: null,
+    verdict: over.verdict ?? null,
+    ordeals: over.ordeals ?? {
+      infected: { encounters: 0, hits: 0, worstEncounterHits: 0 },
+      fire: { encounters: 0, hits: 0, worstEncounterHits: 0 },
+      pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 },
+      buildsPlaced: 0,
+    },
+    hpLow: over.hpLow ?? null,
   } as unknown as import("@onelife/read-models").LifeTimeline;
 }
 
@@ -59,5 +67,20 @@ describe("buildObituaryFacts", () => {
   it("classifies a missing cause as unknown", () => {
     const f = buildObituaryFacts(target, timeline({ life: { deathCause: null, deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }));
     expect(f.causeCategory).toBe("unknown");
+  });
+
+  it("carries verdict, ordeals, hpLow, and deathDistance into the facts", () => {
+    const t = timeline({
+      life: { deathCause: "pvp", deathByGamertag: "Camper", deathWeapon: "SKS", deathDistance: 153.4, playtimeSeconds: 600 },
+      kills: [],
+      verdict: { cause: "pvp", confidence: "high", conditions: ["healthy"], basis: {} },
+      ordeals: { infected: { encounters: 2, hits: 3, worstEncounterHits: 2 }, fire: { encounters: 1, hits: 1, worstEncounterHits: 1 }, pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 }, buildsPlaced: 1 },
+      hpLow: 12,
+    });
+    const f = buildObituaryFacts(target, t);
+    expect(f.verdict).toEqual({ cause: "pvp", confidence: "high", conditions: ["healthy"] }); // basis stripped
+    expect(f.ordeals!.infected.encounters).toBe(2);
+    expect(f.hpLow).toBe(12);
+    expect(f.deathDistance).toBe(153.4);
   });
 });
