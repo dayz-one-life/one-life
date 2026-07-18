@@ -77,6 +77,13 @@ describe("getPlayerPage", () => {
     expect(life.vitals).toMatchObject({ energy: 3200, bleedSources: 2 });
     expect(life.sessions).toBe(1);
   });
+  it("past lives on the visible slice carry a classified verdict", async () => {
+    const page = (await getPlayerPage(db, "Legend", now))!;
+    const past = page.pastLives[0]!;
+    expect(past.death.verdict).not.toBeNull();
+    expect(past.death.verdict!.confidence).toMatch(/^(high|low)$/);
+    expect(past.death.verdict!.cause).toBe("pvp");
+  });
 });
 
 describe("getPlayerPage pagination", () => {

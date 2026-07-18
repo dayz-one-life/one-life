@@ -28,6 +28,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
       { victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) },
     ],
     qualifiedAt: { at: at(5), by: "playtime" },
+    verdict: null,
     ...over,
   };
 }
@@ -101,5 +102,21 @@ describe("buildTimeline", () => {
     const v = buildTimeline(data({ qualifiedAt: { at: at(120), by: "kill" } }), now);
     const q = v.events.find((e) => e.kind === "qualified");
     expect(q && "line" in q ? q.line : "").toMatch(/first blood/i);
+  });
+
+  test("threads the verdict onto the death event", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const deadData = data({
+      qualifiedAt: null,
+      verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
+      life: {
+        ...data().life, endedAt: at(360), deathCause: "environment", deathByGamertag: null,
+        deathWeapon: null, deathDistance: null, energyAtDeath: 0, waterAtDeath: 10, bleedSourcesAtDeath: 0,
+        playtimeSeconds: 21600,
+      },
+    });
+    const view = buildTimeline(deadData, now);
+    const death = view.events.find((e) => e.kind === "death")!;
+    expect(death.kind === "death" && death.verdict).toEqual({ cause: "starvation", confidence: "low", conditions: ["starving"] });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills } from "@onelife/db";
+import { servers, players, lives, sessions, kills, hitEvents } from "@onelife/db";
 import { inArray } from "drizzle-orm";
 import { getLifeTimeline } from "../src/life-timeline.js";
 
@@ -11,6 +11,7 @@ const mins = (m: number) => new Date(start.getTime() + m * 60_000);
 let serverId: number;
 let pid: number;
 let deadLifeId: number;
+let openLifeId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "lt", map: "sakhal", slug: `lt-${svc}`, active: true }).returning();
@@ -30,9 +31,25 @@ beforeAll(async () => {
   await db.insert(kills).values({
     serverId, killerGamertag: `LtHero-${svc}`, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(120),
   });
+  await db.insert(hitEvents).values({
+    serverId, victimGamertag: `LtHero-${svc}`, attackerType: "player", attackerGamertag: "SomeKiller",
+    victimHp: 30, occurredAt: new Date(mins(360).getTime() - 20_000),
+  });
+
+  // An OPEN life (no endedAt), started after the dead life ended — the dossier must not be
+  // fetched for it, so verdict/ordeals/hpLow must all come back null.
+  const [ol] = await db.insert(lives).values({
+    serverId, playerId: pid, lifeNumber: 2, startedAt: mins(400), endedAt: null,
+    playtimeSeconds: 0,
+  }).returning();
+  openLifeId = ol!.id;
+  await db.insert(sessions).values({
+    serverId, playerId: pid, lifeId: openLifeId, connectedAt: mins(400), disconnectedAt: null, durationSeconds: null, closeReason: null,
+  });
 });
 
 afterAll(async () => {
+  await db.delete(hitEvents).where(inArray(hitEvents.serverId, [serverId]));
   await db.delete(kills).where(inArray(kills.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
@@ -58,5 +75,23 @@ describe("getLifeTimeline", () => {
 
   it("returns null for an unknown life", async () => {
     expect(await getLifeTimeline(db, serverId, `LtHero-${svc}`, 9_999_999)).toBeNull();
+  });
+
+  it("carries the classified verdict, ordeals, and hpLow for a dead life", async () => {
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t).not.toBeNull();
+    // Stated pvp mechanism passes through at high confidence.
+    expect(t!.verdict).toMatchObject({ cause: "pvp", confidence: "high" });
+    expect(t!.ordeals!.pvp.encounters).toBe(1);
+    expect(t!.hpLow).toBe(30);
+  });
+
+  it("does not fetch a dossier for an open life — verdict, ordeals, and hpLow are all null", async () => {
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, openLifeId);
+    expect(t).not.toBeNull();
+    expect(t!.life.endedAt).toBeNull();
+    expect(t!.verdict).toBeNull();
+    expect(t!.ordeals).toBeNull();
+    expect(t!.hpLow).toBeNull();
   });
 });

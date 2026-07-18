@@ -1,4 +1,4 @@
-import type { LifeTimeline } from "@onelife/read-models";
+import type { LifeTimeline, OrdealSummary } from "@onelife/read-models";
 import type { ObituaryTarget } from "./pg-store.js";
 
 export const LEGEND_KILLS = 20;
@@ -22,6 +22,10 @@ export interface ObituaryFacts {
   isLegend: boolean;
   freshSpawnVictim: boolean;
   endedAt: string;
+  deathDistance: number | null;
+  verdict: { cause: string; confidence: "high" | "low"; conditions: string[] } | null;
+  ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary; buildsPlaced: number } | null;
+  hpLow: number | null;
 }
 
 /** Human duration: days once past 24h, else "Hh Mm", else "Mm". */
@@ -68,5 +72,12 @@ export function buildObituaryFacts(target: ObituaryTarget, timeline: LifeTimelin
     isLegend: kills >= LEGEND_KILLS || timeAliveSeconds >= LEGEND_SECONDS,
     freshSpawnVictim: causeCategory === "pvp" && timeAliveSeconds < FRESH_SPAWN_SECONDS,
     endedAt: target.endedAt.toISOString(),
+    deathDistance: life.deathDistance ?? null,
+    // basis is auditing detail — keep the frozen facts snapshot lean.
+    verdict: timeline.verdict
+      ? { cause: timeline.verdict.cause, confidence: timeline.verdict.confidence, conditions: timeline.verdict.conditions }
+      : null,
+    ordeals: timeline.ordeals ?? null,
+    hpLow: timeline.hpLow ?? null,
   };
 }

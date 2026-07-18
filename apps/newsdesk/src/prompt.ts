@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { ObituaryFacts } from "./facts.js";
 import { OBITUARY_SYSTEM } from "./voice.js";
 
-export const OBITUARY_PROMPT_VERSION = "obituary-v1";
+export const OBITUARY_PROMPT_VERSION = "obituary-v2";
 
 export interface Obituary {
   headline: string;
@@ -15,6 +15,36 @@ export interface Obituary {
 const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
 export const mapLabel = (map: string): string => MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 
+/** Deterministic, qualitative death sentence for the prompt — words, never raw stat values. */
+export function describeDeath(facts: ObituaryFacts): string {
+  if (facts.causeCategory === "pvp") {
+    const killer = facts.killerGamertag ? ` (${facts.killerGamertag})` : "";
+    const weapon = facts.weapon ? `, ${facts.weapon}` : "";
+    const dist = facts.deathDistance != null ? `, from ${Math.round(facts.deathDistance)}m` : "";
+    return `killed by another player${killer}${weapon}${dist}.`;
+  }
+  const v = facts.verdict;
+  if (!v) {
+    return facts.cause ? `${facts.cause.replace(/_/g, " ")} (not a player kill).` : "unknown.";
+  }
+  const noun: Record<string, string> = {
+    suicide: "died by their own hand",
+    starvation: "starvation — they ran out of food",
+    dehydration: "dehydration — they ran out of water",
+    bled_out: "bled out",
+    mauled: "mauled — bleeding out after an animal or infected attack",
+    environmental: facts.cause ? facts.cause.replace(/_/g, " ") : "the environment",
+    unknown: "unknown",
+  };
+  const base = noun[v.cause] ?? v.cause.replace(/_/g, " ");
+  const hedge = v.confidence === "low" ? "likely " : "";
+  const conds = v.conditions.filter((c) => c !== "healthy");
+  const state = conds.length
+    ? ` At the end they were ${conds.join(" and ")}.`
+    : v.conditions.includes("healthy") ? " They were in good health at the end." : "";
+  return `${hedge}${base} (not a player kill).${state}`;
+}
+
 /** Build the {system, user} messages for one obituary from the factual snapshot. */
 export function buildObituaryPrompt(facts: ObituaryFacts): { system: string; user: string } {
   const lines: string[] = [];
@@ -25,13 +55,15 @@ export function buildObituaryPrompt(facts: ObituaryFacts): { system: string; use
   lines.push(`- Confirmed kills this life: ${facts.kills}`);
   if (facts.longestKillMeters != null) lines.push(`- Longest kill: ${Math.round(facts.longestKillMeters)}m`);
   lines.push(`- Sessions played: ${facts.sessions}`);
-  if (facts.causeCategory === "pvp") {
-    lines.push(`- Cause of death: killed by another player${facts.killerGamertag ? ` (${facts.killerGamertag})` : ""}${facts.weapon ? `, ${facts.weapon}` : ""}.`);
-  } else if (facts.causeCategory === "environment") {
-    lines.push(`- Cause of death: ${facts.cause ?? "the environment"} (not a player kill).`);
-  } else {
-    lines.push(`- Cause of death: unknown.`);
+  lines.push(`- Cause of death: ${describeDeath(facts)}`);
+  if (facts.ordeals) {
+    const o = facts.ordeals;
+    if (o.infected.encounters > 0) lines.push(`- Run-ins with the infected: ${o.infected.encounters}${o.infected.worstEncounterHits > 1 ? ` (the worst took ${o.infected.worstEncounterHits} hits)` : ""}`);
+    if (o.fire.encounters > 0) lines.push(`- Times caught fire: ${o.fire.encounters}`);
+    if (o.pvp.encounters > 0) lines.push(`- Firefights that left a mark before the end: ${o.pvp.encounters}`);
+    if (o.buildsPlaced > 0) lines.push(`- Things built this life: ${o.buildsPlaced}`);
   }
+  if (facts.hpLow != null && facts.hpLow < 50) lines.push(`- Lowest health recorded: ${Math.round(facts.hpLow)} of 100`);
   lines.push("");
   if (facts.isLegend) {
     lines.push(`This was a LEGEND (a long life and/or a high kill count). Use the reverent tone — a sincere send-off with exactly one small needle.`);
@@ -39,6 +71,11 @@ export function buildObituaryPrompt(facts: ObituaryFacts): { system: string; use
     lines.push(`This was a fresh spawn or badly outmatched player killed by another player. PROTECT the victim's dignity — do not mock them for dying. If the killer is named, they are the subject of any mockery, not the victim.`);
   } else {
     lines.push(`Use the default tone: dry mock-gravity — a state funeral for an idiot. Mock the circumstances, never the person's worth.`);
+  }
+  lines.push("");
+  lines.push(`Describe the manner of death in qualitative terms — never quote raw stat numbers (energy or water values).`);
+  if (facts.verdict?.confidence === "low") {
+    lines.push(`The cause of death is an inference from the record, not a certainty — hedge it in-voice ("the record is murky", "the island isn't saying").`);
   }
   lines.push("");
   lines.push(`Respond with only the JSON object described in your instructions.`);

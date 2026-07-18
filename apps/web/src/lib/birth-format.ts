@@ -1,4 +1,5 @@
 import { mapLabel, formatDuration, relativeDate } from "@/components/player/format";
+import { causeLabel } from "./cause-format";
 import type { BirthNoticeArticle } from "./types";
 
 export function freshSpawnsHref(page: number): string {
@@ -25,12 +26,6 @@ export function birthDateline(map: string, bornAtIso: string, now: Date): string
 }
 
 export interface PriorFact { label: string; value: string; hot?: boolean }
-
-function causeLabel(cause: string | null): string {
-  if (cause === "pvp") return "Killed";
-  if (!cause) return "Unknown";
-  return cause.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 /** The deterministic "Priors" box rows — never the LLM. Empty for a first-lifer (no priors). */
 export function priorsFacts(a: BirthNoticeArticle): PriorFact[] {

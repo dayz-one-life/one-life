@@ -8,6 +8,7 @@ const facts: ObituaryFacts = {
   timeAliveLabel: "1h 0m", kills: 0, longestKillMeters: null, sessions: 1, cause: "environment",
   causeCategory: "environment", killerGamertag: null, weapon: null, isLegend: false, freshSpawnVictim: false,
   endedAt: "2026-07-10T02:00:00.000Z",
+  deathDistance: null, verdict: null, ordeals: null, hpLow: null,
 };
 
 const stub = (payload: unknown): CompletionClient => ({ complete: async () => JSON.stringify(payload) });

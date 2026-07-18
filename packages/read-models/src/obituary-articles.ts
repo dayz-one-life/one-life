@@ -35,9 +35,13 @@ export interface ObituaryArticle extends ObituaryCard {
   sessions: number;
   killerGamertag: string | null;
   weapon: string | null;
+  verdict: { cause: string; confidence: "high" | "low"; conditions: string[] } | null;
 }
 
-type FactsSnapshot = { sessions?: number; killerGamertag?: string | null; weapon?: string | null };
+type FactsSnapshot = {
+  sessions?: number; killerGamertag?: string | null; weapon?: string | null;
+  verdict?: { cause?: string; confidence?: "high" | "low"; conditions?: string[] } | null;
+};
 
 const CARD_COLS = {
   slug: articles.slug,
@@ -133,5 +137,8 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     sessions: facts.sessions ?? 0,
     killerGamertag: facts.killerGamertag ?? null,
     weapon: facts.weapon ?? null,
+    verdict: facts.verdict?.cause
+      ? { cause: facts.verdict.cause, confidence: facts.verdict.confidence ?? "high", conditions: facts.verdict.conditions ?? [] }
+      : null,
   };
 }
