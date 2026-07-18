@@ -8,6 +8,8 @@ const facts: ObituaryFacts = {
   sessions: 30, cause: "pvp", causeCategory: "pvp", killerGamertag: "Chicken", weapon: "Reload",
   isLegend: true, freshSpawnVictim: false, endedAt: "2026-07-10T22:16:00.000Z",
   deathDistance: null, verdict: null, ordeals: null, hpLow: null,
+  priors: { livesLived: 6, longestLifeSeconds: 172800, totalKills: 31, usualDeathCause: "pvp", lastDeathCause: "pvp", bestLifeMap: "chernarusplus" },
+  isKnownQuantity: true,
 };
 
 const mkFacts = (overrides: Partial<ObituaryFacts>): ObituaryFacts => ({ ...facts, ...overrides });

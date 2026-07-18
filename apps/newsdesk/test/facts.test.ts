@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { buildObituaryFacts, timeAliveLabel } from "../src/facts.js";
 import type { ObituaryTarget } from "../src/pg-store.js";
+import type { PlayerPriors } from "@onelife/read-models";
+
+const noPriors: PlayerPriors = {
+  livesLived: 0, longestLifeSeconds: 0, totalKills: 0,
+  usualDeathCause: null, lastDeathCause: null, bestLifeMap: null,
+};
+const vetPriors: PlayerPriors = {
+  livesLived: 15, longestLifeSeconds: 259200, totalKills: 48,
+  usualDeathCause: "animal", lastDeathCause: "bled_out", bestLifeMap: "sakhal",
+};
 
 const target: ObituaryTarget = {
   lifeId: 1, serverId: 1, gamertag: "Boots", map: "chernarusplus",
@@ -35,7 +45,7 @@ describe("timeAliveLabel", () => {
 
 describe("buildObituaryFacts", () => {
   it("derives kills, longest kill, sessions, cause category, killer, weapon", () => {
-    const f = buildObituaryFacts(target, timeline());
+    const f = buildObituaryFacts(target, timeline(), noPriors);
     expect(f.kills).toBe(3);
     expect(f.longestKillMeters).toBe(300);
     expect(f.sessions).toBe(2);
@@ -47,25 +57,25 @@ describe("buildObituaryFacts", () => {
   });
 
   it("flags a legend by kills", () => {
-    const f = buildObituaryFacts(target, timeline({ kills: Array.from({ length: 25 }, () => ({ distanceMeters: 10 })) }));
+    const f = buildObituaryFacts(target, timeline({ kills: Array.from({ length: 25 }, () => ({ distanceMeters: 10 })) }), noPriors);
     expect(f.isLegend).toBe(true);
   });
 
   it("flags a fresh-spawn victim (short pvp life) and NOT a legend", () => {
-    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "pvp", deathByGamertag: "Camper", deathWeapon: "SKS", playtimeSeconds: 600 }, kills: [] }));
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "pvp", deathByGamertag: "Camper", deathWeapon: "SKS", playtimeSeconds: 600 }, kills: [] }), noPriors);
     expect(f.freshSpawnVictim).toBe(true);
     expect(f.isLegend).toBe(false);
   });
 
   it("classifies a non-pvp death as environment, killer null", () => {
-    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "bled_out", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }));
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "bled_out", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }), noPriors);
     expect(f.causeCategory).toBe("environment");
     expect(f.killerGamertag).toBeNull();
     expect(f.freshSpawnVictim).toBe(false);
   });
 
   it("classifies a missing cause as unknown", () => {
-    const f = buildObituaryFacts(target, timeline({ life: { deathCause: null, deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }));
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: null, deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }), noPriors);
     expect(f.causeCategory).toBe("unknown");
   });
 
@@ -77,10 +87,22 @@ describe("buildObituaryFacts", () => {
       ordeals: { infected: { encounters: 2, hits: 3, worstEncounterHits: 2 }, fire: { encounters: 1, hits: 1, worstEncounterHits: 1 }, pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 }, buildsPlaced: 1 },
       hpLow: 12,
     });
-    const f = buildObituaryFacts(target, t);
+    const f = buildObituaryFacts(target, t, noPriors);
     expect(f.verdict).toEqual({ cause: "pvp", confidence: "high", conditions: ["healthy"] }); // basis stripped
     expect(f.ordeals!.infected.encounters).toBe(2);
     expect(f.hpLow).toBe(12);
     expect(f.deathDistance).toBe(153.4);
+  });
+
+  it("carries priors through and flags a known quantity", () => {
+    const f = buildObituaryFacts(target, timeline(), vetPriors);
+    expect(f.priors).toEqual(vetPriors);
+    expect(f.isKnownQuantity).toBe(true);
+  });
+
+  it("a first-lifer is not a known quantity", () => {
+    const f = buildObituaryFacts(target, timeline(), noPriors);
+    expect(f.priors.livesLived).toBe(0);
+    expect(f.isKnownQuantity).toBe(false);
   });
 });

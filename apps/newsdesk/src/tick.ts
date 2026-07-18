@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { getLifeTimeline } from "@onelife/read-models";
+import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
 import { findObituaryTargets, publishObituary, recordObituaryFailure } from "./pg-store.js";
 import { recentProse } from "./prose-pg-store.js";
 import { buildObituaryFacts } from "./facts.js";
@@ -44,7 +44,8 @@ export async function newsdeskTick(db: Database, deps: NewsdeskDeps): Promise<Ne
       skipped++;
       continue;
     }
-    const facts = buildObituaryFacts(t, timeline);
+    const priors = await getPlayerPriors(db, t.gamertag, t.lifeStartedAt);
+    const facts = buildObituaryFacts(t, timeline, priors);
 
     if (deps.dryRun) {
       deps.log.info({ gamertag: t.gamertag, lifeId: t.lifeId, map: t.map }, "DRY RUN: would generate obituary");

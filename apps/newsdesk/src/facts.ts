@@ -1,4 +1,4 @@
-import type { LifeTimeline, OrdealSummary } from "@onelife/read-models";
+import type { LifeTimeline, OrdealSummary, PlayerPriors } from "@onelife/read-models";
 import type { ObituaryTarget } from "./pg-store.js";
 
 export const LEGEND_KILLS = 20;
@@ -26,6 +26,8 @@ export interface ObituaryFacts {
   verdict: { cause: string; confidence: "high" | "low"; conditions: string[] } | null;
   ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary; buildsPlaced: number } | null;
   hpLow: number | null;
+  priors: PlayerPriors;        // the player's global reputation before this life
+  isKnownQuantity: boolean;    // priors.livesLived > 0
 }
 
 /** Human duration: days once past 24h, else "Hh Mm", else "Mm". */
@@ -42,7 +44,11 @@ export function timeAliveLabel(seconds: number): string {
 }
 
 /** Compose the factual snapshot the obituary prompt and Rap Sheet are built from. */
-export function buildObituaryFacts(target: ObituaryTarget, timeline: LifeTimeline): ObituaryFacts {
+export function buildObituaryFacts(
+  target: ObituaryTarget,
+  timeline: LifeTimeline,
+  priors: PlayerPriors,
+): ObituaryFacts {
   const life = timeline.life;
   const kills = timeline.kills.length;
   const longestKillMeters = timeline.kills.reduce<number | null>((max, k) => {
@@ -79,5 +85,7 @@ export function buildObituaryFacts(target: ObituaryTarget, timeline: LifeTimelin
       : null,
     ordeals: timeline.ordeals ?? null,
     hpLow: timeline.hpLow ?? null,
+    priors,
+    isKnownQuantity: priors.livesLived > 0,
   };
 }
