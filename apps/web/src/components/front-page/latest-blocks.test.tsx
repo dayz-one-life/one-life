@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { ObituaryCard, BirthNoticeCard } from "@/lib/types";
 import { LatestObituaries } from "./latest-obituaries";
 import { LatestFreshSpawns } from "./latest-fresh-spawns";
+
+vi.mock("next/image", () => ({
+  // eslint-disable-next-line @next/next/no-img-element
+  default: (props: Record<string, unknown>) => <img {...(props as object)} alt="" />,
+}));
 
 const obit: ObituaryCard = {
   slug: "gone-42", gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus", lifeNumber: 3,
@@ -27,6 +32,14 @@ describe("LatestObituaries", () => {
     render(<LatestObituaries rows={[]} />);
     expect(screen.getByText(/NOTHING FILED YET/)).toBeInTheDocument();
   });
+  it("renders a thumbnail when imageUrl is present, no wrapper when absent", () => {
+    const { rerender } = render(<LatestObituaries rows={[obit]} />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector(".flex.gap-4")).toBeNull();
+    rerender(<LatestObituaries rows={[{ ...obit, imageUrl: "/media/thumbs/x.png" }]} />);
+    expect(document.querySelector("img")).toBeTruthy();
+    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
+  });
 });
 
 describe("LatestFreshSpawns", () => {
@@ -38,5 +51,13 @@ describe("LatestFreshSpawns", () => {
   it("shows a quiet empty state when there are no rows", () => {
     render(<LatestFreshSpawns rows={[]} />);
     expect(screen.getByText(/NO FOOL HAS WASHED ASHORE YET/)).toBeInTheDocument();
+  });
+  it("renders a thumbnail when imageUrl is present, no wrapper when absent", () => {
+    const { rerender } = render(<LatestFreshSpawns rows={[spawn]} />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector(".flex.gap-4")).toBeNull();
+    rerender(<LatestFreshSpawns rows={[{ ...spawn, imageUrl: "/media/thumbs/x.png" }]} />);
+    expect(document.querySelector("img")).toBeTruthy();
+    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ObituaryCard as Card } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
 import { cn } from "@/lib/utils";
@@ -7,8 +8,8 @@ import { obituaryHref, dateline, rapSheetFacts } from "@/lib/obituary-format";
 /** One obituary in the reverse-chron feed — headline → interior, dek, dateline, Rap Sheet strip. */
 export function ObituaryCard({ card, now }: { card: Card; now: Date }) {
   const facts = rapSheetFacts(card);
-  return (
-    <article className="border-b border-hairline py-6">
+  const content = (
+    <>
       <p className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted">{dateline(card.map, card.deathAt, now)}</p>
       <h2 className="mt-1.5 font-display text-3xl font-bold uppercase leading-[.95] text-ink md:text-4xl">
         <Link href={obituaryHref(card.slug)} className="hover:text-red">{card.headline}</Link>
@@ -24,6 +25,20 @@ export function ObituaryCard({ card, now }: { card: Card; now: Date }) {
           </span>
         ))}
       </div>
+    </>
+  );
+  return (
+    <article className="border-b border-hairline py-6">
+      {card.imageUrl ? (
+        <div className="flex gap-4">
+          <div className="relative hidden h-24 w-24 shrink-0 overflow-hidden border border-hairline sm:block">
+            <Image src={card.imageUrl} alt="" fill sizes="96px" className="object-cover" />
+          </div>
+          <div className="min-w-0 flex-1">{content}</div>
+        </div>
+      ) : (
+        content
+      )}
     </article>
   );
 }

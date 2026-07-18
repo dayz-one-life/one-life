@@ -1,12 +1,13 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { BirthNoticeCard as Card } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
 import { birthNoticeHref, birthDateline } from "@/lib/birth-format";
 
 /** One birth notice in the freshest-first feed — dateline, headline → interior, dek, arrival strip. */
 export function BirthNoticeCard({ card, now }: { card: Card; now: Date }) {
-  return (
-    <article className="border-b border-hairline py-6">
+  const content = (
+    <>
       <p className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted">{birthDateline(card.map, card.bornAt, now)}</p>
       <h2 className="mt-1.5 font-display text-3xl font-bold uppercase leading-[.95] text-ink md:text-4xl">
         <Link href={birthNoticeHref(card.slug)} className="hover:text-blue">{card.headline}</Link>
@@ -29,6 +30,20 @@ export function BirthNoticeCard({ card, now }: { card: Card; now: Date }) {
           </span>
         )}
       </div>
+    </>
+  );
+  return (
+    <article className="border-b border-hairline py-6">
+      {card.imageUrl ? (
+        <div className="flex gap-4">
+          <div className="relative hidden h-24 w-24 shrink-0 overflow-hidden border border-hairline sm:block">
+            <Image src={card.imageUrl} alt="" fill sizes="96px" className="object-cover" />
+          </div>
+          <div className="min-w-0 flex-1">{content}</div>
+        </div>
+      ) : (
+        content
+      )}
     </article>
   );
 }

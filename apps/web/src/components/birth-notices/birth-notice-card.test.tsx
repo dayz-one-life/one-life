@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { BirthNoticeCard } from "./birth-notice-card";
 import type { BirthNoticeCard as Card } from "@/lib/types";
+
+vi.mock("next/image", () => ({
+  // eslint-disable-next-line @next/next/no-img-element
+  default: (props: Record<string, unknown>) => <img {...(props as object)} alt="" />,
+}));
 
 const now = new Date("2026-07-17T12:00:00Z");
 const card: Card = {
@@ -23,5 +28,16 @@ describe("BirthNoticeCard", () => {
   test("first-lifer shows the First life badge instead of a prior-lives count", () => {
     render(<BirthNoticeCard card={{ ...card, priorLives: 0 }} now={now} />);
     expect(screen.getByText("First life")).toBeInTheDocument();
+  });
+  test("renders no thumbnail and no wrapper divs when imageUrl is absent", () => {
+    render(<BirthNoticeCard card={card} now={now} />);
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector(".flex.gap-4")).toBeNull();
+    expect(document.querySelector("article")?.firstElementChild?.tagName).toBe("P");
+  });
+  test("renders a thumbnail inside a flex row when imageUrl is present", () => {
+    render(<BirthNoticeCard card={{ ...card, imageUrl: "/media/thumbs/x.png" }} now={now} />);
+    expect(document.querySelector("img")).toBeTruthy();
+    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });
