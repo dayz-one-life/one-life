@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.15.0] - 2026-07-17
+
+### Added
 - Tabloid redesign R5b — Birth Notices / Fresh Spawns. The newsdesk worker gains a second pass that
   writes an in-voice **Birth Notice** ("The Nursery") for every qualified life going forward, behind
   the shared dry-run gate and a **forward-only** `NEWSDESK_BIRTH_SINCE` cutoff (unset ⇒ birth pass
