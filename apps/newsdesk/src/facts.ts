@@ -4,6 +4,9 @@ import type { ObituaryTarget } from "./pg-store.js";
 export const LEGEND_KILLS = 20;
 export const LEGEND_SECONDS = 604800; // 7 days
 export const FRESH_SPAWN_SECONDS = 1800; // 30 min
+/** Under this, a self-inflicted death is a spawn reroll (a bad beach, a broken leg on landing),
+ *  not the end of a run. Published suicides span 15s–5381s; the prompt must not read them alike. */
+export const SUICIDE_RESET_SECONDS = 300; // 5 min
 
 export interface ObituaryFacts {
   gamertag: string;

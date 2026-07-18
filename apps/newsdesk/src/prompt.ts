@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ObituaryFacts } from "./facts.js";
-import { timeAliveLabel } from "./facts.js";
+import { timeAliveLabel, SUICIDE_RESET_SECONDS } from "./facts.js";
 import { OBITUARY_SYSTEM } from "./voice.js";
 import type { RecentProse } from "./prose-pg-store.js";
 import { recentProseBlock } from "./prose-block.js";
@@ -91,7 +91,11 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
     lines.push(`- None. This was their first recorded life anywhere. A stranger to these shores.`);
   }
   lines.push("");
-  if (facts.isLegend) {
+  if (facts.causeCategory === "suicide" && facts.timeAliveSeconds < SUICIDE_RESET_SECONDS) {
+    lines.push(`This was a SELF-INFLICTED death, ${Math.round(facts.timeAliveSeconds)} seconds after this life began. Frame it as a REROLL, not a decision: a bad beach, a broken leg on landing, a spawn nobody wanted — a survivor pressing the reset button on a life that had not started yet. Bureaucratic deadpan, a filing error, an administrative footnote. There is no story arc to eulogize because there was no arc. Do not reach for grief, meaning, or significance — this is paperwork, not a loss.`);
+  } else if (facts.causeCategory === "suicide") {
+    lines.push(`This was a SELF-INFLICTED death that ended a real run — the life lasted ${facts.timeAliveLabel} before it ended. Frame it as a survivor closing their own book after a genuine stretch out there: the record they built is the story, and the ending is the last line of it, reported flatly. Never treat the act itself as the punchline and never speculate about a state of mind — you have the record, not the reason. Any needle lands on the circumstances of the run, never on the person.`);
+  } else if (facts.isLegend) {
     lines.push(`This was a LEGEND (a long life and/or a high kill count). Use the reverent tone — a sincere send-off with exactly one small needle.`);
   } else if (facts.freshSpawnVictim) {
     lines.push(`This was a fresh spawn or badly outmatched player killed by another player. PROTECT the victim's dignity — do not mock them for dying. If the killer is named, they are the subject of any mockery, not the victim.`);

@@ -82,6 +82,34 @@ describe("buildObituaryPrompt", () => {
     expect(user).toContain("not a career count");
     expect(user).toMatch(/never call this a debut/i);
   });
+
+  it("a sub-5-minute suicide is framed as a spawn reroll, not a decision", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      isLegend: false, kills: 0, killerGamertag: null, weapon: null,
+      cause: "suicide", causeCategory: "suicide",
+      timeAliveSeconds: 20, timeAliveLabel: "0m", verdict: null,
+    }));
+    expect(user).toMatch(/reroll/i);
+    expect(user).toContain("20 seconds");
+    expect(user).not.toMatch(/despair|weight of/i);
+  });
+
+  it("a long suicide is framed as the end of a real run, and says how long it lasted", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      isLegend: false, kills: 2, killerGamertag: null, weapon: null,
+      cause: "suicide", causeCategory: "suicide",
+      timeAliveSeconds: 5381, timeAliveLabel: "1h 29m", verdict: null,
+    }));
+    expect(user).toMatch(/lasted 1h 29m/);
+    expect(user).not.toMatch(/reroll/i);
+    expect(user).toMatch(/never treat the act itself as the punchline/i);
+  });
+
+  it("a non-suicide death keeps the default tone branch", () => {
+    const { user } = buildObituaryPrompt(mkFacts({ isLegend: false, freshSpawnVictim: false, causeCategory: "environment", cause: "bled_out" }));
+    expect(user).toMatch(/state funeral for an idiot/);
+    expect(user).not.toMatch(/reroll/i);
+  });
 });
 
 describe("buildObituaryPrompt — recent prose", () => {
