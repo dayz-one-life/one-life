@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.18.0] - 2026-07-18
+
+### Added
 - Death-cause fidelity, stage 1 — the interpretation layer (ported from the archived platform):
   - `classifyDeath` mechanism-first verdict ladder in `@onelife/domain` (starvation / dehydration /
     mauled / bled_out with high|low confidence and conditions; side-effect subtraction).
@@ -20,11 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     obituary OG card render the classified verdict. Non-PvP death labels on the timeline death row
     and funeral cards are now title-cased via the shared `causeLabel` (previously raw lowercase
     tokens).
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.17.0] - 2026-07-18
 
