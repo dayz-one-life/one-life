@@ -73,31 +73,41 @@ export function imageFileName(slug: string, contentType: string): string {
   return `${slug}.${EXT[contentType] ?? "png"}`;
 }
 
+/** Allow-list the stored content type — anything outside the three we actually generate/serve
+ *  falls back to image/png, matching imageFileName's own fallback so the URL extension and the
+ *  stored content-type can never disagree (a mismatched pair is the stored-XSS surface: a
+ *  attacker-influenced contentType like "text/html" served back with that header). */
+const ALLOWED_CONTENT_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+export function safeContentType(contentType: string): string {
+  return ALLOWED_CONTENT_TYPES.has(contentType) ? contentType : "image/png";
+}
+
 /** One transaction: bytes into article_images, provenance + URL onto the article. */
 export async function saveArticleImage(
   db: Database,
   input: { articleId: number; slug: string; prompt: string; caption: string; model: string; image: GeneratedImage; now: Date },
 ): Promise<void> {
   const dims = pngDimensions(input.image.bytes);
+  const contentType = safeContentType(input.image.contentType);
   await db.transaction(async (tx) => {
     await tx
       .insert(articleImages)
       .values({
         articleId: input.articleId,
         bytes: input.image.bytes,
-        contentType: input.image.contentType,
+        contentType,
         width: dims?.width ?? null,
         height: dims?.height ?? null,
         createdAt: input.now,
       })
       .onConflictDoUpdate({
         target: [articleImages.articleId],
-        set: { bytes: input.image.bytes, contentType: input.image.contentType, width: dims?.width ?? null, height: dims?.height ?? null },
+        set: { bytes: input.image.bytes, contentType, width: dims?.width ?? null, height: dims?.height ?? null },
       });
     await tx
       .update(articles)
       .set({
-        imageUrl: `/media/heroes/${imageFileName(input.slug, input.image.contentType)}`,
+        imageUrl: `/media/heroes/${imageFileName(input.slug, contentType)}`,
         imagePrompt: input.prompt,
         imageKind: "hero",
         imageCaption: input.caption,

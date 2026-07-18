@@ -35,4 +35,11 @@ describe("openrouterImage", () => {
     stubFetch({ data: [] });
     await expect(openrouterImage({ apiKey: "k", model: "m", prompt: "p", quality: "low" })).rejects.toThrow(/no image/i);
   });
+  it("throws when the decoded image exceeds the 10MB size cap", async () => {
+    // ~10MB+1 byte of raw content, cheaply constructed, then base64-encoded — decodes back to
+    // just over the cap.
+    const oversizeB64 = Buffer.alloc(10_000_001).toString("base64");
+    stubFetch({ data: [{ b64_json: oversizeB64, media_type: "image/png" }] });
+    await expect(openrouterImage({ apiKey: "k", model: "m", prompt: "p", quality: "low" })).rejects.toThrow(/10MB/);
+  });
 });

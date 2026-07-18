@@ -11,13 +11,19 @@ const asset = (name: string) => readFile(new URL(`./${name}`, import.meta.url));
 
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:3001";
 
+// satori can't reliably render webp data-URIs (nor anything outside png/jpeg) — a type outside
+// this pair falls back to null so the caller renders the spec-mandated text-only layout instead
+// of a 500.
+const EMBEDDABLE_CONTENT_TYPES = new Set(["image/png", "image/jpeg"]);
+
 async function heroDataUri(imageUrl: string | null): Promise<string | null> {
   if (!imageUrl) return null;
   try {
     const res = await fetch(`${API_ORIGIN}${imageUrl}`);
     if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
     const type = res.headers.get("content-type") ?? "image/png";
+    if (!EMBEDDABLE_CONTENT_TYPES.has(type)) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
     return `data:${type};base64,${buf.toString("base64")}`;
   } catch {
     return null;

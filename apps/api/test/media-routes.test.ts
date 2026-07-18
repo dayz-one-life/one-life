@@ -11,6 +11,7 @@ const svc = Math.floor(Math.random() * 1e8) + 55e7;
 let serverId: number;
 const imagedSlug = `media-api-${svc}`;
 const noImageSlug = `media-api-noimg-${svc}`;
+const unpublishedSlug = `media-api-unpub-${svc}`;
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
 
 beforeAll(async () => {
@@ -41,6 +42,24 @@ beforeAll(async () => {
     map: "chernarusplus", lifeNumber: 1, lifeStartedAt: new Date("2026-07-10T00:00:00Z"),
     headline: "H2",
   });
+
+  // Defense-in-depth: an image row exists but the parent article is not published — must 404,
+  // never serve the bytes.
+  const [unpublished] = await db
+    .insert(articles)
+    .values({
+      kind: "obituary", status: "failed", slug: unpublishedSlug, serverId, gamertag: `media-tag-unpub-${svc}`,
+      map: "chernarusplus", lifeNumber: 1, lifeStartedAt: new Date("2026-07-10T00:00:00Z"),
+      headline: "H3", imageUrl: `/media/heroes/${unpublishedSlug}.png`,
+    })
+    .returning();
+  await db.insert(articleImages).values({
+    articleId: unpublished!.id,
+    bytes: png,
+    contentType: "image/png",
+    width: 1,
+    height: 1,
+  });
 });
 
 afterAll(async () => {
@@ -50,11 +69,12 @@ afterAll(async () => {
 });
 
 describe("GET /media/heroes/:file", () => {
-  it("200s with the stored bytes, content-type, and immutable cache header", async () => {
+  it("200s with the stored bytes, content-type, immutable cache header, and nosniff", async () => {
     const res = await app.inject({ method: "GET", url: `/media/heroes/${imagedSlug}.png` });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("image/png");
     expect(res.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
     expect(Buffer.from(res.rawPayload).equals(png)).toBe(true);
   });
 
@@ -66,6 +86,12 @@ describe("GET /media/heroes/:file", () => {
 
   it("404s for an unknown slug", async () => {
     const res = await app.inject({ method: "GET", url: "/media/heroes/no-such-slug.png" });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: "not_found" });
+  });
+
+  it("404s for an image row whose article is not published (defense-in-depth)", async () => {
+    const res = await app.inject({ method: "GET", url: `/media/heroes/${unpublishedSlug}.png` });
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: "not_found" });
   });

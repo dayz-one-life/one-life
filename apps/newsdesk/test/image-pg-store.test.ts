@@ -213,4 +213,26 @@ describe("saveArticleImage / recordImageFailure", () => {
     expect(imageFileName("a-slug", "image/webp")).toBe("a-slug.webp");
     expect(imageFileName("a-slug", "application/octet-stream")).toBe("a-slug.png");
   });
+
+  it("allow-lists the stored content type — an untrusted/unexpected type is stored as image/png and the URL extension matches", async () => {
+    const target = await seedArticle({ imageAttempts: 0 });
+    const png = fakePng(640, 480);
+    const now = hrs(301);
+
+    await saveArticleImage(db, {
+      articleId: target.id,
+      slug: target.slug!,
+      prompt: "SCENE LINE\n\nSTYLE: full body shot, cinematic, deadpan tabloid photography.",
+      caption: "A DEADPAN CAPTION",
+      model: "test-image-model",
+      image: { bytes: png, contentType: "text/html" },
+      now,
+    });
+
+    const [row] = await db.select().from(articles).where(eq(articles.id, target.id));
+    expect(row!.imageUrl).toBe(`/media/heroes/${target.slug}.png`);
+
+    const [img] = await db.select().from(articleImages).where(eq(articleImages.articleId, target.id));
+    expect(img!.contentType).toBe("image/png");
+  });
 });

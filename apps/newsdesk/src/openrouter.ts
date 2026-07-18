@@ -88,7 +88,11 @@ export async function openrouterImage(args: {
   const data = (await res.json()) as { data?: { b64_json?: string; media_type?: string }[] };
   const img = data?.data?.[0];
   if (!img?.b64_json) throw new Error("OpenRouter returned no image data");
-  return { bytes: Buffer.from(img.b64_json, "base64"), contentType: img.media_type ?? "image/png" };
+  const bytes = Buffer.from(img.b64_json, "base64");
+  if (bytes.length > 10_000_000) {
+    throw new Error(`OpenRouter image exceeded the 10MB size cap (${bytes.length} bytes)`);
+  }
+  return { bytes, contentType: img.media_type ?? "image/png" };
 }
 
 export function openrouterImageClient(cfg: { apiKey: string; quality: string }): ImageClient {

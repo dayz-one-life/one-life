@@ -19,12 +19,13 @@ export function registerMediaRoutes(app: FastifyInstance, db: Database): void {
       .select({ bytes: articleImages.bytes, contentType: articleImages.contentType })
       .from(articles)
       .innerJoin(articleImages, eq(articleImages.articleId, articles.id))
-      .where(and(eq(articles.slug, slug), isNotNull(articles.imageUrl)))
+      .where(and(eq(articles.slug, slug), eq(articles.status, "published"), isNotNull(articles.imageUrl)))
       .limit(1);
     const r = rows[0];
     if (!r) return reply.code(404).send({ error: "not_found" });
     return reply
       .header("cache-control", "public, max-age=31536000, immutable")
+      .header("x-content-type-options", "nosniff")
       .type(r.contentType)
       .send(r.bytes);
   });
