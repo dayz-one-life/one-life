@@ -1,5 +1,5 @@
 import { mapLabel, formatDuration, relativeDate } from "@/components/player/format";
-import { causeLabel, verdictPhrase } from "./cause-format";
+import { verdictPhrase } from "./cause-format";
 import type { ObituaryCard, DeathVerdictDto } from "./types";
 
 export function obituariesHref(page: number): string {

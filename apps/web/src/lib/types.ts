@@ -184,6 +184,7 @@ export type ObituaryArticle = ObituaryCard & {
   sessions: number;
   killerGamertag: string | null;
   weapon: string | null;
+  verdict: DeathVerdictDto | null;
 };
 
 export type BirthNoticeCard = {
