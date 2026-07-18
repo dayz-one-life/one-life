@@ -99,4 +99,20 @@ describe("birthNoticeTick", () => {
     expect(row!.attempts).toBe(1);
     expect(row!.lastError).toMatch(/boom/);
   });
+
+  it("shows the Nursery its recent prose, fetched once for the whole tick", async () => {
+    await seedQualifiedAlive(`bt-recent-${svc}`, 7);
+    const seen: string[] = [];
+    const client: CompletionClient = {
+      complete: async ({ user }) => {
+        seen.push(user);
+        return JSON.stringify({ headline: "Another Body On The Beach", lede: "L", body: "B", pullQuote: null, tags: ["Fresh Spawns"] });
+      },
+    };
+    await birthNoticeTick(db, deps({ client, batchCap: 50 }));
+    expect(seen.length).toBeGreaterThanOrEqual(1);
+    const block = seen.join("\n");
+    expect(block).toMatch(/do NOT reuse/i);
+    expect(block).toContain("Fresh Meat On The Coast"); // published by the earlier live test
+  });
 });

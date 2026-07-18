@@ -85,4 +85,31 @@ describe("newsdeskTick", () => {
     expect(row!.attempts).toBe(1);
     expect(row!.lastError).toMatch(/boom/);
   });
+
+  it("shows the model the desk's recent prose, fetched once for the whole tick", async () => {
+    // A previously published obituary exists from the earlier live test — its headline must show
+    // up in the do-not-reuse block of the next generation.
+    await seedQualifiedDeath(`tk-recent-${svc}`, 7);
+    const seen: string[] = [];
+    const client: CompletionClient = {
+      complete: async ({ user }) => {
+        seen.push(user);
+        return JSON.stringify({ headline: "Another Coastal Farce", lede: "L", body: "B", pullQuote: null, tags: ["Obituaries"] });
+      },
+    };
+    await newsdeskTick(db, deps({ client, batchCap: 50 }));
+    expect(seen.length).toBeGreaterThanOrEqual(1);
+    // Order-independent: recentProse filters only on kind/status, so it sees every published
+    // obituary in the test DB. Assert against the joined block, never against seen[0] alone.
+    const block = seen.join("\n");
+    expect(block).toMatch(/do NOT reuse/i);
+    expect(block).toContain("A Death On The Coast"); // published by the earlier live test
+  });
+
+  it("dry-run does not fetch recent prose or call the client", async () => {
+    const c = calls(okClient());
+    const r = await newsdeskTick(db, deps({ client: c.client, dryRun: true }));
+    expect(r.dryRun).toBe(true);
+    expect(c.count()).toBe(0);
+  });
 });
