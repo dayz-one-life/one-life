@@ -97,7 +97,7 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   }
   lines.push("");
   if (facts.isKnownQuantity) {
-    lines.push(`KNOWN QUANTITY: the paper has buried this face before. The "Life number on this map" is a per-map counter, not a career count — this player had ${facts.priors.livesLived} prior lives across every map. Never frame this as a first appearance, a fresh start, or a rookie run. Any needle targets their RECORD — the wasted priors, the repeat deaths, the same mistake made again.`);
+    lines.push(`KNOWN QUANTITY: the paper has buried this face before. The "Life number on this map" is a per-map counter, not a career count — this player had ${facts.priors.livesLived} prior lives across every map. Never call this a debut, a first appearance, a fresh start, or a rookie run — this player has a record and the paper knows it. Any needle targets their RECORD — the wasted priors, the repeat deaths, the same mistake made again.`);
   } else {
     lines.push(`FIRST LIFE: no priors anywhere — this was their first recorded life. The absence of a record is the story. Do NOT mock them for being new, green, or unlucky; the joke is the world they walked into, never the person.`);
   }

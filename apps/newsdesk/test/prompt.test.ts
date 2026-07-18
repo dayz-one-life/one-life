@@ -70,8 +70,9 @@ describe("buildObituaryPrompt", () => {
   });
 
   // The published regression: an 11th life headlined "Livonia Debut". The per-map life number is
-  // NOT a career count — the prior count must be in the prompt so the model cannot infer a debut.
-  it("an 11th life with 15 priors states the prior count so 'debut' is impossible", () => {
+  // NOT a career count — the prior count must be in the prompt, and the prompt must explicitly
+  // forbid the exact word the model produced in production.
+  it("an 11th life with 15 priors states the prior count and explicitly forbids 'debut'", () => {
     const { user } = buildObituaryPrompt(mkFacts({
       map: "enoch", lifeNumber: 11, isLegend: false, isKnownQuantity: true,
       priors: { livesLived: 15, longestLifeSeconds: 90000, totalKills: 3, usualDeathCause: "infected", lastDeathCause: "infected", bestLifeMap: "chernarusplus" },
@@ -79,7 +80,7 @@ describe("buildObituaryPrompt", () => {
     expect(user).toContain("Prior lives lived: 15");
     expect(user).toContain("Life number on this map: 11");
     expect(user).toContain("not a career count");
-    expect(user).not.toMatch(/debut/i);
+    expect(user).toMatch(/never call this a debut/i);
   });
 });
 
