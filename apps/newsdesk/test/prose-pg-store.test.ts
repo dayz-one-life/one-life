@@ -54,12 +54,26 @@ afterAll(async () => {
 
 describe("recentProse", () => {
   it("returns same-kind published rows newest-first, capped by limit", async () => {
-    await seedArticle({ headline: "Oldest", createdAt: hrs(1) });
-    await seedArticle({ headline: "Middle", createdAt: hrs(2) });
-    await seedArticle({ headline: "Newest", createdAt: hrs(3) });
-    const rows = await recentProse(db, "obituary", 2);
-    const mine = rows.filter((r) => ["Oldest", "Middle", "Newest"].includes(r.headline));
-    expect(mine.map((r) => r.headline)).toEqual(["Newest", "Middle"]);
+    const oldest = `Oldest ${svc}`;
+    const middle = `Middle ${svc}`;
+    const newest = `Newest ${svc}`;
+    await seedArticle({ headline: oldest, createdAt: hrs(1) });
+    await seedArticle({ headline: middle, createdAt: hrs(2) });
+    await seedArticle({ headline: newest, createdAt: hrs(3) });
+
+    // Ordering: a per-run-unique headline suffix + a wide limit + filtering to "mine" keeps this
+    // immune to other published obituary rows already in the shared table (e.g. pg-store.test.ts,
+    // which runs earlier in this same invocation per vitest.config.ts's fileParallelism:false and
+    // publishes real obituaries with wall-clock created_at that can outrank these fixed fixtures).
+    const rows = await recentProse(db, "obituary", 50);
+    const mine = rows.filter((r) => [oldest, middle, newest].includes(r.headline));
+    expect(mine.map((r) => r.headline)).toEqual([newest, middle, oldest]);
+
+    // Capping: at least 3 published obituary rows exist (the ones just seeded), so a limit of 2
+    // must return exactly 2 — independent of which rows they are, so it doesn't re-depend on
+    // global ordering the way an identity check would.
+    const capped = await recentProse(db, "obituary", 2);
+    expect(capped).toHaveLength(2);
   });
 
   it("excludes the other kind and unpublished rows", async () => {
