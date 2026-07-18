@@ -220,8 +220,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   scene-writer call returns `{caption, scene}` — the caption is stored verbatim in
   `articles.image_caption` and rendered under the hero photo. Cause-substring category gates: the
   wolf/bear/animal and fall gates are **live** as of death-cause fidelity stage 2 (the parser emits
-  `wolf|bear|animal|infected|fall`); the vehicle gate stays **dormant** pending the backfill's
-  entity survey. **Hard rails ride every
+  `wolf|bear|animal|infected|fall|vehicle`); the vehicle (`driver-not-pictured`) gate is **live** too
+  — the parser emits `vehicle` from the base-game vehicle dict; `explosion` stays reserved. **Hard rails ride every
   prompt:** imply-don't-depict (never a corpse or gore — also doubles as the image-model
   content-filter workaround), the Fog Rule for images (generic unidentifiable locales, a living
   subject stays deniable), and no legible text/logos/real-person likenesses. **Models:**
@@ -363,8 +363,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   literal `"pvp"` everywhere.**
   **Stage 2 shipped — richer parser vocabulary + backfill.** The parser's non-player `killed by X`
   branch maps entities through an ordered dict (`Animal_CanisLupus*`→`wolf`,
-  `Animal_UrsusArctos*`→`bear`, other `Animal_*`→`animal`, `Zmb*`→`infected`, `FallDamage`→`fall`;
-  unmapped→`environment`; `vehicle`/`explosion` reserved in the type pending the survey) and
+  `Animal_UrsusArctos*`→`bear`, other `Animal_*`→`animal`, `Zmb*`→`infected`, `FallDamage`→`fall`,
+  **base-game vehicles (`CivilianSedan`/Olga, `Hatchback_02`/Gunter, `Sedan_02`/Sarka,
+  `Offroad_02`/Humvee, `OffroadHatchback`/Ada, `Truck_01_Covered`/M3S, `Boat_01`; prefix-matched)
+  →`vehicle`**; unmapped→`environment`; `explosion` still reserved) and
   captures the raw entity as `deathEntity` on the event payload (no `lives` column, zod `nullish`).
   The dormant image gates fire on the new tokens with zero gate changes; `classifyDeath` passes
   them through as stated mechanisms; priors' `usualDeathCause` aggregates over `causeFamily`
