@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.19.0] - 2026-07-18
+
+### Added
 - Death-cause fidelity, stage 2 — richer parser vocabulary + backfill:
   - The parser names non-player killers: `wolf` / `bear` / `animal` (other `Animal_*`) /
     `infected` (`Zmb*`) / `fall` (`FallDamage`) become first-class death causes (previously all
@@ -22,11 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `driver-not-pictured`) light up on the new tokens with zero gate changes.
   - Labels: `causeLabel("fall")` → "Fell"; a bare `died` mechanism now labels "Unknown"
     (fixes "Died — Died"); obituary prompts describe named killers qualitatively.
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.18.0] - 2026-07-18
 
