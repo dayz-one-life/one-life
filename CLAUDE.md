@@ -265,7 +265,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `getPublishedBirthNotices`/`getBirthNoticeBySlug`
   (`packages/read-models/src/birth-notice-articles.ts`) and public `GET /birth-notices` +
   `GET /birth-notices/:slug`. The home page gains two content blocks, **Latest Obituaries** and
-  **Latest Fresh Spawns**. Facts come from read-models only; the LLM writes voice (Fog Rule: map
+  **Latest Fresh Spawns** — laid out **side by side in a two-column grid from `lg` up** (hairline
+  rule between them via `lg:divide-x lg:divide-hairline`, the same idiom as `about/page.tsx`), and
+  stacked below `lg` so a half-width column doesn't crowd the uppercase display headlines. The
+  two-column wrapper lives at the `page.tsx` call site; both block components stay layout-agnostic.
+  Facts come from read-models only; the LLM writes voice (Fog Rule: map
   dateline, never coordinates — the subject is still alive).
   **R5a shipped — the newsdesk + Obituaries.** A new durable `articles` table + the `apps/newsdesk`
   sweep worker turn every qualified death into an obituary written in the One Life tabloid voice via
