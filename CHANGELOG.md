@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Death-cause fidelity, stage 1 — the interpretation layer (ported from the archived platform):
+  - `classifyDeath` mechanism-first verdict ladder in `@onelife/domain` (starvation / dehydration /
+    mauled / bled_out with high|low confidence and conditions; side-effect subtraction).
+  - `life-dossier` read-model: ordeals (infected/fire/pvp encounters, HP low, builds) + the 120 s
+    recent-hits window; `getLifeTimeline` and `getPlayerPage` (visible slice) now carry the verdict.
+  - Obituary prompt describes the death qualitatively (hedged when confidence is low) and gains
+    ordeal color + the fatal-shot distance; verdict + ordeals freeze into `articles.facts`
+    (prompt version `obituary-v2`).
+  - The `suspect-at-large` Morgue image category fires on a mauled verdict.
+  - Web: shared `causeLabel`/`verdictPhrase`; timeline death row, funeral cards, Rap Sheet, and the
+    obituary OG card render the classified verdict.
 ### Changed
 ### Deprecated
 ### Removed

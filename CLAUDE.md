@@ -349,6 +349,19 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   read-models land ahead of the UI (R4) but a teaser doesn't retire until its content-engine slice
   ships. **Obituaries' teaser retired as of R5a; Fresh Spawns' teaser retired as of R5b**; News stays
   static until R5d.
+- **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
+  `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
+  thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
+  (`starvation|dehydration|bled_out|mauled|…`, `high|low` confidence, conditions). Computed lazily —
+  never materialized (no migration/rebuild; the `isLifeQualified` precedent) — by the new
+  `life-dossier` read-model (`dossierForLife`/`getLifeDossier`/`dossierVerdict`, plus ordeals:
+  encounter-collapsed infected/fire/pvp hits, hpLow, builds). Surfaces: `getLifeTimeline` +
+  `getPlayerPage` visible slice → API → web (`verdictPhrase`, shared `@/lib/cause-format`) on the
+  timeline death row, funeral cards, Rap Sheet + obituary OG; newsdesk facts/prompt (qualitative
+  death line, hedged when low; ordeal color; `deathDistance`; prompt `obituary-v2`) freeze
+  `verdict` into `articles.facts`, where the `suspect-at-large` image gate reads it. **PvP keeps the
+  literal `"pvp"` everywhere.** Stage 2 (richer parser vocabulary wolf/bear/fall/vehicle + raw_lines
+  backfill) is specced but not yet built: `docs/superpowers/specs/2026-07-18-death-cause-fidelity-design.md`.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
