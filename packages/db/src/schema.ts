@@ -353,7 +353,7 @@ export const characters = pgTable("characters", {
 // attempts bumped) so retries are bounded. ──
 export const articles = pgTable("articles", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  kind: text("kind").notNull(),                                       // 'obituary'
+  kind: text("kind").notNull(),                                       // 'obituary' | 'birth_notice'
   status: text("status").notNull().default("published"),             // published|failed
   slug: text("slug"),                                                // null on a failed stub
   serverId: integer("server_id").notNull().references(() => servers.id),
@@ -362,7 +362,7 @@ export const articles = pgTable("articles", {
   mapSlug: text("map_slug"),                                         // servers.slug (nullable)
   lifeNumber: integer("life_number").notNull(),
   lifeStartedAt: timestamp("life_started_at", { withTimezone: true }).notNull(), // natural-key: which life
-  deathAt: timestamp("death_at", { withTimezone: true }).notNull(),  // lives.ended_at — feed ordering
+  deathAt: timestamp("death_at", { withTimezone: true }),               // obituaries: lives.ended_at (feed order); birth notices: NULL while alive
   timeAliveSeconds: integer("time_alive_seconds").notNull().default(0),
   kills: integer("kills").notNull().default(0),
   longestKillMeters: doublePrecision("longest_kill_meters"),
@@ -387,4 +387,5 @@ export const articles = pgTable("articles", {
   uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq").on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt),
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
+  bornIdx: index("articles_kind_status_born_idx").on(t.kind, t.status, t.lifeStartedAt),
 }));

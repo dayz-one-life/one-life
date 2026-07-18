@@ -13,3 +13,5 @@ export * from "./qualified-lives.js";
 export * from "./obituaries.js";
 export * from "./fresh-spawns.js";
 export * from "./obituary-articles.js";
+export * from "./player-priors.js";
+export * from "./birth-notice-articles.js";

@@ -13,7 +13,7 @@ export interface Obituary {
 }
 
 const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
-const mapLabel = (map: string): string => MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
+export const mapLabel = (map: string): string => MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 
 /** Build the {system, user} messages for one obituary from the factual snapshot. */
 export function buildObituaryPrompt(facts: ObituaryFacts): { system: string; user: string } {

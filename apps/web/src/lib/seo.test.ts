@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteUrl, ldScript } from "./seo";
+import { absoluteUrl, ldScript, birthNoticeLd } from "./seo";
 
 describe("seo helpers", () => {
   it("builds absolute urls", () => {
@@ -22,5 +22,22 @@ describe("ldScript", () => {
     expect(out).not.toContain("&");
     expect(out).toContain("\\u0026");
     expect(JSON.parse(out)).toEqual(obj);
+  });
+});
+
+describe("birthNoticeLd", () => {
+  const article = { headline: "New Fool Ashore", lede: "L", gamertag: "Boots", bornAt: "2026-07-17T10:00:00Z" };
+  it("emits a NewsArticle with bornAt as datePublished and the Fresh Spawns collection", () => {
+    const ld = birthNoticeLd(article, "https://x/fresh-spawns/new-fool-ashore-3") as Record<string, unknown>;
+    expect(ld["@type"]).toBe("NewsArticle");
+    expect(ld.datePublished).toBe("2026-07-17T10:00:00Z");
+    expect((ld.isPartOf as Record<string, unknown>).name).toBe("Fresh Spawns");
+    expect((ld.about as Record<string, unknown>).name).toBe("Boots");
+  });
+  it("escapes </script> when rendered through ldScript", () => {
+    const out = ldScript(birthNoticeLd({ ...article, headline: "X </script><script>alert(1)</script>" }, "https://x/y"));
+    expect(out).not.toContain("</script>");
+    expect(out).not.toContain("<");
+    expect(out).toContain("\\u003c");
   });
 });

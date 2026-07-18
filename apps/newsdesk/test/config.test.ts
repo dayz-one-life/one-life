@@ -22,3 +22,24 @@ describe("newsdesk config — dry-run safety default", () => {
     expect(loadConfig({ ...BASE, NEWSDESK_MODEL: "anthropic/claude-opus-4.5" }).model).toBe("anthropic/claude-opus-4.5");
   });
 });
+
+describe("newsdesk config — NEWSDESK_BIRTH_SINCE (forward-only birth cutoff)", () => {
+  it("defaults birthSince to null when unset (birth pass off)", () => {
+    expect(loadConfig({ ...BASE }).birthSince).toBeNull();
+  });
+  it("is null for an empty or whitespace value", () => {
+    expect(loadConfig({ ...BASE, NEWSDESK_BIRTH_SINCE: "" }).birthSince).toBeNull();
+    expect(loadConfig({ ...BASE, NEWSDESK_BIRTH_SINCE: "   " }).birthSince).toBeNull();
+  });
+  it("parses a valid ISO-8601 timestamp into a Date", () => {
+    const c = loadConfig({ ...BASE, NEWSDESK_BIRTH_SINCE: "2026-07-17T00:00:00Z" });
+    expect(c.birthSince).toBeInstanceOf(Date);
+    expect(c.birthSince?.toISOString()).toBe("2026-07-17T00:00:00.000Z");
+  });
+  it("is null for an unparseable value (safe: birth pass stays off)", () => {
+    expect(loadConfig({ ...BASE, NEWSDESK_BIRTH_SINCE: "not-a-date" }).birthSince).toBeNull();
+  });
+  it("leaves the dry-run default untouched", () => {
+    expect(loadConfig({ ...BASE, NEWSDESK_BIRTH_SINCE: "2026-07-17T00:00:00Z" }).dryRun).toBe(true);
+  });
+});

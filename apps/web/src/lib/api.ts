@@ -3,6 +3,7 @@ import type {
   Me, GamertagLink, ClaimResult, PlayerPage,
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
   ObituariesFeed, ObituaryArticle,
+  BirthNoticesFeed, BirthNoticeArticle,
 } from "./types";
 
 export class ApiError extends Error {
@@ -136,3 +137,8 @@ export const getObituariesFeed = (page: number) =>
   apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
 export const getObituary = (slug: string) =>
   getOrNull<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`);
+
+export const getBirthNoticesFeed = (page: number) =>
+  apiGet<BirthNoticesFeed>(`/api/birth-notices?page=${page}`);
+export const getBirthNotice = (slug: string) =>
+  getOrNull<BirthNoticeArticle>(`/api/birth-notices/${encodeURIComponent(slug)}`);

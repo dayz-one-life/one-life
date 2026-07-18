@@ -180,3 +180,31 @@ export type ObituaryArticle = ObituaryCard & {
   killerGamertag: string | null;
   weapon: string | null;
 };
+
+export type BirthNoticeCard = {
+  slug: string;
+  gamertag: string;
+  map: string;
+  mapSlug: string | null;
+  lifeNumber: number;
+  headline: string;
+  lede: string;
+  tags: string[];
+  bornAt: string;
+  minutesToQualify: number | null;
+  priorLives: number;
+};
+export type BirthNoticesFeed = { rows: BirthNoticeCard[]; total: number; page: number; pageSize: number };
+export type BirthNoticeArticle = BirthNoticeCard & {
+  body: string;
+  pullQuote: { text: string; attribution: string } | null;
+  priors: {
+    livesLived: number;
+    longestLifeSeconds: number;
+    totalKills: number;
+    usualDeathCause: string | null;
+    lastDeathCause: string | null;
+    bestLifeMap: string | null;
+  };
+  endedAt: string | null;
+};
