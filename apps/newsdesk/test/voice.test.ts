@@ -30,3 +30,12 @@ describe("system prompts carry no seeded attribution examples", () => {
     expect(BIRTH_SYSTEM).toMatch(/anonymous/i);
   });
 });
+
+describe("system prompts carry the standing anti-repetition rule", () => {
+  it("OBITUARY_SYSTEM forbids reusing a recent attribution", () => {
+    expect(OBITUARY_SYSTEM).toMatch(/never reuse/i);
+  });
+  it("BIRTH_SYSTEM forbids reusing a recent attribution", () => {
+    expect(BIRTH_SYSTEM).toMatch(/never reuse/i);
+  });
+});

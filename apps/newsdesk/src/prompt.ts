@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ObituaryFacts } from "./facts.js";
 import { OBITUARY_SYSTEM } from "./voice.js";
+import type { RecentProse } from "./prose-pg-store.js";
+import { recentProseBlock } from "./prose-block.js";
 
 export const OBITUARY_PROMPT_VERSION = "obituary-v2";
 
@@ -53,7 +55,7 @@ export function describeDeath(facts: ObituaryFacts): string {
 }
 
 /** Build the {system, user} messages for one obituary from the factual snapshot. */
-export function buildObituaryPrompt(facts: ObituaryFacts): { system: string; user: string } {
+export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] = []): { system: string; user: string } {
   const lines: string[] = [];
   lines.push(`Write the obituary for this life. Facts (all past tense, all confirmed):`);
   lines.push(`- Callsign: ${facts.gamertag}`);
@@ -84,6 +86,8 @@ export function buildObituaryPrompt(facts: ObituaryFacts): { system: string; use
   if (facts.verdict?.confidence === "low") {
     lines.push(`The cause of death is an inference from the record, not a certainty — hedge it in-voice ("the record is murky", "the island isn't saying").`);
   }
+  lines.push("");
+  lines.push(...recentProseBlock(recent));
   lines.push("");
   lines.push(`Respond with only the JSON object described in your instructions.`);
   return { system: OBITUARY_SYSTEM, user: lines.join("\n") };

@@ -44,6 +44,22 @@ describe("buildObituaryPrompt", () => {
   });
 });
 
+describe("buildObituaryPrompt — recent prose", () => {
+  it("omits the block entirely when nothing is recent", () => {
+    const { user } = buildObituaryPrompt(facts);
+    expect(user).not.toMatch(/RECENTLY PUBLISHED/);
+  });
+
+  it("splices the do-not-reuse block when recent prose is supplied", () => {
+    const { user } = buildObituaryPrompt(facts, [
+      { headline: "Old Screamer", attribution: "a bored coroner", opener: "He arrived with a flare." },
+    ]);
+    expect(user).toMatch(/do NOT reuse/i);
+    expect(user).toContain("Old Screamer");
+    expect(user).toContain("a bored coroner");
+  });
+});
+
 describe("describeDeath", () => {
   it("pvp includes killer, weapon, and distance", () => {
     const s = describeDeath(mkFacts({ causeCategory: "pvp", killerGamertag: "Kilo", weapon: "M4A1", deathDistance: 384.2 }));
