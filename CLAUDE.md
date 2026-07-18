@@ -360,8 +360,20 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   timeline death row, funeral cards, Rap Sheet + obituary OG; newsdesk facts/prompt (qualitative
   death line, hedged when low; ordeal color; `deathDistance`; prompt `obituary-v2`) freeze
   `verdict` into `articles.facts`, where the `suspect-at-large` image gate reads it. **PvP keeps the
-  literal `"pvp"` everywhere.** Stage 2 (richer parser vocabulary wolf/bear/fall/vehicle + raw_lines
-  backfill) is specced but not yet built: `docs/superpowers/specs/2026-07-18-death-cause-fidelity-design.md`.
+  literal `"pvp"` everywhere.**
+  **Stage 2 shipped — richer parser vocabulary + backfill.** The parser's non-player `killed by X`
+  branch maps entities through an ordered dict (`Animal_CanisLupus*`→`wolf`,
+  `Animal_UrsusArctos*`→`bear`, other `Animal_*`→`animal`, `Zmb*`→`infected`, `FallDamage`→`fall`;
+  unmapped→`environment`; `vehicle`/`explosion` reserved in the type pending the survey) and
+  captures the raw entity as `deathEntity` on the event payload (no `lives` column, zod `nullish`).
+  The dormant image gates fire on the new tokens with zero gate changes; `classifyDeath` passes
+  them through as stated mechanisms; priors' `usualDeathCause` aggregates over `causeFamily`
+  (`@onelife/domain` — wolf/bear/animal → "animal"); `causeLabel` reads `fall` as "Fell" and a
+  bare `died` as "Unknown". **Deploy runbook (stage-2 release):** normal deploy → on the host run
+  `apps/projector` `backfill-death-causes` (re-parses `raw_lines`, upgrade-only, prints the
+  unmapped-entity survey — feed it back into the dict) → projection rebuild
+  (`./deploy/deploy.sh --rebuild`). Frozen `articles.facts` stay coarse (forward-only); lives,
+  priors, and web surfaces update retroactively.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
