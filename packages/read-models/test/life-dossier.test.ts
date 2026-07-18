@@ -12,6 +12,9 @@ const gt = `Dossier-${svc}`;
 let serverId: number;
 let pid: number;
 let lifeId: number;
+const gt2 = `DossierGap-${svc}`;
+let pid2: number;
+let lifeId2: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ld", map: "sakhal", slug: `ld-${svc}`, active: true }).returning();
@@ -41,6 +44,26 @@ beforeAll(async () => {
     // Outside the life window entirely (before birth) — must be ignored.
     { serverId, victimGamertag: gt, attackerType: "player", attackerGamertag: "Someone", victimHp: 90, occurredAt: mins(-10) },
   ]);
+
+  // A second player + life, isolated from the assertions above, dedicated to the
+  // ENCOUNTER_GAP_S = 120 boundary: hits exactly 120s apart must merge (gap must be
+  // STRICTLY > 120 to split); a hit 121s after that must start a new encounter.
+  const [p2] = await db.insert(players).values({ gamertag: gt2, lastSeenAt: mins(400) }).returning();
+  pid2 = p2!.id;
+  const [l2] = await db.insert(lives).values({
+    serverId, playerId: pid2, lifeNumber: 1, startedAt: start, endedAt: mins(360),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 500, waterAtDeath: 500, bleedSourcesAtDeath: 0, playtimeSeconds: 21600,
+  }).returning();
+  lifeId2 = l2!.id;
+  const gapT0 = mins(10);
+  const gapT1 = new Date(gapT0.getTime() + 120_000); // exactly 120s after t0 — same encounter
+  const gapT2 = new Date(gapT1.getTime() + 121_000); // 121s after t1 — new encounter
+  await db.insert(hitEvents).values([
+    { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 70, occurredAt: gapT0 },
+    { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 55, occurredAt: gapT1 },
+    { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 40, occurredAt: gapT2 },
+  ]);
 });
 
 afterAll(async () => {
@@ -48,7 +71,7 @@ afterAll(async () => {
   await db.delete(buildEvents).where(inArray(buildEvents.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
-  await db.delete(players).where(inArray(players.id, [pid]));
+  await db.delete(players).where(inArray(players.id, [pid, pid2]));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
@@ -82,5 +105,11 @@ describe("getLifeDossier", () => {
 
   it("returns null for an unknown life", async () => {
     expect(await getLifeDossier(db, serverId, 999_999_999)).toBeNull();
+  });
+
+  it("encounter gap boundary: exactly 120s apart is ONE encounter, 121s apart splits a new one", async () => {
+    const d = await getLifeDossier(db, serverId, lifeId2);
+    expect(d).not.toBeNull();
+    expect(d!.ordeals.infected).toEqual({ encounters: 2, hits: 3, worstEncounterHits: 2 });
   });
 });

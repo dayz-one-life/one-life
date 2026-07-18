@@ -99,11 +99,18 @@ export async function getLifeDossier(db: Database, serverId: number, lifeId: num
   return dossierForLife(db, player.gamertag, life);
 }
 
-/** The classified death verdict for a dossier — pure composition over classifyDeath. */
-export function dossierVerdict(d: LifeDossier): DeathVerdict {
-  return classifyDeath(
+/** The public verdict shape: `basis` is an internal audit detail (raw facts snapshot) that
+ *  stays inside `@onelife/domain` — the read-model boundary and everything downstream
+ *  (API, newsdesk, web) only ever sees cause/confidence/conditions. */
+export type DeathVerdictSummary = Pick<DeathVerdict, "cause" | "confidence" | "conditions">;
+
+/** The classified death verdict for a dossier — pure composition over classifyDeath.
+ *  `basis` is stripped here at the read-model boundary; it's an internal audit detail. */
+export function dossierVerdict(d: LifeDossier): DeathVerdictSummary {
+  const { cause, confidence, conditions } = classifyDeath(
     { mechanism: d.death.mechanism, energy: d.death.energy, water: d.death.water,
       bleedSources: d.death.bleedSources, weapon: d.death.weapon },
     d.recentHits,
   );
+  return { cause, confidence, conditions };
 }

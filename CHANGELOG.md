@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (prompt version `obituary-v2`).
   - The `suspect-at-large` Morgue image category fires on a mauled verdict.
   - Web: shared `causeLabel`/`verdictPhrase`; timeline death row, funeral cards, Rap Sheet, and the
-    obituary OG card render the classified verdict.
+    obituary OG card render the classified verdict. Non-PvP death labels on the timeline death row
+    and funeral cards are now title-cased via the shared `causeLabel` (previously raw lowercase
+    tokens).
 ### Changed
 ### Deprecated
 ### Removed

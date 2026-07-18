@@ -5,8 +5,7 @@ import { getLifeDetail } from "./queries.js";
 import { getLifeCharacter, type LifeCharacter } from "./character.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
 import { lifeQualifiedAt, type QualifiedAt } from "./qualified.js";
-import { dossierForLife, dossierVerdict, type LifeDossier } from "./life-dossier.js";
-import type { DeathVerdict } from "@onelife/domain";
+import { dossierForLife, dossierVerdict, type LifeDossier, type DeathVerdictSummary } from "./life-dossier.js";
 
 export interface LifeTimeline {
   life: NonNullable<Awaited<ReturnType<typeof getLifeDetail>>>["life"];
@@ -14,8 +13,8 @@ export interface LifeTimeline {
   character: LifeCharacter | null;
   kills: PlayerKill[];
   qualifiedAt: QualifiedAt | null;
-  verdict: DeathVerdict | null;        // classified death — null while the life is open
-  ordeals: LifeDossier["ordeals"];
+  verdict: DeathVerdictSummary | null; // classified death — null while the life is open
+  ordeals: LifeDossier["ordeals"] | null; // null while the life is open (no dossier fetched)
   hpLow: number | null;
 }
 
@@ -34,7 +33,7 @@ export async function getLifeTimeline(
     getLifeCharacter(db, serverId, gamertag, life.startedAt, life.endedAt),
     getLifeKills(db, serverId, gamertag, life.startedAt, life.endedAt),
     db.select({ lastSeenAt: players.lastSeenAt }).from(players).where(eq(players.gamertag, gamertag)),
-    dossierForLife(db, gamertag, life),
+    life.endedAt ? dossierForLife(db, gamertag, life) : Promise.resolve(null),
   ]);
   const qualifiedAt = lifeQualifiedAt({
     deathCause: life.deathCause,
@@ -50,8 +49,8 @@ export async function getLifeTimeline(
   });
   return {
     life, sessions, character, kills, qualifiedAt,
-    verdict: life.endedAt ? dossierVerdict(dossier) : null,
-    ordeals: dossier.ordeals,
-    hpLow: dossier.hpLow,
+    verdict: dossier ? dossierVerdict(dossier) : null,
+    ordeals: dossier?.ordeals ?? null,
+    hpLow: dossier?.hpLow ?? null,
   };
 }

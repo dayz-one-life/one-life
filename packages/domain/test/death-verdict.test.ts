@@ -90,4 +90,11 @@ describe("classifyDeath", () => {
     expect(v.cause).toBe("starvation");
     expect(v.confidence).toBe("high");
   });
+
+  it("recent-hit window: a hit at exactly 120s IS recent and grades starvation down", () => {
+    const boundary: RecentHit = { attackerType: "player", attackerLabel: null, secondsBeforeDeath: 120 };
+    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [boundary]);
+    expect(v.cause).toBe("starvation");
+    expect(v.confidence).toBe("low");
+  });
 });

@@ -11,6 +11,7 @@ const mins = (m: number) => new Date(start.getTime() + m * 60_000);
 let serverId: number;
 let pid: number;
 let deadLifeId: number;
+let openLifeId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "lt", map: "sakhal", slug: `lt-${svc}`, active: true }).returning();
@@ -33,6 +34,17 @@ beforeAll(async () => {
   await db.insert(hitEvents).values({
     serverId, victimGamertag: `LtHero-${svc}`, attackerType: "player", attackerGamertag: "SomeKiller",
     victimHp: 30, occurredAt: new Date(mins(360).getTime() - 20_000),
+  });
+
+  // An OPEN life (no endedAt), started after the dead life ended — the dossier must not be
+  // fetched for it, so verdict/ordeals/hpLow must all come back null.
+  const [ol] = await db.insert(lives).values({
+    serverId, playerId: pid, lifeNumber: 2, startedAt: mins(400), endedAt: null,
+    playtimeSeconds: 0,
+  }).returning();
+  openLifeId = ol!.id;
+  await db.insert(sessions).values({
+    serverId, playerId: pid, lifeId: openLifeId, connectedAt: mins(400), disconnectedAt: null, durationSeconds: null, closeReason: null,
   });
 });
 
@@ -70,7 +82,16 @@ describe("getLifeTimeline", () => {
     expect(t).not.toBeNull();
     // Stated pvp mechanism passes through at high confidence.
     expect(t!.verdict).toMatchObject({ cause: "pvp", confidence: "high" });
-    expect(t!.ordeals.pvp.encounters).toBe(1);
+    expect(t!.ordeals!.pvp.encounters).toBe(1);
     expect(t!.hpLow).toBe(30);
+  });
+
+  it("does not fetch a dossier for an open life — verdict, ordeals, and hpLow are all null", async () => {
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, openLifeId);
+    expect(t).not.toBeNull();
+    expect(t!.life.endedAt).toBeNull();
+    expect(t!.verdict).toBeNull();
+    expect(t!.ordeals).toBeNull();
+    expect(t!.hpLow).toBeNull();
   });
 });

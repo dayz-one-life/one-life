@@ -5,14 +5,14 @@ import { getPlayerProfile, getPlayerLives } from "./queries.js";
 import { getLifeCharacter } from "./character.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
 import { resolveGamertagBySlug } from "./player-aggregate.js";
-import { dossierForLife, dossierVerdict } from "./life-dossier.js";
-import { rosterByClass, type DeathVerdict } from "@onelife/domain";
+import { dossierForLife, dossierVerdict, type DeathVerdictSummary } from "./life-dossier.js";
+import { rosterByClass } from "@onelife/domain";
 
 export interface PlayerCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface AliveStanding { lifeId: number; lifeNumber: number; startedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; }
 export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null; }
 export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; }
-export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdict | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
+export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
 export interface PlayerPage {
   gamertag: string; verified: boolean; firstSeenAt: Date | null; aliveAnywhere: boolean;
   totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number };
