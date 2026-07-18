@@ -10,13 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Discord obituary notifier — `apps/newsdesk` posts a plain link to every published obituary into a
   Discord channel via an incoming webhook (Discord unfurls the page's OpenGraph card). Delivery is
   tracked and retried via a new nullable `articles.discord_posted_at` column + partial index
-  (migration `0010`): a sweep runs each loop iteration (its own try/catch), reads
+  (migration `0011`): a sweep runs each loop iteration (its own try/catch), reads
   published-but-unposted obituaries oldest-death-first, posts each link, and stamps the row on
   success — so a transient Discord/DB outage, a worker restart, or the dry-run→live switch never
   drops an obituary, and the back-catalogue drains on first live run. Gated by
   `DISCORD_OBITUARY_WEBHOOK_URL` (empty = disabled no-op) and the existing `NEWSDESK_DRY_RUN`
   (dry-run logs the intended post, does not send); per-tick cap `NEWSDESK_DISCORD_MAX_PER_TICK`
   (default 10). Additive migration — a normal deploy, no `--rebuild`.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.15.0] - 2026-07-17
+
+### Added
+- Tabloid redesign R5b — Birth Notices / Fresh Spawns. The newsdesk worker gains a second pass that
+  writes an in-voice **Birth Notice** ("The Nursery") for every qualified life going forward, behind
+  the shared dry-run gate and a **forward-only** `NEWSDESK_BIRTH_SINCE` cutoff (unset ⇒ birth pass
+  off). Reuses the durable `articles` table with a new `kind='birth_notice'` (migration `0010`:
+  `death_at` nullable + a born-order index). The story material is the player's **global cross-life
+  priors** (`getPlayerPriors`), not the thin current life. The `/fresh-spawns` teaser is retired for a
+  real feed + slim interior at `/fresh-spawns/[slug]` (one paragraph + pull quote + "The Priors" box +
+  a "still drawing breath" status line), a `NewsArticle` JSON-LD block, and a dynamic OG image. New
+  public `GET /birth-notices` + `GET /birth-notices/:slug`. The home page gains two content blocks —
+  Latest Obituaries and Latest Fresh Spawns. Facts come from read-models only; the LLM writes voice
+  (Fog Rule: map dateline, never coordinates — the subject is still alive).
 ### Changed
 ### Deprecated
 ### Removed

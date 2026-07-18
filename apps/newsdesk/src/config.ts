@@ -5,6 +5,7 @@ const schema = z.object({
   OPENROUTER_API_KEY: z.string().default(""),
   NEWSDESK_MODEL: z.string().default("anthropic/claude-sonnet-5"),
   NEWSDESK_DRY_RUN: z.string().optional(),
+  NEWSDESK_BIRTH_SINCE: z.string().optional(),
   NEWSDESK_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
   NEWSDESK_BATCH_CAP: z.coerce.number().int().positive().default(10),
   NEWSDESK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
@@ -20,6 +21,7 @@ export type Config = {
   openrouterApiKey: string;
   model: string;
   dryRun: boolean;
+  birthSince: Date | null;
   intervalSeconds: number;
   batchCap: number;
   maxAttempts: number;
@@ -30,6 +32,14 @@ export type Config = {
   logLevel: string;
 };
 
+/** Parse the forward-only birth cutoff. Unset / empty / unparseable -> null (birth pass off) — a
+ *  safe default parallel to the dry-run gate. */
+function parseBirthSince(raw: string | undefined): Date | null {
+  if (!raw || raw.trim() === "") return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const p = schema.parse(env);
   return {
@@ -38,6 +48,8 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     model: p.NEWSDESK_MODEL,
     // SAFE DEFAULT: dry-run unless explicitly disabled with "false".
     dryRun: p.NEWSDESK_DRY_RUN !== "false",
+    // SAFE DEFAULT: birth pass off unless a valid ISO cutoff is provided.
+    birthSince: parseBirthSince(p.NEWSDESK_BIRTH_SINCE),
     intervalSeconds: p.NEWSDESK_INTERVAL_SECONDS,
     batchCap: p.NEWSDESK_BATCH_CAP,
     maxAttempts: p.NEWSDESK_MAX_ATTEMPTS,

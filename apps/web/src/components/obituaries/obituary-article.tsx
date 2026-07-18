@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { RapSheet } from "./rap-sheet";
-import { PullQuote } from "./pull-quote";
+import { PullQuote } from "@/components/shared/pull-quote";
 import { MoreFromMorgue } from "./more-from-morgue";
 import { Timeline } from "@/components/life/timeline";
 import type { ObituaryArticle, ObituaryCard } from "@/lib/types";

@@ -193,16 +193,34 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1+R2+R3+R4+R5a shipped): a five-tier visual relaunch replacing the old dark "field
-  journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
+- **Tabloid redesign** (R1+R2+R3+R4+R5a+R5b shipped): a five-tier visual relaunch replacing the old
+  dark "field journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
   `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
   **R2** boards restyle (survivors + player dossier;
   spec `docs/superpowers/specs/2026-07-16-r2-boards-restyle-design.md`), **R3** controls rail
   (spec `docs/superpowers/specs/2026-07-16-r3-controls-rail-design.md`), **R4** life timeline +
   obituary/birth read-model groundwork (spec
   `docs/superpowers/specs/2026-07-17-r4-life-timeline-design.md`), **R5a** the newsdesk + Obituaries
-  content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), with
-  **R5b** (Birth Notices / Fresh Spawns) next.
+  content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), **R5b**
+  Birth Notices / Fresh Spawns (spec
+  `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), with **R5c** (article
+  images) and **R5d** (News feed + news-led home) next.
+  **R5b shipped — Birth Notices / Fresh Spawns.** The `apps/newsdesk` worker gains a second pass that
+  writes an in-voice **Birth Notice** ("The Nursery") for every qualified life going forward, behind
+  the shared dry-run gate and a **forward-only** `NEWSDESK_BIRTH_SINCE` cutoff (unset ⇒ birth pass
+  off). Reuses the durable `articles` table with a new `kind='birth_notice'` (migration `0010`:
+  `death_at` nullable + a born-order index, since a birth notice has no death yet). The story material
+  is the player's **global cross-life priors** (`getPlayerPriors`,
+  `packages/read-models/src/player-priors.ts`), not the thin current life — a first-lifer with
+  `livesLived === 0` gets a dedicated "No priors" branch, never a mocking tone. The `/fresh-spawns`
+  teaser is retired for a real reverse-chron feed and a slim interior at `/fresh-spawns/[slug]` (one
+  paragraph + pull quote + "The Priors" box + a "still drawing breath" status line, since the subject
+  is alive), a `NewsArticle` JSON-LD block, and a dynamic OG image. Backed by
+  `getPublishedBirthNotices`/`getBirthNoticeBySlug`
+  (`packages/read-models/src/birth-notice-articles.ts`) and public `GET /birth-notices` +
+  `GET /birth-notices/:slug`. The home page gains two content blocks, **Latest Obituaries** and
+  **Latest Fresh Spawns**. Facts come from read-models only; the LLM writes voice (Fog Rule: map
+  dateline, never coordinates — the subject is still alive).
   **R5a shipped — the newsdesk + Obituaries.** A new durable `articles` table + the `apps/newsdesk`
   sweep worker turn every qualified death into an obituary written in the One Life tabloid voice via
   OpenRouter, behind a dry-run gate (`NEWSDESK_DRY_RUN` defaults `true`). The Obituaries section goes
@@ -212,12 +230,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   a dynamic OG image. Facts (Rap Sheet, Final Reload) are read models only — the LLM writes voice,
   never invents events (Fog Rule: map dateline, never coordinates). Backed by
   `getPublishedObituaries`/`getObituaryBySlug` (`packages/read-models/src/obituary-articles.ts`) and
-  public `GET /obituaries` (now published articles) + `GET /obituaries/:slug`. News and Fresh Spawns
-  stay static teasers until R5b/R5d.
-  **Discord obituary notifier** (ships alongside R5a): the newsdesk worker also posts a plain link to
-  each published obituary into Discord via an incoming webhook (Discord unfurls the OG card),
-  tracked/retried through `articles.discord_posted_at` (migration `0010`) so nothing is dropped and
-  the back-catalogue drains on first live run — see the `newsdesk` app entry for env vars + the
+  public `GET /obituaries` (now published articles) + `GET /obituaries/:slug`. News stays a static
+  teaser until R5d.
+  **Discord obituary notifier:** the newsdesk worker also posts a plain link to each published
+  obituary into Discord via an incoming webhook (Discord unfurls the OG card), tracked/retried
+  through `articles.discord_posted_at` (migration `0011`) so nothing is dropped and the
+  back-catalogue drains on first live run — see the `newsdesk` app entry for env vars + the
   at-least-once/single-instance delivery boundary.
   **R4 shipped — the life timeline + R5 groundwork.** A public per-life page at
   `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero (`LifeHero`, the life's
@@ -286,7 +304,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   assets, never as a webfont. **Voice-first rule:** each section's static teaser — no fake counts,
   no dry copy — stays up until the content engine can actually write it; the underlying
   read-models land ahead of the UI (R4) but a teaser doesn't retire until its content-engine slice
-  ships. **Obituaries' teaser retired as of R5a**; News and Fresh Spawns stay static until R5b/R5d.
+  ships. **Obituaries' teaser retired as of R5a; Fresh Spawns' teaser retired as of R5b**; News stays
+  static until R5d.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
@@ -296,7 +315,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   the Discord obituary notifier),
   `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
-  `events`), `projections` (fold logic), `read-models` (stats queries), `test-support` (Postgres
+  `events`), `projections` (fold logic), `read-models` (stats queries, including
+  `player-priors` — global cross-life reputation via `getPlayerPriors` — and
+  `birth-notice-articles` — the published birth-notice feed + by-slug via
+  `getPublishedBirthNotices`/`getBirthNoticeBySlug`), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
   `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
   character sightings).
@@ -304,19 +326,22 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
-  `newsdesk` (obituary generation sweep; **`NEWSDESK_DRY_RUN` defaults `true`** — logs intended
-  obituaries without calling OpenRouter or writing; set `false` to generate; needs
-  `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`; in the `deploy.sh`
-  restart fleet, so releases pick it up — needs a `onelife-newsdesk` systemd unit on the host.
-  **Also runs the Discord obituary notifier**: a second sweep (`notifyDiscord`, its own try/catch
+  `newsdesk` (obituary + birth-notice generation sweep, run as **two passes** each interval; **`NEWSDESK_DRY_RUN`
+  defaults `true`** — logs intended articles without calling OpenRouter or writing; set `false` to
+  generate; needs `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`. The
+  birth-notice pass is additionally gated by **`NEWSDESK_BIRTH_SINCE`** — an ISO-8601 cutoff
+  timestamp; unset/empty/invalid ⇒ the pass is **off** (0 targets, no client call) — set it once to a
+  go-live instant to begin **forward-only** coverage. Now in the `deploy.sh` restart fleet, so
+  releases pick it up — still needs a `onelife-newsdesk` systemd unit authored on the host.
+  **Also runs the Discord obituary notifier**: a third sweep (`notifyDiscord`, its own try/catch
   sibling in the loop) posts a plain link to each published obituary into a Discord channel via an
   incoming webhook — Discord unfurls the page's OG card. Delivery is tracked/retried via
-  `articles.discord_posted_at` (stamped on success only; oldest-death-first; never drops, drains the
-  back-catalogue on first live run). Gated by `DISCORD_OBITUARY_WEBHOOK_URL` (empty = disabled) +
-  `NEWSDESK_DRY_RUN` (dry-run logs, does not send); per-tick cap `NEWSDESK_DISCORD_MAX_PER_TICK`
-  (default 10). Delivery is **at-least-once** and assumes a **single newsdesk instance** — the sweep
-  reads unposted rows without a row lock. The webhook client uses global `fetch` (no SDK). Design:
-  `docs/superpowers/specs/2026-07-17-discord-obituary-notifier-design.md`),
+  `articles.discord_posted_at` (migration `0011`; stamped on success only; oldest-death-first; never
+  drops, drains the back-catalogue on first live run). Gated by `DISCORD_OBITUARY_WEBHOOK_URL`
+  (empty = disabled) + `NEWSDESK_DRY_RUN` (dry-run logs, does not send); per-tick cap
+  `NEWSDESK_DISCORD_MAX_PER_TICK` (default 10). Delivery is **at-least-once** and assumes a **single
+  newsdesk instance** — the sweep reads unposted rows without a row lock. The webhook client uses
+  global `fetch` (no SDK). Design: `docs/superpowers/specs/2026-07-17-discord-obituary-notifier-design.md`),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
   systemd unit).

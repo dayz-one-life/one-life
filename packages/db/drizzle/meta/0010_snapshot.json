@@ -1,5 +1,5 @@
 {
-  "id": "d825ccb7-8f42-4398-bef5-ca4b7c86c73c",
+  "id": "97830102-60fc-4dff-9b35-4192e0acac92",
   "prevId": "b5d6b050-8555-457f-a18a-0e628406edd1",
   "version": "7",
   "dialect": "postgresql",
@@ -279,7 +279,7 @@
           "name": "death_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "time_alive_seconds": {
           "name": "time_alive_seconds",
@@ -398,12 +398,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "discord_posted_at": {
-          "name": "discord_posted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -488,18 +482,29 @@
           "method": "btree",
           "with": {}
         },
-        "articles_discord_unposted_idx": {
-          "name": "articles_discord_unposted_idx",
+        "articles_kind_status_born_idx": {
+          "name": "articles_kind_status_born_idx",
           "columns": [
             {
-              "expression": "death_at",
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "life_started_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": false,
-          "where": "\"articles\".\"status\" = 'published' AND \"articles\".\"discord_posted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
