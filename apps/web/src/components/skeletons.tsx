@@ -89,6 +89,12 @@ export function LifeSkeleton() {
   );
 }
 
+/** Placeholder for the generated tabloid photo atop an article interior, before it (or its
+ *  absence) is known — mirrors ArticleHero's 4:5 max-w-md frame. */
+export function ArticleHeroSkeleton() {
+  return <Bar className="my-6 aspect-[4/5] w-full max-w-md" />;
+}
+
 /** Route-level loading state for the obituaries feed. */
 export function ObituariesSkeleton() {
   return (

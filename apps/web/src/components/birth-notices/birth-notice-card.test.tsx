@@ -8,6 +8,7 @@ const card: Card = {
   slug: "new-fool-ashore-3", gamertag: "xX_Sn1per_Xx", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "Another Fool Washes Ashore", lede: "The tide brought us one more.",
   tags: ["Fresh Spawns", "Chernarus"], bornAt: "2026-07-17T10:00:00Z", minutesToQualify: 6, priorLives: 2,
+  imageUrl: null, imageCaption: null,
 };
 
 describe("BirthNoticeCard", () => {
