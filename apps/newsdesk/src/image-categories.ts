@@ -17,6 +17,7 @@ export interface ImageCategory {
 const s = (v: unknown) => String(v ?? "").toLowerCase();
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const priors = (f: FactsSnapshot) => (f.priors ?? {}) as { livesLived?: number; totalKills?: number };
+const verdictCause = (f: FactsSnapshot) => s((f.verdict as { cause?: unknown } | null | undefined)?.cause);
 
 export const MORGUE_CATEGORIES: ImageCategory[] = [
   { slug: "aftermath", caption: "SCENE OF THE INCIDENT",
@@ -45,7 +46,7 @@ export const MORGUE_CATEGORIES: ImageCategory[] = [
     eligible: (f) => /fell|fall/.test(s(f.cause)) },
   { slug: "suspect-at-large", caption: "THE SUSPECT REMAINS AT LARGE",
     example: "A lone wolf caught full in the flash at the black edge of a pine treeline at night, eyes shining flat white, staring straight into the lens like a booking photo with no wall to stand against.",
-    eligible: (f) => /wolf|bear|animal/.test(s(f.cause)) },
+    eligible: (f) => /wolf|bear|animal/.test(s(f.cause)) || verdictCause(f) === "mauled" },
   { slug: "trail-ends-here", caption: "THE TRAIL ENDS HERE",
     example: "A single line of boot prints crosses an empty snowfield and simply stops dead mid-stride in the middle of the frame, fresh snowfall already softening the last print.",
     eligible: (f) => f.causeCategory === "unknown" || (f.causeCategory === "environment" && f.map === "sakhal") },

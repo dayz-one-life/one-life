@@ -49,6 +49,17 @@ describe("eligibleCategories — obituary gates", () => {
     for (const slug of ["driver-not-pictured", "gravity-undefeated", "suspect-at-large"]) expect(s).not.toContain(slug);
     expect(slugs("obituary", { ...base, cause: "killed by Wolf" })).toContain("suspect-at-large");
   });
+  it("suspect-at-large fires on a mauled verdict even with a coarse cause token", () => {
+    const cats = eligibleCategories("obituary", {
+      causeCategory: "environment", cause: "died",
+      verdict: { cause: "mauled", confidence: "high", conditions: ["bleeding", "hunted"] },
+    });
+    expect(cats.map((c) => c.slug)).toContain("suspect-at-large");
+  });
+  it("suspect-at-large stays dormant without a mauled verdict or matching cause substring", () => {
+    const cats = eligibleCategories("obituary", { causeCategory: "environment", cause: "died", verdict: { cause: "starvation", confidence: "high", conditions: [] } });
+    expect(cats.map((c) => c.slug)).not.toContain("suspect-at-large");
+  });
 });
 
 describe("eligibleCategories — birth gates", () => {
