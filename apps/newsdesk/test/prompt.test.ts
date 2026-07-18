@@ -44,6 +44,43 @@ describe("buildObituaryPrompt", () => {
     expect(user).toContain("hedge it in-voice");
     expect(user).toContain("never quote raw stat numbers");
   });
+
+  it("a first-lifer gets the no-priors branch, never a priors bullet", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      isLegend: false, isKnownQuantity: false,
+      priors: { livesLived: 0, longestLifeSeconds: 0, totalKills: 0, usualDeathCause: null, lastDeathCause: null, bestLifeMap: null },
+    }));
+    expect(user).toContain("This was their first recorded life anywhere");
+    expect(user).not.toContain("Prior lives lived:");
+    expect(user).toMatch(/FIRST LIFE/);
+  });
+
+  it("a veteran gets the full priors block", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      isLegend: false, isKnownQuantity: true,
+      priors: { livesLived: 7, longestLifeSeconds: 259200, totalKills: 48, usualDeathCause: "animal", lastDeathCause: "bled_out", bestLifeMap: "sakhal" },
+    }));
+    expect(user).toContain("Prior lives lived: 7");
+    expect(user).toContain("Longest prior life: 3d");
+    expect(user).toContain("Confirmed kills across all prior lives: 48");
+    expect(user).toContain("Usual cause of death: animal");
+    expect(user).toContain("Most recent prior death: bled_out");
+    expect(user).toContain("Best run was on: Sakhal");
+    expect(user).toMatch(/KNOWN QUANTITY/);
+  });
+
+  // The published regression: an 11th life headlined "Livonia Debut". The per-map life number is
+  // NOT a career count — the prior count must be in the prompt so the model cannot infer a debut.
+  it("an 11th life with 15 priors states the prior count so 'debut' is impossible", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      map: "enoch", lifeNumber: 11, isLegend: false, isKnownQuantity: true,
+      priors: { livesLived: 15, longestLifeSeconds: 90000, totalKills: 3, usualDeathCause: "infected", lastDeathCause: "infected", bestLifeMap: "chernarusplus" },
+    }));
+    expect(user).toContain("Prior lives lived: 15");
+    expect(user).toContain("Life number on this map: 11");
+    expect(user).toContain("not a career count");
+    expect(user).not.toMatch(/debut/i);
+  });
 });
 
 describe("buildObituaryPrompt — recent prose", () => {

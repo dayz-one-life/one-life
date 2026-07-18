@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ObituaryFacts } from "./facts.js";
+import { timeAliveLabel } from "./facts.js";
 import { OBITUARY_SYSTEM } from "./voice.js";
 import type { RecentProse } from "./prose-pg-store.js";
 import { recentProseBlock } from "./prose-block.js";
@@ -60,6 +61,7 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   lines.push(`Write the obituary for this life. Facts (all past tense, all confirmed):`);
   lines.push(`- Callsign: ${facts.gamertag}`);
   lines.push(`- Dateline (map only, never a pin): ${mapLabel(facts.map)}`);
+  lines.push(`- Life number on this map: ${facts.lifeNumber} (NOT a career count — see Priors below)`);
   lines.push(`- Time survived this life: ${facts.timeAliveLabel}`);
   lines.push(`- Confirmed kills this life: ${facts.kills}`);
   if (facts.longestKillMeters != null) lines.push(`- Longest kill: ${Math.round(facts.longestKillMeters)}m`);
@@ -74,12 +76,30 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   }
   if (facts.hpLow != null && facts.hpLow < 50) lines.push(`- Lowest health recorded: ${Math.round(facts.hpLow)} of 100`);
   lines.push("");
+  lines.push(`Priors (everything this player did BEFORE this life, across every map):`);
+  if (facts.isKnownQuantity) {
+    lines.push(`- Prior lives lived: ${facts.priors.livesLived}`);
+    lines.push(`- Longest prior life: ${timeAliveLabel(facts.priors.longestLifeSeconds)}`);
+    lines.push(`- Confirmed kills across all prior lives: ${facts.priors.totalKills}`);
+    if (facts.priors.usualDeathCause) lines.push(`- Usual cause of death: ${facts.priors.usualDeathCause}`);
+    if (facts.priors.lastDeathCause) lines.push(`- Most recent prior death: ${facts.priors.lastDeathCause}`);
+    if (facts.priors.bestLifeMap) lines.push(`- Best run was on: ${mapLabel(facts.priors.bestLifeMap)}`);
+  } else {
+    lines.push(`- None. This was their first recorded life anywhere. A stranger to these shores.`);
+  }
+  lines.push("");
   if (facts.isLegend) {
     lines.push(`This was a LEGEND (a long life and/or a high kill count). Use the reverent tone — a sincere send-off with exactly one small needle.`);
   } else if (facts.freshSpawnVictim) {
     lines.push(`This was a fresh spawn or badly outmatched player killed by another player. PROTECT the victim's dignity — do not mock them for dying. If the killer is named, they are the subject of any mockery, not the victim.`);
   } else {
     lines.push(`Use the default tone: dry mock-gravity — a state funeral for an idiot. Mock the circumstances, never the person's worth.`);
+  }
+  lines.push("");
+  if (facts.isKnownQuantity) {
+    lines.push(`KNOWN QUANTITY: the paper has buried this face before. The "Life number on this map" is a per-map counter, not a career count — this player had ${facts.priors.livesLived} prior lives across every map. Never frame this as a first appearance, a fresh start, or a rookie run. Any needle targets their RECORD — the wasted priors, the repeat deaths, the same mistake made again.`);
+  } else {
+    lines.push(`FIRST LIFE: no priors anywhere — this was their first recorded life. The absence of a record is the story. Do NOT mock them for being new, green, or unlucky; the joke is the world they walked into, never the person.`);
   }
   lines.push("");
   lines.push(`Describe the manner of death in qualitative terms — never quote raw stat numbers (energy or water values).`);
