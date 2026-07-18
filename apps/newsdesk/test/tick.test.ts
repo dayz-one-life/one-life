@@ -112,4 +112,24 @@ describe("newsdeskTick", () => {
     expect(r.dryRun).toBe(true);
     expect(c.count()).toBe(0);
   });
+
+  it("backstop: a repeated attribution is dropped, a fresh one is kept", async () => {
+    // The earlier live test published an obituary attributed to "a rival".
+    await seedQualifiedDeath(`tk-dup-${svc}`, 8);
+    const dupClient: CompletionClient = {
+      complete: async () => JSON.stringify({ headline: "The Same Old Line", lede: "L", body: "B", pullQuote: { text: "q", attribution: "A RIVAL" }, tags: ["Obituaries"] }),
+    };
+    await newsdeskTick(db, deps({ client: dupClient, batchCap: 50 }));
+    const [dup] = await db.select().from(articles).where(eq(articles.gamertag, `tk-dup-${svc}`));
+    expect(dup!.pullQuoteAttribution).toBeNull();
+    expect(dup!.pullQuoteText).toBeNull();
+
+    await seedQualifiedDeath(`tk-fresh-${svc}`, 9);
+    const freshClient: CompletionClient = {
+      complete: async () => JSON.stringify({ headline: "A Brand New Line", lede: "L", body: "B", pullQuote: { text: "q", attribution: "a bored coroner" }, tags: ["Obituaries"] }),
+    };
+    await newsdeskTick(db, deps({ client: freshClient, batchCap: 50 }));
+    const [fresh] = await db.select().from(articles).where(eq(articles.gamertag, `tk-fresh-${svc}`));
+    expect(fresh!.pullQuoteAttribution).toBe("a bored coroner");
+  });
 });

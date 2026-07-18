@@ -115,4 +115,15 @@ describe("birthNoticeTick", () => {
     expect(block).toMatch(/do NOT reuse/i);
     expect(block).toContain("Fresh Meat On The Coast"); // published by the earlier live test
   });
+
+  it("backstop: a repeated attribution is dropped", async () => {
+    // The earlier live test published a notice attributed to "a voice on the coast".
+    await seedQualifiedAlive(`bt-dup-${svc}`, 8);
+    const dupClient: CompletionClient = {
+      complete: async () => JSON.stringify({ headline: "Same Voice Again", lede: "L", body: "B", pullQuote: { text: "q", attribution: "a voice on the coast" }, tags: ["Fresh Spawns"] }),
+    };
+    await birthNoticeTick(db, deps({ client: dupClient, batchCap: 50 }));
+    const [dup] = await db.select().from(articles).where(eq(articles.gamertag, `bt-dup-${svc}`));
+    expect(dup!.pullQuoteAttribution).toBeNull();
+  });
 });

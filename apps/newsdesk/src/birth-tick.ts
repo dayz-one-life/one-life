@@ -6,6 +6,7 @@ import { buildBirthFacts } from "./birth-facts.js";
 import { composeBirthTags } from "./birth-prompt.js";
 import { generateBirthNotice } from "./generate.js";
 import type { NewsdeskDeps, NewsdeskResult } from "./tick.js";
+import { dedupePullQuote } from "./prose-backstop.js";
 
 /** Mirror of tick.ts: the do-not-reuse window, fetched once per tick. */
 const RECENT_PROSE_LIMIT = 12;
@@ -48,9 +49,10 @@ export async function birthNoticeTick(
 
     try {
       const notice = await generateBirthNotice(deps.client, facts, recent);
+      const deduped = dedupePullQuote(notice, recent);
       // Reserved tags (Fresh Spawns / map / priors label) are composed deterministically; the LLM
       // only contributes at most one flavor tag.
-      const tagged = { ...notice, tags: composeBirthTags(facts, notice.tags) };
+      const tagged = { ...deduped, tags: composeBirthTags(facts, deduped.tags) };
       await publishBirthNotice(db, {
         target: t,
         facts,

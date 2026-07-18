@@ -5,6 +5,7 @@ import { recentProse } from "./prose-pg-store.js";
 import { buildObituaryFacts } from "./facts.js";
 import { composeTags } from "./prompt.js";
 import { generateObituary, type CompletionClient } from "./generate.js";
+import { dedupePullQuote } from "./prose-backstop.js";
 
 export type NewsdeskDeps = {
   client: CompletionClient;
@@ -52,9 +53,12 @@ export async function newsdeskTick(db: Database, deps: NewsdeskDeps): Promise<Ne
 
     try {
       const obituary = await generateObituary(deps.client, facts, recent);
+      // Deterministic backstop behind the do-not-reuse prompt block: a recycled attribution
+      // loses its byline rather than re-seeding the phrase for the next tick.
+      const deduped = dedupePullQuote(obituary, recent);
       // Reserved tags (Obituaries / map / cause) are composed deterministically; the LLM only
       // contributes at most one flavor tag.
-      const tagged = { ...obituary, tags: composeTags(facts, obituary.tags) };
+      const tagged = { ...deduped, tags: composeTags(facts, deduped.tags) };
       await publishObituary(db, {
         target: t,
         facts,
