@@ -5,6 +5,10 @@
 // wolf|bear|animal|infected|fall, so the wolf/bear/animal and fall gates are live; the vehicle
 // gate stays dormant pending the backfill's entity survey — a gate that never matches simply
 // never fires.
+//
+// causeCategory is a widened union as of the suicide fix: "pvp" | "suicide" | "environment" |
+// "unknown". These predicates read it off a Record<string, unknown>, so the compiler will NOT
+// flag a missing arm — every gate below states its suicide stance explicitly on purpose.
 
 export type ArticleKind = "obituary" | "birth_notice";
 export type FactsSnapshot = Record<string, unknown>;
@@ -30,6 +34,7 @@ export const MORGUE_CATEGORIES: ImageCategory[] = [
     eligible: () => true },
   { slug: "vantage", caption: "THE SHOT CAME FROM HERE",
     example: "A wide empty view from a grassy hilltop across a foggy field toward a distant treeline and a lone country road far below, trampled grass in the foreground where someone recently lay prone.",
+    // Excludes suicide: asserts a distant shooter who does not exist.
     eligible: (f) => f.causeCategory === "pvp" && f.weapon != null },
   { slug: "witnesses", caption: "WITNESSES DECLINED TO COMMENT",
     example: "Three crows perched on a sagging barbed-wire fence beside scattered survival gear in wet grass, grey drizzle, no people anywhere.",
@@ -39,7 +44,9 @@ export const MORGUE_CATEGORIES: ImageCategory[] = [
     eligible: () => true },
   { slug: "effects", caption: "RECOVERED EFFECTS",
     example: "An empty rusted food can and a bent spoon lying in wet grass beside a cold campfire ring, a torn empty backpack slumped against a birch stump.",
-    eligible: (f) => f.causeCategory === "environment" },
+    // Suicide included deliberately: recovered belongings are the one morgue framing that
+    // reports a self-inflicted death without a body, a suspect, or an assigned blame.
+    eligible: (f) => f.causeCategory === "environment" || f.causeCategory === "suicide" },
   { slug: "driver-not-pictured", caption: "DRIVER NOT PICTURED",
     example: "A rust-eaten sedan sits crumpled against a roadside pine in thick fog, driver's door hanging open and one headlight still burning weakly into the drizzle, flash glaring off the wet windshield.",
     eligible: (f) => /vehicle|car|transport|truck/.test(s(f.cause)) },
@@ -51,15 +58,19 @@ export const MORGUE_CATEGORIES: ImageCategory[] = [
     eligible: (f) => /wolf|bear|animal/.test(s(f.cause)) || verdictCause(f) === "mauled" },
   { slug: "trail-ends-here", caption: "THE TRAIL ENDS HERE",
     example: "A single line of boot prints crosses an empty snowfield and simply stops dead mid-stride in the middle of the frame, fresh snowfall already softening the last print.",
+    // Excludes suicide: mystery framing misreports the one unambiguous cause.
     eligible: (f) => f.causeCategory === "unknown" || (f.causeCategory === "environment" && f.map === "sakhal") },
   { slug: "approached-for-comment", caption: "APPROACHED FOR COMMENT",
     example: "A hooded figure fills the frame with a gloved palm thrust at the lens, flash blowing out the hand while the face stays lost in the hood's shadow.",
+    // Excludes suicide: there is no suspect to approach.
     eligible: (f) => f.causeCategory === "pvp" && f.killerGamertag != null },
   { slug: "first-aid-attempted", caption: "FIRST AID WAS ATTEMPTED",
     example: "An empty saline bag hangs from a low birch branch like a makeshift IV stand, torn sterile wrappers scattered on the moss below it, harsh flash against the dusk.",
+    // Includes suicide via !== "pvp" — intentional: an attempted rescue is dignified.
     eligible: (f) => f.causeCategory !== "pvp" },
   { slug: "visibility-factor", caption: "VISIBILITY WAS A FACTOR",
     example: "A night flash detonates against a wall of fog, blowing the frame to grey-white with one bare tree as the only legible shape.",
+    // Excludes suicide: never attribute a deliberate act to the weather.
     eligible: (f) => f.causeCategory === "environment" || f.causeCategory === "unknown" },
   { slug: "worldly-possessions", caption: "ALL WORLDLY POSSESSIONS, PICTURED",
     example: "Two cupped gloved hands filling the frame in close macro under hard flash, holding the complete estate: one rag, one road flare, one bruised plum.",

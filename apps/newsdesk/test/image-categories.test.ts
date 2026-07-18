@@ -38,6 +38,22 @@ describe("eligibleCategories — obituary gates", () => {
     expect(slugs("obituary", base)).not.toContain("trail-ends-here");
     expect(slugs("obituary", { ...base, map: "sakhal" })).toContain("trail-ends-here");
   });
+  it("suicide gates: effects + first-aid fire; blame/mystery/conditions framings never do", () => {
+    const suicide = { ...base, causeCategory: "suicide", cause: "suicide" };
+    const s = slugs("obituary", suicide);
+    // Fires — belongings and an attempted rescue are dignified, imply-don't-depict framings.
+    expect(s).toContain("effects");
+    expect(s).toContain("first-aid-attempted");
+    // Never fires — these assert a shooter, a suspect, a mystery, or a blameless condition.
+    expect(s).not.toContain("vantage");
+    expect(s).not.toContain("approached-for-comment");
+    expect(s).not.toContain("trail-ends-here");
+    expect(s).not.toContain("visibility-factor");
+    // A suicide on Sakhal still must not borrow the mystery framing.
+    expect(slugs("obituary", { ...suicide, map: "sakhal" })).not.toContain("trail-ends-here");
+    // Ungated categories are unaffected.
+    for (const slug of ["aftermath", "last-known", "witnesses", "memorial"]) expect(s).toContain(slug);
+  });
   it("fact-threshold gates", () => {
     expect(slugs("obituary", { ...base, freshSpawnVictim: true })).toContain("worldly-possessions");
     expect(slugs("obituary", { ...base, kills: 0, timeAliveSeconds: 90000 })).toContain("pacifists-garden");
