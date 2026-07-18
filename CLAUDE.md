@@ -193,7 +193,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `@onelife/tokens` `redeem` establishes ban ownership by verified gamertag alone (bans stay
   per-server). **Prod deploy** needs the gated projection rebuild **and** the `gamertag_links`
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
-- **Tabloid redesign** (R1+R2+R3+R4+R5a+R5b shipped): a five-tier visual relaunch replacing the old
+- **Tabloid redesign** (R1+R2+R3+R4+R5a+R5b+R5c shipped): a five-tier visual relaunch replacing the old
   dark "field journal" theme with a light "Clean Glossy" tabloid look. Roadmap + full R1 design:
   `docs/superpowers/specs/2026-07-16-tabloid-redesign-design.md` — **R1** design system + shell,
   **R2** boards restyle (survivors + player dossier;
@@ -207,7 +207,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   images, with **R5d** (News feed + news-led home) next.
   **R5c shipped — Article Images.** Every published obituary and birth notice gets **one** AI
   tabloid photo (`image_kind='hero'`; `card`/`breaking` are reserved for later verticals) via a
-  **fourth** `apps/newsdesk` pass (`imageTick`) — backfill (oldest missing first) + forward,
+  **fourth** `apps/newsdesk` pass (`imageTick`) — forward (fresh articles first) + backfill,
   behind the shared `NEWSDESK_DRY_RUN` gate plus its own **`NEWSDESK_IMAGES_ENABLED`** kill switch
   (default `true`; a broken image pipeline must never stop the prose). **Art direction is
   vendored VERBATIM** from brand-bible §10.4 into `apps/newsdesk/src/image-prompt.ts`
@@ -388,7 +388,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   newsdesk instance** — the sweep reads unposted rows without a row lock. The webhook client uses
   global `fetch` (no SDK). Design: `docs/superpowers/specs/2026-07-17-discord-obituary-notifier-design.md`.
   **Fourth pass — article images (R5c):** `imageTick` generates the one AI hero photo per published
-  article (backfill oldest-missing-first, then forward), under `NEWSDESK_DRY_RUN` plus its own
+  article (forward first with fresh articles, backfill trailing), under `NEWSDESK_DRY_RUN` plus its own
   **`NEWSDESK_IMAGES_ENABLED`** kill switch (default `true`). Image env vars: `NEWSDESK_IMAGE_MODEL`
   (default `openai/gpt-5-image-mini`), `NEWSDESK_IMAGE_MODEL_FLAGSHIP` (default
   `openai/gpt-5.4-image-2`, reserved for legends), `NEWSDESK_IMAGE_QUALITY` (default `low`). See the
