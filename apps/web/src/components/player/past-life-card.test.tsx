@@ -10,7 +10,7 @@ function life(overrides: Partial<PastLife> = {}): PastLife {
     lifeId: 9, serverId: 1, map: "sakhal", slug: "sakhal", lifeNumber: 2,
     startedAt: "2026-07-14T04:00:00Z", endedAt: "2026-07-14T09:06:00Z",
     timeAliveSeconds: 18360, kills: 0, longestKillMeters: null, character: null,
-    death: { cause: "pvp", byGamertag: "TidierCart8730", weapon: "VSD", distanceMeters: 126 },
+    death: { cause: "pvp", byGamertag: "TidierCart8730", weapon: "VSD", distanceMeters: 126, verdict: null },
     vitals: { energy: null, water: null, bleedSources: null },
     sessions: 9, killList: [],
     ...overrides,
@@ -30,8 +30,8 @@ describe("PastLifeCard", () => {
   });
 
   test("environment death line has no killer link", () => {
-    render(<PastLifeCard life={life({ death: { cause: "environment", byGamertag: null, weapon: null, distanceMeters: null } })} now={now} gamertag="YrJustBad" />);
-    expect(screen.getByText(/Died — environment/)).toBeInTheDocument();
+    render(<PastLifeCard life={life({ death: { cause: "environment", byGamertag: null, weapon: null, distanceMeters: null, verdict: null } })} now={now} gamertag="YrJustBad" />);
+    expect(screen.getByText(/Died — Environment/i)).toBeInTheDocument();
     const links = screen.getAllByRole("link");
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAccessibleName(/timeline/i);
@@ -56,7 +56,7 @@ describe("PastLifeCard", () => {
   test("pvp death with an unknown killer reads 'Killed by unknown'", () => {
     render(
       <PastLifeCard
-        life={life({ death: { cause: "pvp", byGamertag: null, weapon: null, distanceMeters: null } })}
+        life={life({ death: { cause: "pvp", byGamertag: null, weapon: null, distanceMeters: null, verdict: null } })}
         now={now}
         gamertag="YrJustBad"
       />,
@@ -67,7 +67,7 @@ describe("PastLifeCard", () => {
   test("named killer line pins the 'Killed by' prefix and singular kill count", () => {
     render(
       <PastLifeCard
-        life={life({ kills: 1, death: { cause: "pvp", byGamertag: "YrJustBad", weapon: "VSS", distanceMeters: 5 } })}
+        life={life({ kills: 1, death: { cause: "pvp", byGamertag: "YrJustBad", weapon: "VSS", distanceMeters: 5, verdict: null } })}
         now={now}
         gamertag="YrJustBad"
       />,
@@ -80,5 +80,16 @@ describe("PastLifeCard", () => {
   test("links to the life timeline", () => {
     render(<PastLifeCard life={life()} now={now} gamertag="YrJustBad" />);
     expect(screen.getByRole("link", { name: /timeline/i })).toHaveAttribute("href", "/players/yrjustbad/sakhal/lives/2");
+  });
+
+  test("non-pvp death line renders the classified verdict", () => {
+    render(
+      <PastLifeCard
+        life={life({ death: { cause: "died", byGamertag: null, weapon: null, distanceMeters: null, verdict: { cause: "mauled", confidence: "high", conditions: ["bleeding", "hunted"] } } })}
+        now={now}
+        gamertag="YrJustBad"
+      />,
+    );
+    expect(screen.getByText(/Died — Mauled/i)).toBeInTheDocument();
   });
 });

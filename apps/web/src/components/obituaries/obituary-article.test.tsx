@@ -14,7 +14,7 @@ const article: ObituaryArticle = {
   tags: ["Obituaries", "Chernarus"], timeAliveSeconds: 3456000, kills: 212, longestKillMeters: 410,
   cause: "pvp", deathAt: "2026-07-10T22:16:00Z", body: "He left 212 kills behind.",
   pullQuote: { text: "You do not get a second life.", attribution: "a rival" }, sessions: 30,
-  killerGamertag: "Chicken", weapon: "Reload", imageUrl: null, imageCaption: null,
+  killerGamertag: "Chicken", weapon: "Reload", imageUrl: null, imageCaption: null, verdict: null,
 };
 
 describe("ObituaryArticleView", () => {

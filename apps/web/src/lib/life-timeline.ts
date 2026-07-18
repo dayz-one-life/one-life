@@ -1,11 +1,11 @@
-import type { LifeTimelineData, PlayerKill, Session } from "./types";
+import type { LifeTimelineData, PlayerKill, Session, DeathVerdictDto } from "./types";
 import { formatDuration } from "@/components/player/format";
 
 export type Marker = "blue" | "red" | "gray" | "yellow";
 
 export type TimelineEvent =
   | { kind: "now"; at: Date; marker: "blue"; timeLabel: "NOW"; title: string; line: string }
-  | { kind: "death"; at: Date; marker: "red"; timeLabel: string; cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; vitals: string | null }
+  | { kind: "death"; at: Date; marker: "red"; timeLabel: string; cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; vitals: string | null; verdict: DeathVerdictDto | null }
   | { kind: "kill"; at: Date; marker: "red"; timeLabel: string; victimGamertag: string; weapon: string | null; distanceMeters: number | null; longestKill: boolean }
   | { kind: "session"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "session-group"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
@@ -120,7 +120,7 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   if (alive) {
     events.push({ kind: "now", at: now, marker: "blue", timeLabel: "NOW", title: "Still drawing breath", line: `${formatDuration(timeAlive)} and counting` });
   } else {
-    events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: label(endedAt), cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life) });
+    events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: label(endedAt), cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life), verdict: data.verdict ?? null });
   }
 
   // Newest-first

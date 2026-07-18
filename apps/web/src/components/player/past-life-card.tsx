@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PastLife } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
 import { lifeHref } from "@/lib/life-href";
+import { verdictPhrase } from "@/lib/cause-format";
 import { formatDuration, mapLabel, relativeDate } from "./format";
 
 export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Date; gamertag: string }) {
@@ -21,7 +22,7 @@ export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Dat
           {death.cause === "pvp" ? (
             <>Killed by {death.byGamertag ? <GamertagLink gamertag={death.byGamertag} className="text-red underline" /> : "unknown"}</>
           ) : (
-            <>Died — {death.cause}</>
+            <>Died — {verdictPhrase(death.verdict, death.cause)}</>
           )}
           {death.weapon ? ` · ${death.weapon}` : ""}
           {death.distanceMeters != null ? ` · ${Math.round(death.distanceMeters)}m` : ""}

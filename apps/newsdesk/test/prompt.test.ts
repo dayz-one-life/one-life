@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryPrompt, parseObituary, composeTags, OBITUARY_PROMPT_VERSION } from "../src/prompt.js";
+import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, OBITUARY_PROMPT_VERSION } from "../src/prompt.js";
 import type { ObituaryFacts } from "../src/facts.js";
 
 const facts: ObituaryFacts = {
@@ -7,7 +7,10 @@ const facts: ObituaryFacts = {
   timeAliveSeconds: 3456000, timeAliveLabel: "40d", kills: 212, longestKillMeters: 410,
   sessions: 30, cause: "pvp", causeCategory: "pvp", killerGamertag: "Chicken", weapon: "Reload",
   isLegend: true, freshSpawnVictim: false, endedAt: "2026-07-10T22:16:00.000Z",
+  deathDistance: null, verdict: null, ordeals: null, hpLow: null,
 };
+
+const mkFacts = (overrides: Partial<ObituaryFacts>): ObituaryFacts => ({ ...facts, ...overrides });
 
 describe("buildObituaryPrompt", () => {
   it("puts the voice + JSON contract in system and the facts in user", () => {
@@ -24,6 +27,49 @@ describe("buildObituaryPrompt", () => {
   it("directs protective framing for a fresh-spawn victim", () => {
     const { user } = buildObituaryPrompt({ ...facts, isLegend: false, freshSpawnVictim: true, kills: 0, killerGamertag: "Camper" });
     expect(user).toMatch(/protect|dignity|victim/i);
+  });
+
+  it("prompt lists ordeal lines only when counts are non-zero and hedges low-confidence causes", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      causeCategory: "environment", cause: "died",
+      verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
+      ordeals: { infected: { encounters: 3, hits: 9, worstEncounterHits: 5 }, fire: { encounters: 0, hits: 0, worstEncounterHits: 0 }, pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 }, buildsPlaced: 0 },
+      hpLow: 8,
+    }));
+    expect(user).toContain("Run-ins with the infected: 3 (the worst took 5 hits)");
+    expect(user).not.toContain("Times caught fire");
+    expect(user).toContain("Lowest health recorded: 8 of 100");
+    expect(user).toContain("hedge it in-voice");
+    expect(user).toContain("never quote raw stat numbers");
+  });
+});
+
+describe("describeDeath", () => {
+  it("pvp includes killer, weapon, and distance", () => {
+    const s = describeDeath(mkFacts({ causeCategory: "pvp", killerGamertag: "Kilo", weapon: "M4A1", deathDistance: 384.2 }));
+    expect(s).toBe("killed by another player (Kilo), M4A1, from 384m.");
+  });
+
+  it("high-confidence starvation is qualitative, no raw stats", () => {
+    const s = describeDeath(mkFacts({
+      causeCategory: "environment", cause: "died",
+      verdict: { cause: "starvation", confidence: "high", conditions: ["starving"] },
+    }));
+    expect(s).toContain("starvation");
+    expect(s).not.toMatch(/\d{2,}/); // no stat numbers leak
+  });
+
+  it("low confidence hedges with 'likely'", () => {
+    const s = describeDeath(mkFacts({
+      causeCategory: "environment", cause: "died",
+      verdict: { cause: "dehydration", confidence: "low", conditions: ["dehydrated", "hunted"] },
+    }));
+    expect(s).toMatch(/^likely dehydration/);
+  });
+
+  it("no verdict falls back to the mechanism, humanized", () => {
+    const s = describeDeath(mkFacts({ causeCategory: "environment", cause: "bled_out", verdict: null }));
+    expect(s).toBe("bled out (not a player kill).");
   });
 });
 
@@ -58,7 +104,7 @@ describe("parseObituary", () => {
   });
 
   it("exposes a stable prompt version", () => {
-    expect(OBITUARY_PROMPT_VERSION).toBe("obituary-v1");
+    expect(OBITUARY_PROMPT_VERSION).toBe("obituary-v2");
   });
 });
 
