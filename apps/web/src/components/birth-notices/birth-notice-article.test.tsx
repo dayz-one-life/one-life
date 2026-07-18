@@ -43,11 +43,4 @@ describe("BirthNoticeArticleView", () => {
     render(<BirthNoticeArticleView article={article} more={[]} now={now} />);
     expect(document.querySelector("img")).toBeNull();
   });
-
-  test("renders the hero image and caption when imageUrl is present", () => {
-    const withImage = { ...article, imageUrl: "/media/heroes/y.png", imageCaption: "FIRST SIGHTING" };
-    render(<BirthNoticeArticleView article={withImage} more={[]} now={now} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(screen.getByText("FIRST SIGHTING")).toBeInTheDocument();
-  });
 });

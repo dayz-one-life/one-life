@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { RapSheet } from "./rap-sheet";
 import { PullQuote } from "@/components/shared/pull-quote";
-import { ArticleHero } from "@/components/shared/article-hero";
 import { MoreFromMorgue } from "./more-from-morgue";
 import { Timeline } from "@/components/life/timeline";
 import type { ObituaryArticle, ObituaryCard } from "@/lib/types";
@@ -30,8 +29,6 @@ export function ObituaryArticleView({
           Filed by The Desk · A life of <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> · Life {article.lifeNumber} · {mapLabel(article.map)}
         </p>
       </div>
-
-      {article.imageUrl ? <ArticleHero src={article.imageUrl} caption={article.imageCaption} accent="red" /> : null}
 
       <p className="mt-6 font-mono text-[15px] font-bold leading-relaxed text-ink">{article.lede}</p>
 

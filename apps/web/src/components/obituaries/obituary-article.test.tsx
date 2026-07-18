@@ -33,11 +33,4 @@ describe("ObituaryArticleView", () => {
     render(<ObituaryArticleView article={article} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
     expect(document.querySelector("img")).toBeNull();
   });
-
-  test("renders the hero image and caption when imageUrl is present", () => {
-    const withImage = { ...article, imageUrl: "/media/heroes/x.png", imageCaption: "LAST KNOWN PHOTO" };
-    render(<ObituaryArticleView article={withImage} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(screen.getByText("LAST KNOWN PHOTO")).toBeInTheDocument();
-  });
 });
