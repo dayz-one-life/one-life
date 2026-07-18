@@ -5,6 +5,11 @@ describe("causeLabel", () => {
   it("pvp => Killed", () => expect(causeLabel("pvp")).toBe("Killed"));
   it("null => Unknown", () => expect(causeLabel(null)).toBe("Unknown"));
   it("humanizes underscore tokens", () => expect(causeLabel("bled_out")).toBe("Bled Out"));
+  it("stage-2 tokens read naturally", () => {
+    expect(causeLabel("wolf")).toBe("Wolf");
+    expect(causeLabel("fall")).toBe("Fell");
+    expect(causeLabel("died")).toBe("Unknown"); // "Died — Died" fix: a bare died mechanism is an unknown end
+  });
 });
 
 describe("verdictPhrase", () => {
@@ -31,5 +36,9 @@ describe("verdictPhrase", () => {
   it("environmental/unknown verdicts keep the mechanism's specificity", () => {
     expect(verdictPhrase(v("environmental"), "drowned")).toBe("Drowned");
     expect(verdictPhrase(v("unknown", "low"), null)).toBe("Unknown");
+  });
+  it("entity verdicts label through causeLabel (never hedged — stated mechanisms)", () => {
+    expect(verdictPhrase(v("wolf"), "wolf")).toBe("Wolf");
+    expect(verdictPhrase(v("fall"), "fall")).toBe("Fell");
   });
 });

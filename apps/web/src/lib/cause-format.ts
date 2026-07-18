@@ -3,6 +3,8 @@ import type { DeathVerdictDto } from "./types";
 /** Mechanism token -> display label. The single shared copy (obituary/birth formats import it). */
 export function causeLabel(cause: string | null): string {
   if (cause === "pvp") return "Killed";
+  if (cause === "fall") return "Fell";
+  if (cause === "died") return "Unknown"; // a bare "died" mechanism says nothing — read it as unknown
   if (!cause) return "Unknown";
   return cause.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
