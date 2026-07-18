@@ -15,8 +15,10 @@ export default async function Home() {
     <main className="mx-auto w-full max-w-5xl">
       <Hero />
       <TopSurvivors rows={survivors?.rows.slice(0, 5) ?? []} />
-      <LatestObituaries rows={obituaries?.rows.slice(0, 3) ?? []} />
-      <LatestFreshSpawns rows={freshSpawns?.rows.slice(0, 3) ?? []} />
+      <div className="grid lg:grid-cols-2 lg:divide-x lg:divide-hairline">
+        <LatestObituaries rows={obituaries?.rows.slice(0, 3) ?? []} />
+        <LatestFreshSpawns rows={freshSpawns?.rows.slice(0, 3) ?? []} />
+      </div>
       <SignInCta />
     </main>
   );

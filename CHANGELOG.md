@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
+- Home page: the "Fresh from the morgue" and "Just washed ashore" blocks now sit side by side in a
+  two-column grid from `lg` up (with a hairline rule between them) instead of stacking vertically.
+  They still stack below `lg`, where a half-width column would crowd the uppercase display headlines.
 ### Deprecated
 ### Removed
 ### Fixed
