@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, articles } from "@onelife/db";
+import { servers, articles, articleImages } from "@onelife/db";
 import { eq, and, desc } from "drizzle-orm";
 
 const { db, sql } = getTestDb();
@@ -76,5 +76,19 @@ describe("articles birth notices (nullable death_at + born feed order)", () => {
       .where(and(eq(articles.serverId, serverId), eq(articles.kind, "birth_notice")))
       .orderBy(desc(articles.lifeStartedAt));
     expect(rows.map((r) => r.slug)).toEqual([`bn-late-${svc}`, `bn-early-${svc}`]);
+  });
+});
+
+describe("R5c image columns", () => {
+  it("articles carries the R5c image columns", () => {
+    for (const col of ["imageUrl", "imagePrompt", "imageKind", "imageCaption", "imageModel", "imageAttempts", "imageError"] as const) {
+      expect(articles[col]).toBeDefined();
+    }
+  });
+
+  it("article_images stores bytes keyed by article", () => {
+    for (const col of ["articleId", "bytes", "contentType", "width", "height", "createdAt"] as const) {
+      expect(articleImages[col]).toBeDefined();
+    }
   });
 });

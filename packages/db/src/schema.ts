@@ -1,6 +1,6 @@
 import {
   pgTable, bigserial, integer, text, timestamp, boolean, jsonb,
-  bigint, uniqueIndex, index, doublePrecision,
+  bigint, uniqueIndex, index, doublePrecision, customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -381,6 +381,10 @@ export const articles = pgTable("articles", {
   imageUrl: text("image_url"),                                       // reserved for R5c
   imagePrompt: text("image_prompt"),                                // reserved for R5c
   imageKind: text("image_kind"),                                    // reserved for R5c
+  imageCaption: text("image_caption"),                              // deadpan caps line under the hero (R5c)
+  imageModel: text("image_model"),                                  // image-model provenance (R5c)
+  imageAttempts: integer("image_attempts").notNull().default(0),    // image-pass retries, independent of text attempts
+  imageError: text("image_error"),                                  // last image-pass failure
   generatedAt: timestamp("generated_at", { withTimezone: true }),
   discordPostedAt: timestamp("discord_posted_at", { withTimezone: true }), // set when the obituary link was posted to Discord; NULL = unposted
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -390,4 +394,16 @@ export const articles = pgTable("articles", {
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
   bornIdx: index("articles_kind_status_born_idx").on(t.kind, t.status, t.lifeStartedAt),
   discordUnpostedIdx: index("articles_discord_unposted_idx").on(t.deathAt).where(sql`${t.kind} = 'obituary' AND ${t.status} = 'published' AND ${t.discordPostedAt} IS NULL`),
+  imageMissingIdx: index("articles_image_missing_idx").on(t.createdAt).where(sql`${t.status} = 'published' AND ${t.imageUrl} IS NULL`),
 }));
+
+// One generated photo per article. Durable like `articles` (never truncated on rebuild); bytes
+// live in Postgres so the archive promise and the pg_dump backup cover images too.
+export const articleImages = pgTable("article_images", {
+  articleId: bigint("article_id", { mode: "number" }).primaryKey().references(() => articles.id, { onDelete: "cascade" }),
+  bytes: customType<{ data: Buffer }>({ dataType: () => "bytea" })("bytes").notNull(),
+  contentType: text("content_type").notNull(),                      // from the API media_type (png observed)
+  width: integer("width"),                                          // parsed from PNG IHDR; null for non-png
+  height: integer("height"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

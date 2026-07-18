@@ -17,6 +17,8 @@ export interface BirthNoticeCard {
   bornAt: Date;
   minutesToQualify: number | null;
   priorLives: number;
+  imageUrl: string | null;
+  imageCaption: string | null;
 }
 
 export interface BirthNoticesFeed {
@@ -49,6 +51,8 @@ const CARD_COLS = {
   tags: articles.tags,
   bornAt: articles.lifeStartedAt,
   facts: articles.facts,
+  imageUrl: articles.imageUrl,
+  imageCaption: articles.imageCaption,
 } as const;
 
 const publishedBirthNotice = and(eq(articles.kind, "birth_notice"), eq(articles.status, "published"));
@@ -101,6 +105,8 @@ export async function getPublishedBirthNotices(
         bornAt: r.bornAt,
         minutesToQualify: facts.minutesToQualify ?? null,
         priorLives: priorsFrom(facts).livesLived,
+        imageUrl: r.imageUrl,
+        imageCaption: r.imageCaption,
       };
     }),
     total: totalRow[0]?.c ?? 0,
@@ -139,6 +145,8 @@ export async function getBirthNoticeBySlug(db: Database, slug: string): Promise<
     bornAt: r.bornAt,
     minutesToQualify: facts.minutesToQualify ?? null,
     priorLives: priors.livesLived,
+    imageUrl: r.imageUrl,
+    imageCaption: r.imageCaption,
     body: r.body ?? "",
     pullQuote: r.pullQuoteText ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" } : null,
     priors,

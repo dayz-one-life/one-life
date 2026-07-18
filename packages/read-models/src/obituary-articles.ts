@@ -18,6 +18,8 @@ export interface ObituaryCard {
   longestKillMeters: number | null;
   cause: string | null;
   deathAt: Date;
+  imageUrl: string | null;
+  imageCaption: string | null;
 }
 
 export interface ObituariesFeed {
@@ -51,6 +53,8 @@ const CARD_COLS = {
   longestKillMeters: articles.longestKillMeters,
   cause: articles.cause,
   deathAt: articles.deathAt,
+  imageUrl: articles.imageUrl,
+  imageCaption: articles.imageCaption,
 } as const;
 
 const publishedObituary = and(eq(articles.kind, "obituary"), eq(articles.status, "published"));
@@ -122,6 +126,8 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     longestKillMeters: r.longestKillMeters,
     cause: r.cause,
     deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
+    imageUrl: r.imageUrl,
+    imageCaption: r.imageCaption,
     body: r.body ?? "",
     pullQuote: r.pullQuoteText ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" } : null,
     sessions: facts.sessions ?? 0,

@@ -31,6 +31,7 @@ export function breadcrumbLd(items: { name: string; url: string }[]) {
 export function articleLd(
   a: { headline: string; lede: string; gamertag: string; deathAt: string },
   url: string,
+  image?: string,
 ) {
   return {
     "@context": "https://schema.org",
@@ -41,12 +42,14 @@ export function articleLd(
     datePublished: a.deathAt,
     about: { "@type": "Person", name: a.gamertag },
     isPartOf: { "@type": "CollectionPage", name: "Obituaries", url: absoluteUrl("/obituaries") },
+    ...(image ? { image: [image] } : {}),
   };
 }
 
 export function birthNoticeLd(
   a: { headline: string; lede: string; gamertag: string; bornAt: string },
   url: string,
+  image?: string,
 ) {
   return {
     "@context": "https://schema.org",
@@ -57,5 +60,6 @@ export function birthNoticeLd(
     datePublished: a.bornAt,
     about: { "@type": "Person", name: a.gamertag },
     isPartOf: { "@type": "CollectionPage", name: "Fresh Spawns", url: absoluteUrl("/fresh-spawns") },
+    ...(image ? { image: [image] } : {}),
   };
 }
