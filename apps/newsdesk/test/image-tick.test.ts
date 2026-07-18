@@ -54,6 +54,19 @@ function failCompletion(message: string) {
     client: { complete: async (req: unknown) => { calls.push(req); throw new Error(message); } } as CompletionClient,
   };
 }
+function failThenSucceedCompletion(failMessage: string, response: string = sceneJson) {
+  const calls: unknown[] = [];
+  return {
+    calls,
+    client: {
+      complete: async (req: unknown) => {
+        calls.push(req);
+        if (calls.length === 1) throw new Error(failMessage);
+        return response;
+      },
+    } as CompletionClient,
+  };
+}
 function stubImage() {
   const calls: { prompt: string; model: string }[] = [];
   return {
@@ -278,5 +291,43 @@ describe("imageTick", () => {
     const req = c.calls[0] as { system: string; user: string };
     expect(req.user).toContain("OLD CAP — OLD SCENE");
     void target;
+  });
+
+  it("failure isolation: a failing target in a batch doesn't stop the rest", async () => {
+    // Seeded first (older createdAt) so it's processed second by findImageTargets' newest-first order.
+    const olderSucceeds = await seedArticle({ kind: "obituary" });
+    // Seeded second (newer createdAt) so it's the batch's first target — and the one that fails.
+    const newerFails = await seedArticle({ kind: "obituary" });
+
+    const c = failThenSucceedCompletion("scene writer boom (batch)");
+    const img = stubImage();
+
+    const r = await imageTick(db, {
+      ...baseDeps,
+      client: c.client,
+      imageClient: img.client,
+      batchCap: 2,
+      maxAttempts: 3,
+      now: nextTick(),
+    });
+
+    expect(r).toEqual({ generated: 1, failed: 1, skipped: 0, dryRun: false });
+    expect(c.calls).toHaveLength(2);
+    expect(img.calls).toHaveLength(1); // only the surviving (second) target reached image generation
+
+    const [failedRow] = await db.select().from(articles).where(eq(articles.id, newerFails.id));
+    expect(failedRow!.imageAttempts).toBe(1);
+    expect(failedRow!.imageError).toMatch(/boom/);
+    expect(failedRow!.imageUrl).toBeNull();
+
+    const [succeededRow] = await db.select().from(articles).where(eq(articles.id, olderSucceeds.id));
+    expect(succeededRow!.imageUrl).not.toBeNull();
+
+    const [imgRow] = await db.select().from(articleImages).where(eq(articleImages.articleId, olderSucceeds.id));
+    expect(imgRow).toBeDefined();
+
+    // Clean up the still-eligible (1 < 3 attempts) failing leftover before it can pollute later
+    // batchCap:1 cases (findImageTargets has no server scoping — it sweeps every published article).
+    await db.delete(articles).where(eq(articles.id, newerFails.id));
   });
 });
