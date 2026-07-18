@@ -15,7 +15,9 @@ export interface RecentHit {
 export type DeathConfidence = "high" | "low";
 
 export interface DeathVerdict {
-  cause: "pvp" | "suicide" | "starvation" | "dehydration" | "bled_out" | "mauled" | "environmental" | "unknown";
+  cause: "pvp" | "suicide" | "starvation" | "dehydration" | "bled_out" | "mauled" | "environmental" | "unknown"
+    // Stage 2 — named non-player mechanisms pass through as themselves.
+    | "wolf" | "bear" | "animal" | "infected" | "fall" | "vehicle" | "explosion";
   confidence: DeathConfidence;
   conditions: string[];          // "starving" | "dehydrated" | "bleeding" | "hunted" | "drowned" | "healthy"
   basis: Record<string, unknown>;
@@ -24,6 +26,11 @@ export interface DeathVerdict {
 export const STARVE_ENERGY_MAX = 1;     // Energy ≈ 0 (game reports 0 when out of food)
 export const DEHYDRATE_WATER_MAX = 1;   // Water ≈ 0
 export const RECENT_HIT_WINDOW_S = 120; // "recent" damage window feeding cause inference
+
+/** Stage-2 mechanism tokens from the parser's entity dict — stated causes, never inferred over. */
+export const ENTITY_MECHANISMS: ReadonlySet<string> = new Set([
+  "wolf", "bear", "animal", "infected", "fall", "vehicle", "explosion",
+]);
 
 /**
  * Mechanism-first ladder. A mechanism explains its own side-effects: a suicide-by-blade's bleed and a
@@ -50,6 +57,11 @@ export function classifyDeath(facts: DeathRawFacts, recentHits: RecentHit[]): De
   if (facts.mechanism === "bled_out") return { cause: "bled_out", confidence: "high", conditions: [...baseConditions, "bleeding"], basis };
   if (facts.mechanism === "drowned") return { cause: "environmental", confidence: "high", conditions: [...baseConditions, "drowned"], basis };
   if (facts.mechanism === "environment") return { cause: "environmental", confidence: "high", conditions: withHealthy(baseConditions), basis }; // STATED mechanism is high-confidence; only INFERRED causes below are graded down by competing hits
+
+  if (facts.mechanism && ENTITY_MECHANISMS.has(facts.mechanism)) {
+    // A named killer explains its own bleed/HP damage — same side-effect subtraction as above.
+    return { cause: facts.mechanism as DeathVerdict["cause"], confidence: "high", conditions: withHealthy(baseConditions), basis };
+  }
 
   // No explaining mechanism (died/unknown/null): infer the underlying cause.
   if (starving) return { cause: "starvation", confidence: recent.length ? "low" : "high", conditions: baseConditions, basis };

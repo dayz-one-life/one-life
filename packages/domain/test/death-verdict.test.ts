@@ -97,4 +97,17 @@ describe("classifyDeath", () => {
     expect(v.cause).toBe("starvation");
     expect(v.confidence).toBe("low");
   });
+
+  it("stage-2 entity mechanisms pass through at high confidence (wolf, healthy)", () => {
+    const v = classifyDeath({ mechanism: "wolf", energy: 500, water: 500, bleedSources: 2, weapon: null }, []);
+    expect(v.cause).toBe("wolf");
+    expect(v.confidence).toBe("high");
+    expect(v.conditions).toEqual(["healthy"]); // the wolf explains its own bleed — not "bleeding"
+  });
+
+  it("entity mechanism keeps real conditions (fall while starving)", () => {
+    const v = classifyDeath({ mechanism: "fall", energy: 0, water: 500, bleedSources: 0, weapon: null }, []);
+    expect(v.cause).toBe("fall");
+    expect(v.conditions).toEqual(["starving"]);
+  });
 });
