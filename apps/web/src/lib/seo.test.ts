@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteUrl, ldScript, birthNoticeLd } from "./seo";
+import { absoluteUrl, ldScript, birthNoticeLd, articleLd } from "./seo";
 
 describe("seo helpers", () => {
   it("builds absolute urls", () => {
@@ -39,5 +39,38 @@ describe("birthNoticeLd", () => {
     expect(out).not.toContain("</script>");
     expect(out).not.toContain("<");
     expect(out).toContain("\\u003c");
+  });
+  it("has no image key when no image is passed", () => {
+    const ld = birthNoticeLd(article, "https://x/y") as Record<string, unknown>;
+    expect(ld).not.toHaveProperty("image");
+  });
+  it("includes the absolute image url in a single-item array when an image is passed", () => {
+    const ld = birthNoticeLd(article, "https://x/y", "https://x/media/heroes/boots.png") as Record<string, unknown>;
+    expect(ld.image).toEqual(["https://x/media/heroes/boots.png"]);
+  });
+});
+
+describe("articleLd", () => {
+  const article = { headline: "Shot Dead at Tisy", lede: "L", gamertag: "Chicken", deathAt: "2026-07-17T10:00:00Z" };
+  it("emits a NewsArticle with deathAt as datePublished and the Obituaries collection", () => {
+    const ld = articleLd(article, "https://x/obituaries/shot-dead-at-tisy-3") as Record<string, unknown>;
+    expect(ld["@type"]).toBe("NewsArticle");
+    expect(ld.datePublished).toBe("2026-07-17T10:00:00Z");
+    expect((ld.isPartOf as Record<string, unknown>).name).toBe("Obituaries");
+    expect((ld.about as Record<string, unknown>).name).toBe("Chicken");
+  });
+  it("escapes </script> when rendered through ldScript", () => {
+    const out = ldScript(articleLd({ ...article, headline: "X </script><script>alert(1)</script>" }, "https://x/y"));
+    expect(out).not.toContain("</script>");
+    expect(out).not.toContain("<");
+    expect(out).toContain("\\u003c");
+  });
+  it("has no image key when no image is passed", () => {
+    const ld = articleLd(article, "https://x/y") as Record<string, unknown>;
+    expect(ld).not.toHaveProperty("image");
+  });
+  it("includes the absolute image url in a single-item array when an image is passed", () => {
+    const ld = articleLd(article, "https://x/y", "https://x/media/heroes/chicken.png") as Record<string, unknown>;
+    expect(ld.image).toEqual(["https://x/media/heroes/chicken.png"]);
   });
 });

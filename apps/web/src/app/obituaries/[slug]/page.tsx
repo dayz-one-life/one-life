@@ -39,7 +39,8 @@ export default async function ObituaryPage({ params }: Props) {
     getObituariesFeed(1).catch(() => ({ rows: [], total: 0, page: 1, pageSize: 20 })),
   ]);
   const more = feed.rows.filter((r) => r.slug !== article.slug).slice(0, 4);
-  const ld = articleLd(article, absoluteUrl(obituaryHref(slug)));
+  const ldImage = article.imageUrl ? absoluteUrl(article.imageUrl) : undefined;
+  const ld = articleLd(article, absoluteUrl(obituaryHref(slug)), ldImage);
 
   return (
     <>
