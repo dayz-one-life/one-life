@@ -9,13 +9,18 @@ const DEATH_VERB_RE = /\b(died|committed suicide|bled out|drowned|killed by)\b/u
 const KILLED_BY_ENTITY_RE = /killed by ([A-Za-z0-9_]+)/u;
 // Ordered entity dict (first match wins). Only class-name patterns confirmable from DayZ
 // conventions ship; anything else stays "environment" with the entity captured — the
-// backfill-death-causes survey logs unmapped entities so this dict can grow (vehicle, explosion).
+// backfill-death-causes survey logs unmapped entities so this dict can grow (explosion still reserved).
 const ENTITY_CAUSES: readonly [RegExp, DeathCause][] = [
   [/^Animal_CanisLupus/, "wolf"],
   [/^Animal_UrsusArctos/, "bear"],
   [/^Animal_/, "animal"],
   [/^Zmb/, "infected"],
   [/^FallDamage$/, "fall"],
+  // DayZ base-game drivable vehicles (Central Economy events.xml; color variants share the prefix):
+  // CivilianSedan* (Olga), Hatchback_02* (Gunter), Sedan_02* (Sarka), Offroad_02 (Humvee),
+  // OffroadHatchback* (Ada), Truck_01_Covered* (M3S), Boat_01* (assault boat). Grow from the
+  // backfill survey for map-specific classes (Sakhal/Livonia) as they appear.
+  [/^(CivilianSedan|Hatchback_|Sedan_|Offroad|Truck_|Boat_)/, "vehicle"],
 ];
 
 export function parseDeath(raw: string): {

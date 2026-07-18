@@ -65,6 +65,25 @@ describe("parseDeath — named non-player killers (stage 2)", () => {
     expect(parseDeath(line("FallDamage"))).toMatchObject({ cause: "fall", deathEntity: "FallDamage" });
   });
 
+  it("maps DayZ base-game vehicle classes (and color variants) to the vehicle cause", () => {
+    expect(parseDeath(line("CivilianSedan"))).toMatchObject({ cause: "vehicle", deathEntity: "CivilianSedan" });          // Olga 24
+    expect(parseDeath(line("CivilianSedan_Wine"))).toMatchObject({ cause: "vehicle", deathEntity: "CivilianSedan_Wine" });
+    expect(parseDeath(line("Hatchback_02"))).toMatchObject({ cause: "vehicle", deathEntity: "Hatchback_02" });            // Gunter
+    expect(parseDeath(line("Hatchback_02_Blue"))).toMatchObject({ cause: "vehicle", deathEntity: "Hatchback_02_Blue" });
+    expect(parseDeath(line("Sedan_02_Grey"))).toMatchObject({ cause: "vehicle", deathEntity: "Sedan_02_Grey" });          // Sarka
+    expect(parseDeath(line("Offroad_02"))).toMatchObject({ cause: "vehicle", deathEntity: "Offroad_02" });                // Humvee
+    expect(parseDeath(line("OffroadHatchback"))).toMatchObject({ cause: "vehicle", deathEntity: "OffroadHatchback" });    // Ada 4x4
+    expect(parseDeath(line("Truck_01_Covered"))).toMatchObject({ cause: "vehicle", deathEntity: "Truck_01_Covered" });    // M3S cargo
+    expect(parseDeath(line("Boat_01_Black"))).toMatchObject({ cause: "vehicle", deathEntity: "Boat_01_Black" });          // assault boat
+  });
+
+  it("requires the underscore boundary — a bare Sedan/Boat is not a vehicle class", () => {
+    // the `_`-suffixed prefixes (Sedan_/Boat_/Truck_/Hatchback_) demand the underscore; CivilianSedan
+    // is the only bare car, matched by its own alternative. Guards against loosening a prefix.
+    expect(parseDeath(line("Sedan"))).toMatchObject({ cause: "environment", deathEntity: "Sedan" });
+    expect(parseDeath(line("Boat"))).toMatchObject({ cause: "environment", deathEntity: "Boat" });
+  });
+
   it("an unmapped entity stays environment but keeps the entity for the survey", () => {
     expect(parseDeath(line("BarbedWireKit"))).toMatchObject({ cause: "environment", deathEntity: "BarbedWireKit" });
   });
