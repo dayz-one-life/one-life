@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, articles } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
-import { findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
+import { findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, findUnpostedObituaries, markObituaryPosted, type ObituaryTarget } from "../src/pg-store.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
@@ -85,5 +85,61 @@ describe("findObituaryTargets", () => {
     targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3 });
     expect(targets.find((t) => t.lifeId === q2.lifeId)).toBeUndefined(); // attempts 3 >= 3
     void un;
+  });
+});
+
+describe("findUnpostedObituaries + markObituaryPosted", () => {
+  const dtag = `nd-d-${svc}`;
+  const idsToClean: number[] = [];
+  let artSeq = 0;
+
+  // Each seeded article needs a distinct lifeStartedAt — the natural-key unique index is
+  // (kind, serverId, gamertag, lifeStartedAt); reusing dtag+lifeStartedAt would collide.
+  async function seedArticle(over: Record<string, unknown>) {
+    artSeq += 1;
+    const [a] = await db
+      .insert(articles)
+      .values({
+        kind: "obituary",
+        status: "published",
+        serverId,
+        gamertag: dtag,
+        map: "chernarusplus",
+        lifeNumber: artSeq,
+        lifeStartedAt: hrs(100 + artSeq),
+        deathAt: hrs(1),
+        ...over,
+      })
+      .returning();
+    idsToClean.push(a!.id);
+    return a!.id;
+  }
+
+  it("selects only published+slugged+unposted rows, oldest death first, and honors the limit", async () => {
+    const older = await seedArticle({ slug: `older-${svc}`, deathAt: hrs(1) });
+    const newer = await seedArticle({ slug: `newer-${svc}`, deathAt: hrs(5) });
+    await seedArticle({ slug: `posted-${svc}`, deathAt: hrs(2), discordPostedAt: hrs(3) }); // already posted → excluded
+    await seedArticle({ slug: `failed-${svc}`, deathAt: hrs(2), status: "failed" }); // not published → excluded
+    await seedArticle({ slug: null, deathAt: hrs(2) }); // no slug → excluded
+
+    const rows = await findUnpostedObituaries(db, { limit: 50 });
+    const mine = rows.filter((r) => r.gamertag === dtag);
+    expect(mine.map((r) => r.id)).toEqual([older, newer]); // oldest death first
+    expect(mine[0]!.slug).toBe(`older-${svc}`);
+
+    // LIMIT is honored (there are ≥2 unposted rows present, so a limit of 1 returns exactly 1).
+    const capped = await findUnpostedObituaries(db, { limit: 1 });
+    expect(capped).toHaveLength(1);
+  });
+
+  it("markObituaryPosted stamps the row so it is not re-selected", async () => {
+    const id = await seedArticle({ slug: `mark-${svc}`, deathAt: hrs(9) });
+    expect((await findUnpostedObituaries(db, { limit: 50 })).some((r) => r.id === id)).toBe(true);
+    await markObituaryPosted(db, id, hrs(10));
+    expect((await findUnpostedObituaries(db, { limit: 50 })).some((r) => r.id === id)).toBe(false);
+  });
+
+  afterAll(async () => {
+    if (idsToClean.length) await db.delete(articles).where(inArray(articles.id, idsToClean));
   });
 });

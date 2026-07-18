@@ -232,6 +232,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `getPublishedObituaries`/`getObituaryBySlug` (`packages/read-models/src/obituary-articles.ts`) and
   public `GET /obituaries` (now published articles) + `GET /obituaries/:slug`. News stays a static
   teaser until R5d.
+  **Discord obituary notifier:** the newsdesk worker also posts a plain link to each published
+  obituary into Discord via an incoming webhook (Discord unfurls the OG card), tracked/retried
+  through `articles.discord_posted_at` (migration `0011`) so nothing is dropped and the
+  back-catalogue drains on first live run — see the `newsdesk` app entry for env vars + the
+  at-least-once/single-instance delivery boundary.
   **R4 shipped — the life timeline + R5 groundwork.** A public per-life page at
   `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero (`LifeHero`, the life's
   resolved `getLifeCharacter` → `/characters/<name>.webp`) with a **factual** `Life {n} · {mapLabel}`
@@ -305,7 +310,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
 - **packages:** `db` (schema + migrations, now including the durable `articles` table — the content
-  engine's store for LLM-generated obituaries/birth notices; never truncated on rebuild),
+  engine's store for LLM-generated obituaries/birth notices; never truncated on rebuild; gained
+  `discord_posted_at` + the `articles_discord_unposted_idx` partial index in migration `0010` for
+  the Discord obituary notifier),
   `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
@@ -325,7 +332,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   birth-notice pass is additionally gated by **`NEWSDESK_BIRTH_SINCE`** — an ISO-8601 cutoff
   timestamp; unset/empty/invalid ⇒ the pass is **off** (0 targets, no client call) — set it once to a
   go-live instant to begin **forward-only** coverage. Now in the `deploy.sh` restart fleet, so
-  releases pick it up — still needs a `onelife-newsdesk` systemd unit authored on the host),
+  releases pick it up — still needs a `onelife-newsdesk` systemd unit authored on the host.
+  **Also runs the Discord obituary notifier**: a third sweep (`notifyDiscord`, its own try/catch
+  sibling in the loop) posts a plain link to each published obituary into a Discord channel via an
+  incoming webhook — Discord unfurls the page's OG card. Delivery is tracked/retried via
+  `articles.discord_posted_at` (migration `0011`; stamped on success only; oldest-death-first; never
+  drops, drains the back-catalogue on first live run). Gated by `DISCORD_OBITUARY_WEBHOOK_URL`
+  (empty = disabled) + `NEWSDESK_DRY_RUN` (dry-run logs, does not send); per-tick cap
+  `NEWSDESK_DISCORD_MAX_PER_TICK` (default 10). Delivery is **at-least-once** and assumes a **single
+  newsdesk instance** — the sweep reads unposted rows without a row lock. The webhook client uses
+  global `fetch` (no SDK). Design: `docs/superpowers/specs/2026-07-17-discord-obituary-notifier-design.md`),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
   systemd unit).

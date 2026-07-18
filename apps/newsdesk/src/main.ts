@@ -6,6 +6,9 @@ import { birthNoticeTick } from "./birth-tick.js";
 import { openrouterClient } from "./openrouter.js";
 import { OBITUARY_PROMPT_VERSION } from "./prompt.js";
 import { BIRTH_PROMPT_VERSION } from "./birth-prompt.js";
+import { notifyDiscord } from "./notify.js";
+import { findUnpostedObituaries, markObituaryPosted } from "./pg-store.js";
+import { postToDiscordWebhook } from "./discord.js";
 
 const cfg = loadConfig(process.env);
 const log = pino({ level: cfg.logLevel });
@@ -18,6 +21,7 @@ async function loop(): Promise<void> {
     "newsdesk starting",
   );
   if (cfg.dryRun) log.warn("NEWSDESK_DRY_RUN is on — obituaries and birth notices are logged, not generated or stored. Set NEWSDESK_DRY_RUN=false to generate.");
+  if (!cfg.discordWebhookUrl) log.info("DISCORD_OBITUARY_WEBHOOK_URL is empty — Discord obituary notifier disabled.");
   if (cfg.birthSince === null) {
     log.warn("NEWSDESK_BIRTH_SINCE is unset — the birth-notice pass is OFF. Set it to an ISO-8601 go-live timestamp to begin coverage.");
   } else {
@@ -58,6 +62,23 @@ async function loop(): Promise<void> {
       if (br.generated || br.failed) log.info(br, "birth notice tick");
     } catch (err) {
       log.error({ err }, "birth notice tick failed");
+    }
+
+    // Discord obituary notifier (a no-op when the webhook URL is empty).
+    try {
+      const nd = await notifyDiscord(db, {
+        webhookUrl: cfg.discordWebhookUrl,
+        siteUrl: cfg.siteUrl,
+        maxPerTick: cfg.discordMaxPerTick,
+        dryRun: cfg.dryRun,
+        now: new Date(),
+        log,
+        store: { findUnpostedObituaries, markObituaryPosted },
+        post: (webhookUrl, content) => postToDiscordWebhook(webhookUrl, content, { fetch }),
+      });
+      if (nd.posted || nd.failed) log.info(nd, "discord notify tick");
+    } catch (err) {
+      log.error({ err }, "discord notify failed");
     }
 
     await new Promise((r) => setTimeout(r, cfg.intervalSeconds * 1000));
