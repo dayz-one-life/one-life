@@ -2,7 +2,7 @@ import Image from "next/image";
 
 /** The generated tabloid photo atop an article interior. 4:5 render-side crop of the (square)
  *  source; next/image handles resizing/webp. alt is empty by convention — the visible caption is
- *  the accessible text. */
+ *  the accessible text. Retained for future news/editorial; currently no article kind uses it. */
 export function ArticleHero({ src, caption, accent }: {
   src: string;
   caption: string | null;

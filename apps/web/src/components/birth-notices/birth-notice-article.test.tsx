@@ -16,7 +16,6 @@ const article: BirthNoticeArticle = {
   body: "The tide does not care who it drops on the sand.",
   pullQuote: { text: "It always begins with a flare.", attribution: "a bystander" }, endedAt: null,
   priors: { livesLived: 2, longestLifeSeconds: 7200, totalKills: 9, usualDeathCause: "pvp", lastDeathCause: "starvation", bestLifeMap: "sakhal" },
-  imageUrl: null, imageCaption: null,
 };
 
 describe("BirthNoticeArticleView", () => {

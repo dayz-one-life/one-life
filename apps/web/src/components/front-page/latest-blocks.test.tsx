@@ -12,14 +12,13 @@ vi.mock("next/image", () => ({
 const obit: ObituaryCard = {
   slug: "gone-42", gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus", lifeNumber: 3,
   headline: "The King Is Dead", lede: "L", tags: ["Obituaries"], timeAliveSeconds: 7200, kills: 3,
-  longestKillMeters: 210, cause: "pvp", deathAt: "2026-07-10T00:00:00Z", imageUrl: null, imageCaption: null,
+  longestKillMeters: 210, cause: "pvp", deathAt: "2026-07-10T00:00:00Z",
 };
 
 const spawn: BirthNoticeCard = {
   slug: "new-fool-1", gamertag: "Khushie", map: "sakhal", mapSlug: "sakhal", lifeNumber: 1,
   headline: "Another Fool Washes Ashore", lede: "L", tags: ["Fresh Spawns"],
   bornAt: "2026-07-17T10:00:00Z", minutesToQualify: 6, priorLives: 0,
-  imageUrl: null, imageCaption: null,
 };
 
 describe("LatestObituaries", () => {

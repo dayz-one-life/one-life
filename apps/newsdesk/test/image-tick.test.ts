@@ -80,13 +80,18 @@ function stubImage() {
   };
 }
 
+// Defaults to kind "news" — a stand-in image-eligible kind (kind is a free-text column).
+// imageTick's own machinery (dry-run gating, batching, retries, flagship pick, recency) is kind-
+// agnostic; obituary/birth_notice are excluded from findImageTargets entirely (see
+// image-pg-store.test.ts's findImageTargets suite), so these generic-mechanics tests need a kind
+// findImageTargets will actually surface.
 async function seedArticle(over: Record<string, unknown> = {}) {
   artSeq += 1;
   const ts = nextTick();
   const [a] = await db
     .insert(articles)
     .values({
-      kind: "obituary",
+      kind: "news",
       status: "published",
       slug: `imgtick-slug-${svc}-${artSeq}`,
       serverId,
@@ -182,7 +187,7 @@ describe("imageTick", () => {
   });
 
   it("live happy path: writes the scene + hero image, and is idempotent on re-run", async () => {
-    const target = await seedArticle({ kind: "obituary", facts: { isLegend: false }, headline: "A Death On The Coast", lede: "L" });
+    const target = await seedArticle({ kind: "news", facts: { isLegend: false }, headline: "A Death On The Coast", lede: "L" });
     const c = stubCompletion();
     const img = stubImage();
 
@@ -218,7 +223,7 @@ describe("imageTick", () => {
   });
 
   it("flagship pick: isLegend true uses flagshipModel, a non-legend uses model", async () => {
-    const legend = await seedArticle({ kind: "obituary", facts: { isLegend: true } });
+    const legend = await seedArticle({ kind: "news", facts: { isLegend: true } });
     const c1 = stubCompletion();
     const img1 = stubImage();
     const r1 = await imageTick(db, { ...baseDeps, client: c1.client, imageClient: img1.client, now: nextTick() });
@@ -227,7 +232,7 @@ describe("imageTick", () => {
     expect(img1.calls[0]!.model).toBe("flagship-model");
     void legend;
 
-    const nonLegend = await seedArticle({ kind: "obituary", facts: { isLegend: false } });
+    const nonLegend = await seedArticle({ kind: "news", facts: { isLegend: false } });
     const c2 = stubCompletion();
     const img2 = stubImage();
     const r2 = await imageTick(db, { ...baseDeps, client: c2.client, imageClient: img2.client, now: nextTick() });
@@ -238,7 +243,7 @@ describe("imageTick", () => {
   });
 
   it("failure path: scene-writer rejection records image_attempts/image_error, and exhausted attempts drop the target", async () => {
-    const target = await seedArticle({ kind: "obituary" });
+    const target = await seedArticle({ kind: "news" });
     const c = failCompletion("scene writer boom");
     const img = stubImage();
 
@@ -259,7 +264,7 @@ describe("imageTick", () => {
     await db.delete(articles).where(eq(articles.id, target.id));
 
     // Third failure: pre-seed image_attempts: 2 so this failing run is the exhausting one.
-    const exhausted = await seedArticle({ kind: "obituary", imageAttempts: 2 });
+    const exhausted = await seedArticle({ kind: "news", imageAttempts: 2 });
     const c2 = failCompletion("scene writer boom again");
     const img2 = stubImage();
 
@@ -275,12 +280,12 @@ describe("imageTick", () => {
 
   it("recency: the completion request's user prompt carries the last same-kind cover's caption + scene", async () => {
     await seedArticle({
-      kind: "obituary",
+      kind: "news",
       imageUrl: "/media/heroes/old-cover.png",
       imagePrompt: "OLD SCENE\n\nSTYLE: full body shot, cinematic, deadpan tabloid photography.",
       imageCaption: "OLD CAP",
     });
-    const target = await seedArticle({ kind: "obituary" });
+    const target = await seedArticle({ kind: "news" });
     const c = stubCompletion();
     const img = stubImage();
 
@@ -295,9 +300,9 @@ describe("imageTick", () => {
 
   it("failure isolation: a failing target in a batch doesn't stop the rest", async () => {
     // Seeded first (older createdAt) so it's processed second by findImageTargets' newest-first order.
-    const olderSucceeds = await seedArticle({ kind: "obituary" });
+    const olderSucceeds = await seedArticle({ kind: "news" });
     // Seeded second (newer createdAt) so it's the batch's first target — and the one that fails.
-    const newerFails = await seedArticle({ kind: "obituary" });
+    const newerFails = await seedArticle({ kind: "news" });
 
     const c = failThenSucceedCompletion("scene writer boom (batch)");
     const img = stubImage();

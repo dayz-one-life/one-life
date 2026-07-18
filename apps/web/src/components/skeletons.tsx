@@ -90,7 +90,8 @@ export function LifeSkeleton() {
 }
 
 /** Placeholder for the generated tabloid photo atop an article interior, before it (or its
- *  absence) is known — mirrors ArticleHero's 4:5 max-w-md frame. */
+ *  absence) is known — mirrors ArticleHero's 4:5 max-w-md frame. Retained for future news/
+ *  editorial interiors; currently unused (no article kind renders a hero image). */
 export function ArticleHeroSkeleton() {
   return <Bar className="my-6 aspect-[4/5] w-full max-w-md" />;
 }
@@ -105,14 +106,9 @@ export function ObituariesSkeleton() {
       </div>
       {Array.from({ length: 5 }, (_, i) => (
         <div key={i} className="border-b border-hairline py-6">
-          <div className="flex gap-4">
-            <Bar className="hidden h-24 w-24 shrink-0 sm:block" />
-            <div className="min-w-0 flex-1">
-              <Bar className="h-3 w-40" />
-              <Bar className="mt-2 h-8 w-full max-w-xl" />
-              <Bar className="mt-3 h-3 w-96 max-w-full" />
-            </div>
-          </div>
+          <Bar className="h-3 w-40" />
+          <Bar className="mt-2 h-8 w-full max-w-xl" />
+          <Bar className="mt-3 h-3 w-96 max-w-full" />
         </div>
       ))}
     </main>
