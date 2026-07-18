@@ -74,6 +74,18 @@ describe("buildObituaryFacts", () => {
     expect(f.freshSpawnVictim).toBe(false);
   });
 
+  it("classifies a suicide as its own category, never environment", () => {
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "suicide", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 5381 }, kills: [] }), noPriors);
+    expect(f.causeCategory).toBe("suicide");
+    expect(f.killerGamertag).toBeNull();
+  });
+
+  it("a very short suicide is NOT a fresh-spawn victim (that flag is pvp-only)", () => {
+    const f = buildObituaryFacts(target, timeline({ life: { deathCause: "suicide", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 15 }, kills: [] }), noPriors);
+    expect(f.causeCategory).toBe("suicide");
+    expect(f.freshSpawnVictim).toBe(false);
+  });
+
   it("classifies a missing cause as unknown", () => {
     const f = buildObituaryFacts(target, timeline({ life: { deathCause: null, deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }), noPriors);
     expect(f.causeCategory).toBe("unknown");

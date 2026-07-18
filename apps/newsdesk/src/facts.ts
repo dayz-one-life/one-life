@@ -16,7 +16,9 @@ export interface ObituaryFacts {
   longestKillMeters: number | null;
   sessions: number;
   cause: string | null;
-  causeCategory: "pvp" | "environment" | "unknown";
+  // "suicide" is its own category: a deliberate self-inflicted end is neither a player kill nor
+  // an act of the environment, and the two read completely differently in prose and imagery.
+  causeCategory: "pvp" | "suicide" | "environment" | "unknown";
   killerGamertag: string | null;
   weapon: string | null;
   isLegend: boolean;
@@ -58,8 +60,16 @@ export function buildObituaryFacts(
   const timeAliveSeconds = life.playtimeSeconds ?? 0;
   const cause = life.deathCause;
   const killerGamertag = life.deathByGamertag ?? null;
+  // Order matters: a killer name outranks everything (a player did it), then the explicit suicide
+  // token, then any other stated cause, then nothing at all.
   const causeCategory: ObituaryFacts["causeCategory"] =
-    cause === "pvp" || killerGamertag ? "pvp" : cause ? "environment" : "unknown";
+    cause === "pvp" || killerGamertag
+      ? "pvp"
+      : cause === "suicide"
+        ? "suicide"
+        : cause
+          ? "environment"
+          : "unknown";
 
   return {
     gamertag: target.gamertag,
@@ -76,6 +86,9 @@ export function buildObituaryFacts(
     killerGamertag,
     weapon: life.deathWeapon ?? null,
     isLegend: kills >= LEGEND_KILLS || timeAliveSeconds >= LEGEND_SECONDS,
+    // Deliberately pvp-only: the flag exists to protect a victim from being mocked for being
+    // preyed upon. A short suicide has no predator — it must never trip the protective branch,
+    // which would make the prompt hunt for a killer that does not exist.
     freshSpawnVictim: causeCategory === "pvp" && timeAliveSeconds < FRESH_SPAWN_SECONDS,
     endedAt: target.endedAt.toISOString(),
     deathDistance: life.deathDistance ?? null,

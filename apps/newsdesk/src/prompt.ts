@@ -28,6 +28,9 @@ export function describeDeath(facts: ObituaryFacts): string {
   }
   const v = facts.verdict;
   if (!v) {
+    // The bare "suicide" token must never reach the model as a raw word — it is the one cause
+    // whose phrasing carries a duty of care, so phrase it here exactly as the verdict path does.
+    if (facts.cause === "suicide") return "died by their own hand (not a player kill).";
     return facts.cause ? `${facts.cause.replace(/_/g, " ")} (not a player kill).` : "unknown.";
   }
   const noun: Record<string, string> = {
@@ -141,7 +144,16 @@ export function parseObituary(raw: string): Obituary {
 }
 
 export function causeCategoryTag(cat: ObituaryFacts["causeCategory"]): string {
-  return cat === "pvp" ? "PvP" : cat === "environment" ? "Environment" : "Unknown";
+  switch (cat) {
+    case "pvp":
+      return "PvP";
+    case "suicide":
+      return "Self-Inflicted";
+    case "environment":
+      return "Environment";
+    default:
+      return "Unknown";
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, OBITUARY_PROMPT_VERSION } from "../src/prompt.js";
+import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION } from "../src/prompt.js";
 import type { ObituaryFacts } from "../src/facts.js";
 
 const facts: ObituaryFacts = {
@@ -128,6 +128,11 @@ describe("describeDeath", () => {
     expect(s).toBe("bled out (not a player kill).");
   });
 
+  it("a suicide with no verdict reads in-voice, not as the raw token", () => {
+    const s = describeDeath(mkFacts({ cause: "suicide", causeCategory: "suicide", killerGamertag: null, weapon: null, verdict: null }));
+    expect(s).toBe("died by their own hand (not a player kill).");
+  });
+
   it("describeDeath: named killers read qualitatively", () => {
     expect(describeDeath(mkFacts({ causeCategory: "environment", cause: "wolf", verdict: { cause: "wolf", confidence: "high", conditions: ["healthy"] } })))
       .toBe("killed by a wolf (not a player kill). They were in good health at the end.");
@@ -178,5 +183,14 @@ describe("composeTags", () => {
   it("drops flavor tags that duplicate the reserved set, and works with no flavor", () => {
     expect(composeTags(facts, ["Chernarus"])).toEqual(["Obituaries", "Chernarus", "PvP"]);
     expect(composeTags(facts, [])).toEqual(["Obituaries", "Chernarus", "PvP"]);
+  });
+
+  it("tags a suicide Self-Inflicted, not Unknown", () => {
+    expect(causeCategoryTag("suicide")).toBe("Self-Inflicted");
+    expect(causeCategoryTag("pvp")).toBe("PvP");
+    expect(causeCategoryTag("environment")).toBe("Environment");
+    expect(causeCategoryTag("unknown")).toBe("Unknown");
+    const f = mkFacts({ cause: "suicide", causeCategory: "suicide", killerGamertag: null, weapon: null });
+    expect(composeTags(f, ["Elektro"])).toEqual(["Obituaries", "Chernarus", "Self-Inflicted", "Elektro"]);
   });
 });
