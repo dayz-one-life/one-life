@@ -7,17 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.17.0] - 2026-07-18
+
+### Added
 - R5c — Article Images: every published obituary and birth notice gets an AI-generated tabloid
   photo (brand-bible §10.4 style) via a fourth newsdesk pass — category menu + LLM escape hatch +
   recency exclusion, OpenRouter image API (workhorse `openai/gpt-5-image-mini`, flagship for
   legends), bytes stored in Postgres (`article_images`, migration `0012`), served at
   `GET /media/heroes/:file`, rendered as interior hero + feed/home thumbnails + OG photo panel +
   JSON-LD image. Dry-run gated; `NEWSDESK_IMAGES_ENABLED` kill switch.
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.16.0] - 2026-07-18
 
