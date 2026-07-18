@@ -35,9 +35,4 @@ describe("BirthNoticeCard", () => {
     expect(document.querySelector(".flex.gap-4")).toBeNull();
     expect(document.querySelector("article")?.firstElementChild?.tagName).toBe("P");
   });
-  test("renders a thumbnail inside a flex row when imageUrl is present", () => {
-    render(<BirthNoticeCard card={{ ...card, imageUrl: "/media/thumbs/x.png" }} now={now} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
-  });
 });

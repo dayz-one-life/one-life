@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { ObituaryCard } from "@/lib/types";
 import { SectionHeader } from "@/components/tabloid/section-header";
 import { obituaryHref } from "@/lib/obituary-format";
@@ -36,16 +35,7 @@ export function LatestObituaries({ rows }: { rows: ObituaryCard[] }) {
             );
             return (
               <li key={r.slug} className="border-b border-hairline py-3">
-                {r.imageUrl ? (
-                  <div className="flex gap-4">
-                    <div className="relative hidden h-14 w-14 shrink-0 overflow-hidden border border-hairline sm:block">
-                      <Image src={r.imageUrl} alt="" fill sizes="56px" className="object-cover" />
-                    </div>
-                    <div className="min-w-0 flex-1">{content}</div>
-                  </div>
-                ) : (
-                  content
-                )}
+                {content}
               </li>
             );
           })}

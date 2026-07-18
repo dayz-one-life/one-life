@@ -33,9 +33,4 @@ describe("ObituaryCard", () => {
     expect(document.querySelector(".flex.gap-4")).toBeNull();
     expect(document.querySelector("article")?.firstElementChild?.tagName).toBe("P");
   });
-  test("renders a thumbnail inside a flex row when imageUrl is present", () => {
-    render(<ObituaryCard card={{ ...card, imageUrl: "/media/thumbs/x.png" }} now={new Date("2026-07-12T00:00:00Z")} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
-  });
 });

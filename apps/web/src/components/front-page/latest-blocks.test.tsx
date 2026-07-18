@@ -32,13 +32,10 @@ describe("LatestObituaries", () => {
     render(<LatestObituaries rows={[]} />);
     expect(screen.getByText(/NOTHING FILED YET/)).toBeInTheDocument();
   });
-  it("renders a thumbnail when imageUrl is present, no wrapper when absent", () => {
-    const { rerender } = render(<LatestObituaries rows={[obit]} />);
+  it("renders no thumbnail wrapper", () => {
+    render(<LatestObituaries rows={[obit]} />);
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
-    rerender(<LatestObituaries rows={[{ ...obit, imageUrl: "/media/thumbs/x.png" }]} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });
 
@@ -52,12 +49,9 @@ describe("LatestFreshSpawns", () => {
     render(<LatestFreshSpawns rows={[]} />);
     expect(screen.getByText(/NO FOOL HAS WASHED ASHORE YET/)).toBeInTheDocument();
   });
-  it("renders a thumbnail when imageUrl is present, no wrapper when absent", () => {
-    const { rerender } = render(<LatestFreshSpawns rows={[spawn]} />);
+  it("renders no thumbnail wrapper", () => {
+    render(<LatestFreshSpawns rows={[spawn]} />);
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
-    rerender(<LatestFreshSpawns rows={[{ ...spawn, imageUrl: "/media/thumbs/x.png" }]} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });
