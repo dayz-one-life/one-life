@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, articles } from "@onelife/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { newsdeskTick } from "../src/tick.js";
 import type { CompletionClient } from "../src/generate.js";
 
@@ -131,5 +131,37 @@ describe("newsdeskTick", () => {
     await newsdeskTick(db, deps({ client: freshClient, batchCap: 50 }));
     const [fresh] = await db.select().from(articles).where(eq(articles.gamertag, `tk-fresh-${svc}`));
     expect(fresh!.pullQuoteAttribution).toBe("a bored coroner");
+  });
+
+  it("folds the player's global priors into the stored facts", async () => {
+    const tag = `tk-priors-${svc}`;
+    // Two prior dead lives on this server, then the life the obituary is written for.
+    const [p] = await db.insert(players).values({ gamertag: tag }).returning();
+    pids.push(p!.id);
+    for (const n of [1, 2]) {
+      const [prior] = await db.insert(lives).values({
+        serverId, playerId: p!.id, lifeNumber: n,
+        startedAt: hrs(n * 2 - 2), endedAt: hrs(n * 2),
+        deathCause: "bled_out", playtimeSeconds: 7200,
+      }).returning();
+      lifeIds.push(prior!.id);
+    }
+    const [cur] = await db.insert(lives).values({
+      serverId, playerId: p!.id, lifeNumber: 3,
+      startedAt: hrs(8), endedAt: hrs(10),
+      deathCause: "pvp", deathByGamertag: "Killer", deathWeapon: "M4", deathDistance: 100,
+      playtimeSeconds: 7200,
+    }).returning();
+    lifeIds.push(cur!.id);
+
+    await newsdeskTick(db, deps({ batchCap: 50 }));
+
+    // The two "prior" lives independently qualify (playtimeSeconds >= 300s) and get their own
+    // obituary rows too, so scope down to lifeNumber 3 — the life this assertion is about — not
+    // just gamertag+kind, which would match 3 rows non-deterministically.
+    const [row] = await db.select().from(articles).where(and(eq(articles.gamertag, tag), eq(articles.kind, "obituary"), eq(articles.lifeNumber, 3)));
+    const facts = row!.facts as { priors?: { livesLived?: number }; isKnownQuantity?: boolean };
+    expect(facts.priors?.livesLived).toBe(2);
+    expect(facts.isKnownQuantity).toBe(true);
   });
 });
