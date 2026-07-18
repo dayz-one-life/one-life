@@ -15,3 +15,4 @@ export * from "./fresh-spawns.js";
 export * from "./obituary-articles.js";
 export * from "./player-priors.js";
 export * from "./birth-notice-articles.js";
+export * from "./life-dossier.js";
