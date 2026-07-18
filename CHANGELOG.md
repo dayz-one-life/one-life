@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+- Documented `NEWSDESK_BIRTH_SINCE` in `.env.example` and `deploy/README.md` — the forward-only
+  birth-notice cutoff shipped in 0.15.0 (R5b) but was omitted from the env template and deploy docs.
 ### Security
 
 ## [0.15.0] - 2026-07-17
