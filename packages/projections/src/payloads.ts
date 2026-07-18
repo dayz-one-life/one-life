@@ -6,7 +6,8 @@ export class PayloadError extends Error {}
 const gamertag = z.object({ gamertag: z.string(), dayzId: z.string().nullish() });
 const death = z.object({ victim: z.string(), cause: z.string(), killer: z.string().nullable(),
   weapon: z.string().nullable(), distance: z.number().nullable(),
-  energy: z.number().nullish(), water: z.number().nullish(), bleedSources: z.number().nullish() });
+  energy: z.number().nullish(), water: z.number().nullish(), bleedSources: z.number().nullish(),
+  deathEntity: z.string().nullish() });
 const hit = z.object({ victim: z.string(), attackerType: z.string() }).passthrough();
 const build = z.object({ gamertag: z.string(), action: z.string(), object: z.string() }).passthrough();
 const position = z.object({ gamertag: z.string(), x: z.number(), y: z.number() });

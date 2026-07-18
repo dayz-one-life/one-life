@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.19.0] - 2026-07-18
+
+### Added
+- Death-cause fidelity, stage 2 — richer parser vocabulary + backfill:
+  - The parser names non-player killers: `wolf` / `bear` / `animal` (other `Animal_*`) /
+    `infected` (`Zmb*`) / `fall` (`FallDamage`) become first-class death causes (previously all
+    `environment`); the raw entity rides event payloads as `deathEntity`. `vehicle`/`explosion`
+    are reserved tokens pending the prod entity survey.
+  - `backfill-death-causes` (apps/projector): re-derives historical causes from `raw_lines`
+    (upgrade-only — stored `pvp`/`suicide`/`bled_out`/`drowned` never rewritten; idempotent) and
+    prints the unmapped-entity survey that grows the dict. Run it + a projection rebuild after
+    deploy (see CLAUDE.md runbook).
+  - `classifyDeath` passes the new tokens through as stated mechanisms; priors' "usual end"
+    aggregates over cause families (wolf + bear count together as "animal").
+  - The three dormant Morgue image gates (`suspect-at-large`, `gravity-undefeated`,
+    `driver-not-pictured`) light up on the new tokens with zero gate changes.
+  - Labels: `causeLabel("fall")` → "Fell"; a bare `died` mechanism now labels "Unknown"
+    (fixes "Died — Died"); obituary prompts describe named killers qualitatively.
+
 ## [0.18.0] - 2026-07-18
 
 ### Added

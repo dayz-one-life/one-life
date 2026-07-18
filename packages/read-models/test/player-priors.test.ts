@@ -80,4 +80,20 @@ describe("getPlayerPriors", () => {
     expect(pr.livesLived).toBe(0);
     expect(pr.bestLifeMap).toBeNull();
   });
+
+  it("usualDeathCause groups cause families so wolf+bear beats pvp", async () => {
+    const famTag = `familytest-${svcA}`;
+    const [famP] = await db.insert(players).values({ gamertag: famTag, firstSeenAt: hoursAgo(50), lastSeenAt: now }).returning();
+    pids.push(famP!.id);
+    await db.insert(lives).values([
+      // prior life 1 (chern): wolf
+      { serverId: chern, playerId: famP!.id, lifeNumber: 1, startedAt: hoursAgo(48), endedAt: hoursAgo(47), playtimeSeconds: 600, deathCause: "wolf" },
+      // prior life 2 (chern): bear
+      { serverId: chern, playerId: famP!.id, lifeNumber: 2, startedAt: hoursAgo(46), endedAt: hoursAgo(45), playtimeSeconds: 600, deathCause: "bear" },
+      // prior life 3 (chern): pvp
+      { serverId: chern, playerId: famP!.id, lifeNumber: 3, startedAt: hoursAgo(44), endedAt: hoursAgo(43), playtimeSeconds: 600, deathCause: "pvp" },
+    ]);
+    const priors = await getPlayerPriors(db, famTag, now);
+    expect(priors.usualDeathCause).toBe("animal"); // wolf(1)+bear(1) family beats pvp(1)
+  });
 });
