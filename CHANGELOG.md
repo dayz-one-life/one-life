@@ -8,11 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.21.0] - 2026-07-18
+
+### Changed
 - Obituaries and birth notices no longer carry an AI hero image — the R5c image pass is gated off for
   those two kinds (`findImageTargets` excludes them) and image generation is now reserved for future
   news/editorial content. The image infrastructure (article_images table, /media/heroes route,
   next/image, ArticleHero, the newsdesk image pipeline) is retained.
-### Deprecated
 ### Removed
 - Image display on every obituary/fresh-spawns surface (article hero, feed/home thumbnails, OG photo
   panel, JSON-LD image) and the `imageUrl`/`imageCaption` fields from the obituary/birth-notice
@@ -21,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migration `0013` deletes the previously-generated obituary/birth-notice images and clears their
   `image_*` fields, reclaiming ~298 MB (run `VACUUM FULL article_images;` post-deploy to return the
   space to the OS).
-### Security
 
 ## [0.20.0] - 2026-07-18
 
