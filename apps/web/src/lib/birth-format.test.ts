@@ -14,7 +14,6 @@ const base: BirthNoticeArticle = {
   slug: "new-fool-ashore-3", gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "H", lede: "L", tags: ["Fresh Spawns"],
   bornAt: "2026-07-17T10:00:00Z", minutesToQualify: 6, priorLives: 2,
-  imageUrl: null, imageCaption: null,
   body: "B", pullQuote: null, endedAt: null,
   priors: {
     livesLived: 2, longestLifeSeconds: 7200, totalKills: 9,

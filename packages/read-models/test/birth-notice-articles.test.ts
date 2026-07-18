@@ -67,15 +67,6 @@ describe("getPublishedBirthNotices", () => {
     expect(stale.minutesToQualify).toBeNull();
     expect(stale.priorLives).toBe(0);
   });
-  it("surfaces imageUrl + imageCaption on feed rows, null when absent", async () => {
-    const res = await getPublishedBirthNotices(db, { page: 1, pageSize: 50 });
-    const fresh = res.rows.find((r) => r.slug === `fresh-${svc}`)!;
-    expect(fresh.imageUrl).toBe("/media/heroes/x.png");
-    expect(fresh.imageCaption).toBe("LAST KNOWN PHOTO");
-    const stale = res.rows.find((r) => r.slug === `stale-${svc}`)!;
-    expect(stale.imageUrl).toBeNull();
-    expect(stale.imageCaption).toBeNull();
-  });
   it("paginates", async () => {
     const res = await getPublishedBirthNotices(db, { page: 1, pageSize: 1 });
     expect(res.pageSize).toBe(1);
@@ -94,8 +85,6 @@ describe("getBirthNoticeBySlug", () => {
     expect(a!.priors.bestLifeMap).toBe("sakhal");
     expect(a!.minutesToQualify).toBe(8);
     expect(a!.endedAt).toBeNull();
-    expect(a!.imageUrl).toBe("/media/heroes/x.png");
-    expect(a!.imageCaption).toBe("LAST KNOWN PHOTO");
   });
   it("returns a non-null endedAt + empty priors when the spawn has since died as a first-lifer", async () => {
     const a = await getBirthNoticeBySlug(db, `stale-${svc}`);
@@ -103,8 +92,6 @@ describe("getBirthNoticeBySlug", () => {
     expect(a!.priors.livesLived).toBe(0);
     expect(a!.priors.usualDeathCause).toBeNull();
     expect(a!.pullQuote).toBeNull();
-    expect(a!.imageUrl).toBeNull();
-    expect(a!.imageCaption).toBeNull();
   });
   it("returns null for an unknown or failed slug", async () => {
     expect(await getBirthNoticeBySlug(db, "no-such-slug")).toBeNull();

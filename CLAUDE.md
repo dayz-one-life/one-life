@@ -205,6 +205,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   Birth Notices / Fresh Spawns (spec
   `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), **R5c** article
   images, with **R5d** (News feed + news-led home) next.
+  **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
+  for both (reserved for future news); the 165 existing images were deleted (migration 0013). The
+  pipeline, article_images table, media route, and ArticleHero are retained.**
   **R5c shipped — Article Images.** Every published obituary and birth notice gets **one** AI
   tabloid photo (`image_kind='hero'`; `card`/`breaking` are reserved for later verticals) via a
   **fourth** `apps/newsdesk` pass (`imageTick`) — forward (fresh articles first) + backfill,
@@ -420,7 +423,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **`NEWSDESK_IMAGES_ENABLED`** kill switch (default `true`). Image env vars: `NEWSDESK_IMAGE_MODEL`
   (default `openai/gpt-5-image-mini`), `NEWSDESK_IMAGE_MODEL_FLAGSHIP` (default
   `openai/gpt-5.4-image-2`, reserved for legends), `NEWSDESK_IMAGE_QUALITY` (default `low`). See the
-  Tabloid redesign R5c entry for the full art-direction/storage/serving picture),
+  Tabloid redesign R5c entry for the full art-direction/storage/serving picture. **As of v0.21.0,
+  `imageTick` currently has no eligible kinds** — `findImageTargets` excludes `obituary`/`birth_notice`,
+  so this pass is dormant until a `news` kind ships),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
   systemd unit).

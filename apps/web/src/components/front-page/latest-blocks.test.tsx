@@ -12,14 +12,13 @@ vi.mock("next/image", () => ({
 const obit: ObituaryCard = {
   slug: "gone-42", gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus", lifeNumber: 3,
   headline: "The King Is Dead", lede: "L", tags: ["Obituaries"], timeAliveSeconds: 7200, kills: 3,
-  longestKillMeters: 210, cause: "pvp", deathAt: "2026-07-10T00:00:00Z", imageUrl: null, imageCaption: null,
+  longestKillMeters: 210, cause: "pvp", deathAt: "2026-07-10T00:00:00Z",
 };
 
 const spawn: BirthNoticeCard = {
   slug: "new-fool-1", gamertag: "Khushie", map: "sakhal", mapSlug: "sakhal", lifeNumber: 1,
   headline: "Another Fool Washes Ashore", lede: "L", tags: ["Fresh Spawns"],
   bornAt: "2026-07-17T10:00:00Z", minutesToQualify: 6, priorLives: 0,
-  imageUrl: null, imageCaption: null,
 };
 
 describe("LatestObituaries", () => {
@@ -32,13 +31,10 @@ describe("LatestObituaries", () => {
     render(<LatestObituaries rows={[]} />);
     expect(screen.getByText(/NOTHING FILED YET/)).toBeInTheDocument();
   });
-  it("renders a thumbnail when imageUrl is present, no wrapper when absent", () => {
-    const { rerender } = render(<LatestObituaries rows={[obit]} />);
+  it("renders no thumbnail wrapper", () => {
+    render(<LatestObituaries rows={[obit]} />);
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
-    rerender(<LatestObituaries rows={[{ ...obit, imageUrl: "/media/thumbs/x.png" }]} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });
 
@@ -52,12 +48,9 @@ describe("LatestFreshSpawns", () => {
     render(<LatestFreshSpawns rows={[]} />);
     expect(screen.getByText(/NO FOOL HAS WASHED ASHORE YET/)).toBeInTheDocument();
   });
-  it("renders a thumbnail when imageUrl is present, no wrapper when absent", () => {
-    const { rerender } = render(<LatestFreshSpawns rows={[spawn]} />);
+  it("renders no thumbnail wrapper", () => {
+    render(<LatestFreshSpawns rows={[spawn]} />);
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
-    rerender(<LatestFreshSpawns rows={[{ ...spawn, imageUrl: "/media/thumbs/x.png" }]} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(document.querySelector(".flex.gap-4")).toBeTruthy();
   });
 });

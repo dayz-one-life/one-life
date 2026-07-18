@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { PullQuote } from "@/components/shared/pull-quote";
-import { ArticleHero } from "@/components/shared/article-hero";
 import { PriorsBox } from "./priors-box";
 import { MoreFreshMeat } from "./more-fresh-meat";
 import type { BirthNoticeArticle, BirthNoticeCard } from "@/lib/types";
@@ -28,8 +27,6 @@ export function BirthNoticeArticleView({
           Filed by The Desk · <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> · Life {article.lifeNumber} · {mapLabel(article.map)}
         </p>
       </div>
-
-      {article.imageUrl ? <ArticleHero src={article.imageUrl} caption={article.imageCaption} accent="blue" /> : null}
 
       <div className="mt-6 space-y-4 font-mono text-[14px] leading-relaxed text-ink-soft">
         {article.body.split(/\n{2,}/).map((para, i) => (

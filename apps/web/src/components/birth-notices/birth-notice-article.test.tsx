@@ -16,7 +16,6 @@ const article: BirthNoticeArticle = {
   body: "The tide does not care who it drops on the sand.",
   pullQuote: { text: "It always begins with a flare.", attribution: "a bystander" }, endedAt: null,
   priors: { livesLived: 2, longestLifeSeconds: 7200, totalKills: 9, usualDeathCause: "pvp", lastDeathCause: "starvation", bestLifeMap: "sakhal" },
-  imageUrl: null, imageCaption: null,
 };
 
 describe("BirthNoticeArticleView", () => {
@@ -42,12 +41,5 @@ describe("BirthNoticeArticleView", () => {
   test("renders no hero image when imageUrl is absent", () => {
     render(<BirthNoticeArticleView article={article} more={[]} now={now} />);
     expect(document.querySelector("img")).toBeNull();
-  });
-
-  test("renders the hero image and caption when imageUrl is present", () => {
-    const withImage = { ...article, imageUrl: "/media/heroes/y.png", imageCaption: "FIRST SIGHTING" };
-    render(<BirthNoticeArticleView article={withImage} more={[]} now={now} />);
-    expect(document.querySelector("img")).toBeTruthy();
-    expect(screen.getByText("FIRST SIGHTING")).toBeInTheDocument();
   });
 });

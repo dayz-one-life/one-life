@@ -44,10 +44,6 @@ describe("birthNoticeLd", () => {
     const ld = birthNoticeLd(article, "https://x/y") as Record<string, unknown>;
     expect(ld).not.toHaveProperty("image");
   });
-  it("includes the absolute image url in a single-item array when an image is passed", () => {
-    const ld = birthNoticeLd(article, "https://x/y", "https://x/media/heroes/boots.png") as Record<string, unknown>;
-    expect(ld.image).toEqual(["https://x/media/heroes/boots.png"]);
-  });
 });
 
 describe("articleLd", () => {
@@ -68,9 +64,5 @@ describe("articleLd", () => {
   it("has no image key when no image is passed", () => {
     const ld = articleLd(article, "https://x/y") as Record<string, unknown>;
     expect(ld).not.toHaveProperty("image");
-  });
-  it("includes the absolute image url in a single-item array when an image is passed", () => {
-    const ld = articleLd(article, "https://x/y", "https://x/media/heroes/chicken.png") as Record<string, unknown>;
-    expect(ld.image).toEqual(["https://x/media/heroes/chicken.png"]);
   });
 });
