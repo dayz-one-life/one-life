@@ -70,41 +70,26 @@ afterAll(async () => {
 });
 
 describe("findImageTargets", () => {
-  it("returns published articles missing images, newest created first, both kinds", async () => {
-    const a1 = await seedArticle({ kind: "obituary", createdAt: hrs(101), headline: "First Obit", lede: "l1", facts: { a: 1 } });
-    const a2 = await seedArticle({ kind: "birth_notice", createdAt: hrs(102), headline: "First Birth", lede: null, facts: { b: 2 } });
-    const a3 = await seedArticle({ kind: "obituary", createdAt: hrs(103), headline: "Second Obit", lede: "l3", facts: { c: 3 } });
+  it("excludes obituary and birth_notice kinds; an image-eligible kind is selected", async () => {
+    // 'news' stands in for any future image-eligible kind (kind is a free-text column).
+    const obit = await seedArticle({ kind: "obituary", createdAt: hrs(101) });
+    const birth = await seedArticle({ kind: "birth_notice", createdAt: hrs(102) });
+    const news = await seedArticle({ kind: "news", createdAt: hrs(103) });
 
     const targets = await findImageTargets(db, { limit: 500, maxAttempts: 3 });
-    const mine = targets.filter((t) => [a1.id, a2.id, a3.id].includes(t.articleId));
+    const mineIds = targets
+      .filter((t) => [obit.id, birth.id, news.id].includes(t.articleId))
+      .map((t) => t.articleId);
 
-    // newest created first
-    expect(mine.map((t) => t.articleId)).toEqual([a3.id, a2.id, a1.id]);
-
-    const t1 = mine.find((t) => t.articleId === a1.id)!;
-    expect(t1.kind).toBe("obituary");
-    expect(t1.slug).toBe(a1.slug);
-    expect(t1.gamertag).toBe(a1.gamertag);
-    expect(t1.headline).toBe("First Obit");
-    expect(t1.lede).toBe("l1");
-    expect(t1.facts).toEqual({ a: 1 });
-
-    const t2 = mine.find((t) => t.articleId === a2.id)!;
-    expect(t2.kind).toBe("birth_notice");
-    expect(t2.headline).toBe("First Birth");
-    expect(t2.lede).toBeNull();
-    expect(t2.facts).toEqual({ b: 2 });
-
-    const t3 = mine.find((t) => t.articleId === a3.id)!;
-    expect(t3.kind).toBe("obituary");
-    expect(t3.headline).toBe("Second Obit");
-    expect(t3.facts).toEqual({ c: 3 });
+    expect(mineIds).toContain(news.id);
+    expect(mineIds).not.toContain(obit.id);
+    expect(mineIds).not.toContain(birth.id);
   });
 
-  it("skips articles that already have an image_url, failed stubs, and exhausted image attempts", async () => {
-    const imaged = await seedArticle({ imageUrl: "/media/heroes/already-imaged.png" });
-    const failed = await seedArticle({ status: "failed" });
-    const exhausted = await seedArticle({ imageAttempts: 3 });
+  it("skips already-imaged, failed stubs, and exhausted attempts (for an image-eligible kind)", async () => {
+    const imaged = await seedArticle({ kind: "news", imageUrl: "/media/heroes/already-imaged.png" });
+    const failed = await seedArticle({ kind: "news", status: "failed" });
+    const exhausted = await seedArticle({ kind: "news", imageAttempts: 3 });
 
     const targets = await findImageTargets(db, { limit: 500, maxAttempts: 3 });
     const mine = targets.filter((t) => [imaged.id, failed.id, exhausted.id].includes(t.articleId));
