@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.20.0] - 2026-07-18
+
+### Added
 - Death-cause fidelity: DayZ base-game vehicles are now a first-class `vehicle` death cause. The
   `backfill-death-causes` survey surfaced `CivilianSedan` (Olga) as an unmapped killer, so the
   adm-parser entity dict now maps all base vehicle classes and their color variants to `vehicle`
@@ -16,11 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `driver-not-pictured` image gate were already wired — this is a dict + test change. `explosion`
   stays reserved. Deploy requires a `backfill-death-causes` re-run + projection rebuild (upgrade-only,
   idempotent) for historical vehicle deaths to reclassify.
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.19.0] - 2026-07-18
 
