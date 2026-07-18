@@ -33,6 +33,16 @@ export const ENTITY_MECHANISMS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Cause family for aggregation (the priors mode): the finer stage-2 vocabulary must not fragment
+ * "usual end" — wolf x2 + bear x1 should still beat pvp x2 as "animal". Display labels stay
+ * specific; only aggregation groups.
+ */
+export function causeFamily(cause: string): string {
+  if (cause === "wolf" || cause === "bear" || cause === "animal") return "animal";
+  return cause;
+}
+
+/**
  * Mechanism-first ladder. A mechanism explains its own side-effects: a suicide-by-blade's bleed and a
  * PvP kill's low HP are NOT read as underlying conditions. Underlying cause is inferred only for a
  * plain `died`/`unknown` mechanism. Pure — recentHits is supplied by the caller.
