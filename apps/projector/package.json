@@ -8,7 +8,8 @@
     "test": "vitest run",
     "start": "tsx src/main.ts",
     "rebuild": "tsx src/rebuild.ts",
-    "backfill-death-stats": "tsx src/backfill-death-stats.ts"
+    "backfill-death-stats": "tsx src/backfill-death-stats.ts",
+    "backfill-death-causes": "tsx src/backfill-death-causes.ts"
   },
   "dependencies": {
     "@onelife/adm-parser": "workspace:*",
