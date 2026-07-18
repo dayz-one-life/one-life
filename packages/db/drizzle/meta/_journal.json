@@ -78,6 +78,13 @@
       "when": 1784326490202,
       "tag": "0010_birth_notice_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784338328636,
+      "tag": "0011_discord_posted_at",
+      "breakpoints": true
     }
   ]
 }

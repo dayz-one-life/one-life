@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { articles, lives, players, servers } from "@onelife/db";
-import { and, eq, desc, isNotNull, notExists, sql } from "drizzle-orm";
+import { and, eq, desc, asc, isNull, isNotNull, notExists, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
 export interface ObituaryTarget {
@@ -159,4 +159,37 @@ export async function recordObituaryFailure(
       target: CONFLICT,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: input.error },
     });
+}
+
+export interface UnpostedObituary {
+  id: number;
+  slug: string;          // filtered NOT NULL below
+  gamertag: string;      // for log context (dry-run / failure lines)
+}
+
+/** Published obituaries not yet posted to Discord — oldest death first (backlog replays in order). */
+export async function findUnpostedObituaries(
+  db: Database,
+  opts: { limit: number },
+): Promise<UnpostedObituary[]> {
+  const rows = await db
+    .select({ id: articles.id, slug: articles.slug, gamertag: articles.gamertag })
+    .from(articles)
+    .where(
+      and(
+        eq(articles.kind, "obituary"),
+        eq(articles.status, "published"),
+        isNotNull(articles.slug),
+        isNull(articles.discordPostedAt),
+      ),
+    )
+    .orderBy(asc(articles.deathAt))
+    .limit(opts.limit);
+  return rows.map((r) => ({ ...r, slug: r.slug! }));
+}
+
+/** Stamp an obituary as posted to Discord. The sweep only calls this on a successful post; the
+ *  publish upsert never writes discord_posted_at, so a stamp is preserved and can never double-post. */
+export async function markObituaryPosted(db: Database, id: number, now: Date): Promise<void> {
+  await db.update(articles).set({ discordPostedAt: now }).where(eq(articles.id, id));
 }

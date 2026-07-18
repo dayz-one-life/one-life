@@ -23,6 +23,27 @@ describe("newsdesk config — dry-run safety default", () => {
   });
 });
 
+describe("newsdesk config — Discord notifier fields", () => {
+  it("defaults webhook empty, siteUrl to prod, maxPerTick to 10", () => {
+    const c = loadConfig({ ...BASE });
+    expect(c.discordWebhookUrl).toBe("");
+    expect(c.siteUrl).toBe("https://dayzonelife.com");
+    expect(c.discordMaxPerTick).toBe(10);
+  });
+
+  it("reads the three Discord env vars when set", () => {
+    const c = loadConfig({
+      ...BASE,
+      DISCORD_OBITUARY_WEBHOOK_URL: "https://discord.com/api/webhooks/1/abc",
+      SITE_URL: "https://staging.example.com",
+      NEWSDESK_DISCORD_MAX_PER_TICK: "5",
+    });
+    expect(c.discordWebhookUrl).toBe("https://discord.com/api/webhooks/1/abc");
+    expect(c.siteUrl).toBe("https://staging.example.com");
+    expect(c.discordMaxPerTick).toBe(5);
+  });
+});
+
 describe("newsdesk config — NEWSDESK_BIRTH_SINCE (forward-only birth cutoff)", () => {
   it("defaults birthSince to null when unset (birth pass off)", () => {
     expect(loadConfig({ ...BASE }).birthSince).toBeNull();
