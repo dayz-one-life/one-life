@@ -43,3 +43,19 @@ export function articleLd(
     isPartOf: { "@type": "CollectionPage", name: "Obituaries", url: absoluteUrl("/obituaries") },
   };
 }
+
+export function birthNoticeLd(
+  a: { headline: string; lede: string; gamertag: string; bornAt: string },
+  url: string,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: a.headline,
+    description: a.lede,
+    url,
+    datePublished: a.bornAt,
+    about: { "@type": "Person", name: a.gamertag },
+    isPartOf: { "@type": "CollectionPage", name: "Fresh Spawns", url: absoluteUrl("/fresh-spawns") },
+  };
+}
