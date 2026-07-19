@@ -223,8 +223,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `apps/web/src/lib/types.ts` for the DTO. `getObituaryBySlug`/`getBirthNoticeBySlug` select and
   cast `articles.bodyBlocks` (interior only — never on feed `CARD_COLS`), but **no writer populates
   the column yet**, so every live interior still takes the flat fallback.
-  **R5d in flight, PR-C1 (inert engine) shipped.** The news vertical's targeting layer and image
-  prerequisites exist but **nothing calls them** — production output is byte-identical. Two trigger
+  **R5d in flight, PR-C1 (inert engine) + PR-C2 (`newsTick`, shipped disabled) done.** The news
+  vertical's targeting layer, image prerequisites and worker pass all exist; there is still **no
+  article row, no model call, and no external write**, because the pass is off unless an operator
+  sets **both** `NEWSDESK_NEWS_ENABLED=true` and an ISO `NEWSDESK_NEWS_SINCE`. Two trigger
   read-models live in `apps/newsdesk/src`, behind one barrel `news-targets.ts`: **Standing Dead**
   (`standing-dead-targets.ts` — a qualified *open* life whose player has been idle 72h, measured by
   `MAX(COALESCE(sessions.disconnected_at, sessions.connected_at))` so the crash-and-never-returned
@@ -244,9 +246,41 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   menu and the "birth notice" label. `NEWSROOM_CATEGORIES` (13 entries) is the news image menu,
   weighted to **absence and vacancy** because a Standing Dead subject is **alive and
   non-consenting** — no framing may imply a death, a fix, a route, or a recognisable locale.
-  Inertness is guaranteed by `findImageTargets`' `notInArray(articles.kind, ["obituary",
-  "birth_notice"])` plus the fact that nothing writes a `kind='news'` row yet — asserted directly
-  in `image-pg-store.test.ts`. PR-C2 (`newsTick`, shipped OFF) and PR-C3 (API + web) follow.
+  Image eligibility is `findImageTargets`' `notInArray(articles.kind, ["obituary",
+  "birth_notice"])`, so a published news row becomes image-eligible automatically — enabling the
+  news pass therefore also un-dormants `imageTick`.
+  **PR-C2 shipped — `newsTick`, disabled.** `apps/newsdesk/src/news-tick.ts` is the fifth pass:
+  Standing Dead arm → Long Form arm → retraction sweep, each target failure-isolated into a
+  `status='failed'` stub. **Two independent off-states** (`NEWSDESK_NEWS_ENABLED !== "true"`, or an
+  unset/invalid `NEWSDESK_NEWS_SINCE`) return zeros *before* any query and any model call, and
+  `NEWSDESK_DRY_RUN` gates every write on top. `NewsFacts` (`news-facts.ts`) is the frozen
+  `articles.facts` snapshot for both triggers and is declared as
+  `NewsImageFacts & {…}` — intersecting the image menu's fact vocabulary, so a builder that stops
+  emitting a gated field is a **compile error** rather than an image gate that silently stops
+  firing. **News dedupes on `natural_key`, not the life tuple**, so both its upserts pass
+  `targetWhere: isNotNull(articles.naturalKey)` (`articles_natural_key_uniq` is partial —
+  `WHERE natural_key IS NOT NULL`); the **failure stub writes the key too**, or every retry would
+  insert a fresh row forever. The slug is **trigger-prefixed** (`standing-dead-…` / `long-form-…`)
+  so a feature about the same life as an obituary cannot collide on `articles_slug_uniq`.
+  **Rich body:** the model emits `blocks` only and `body` is derived as the `para` blocks joined
+  by a blank line, so the share card can never quote text that is not on the page; zod validates
+  shape only and **never a minimum length** (§5 — length is funded by fact density, and a floor is
+  a padding instruction that would also burn an attempt on a thin cluster).
+  **Retraction:** a published `standing_dead` article whose subject has a session that *connected*
+  after `created_at` moves to `status='retracted'` — never deleted, so the prose and its hero image
+  survive rather than cascade away (and `findImageTargets` filters `status='published'`, so it can
+  never acquire a photo). **Durability comes from the anti-join, not from the row existing:** the
+  PR-C1 predicate in `standing-dead-targets.ts` / `long-form-targets.ts` was widened — the sole
+  sanctioned change to that layer — from `status = 'published'` to
+  `status IN ('published','retracted')`. Narrow it back and the pass regenerates the identical
+  feature every tick (a paid model call each time) only for the sweep to retract it again, forever;
+  spec §4.1.3 requires that the prose is never regenerated.
+  **The expressive-emote slot of §4.1.4 was cut** — ~49 events
+  corpus-wide is no signal, and reaching it means querying `events.payload`, the coordinate column;
+  `NewsFacts` has no emote field, asserted structurally. `unqualified_subject` is **omitted from
+  the observability log line**: the qualified gate lives in the candidate SQL, so the counter is
+  structurally always 0 and printing it would be a lie an operator would act on.
+  PR-C3 (read-model + API + web surface) follows.
   **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
   for both (reserved for future news); the 165 existing images were deleted (migration 0013). The
   pipeline, article_images table, media route, and ArticleHero are retained.**
@@ -467,7 +501,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
-  `newsdesk` (obituary + birth-notice generation sweep, run as **four passes** each interval; **`NEWSDESK_DRY_RUN`
+  `newsdesk` (obituary + birth-notice + news generation sweep, run as **five passes** each interval
+  — obituary, birth notice, Discord notify, news (off by default), images; **`NEWSDESK_DRY_RUN`
   defaults `true`** — logs intended articles without calling OpenRouter or writing; set `false` to
   generate; needs `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`.
   **Prose-quality Phase 0 (R5d PR-A)** — four defects found by reading 168 real published articles out of a
