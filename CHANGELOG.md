@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.25.0] - 2026-07-19
+
+### Added
 - R5d PR-C3 — **the News surface.** `/news` is live: a reverse-chron feed and a full interior for
   the `kind='news'` features PR-C2's `newsTick` writes. New read-model
   `packages/read-models/src/news-articles.ts` (`getPublishedNews` / `getNewsArticleBySlug` /
