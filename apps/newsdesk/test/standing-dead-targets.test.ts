@@ -276,6 +276,10 @@ describe("population funnel (§4.1.2 shape)", () => {
 
   it("returns no coordinate key at any depth — a Standing Dead target carries no fix at all", async () => {
     const rows = await findStandingDeadTargets(db, OPTS);
+    // Guard: an empty `rows` would make the key walk below inspect nothing and pass vacuously
+    // (this defect class — a vacuous walk over an empty collection — has recurred three times in
+    // this codebase). Mirrors the `toHaveLength(1)` sanity check in long-form-cluster.test.ts.
+    expect(rows.length).toBeGreaterThan(0);
     // The previous version checked Object.keys of the TOP LEVEL only, so a nested leak was
     // invisible; and its regex misses a low-edge coordinate like 812.4. Both are fixed here.
     assertNoCoordinateKeys(rows);

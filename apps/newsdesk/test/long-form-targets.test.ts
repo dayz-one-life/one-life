@@ -152,6 +152,10 @@ describe("findLongFormTargets", () => {
 
   it("returns a coordinate-free target — the fixture rows DO contain coordinates", async () => {
     const r = await findLongFormTargets(db, T_OPTS);
+    // Guard: an empty mineC(r) would make the key walk below inspect nothing and pass vacuously
+    // (this defect class — a vacuous walk over an empty collection — has recurred three times in
+    // this codebase). Mirrors the `toHaveLength(1)` sanity check in long-form-cluster.test.ts.
+    expect(mineC(r)).toHaveLength(1);
     // THE §11 BOUNDARY ASSERTION. DeathCandidate carries x/y; LongFormSubject must not. The key
     // walk is the primary rail — the old sole assertion here was /\d{4}\.\d/, which returns false
     // for a low-edge coordinate like 812.4 and would therefore have passed on a real leak.
