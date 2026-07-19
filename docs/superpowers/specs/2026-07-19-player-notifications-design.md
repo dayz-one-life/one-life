@@ -67,7 +67,7 @@ integer primary keys.
 |---|---|---|
 | `ban_applied` | `bans.status = 'applied'` | `ban_applied:<banId>` |
 | `ban_lifted` | `bans.status` ∈ `expired`/`lifted` | `ban_lifted:<banId>` |
-| `life_qualified` | open life matching `qualifiedLifeCondition(db)` | `life_qualified:<lifeId>` |
+| `life_qualified` | open life with `qualified_at` set inside the window | `life_qualified:<lifeId>` |
 | `survival_milestone` | open life where `now - startedAt` crosses 7 / 14 / 30 days | `milestone:<days>d:<lifeId>` |
 
 ### Editorial
@@ -86,13 +86,21 @@ ever produced for verified users. This is both a scope limiter and the correct p
 boundary: an unverified claimant must never receive another player's gameplay history.
 
 **`life_qualified` is the only forward-looking notification.** Everything else reports
-something that already happened. Qualification is computed lazily and never
-materialized, but `qualifiedLifeCondition(db)` (`packages/read-models/src/qualified-lives.ts`)
-already expresses it as a SQL predicate, so the generator anti-joins against it
-directly. No new materialization, consistent with the `isLifeQualified` precedent.
-Note the predicate's `exists(...)` arm references `players.gamertag`, so **any query
-using it must join `players`** — omitting the join produces a confusing SQL error
-rather than a wrong result.
+something that already happened.
+
+Qualification was historically computed lazily and never materialized. That does not
+work here: with no qualification timestamp, the generator would have to window on
+`lives.startedAt`, silently dropping any life that qualified more than a lookback-window
+after it began. This design therefore **materializes `lives.qualified_at`**, written
+write-once by the projector fold at the three points a life can qualify — playtime
+crossing `QUALIFY_SECONDS` (backdated to the crossing instant), a pvp death, or the
+killer landing a kill. It mirrors what `lifeQualifiedAt`
+(`packages/read-models/src/qualified.ts`) derives at read time, and its "earliest
+candidate wins" rule is preserved by never overwriting a non-null value.
+
+One residual approximation: the fold credits playtime only at session close, so a
+playtime-qualified life's `qualified_at` is backdated correctly but *written* at
+disconnect. `NOTIFIER_LOOKBACK_HOURS` defaults to 48 to absorb that lag.
 
 **One death produces up to three notifications** — `ban_applied` and
 `obituary_published` land within a tick of each other, `ban_lifted` follows 24 hours
@@ -197,7 +205,7 @@ every player about their entire history.
 | `NOTIFIER_INTERVAL_SECONDS` | `60` | tick cadence |
 | `NOTIFIER_SINCE` | *(unset)* | ISO-8601 cutoff; unset ⇒ generation off |
 | `NOTIFIER_DRY_RUN` | `true` | log intended notifications, write nothing |
-| `NOTIFIER_LOOKBACK_HOURS` | `24` | per-generator query window |
+| `NOTIFIER_LOOKBACK_HOURS` | `48` | per-generator query window |
 | `NOTIFIER_PUSH_ENABLED` | `true` | push kill switch |
 | `NOTIFIER_PUSH_MAX_PER_TICK` | `50` | push fan-out cap |
 | `NOTIFIER_PUSH_MAX_AGE_MINUTES` | `60` | staleness cutoff for push |
@@ -354,8 +362,10 @@ Generation and delivery fail differently, so they are enabled separately.
 
 **Deploy mechanics.** A new `onelife-notifier` systemd unit is authored on the host and
 added to `SERVICES` in `deploy/deploy.sh` and to the unit table in `deploy/README.md`.
-Migration `0015` adds tables only — no projection reshape — so the release ships with a
-normal `./deploy/deploy.sh`, **without** `--rebuild`.
+Migration `0015` adds the two new tables **and** a `lives.qualified_at` column populated
+by the projector fold. That is a projection reshape, so the release ships with
+`./deploy/deploy.sh --rebuild`. A normal deploy would leave `qualified_at` null on every
+existing life, and `life_qualified` would never fire for anyone.
 
 ## 9. Deliberate omissions
 

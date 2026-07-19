@@ -14,13 +14,19 @@
 - Every `naturalKey` is built **in TypeScript** from an integer primary key. Never render a natural key in SQL.
 - `notifications.natural_key` carries a **plain, full** unique index. `onConflictDoNothing` against it takes **no `targetWhere`** — do not copy that argument from `apps/newsdesk/src/pg-store.ts`.
 - Neither new table may be added to the truncate list in `apps/projector/src/rebuild.ts`. Both **must** be added to `APP_TABLES` in `packages/test-support/src/global-setup.ts`.
+- **This release reshapes the `lives` projection** (new `qualified_at` column, written by the fold). Deploy therefore requires `./deploy/deploy.sh --rebuild`. Migrations live in `packages/db/drizzle/` — the latest is `0014_article_natural_key_and_blocks.sql`, so the new one is `0015_*`.
+- `qualified_at` is **write-once**: never overwrite a non-null value. The fold observes candidates in event order, so write-once yields the earliest, matching `lifeQualifiedAt`'s "earliest candidate wins" semantics.
+- The fold credits playtime only at **session close** (`closeOpen`), so a playtime-qualified life's `qualified_at` is **backdated to the true crossing instant but written late** — at disconnect. Kill and pvp-death qualification are written immediately. `NOTIFIER_LOOKBACK_HOURS` defaults to **48** to absorb that lag.
 - `NOTIFIER_SINCE` unset, empty, or unparseable ⇒ generation produces zero drafts and performs zero writes.
 - `NOTIFIER_DRY_RUN` defaults to `true`.
 - `NOTIFIER_PUSH_ENABLED` defaults to `true` and gates only `pushTick`; a push failure must never stop generation.
 - Notifications are only ever generated for users with a `verified` row in `gamertag_links`.
 - `qualifiedLifeCondition(db)` references `players.gamertag`; any query using it must join `players`.
 - Token transaction kinds are `verification|monthly|referral|redeem|transfer_in|transfer_out`. There is no `transfer` kind.
-- Run tests with `pnpm turbo run test --concurrency=1`; DB suites need `TEST_DATABASE_URL`. Typecheck with `pnpm turbo run typecheck`.
+- Run tests with `pnpm turbo run test --concurrency=1`; typecheck with `pnpm turbo run typecheck`.
+- **DB suites require this exact env var** (Docker Postgres is on port 5434 on this machine, not the 5432 default baked into `packages/test-support/src/guard.ts`):
+  `TEST_DATABASE_URL="postgres://onelife:onelife@localhost:5434/onelife_test"`
+  Prefix every test command with it. Baseline before this work: `@onelife/read-models` 106 tests passing.
 - Work happens on branch `feature/player-notifications`.
 
 ---
@@ -70,13 +76,24 @@
 ### Task 1: Schema and migration
 
 **Files:**
-- Modify: `packages/db/src/schema.ts` (append after the `referrals` table)
+- Modify: `packages/db/src/schema.ts` (append after the `referrals` table; also `lives` at ~line 77-95)
 - Modify: `packages/test-support/src/global-setup.ts:5-32`
 - Create: `packages/db/drizzle/0015_notifications.sql`
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `notifications` and `pushSubscriptions` drizzle tables, exported from `@onelife/db` via the existing `export * from "./schema.js"` barrel.
+- Produces: `notifications` and `pushSubscriptions` drizzle tables plus a `lives.qualifiedAt` column, all exported from `@onelife/db` via the existing `export * from "./schema.js"` barrel.
+
+- [ ] **Step 0: Add `qualified_at` to the `lives` table**
+
+In `packages/db/src/schema.ts`, in the `lives` table definition, add after `playtimeSeconds`:
+
+```ts
+  // The instant this life became qualified (earliest of: playtime crossing QUALIFY_SECONDS,
+  // first kill in the life, pvp death). Written WRITE-ONCE by the projector fold; null until
+  // the life qualifies. Materializes what lifeQualifiedAt() computes at read time.
+  qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
+```
 
 - [ ] **Step 1: Add the tables to the schema**
 
@@ -125,6 +142,9 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 Create `packages/db/drizzle/0015_notifications.sql`:
 
 ```sql
+ALTER TABLE "lives" ADD COLUMN IF NOT EXISTS "qualified_at" timestamp with time zone;
+CREATE INDEX IF NOT EXISTS "lives_qualified_at_idx" ON "lives" ("qualified_at") WHERE "qualified_at" IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS "notifications" (
   "id" bigserial PRIMARY KEY NOT NULL,
   "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE cascade,
@@ -179,7 +199,224 @@ Expected: PASS. The harness runs `migrateDb` then truncates `APP_TABLES`; a bad 
 
 ```bash
 git add packages/db/src/schema.ts packages/db/drizzle packages/test-support/src/global-setup.ts
-git commit -m "feat(db): notifications and push_subscriptions tables (0015)"
+git commit -m "feat(db): notifications, push_subscriptions, and lives.qualified_at (0015)"
+```
+
+---
+
+### Task 1B: The fold writes `qualified_at`
+
+**Files:**
+- Modify: `packages/domain/src/index.ts` (or the appropriate barrel — add `QUALIFY_SECONDS`)
+- Modify: `packages/read-models/src/qualified.ts:4` (re-export from domain instead of declaring)
+- Modify: `packages/projections/src/store.ts` (interface)
+- Modify: `packages/projections/src/fold.ts:17-26` (`closeOpen`), `:82-91` (`onDied`)
+- Modify: `packages/projections/src/memory-store.ts:83-86`
+- Modify: `apps/projector/src/pg-store.ts:53-55`
+- Test: `packages/projections/test/` (add to the existing fold test file — find it with `ls packages/projections/test/`)
+
+**Interfaces:**
+- Consumes: `lives.qualifiedAt` from Task 1.
+- Produces:
+  - `QUALIFY_SECONDS: number` exported from `@onelife/domain` (value `300`, unchanged).
+  - `ProjectionStore.markLifeQualified(lifeId: number, at: Date): Promise<void>` — write-once.
+  - `ProjectionStore.addLifePlaytime(lifeId: number, seconds: number): Promise<number>` — **signature change**: now returns the life's NEW total playtime seconds.
+
+Three places a life can become qualified, all in the fold:
+
+| Trigger | Where | Timestamp written |
+|---|---|---|
+| playtime crosses 300s | `closeOpen` | backdated crossing instant |
+| victim died to pvp | `onDied`, after `endLife` | `e.occurredAt` |
+| killer got a kill | `onDied`, kill branch | `e.occurredAt` (the **killer's** life) |
+
+- [ ] **Step 1: Move `QUALIFY_SECONDS` to domain**
+
+`projections` depends on `@onelife/domain` but not on `@onelife/read-models`, so the constant must live in domain to be shared. Add to the `@onelife/domain` barrel:
+
+```ts
+/** A life qualifies after this much playtime. Shared by the read-time qualification
+ *  predicate and the projector fold that materializes lives.qualified_at. */
+export const QUALIFY_SECONDS = 300;
+```
+
+Then in `packages/read-models/src/qualified.ts`, replace `export const QUALIFY_SECONDS = 300;` with a re-export so existing importers are unaffected:
+
+```ts
+export { QUALIFY_SECONDS } from "@onelife/domain";
+```
+
+Confirm `packages/read-models/package.json` already lists `@onelife/domain`; add it if not.
+
+- [ ] **Step 2: Write the failing fold tests**
+
+Read the existing fold test file first to match its harness (it uses `memory-store.ts`). Add these cases:
+
+```ts
+it("marks a life qualified at the backdated playtime crossing", async () => {
+  // Session runs 400s from 12:00:00; the life crosses 300s at 12:05:00.
+  const store = new MemoryProjectionStore();
+  await applyEvent(store, connectedEvent("Alice", new Date("2026-07-19T12:00:00Z")));
+  await applyEvent(store, disconnectedEvent("Alice", new Date("2026-07-19T12:06:40Z")));
+  const life = store.lives[0]!;
+  expect(life.qualifiedAt?.toISOString()).toBe("2026-07-19T12:05:00.000Z");
+});
+
+it("does not mark a life qualified below the playtime threshold", async () => {
+  const store = new MemoryProjectionStore();
+  await applyEvent(store, connectedEvent("Alice", new Date("2026-07-19T12:00:00Z")));
+  await applyEvent(store, disconnectedEvent("Alice", new Date("2026-07-19T12:04:00Z")));
+  expect(store.lives[0]!.qualifiedAt).toBeNull();
+});
+
+it("marks a pvp victim's life qualified at the death instant", async () => {
+  const store = new MemoryProjectionStore();
+  await applyEvent(store, connectedEvent("Victim", new Date("2026-07-19T12:00:00Z")));
+  await applyEvent(store, diedEvent({ victim: "Victim", cause: "pvp", killer: "Killer", at: new Date("2026-07-19T12:01:00Z") }));
+  const life = store.lives.find((l) => l.endedAt !== null)!;
+  expect(life.qualifiedAt?.toISOString()).toBe("2026-07-19T12:01:00.000Z");
+});
+
+it("marks the KILLER's open life qualified at the kill instant", async () => {
+  const store = new MemoryProjectionStore();
+  await applyEvent(store, connectedEvent("Killer", new Date("2026-07-19T11:00:00Z")));
+  await applyEvent(store, connectedEvent("Victim", new Date("2026-07-19T12:00:00Z")));
+  await applyEvent(store, diedEvent({ victim: "Victim", cause: "pvp", killer: "Killer", at: new Date("2026-07-19T12:01:00Z") }));
+  const killerPlayer = await store.getPlayer("Killer");
+  const killerLife = store.lives.find((l) => l.playerId === killerPlayer!.id)!;
+  expect(killerLife.qualifiedAt?.toISOString()).toBe("2026-07-19T12:01:00.000Z");
+});
+
+it("never overwrites an existing qualified_at (write-once)", async () => {
+  const store = new MemoryProjectionStore();
+  await applyEvent(store, connectedEvent("Alice", new Date("2026-07-19T12:00:00Z")));
+  await applyEvent(store, disconnectedEvent("Alice", new Date("2026-07-19T12:06:40Z")));
+  const first = store.lives[0]!.qualifiedAt!;
+  await applyEvent(store, connectedEvent("Alice", new Date("2026-07-19T13:00:00Z")));
+  await applyEvent(store, disconnectedEvent("Alice", new Date("2026-07-19T13:10:00Z")));
+  expect(store.lives[0]!.qualifiedAt!.getTime()).toBe(first.getTime());
+});
+```
+
+Adapt the event-constructor helper names to whatever the existing fold test file uses — do not invent new helpers if equivalents exist.
+
+- [ ] **Step 3: Run to confirm failure**
+
+Run: `TEST_DATABASE_URL="postgres://onelife:onelife@localhost:5434/onelife_test" pnpm --filter @onelife/projections run test`
+Expected: FAIL — `qualifiedAt` is undefined / `markLifeQualified` is not a function.
+
+- [ ] **Step 4: Extend the store interface**
+
+In `packages/projections/src/store.ts`, change the `addLifePlaytime` line and add `markLifeQualified`:
+
+```ts
+  /** Returns the life's NEW total playtime seconds, so the caller can detect the
+   *  instant the life crossed QUALIFY_SECONDS. */
+  addLifePlaytime(lifeId: number, seconds: number): Promise<number>;
+  /** Write-once: sets qualified_at only when it is currently null. */
+  markLifeQualified(lifeId: number, at: Date): Promise<void>;
+```
+
+Add `qualifiedAt: Date | null` to the `LifeRow` type in `packages/projections/src/types.ts`.
+
+- [ ] **Step 5: Implement in both stores**
+
+`apps/projector/src/pg-store.ts` — replace `addLifePlaytime` and add `markLifeQualified`:
+
+```ts
+  async addLifePlaytime(lifeId: number, seconds: number): Promise<number> {
+    const rows = await this.tx.update(lives)
+      .set({ playtimeSeconds: sql`${lives.playtimeSeconds} + ${seconds}` })
+      .where(eq(lives.id, lifeId))
+      .returning({ total: lives.playtimeSeconds });
+    return rows[0]?.total ?? 0;
+  }
+
+  /** Write-once. The IS NULL guard is in the WHERE clause, so a concurrent or replayed
+   *  event can never move an already-recorded qualification later. */
+  async markLifeQualified(lifeId: number, at: Date): Promise<void> {
+    await this.tx.update(lives)
+      .set({ qualifiedAt: at })
+      .where(and(eq(lives.id, lifeId), isNull(lives.qualifiedAt)));
+  }
+```
+
+Add `isNull` to the `drizzle-orm` import in that file if absent.
+
+`packages/projections/src/memory-store.ts` — mirror the same semantics:
+
+```ts
+  async addLifePlaytime(lifeId: number, seconds: number): Promise<number> {
+    const life = this.lives.find((l) => l.id === lifeId);
+    if (!life) return 0;
+    life.playtimeSeconds += seconds;
+    return life.playtimeSeconds;
+  }
+
+  async markLifeQualified(lifeId: number, at: Date): Promise<void> {
+    const life = this.lives.find((l) => l.id === lifeId);
+    if (life && life.qualifiedAt == null) life.qualifiedAt = at;
+  }
+```
+
+Ensure `createLife` in the memory store initializes `qualifiedAt: null`, and that its `lives` array elements carry `playtimeSeconds`.
+
+- [ ] **Step 6: Wire the three fold call sites**
+
+In `packages/projections/src/fold.ts`, import the constant:
+
+```ts
+import { QUALIFY_SECONDS } from "@onelife/domain";
+```
+
+Replace the body of `closeOpen`:
+
+```ts
+async function closeOpen(store: ProjectionStore, session: SessionRow, at: Date, reason: string, capAt?: Date | null): Promise<void> {
+  let end = at;
+  if (capAt !== undefined) {
+    const cap = Math.max(capAt?.getTime() ?? session.connectedAt.getTime(), session.connectedAt.getTime());
+    end = new Date(Math.min(at.getTime(), cap));
+  }
+  const d = durationSeconds(session.connectedAt, end);
+  await store.closeSession(session.id, end, d, reason);
+  const total = await store.addLifePlaytime(session.lifeId, d);
+  const prior = total - d;
+  // Playtime is only credited at session close, so qualified_at is BACKDATED to the
+  // instant the life actually crossed the threshold mid-session.
+  if (prior < QUALIFY_SECONDS && total >= QUALIFY_SECONDS) {
+    const crossing = new Date(session.connectedAt.getTime() + (QUALIFY_SECONDS - prior) * 1000);
+    await store.markLifeQualified(session.lifeId, crossing);
+  }
+}
+```
+
+In `onDied`, immediately after the `await store.endLife(life.id, {...});` line:
+
+```ts
+  if (cause === "pvp") await store.markLifeQualified(life.id, e.occurredAt);
+```
+
+And inside the existing `if (cause === "pvp" && killer && killer !== victim)` block, after `insertKill`:
+
+```ts
+    // A kill qualifies the KILLER's life too — insertKill only records the victim's.
+    if (killerPlayer) {
+      const killerLifeId = await store.findLifeIdAt(e.serverId, killerPlayer.id, e.occurredAt);
+      if (killerLifeId != null) await store.markLifeQualified(killerLifeId, e.occurredAt);
+    }
+```
+
+- [ ] **Step 7: Run tests to confirm pass**
+
+Run: `TEST_DATABASE_URL="postgres://onelife:onelife@localhost:5434/onelife_test" pnpm --filter @onelife/projections run test && TEST_DATABASE_URL="postgres://onelife:onelife@localhost:5434/onelife_test" pnpm --filter @onelife/projector run test && TEST_DATABASE_URL="postgres://onelife:onelife@localhost:5434/onelife_test" pnpm --filter @onelife/read-models run test`
+Expected: PASS for all three. The read-models run confirms the `QUALIFY_SECONDS` re-export did not break existing importers.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/domain packages/read-models/src/qualified.ts packages/projections apps/projector/src/pg-store.ts
+git commit -m "feat(projections): fold materializes lives.qualified_at write-once"
 ```
 
 ---
@@ -263,7 +500,7 @@ describe("loadConfig", () => {
     expect(c.dryRun).toBe(true);
     expect(c.pushEnabled).toBe(true);
     expect(c.intervalSeconds).toBe(60);
-    expect(c.lookbackHours).toBe(24);
+    expect(c.lookbackHours).toBe(48);
     expect(c.pushMaxPerTick).toBe(50);
     expect(c.pushMaxAgeMinutes).toBe(60);
   });
@@ -303,7 +540,7 @@ const schema = z.object({
   NOTIFIER_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   NOTIFIER_SINCE: z.string().optional(),
   NOTIFIER_DRY_RUN: z.enum(["true", "false"]).default("true"),
-  NOTIFIER_LOOKBACK_HOURS: z.coerce.number().int().positive().default(24),
+  NOTIFIER_LOOKBACK_HOURS: z.coerce.number().int().positive().default(48),
   NOTIFIER_PUSH_ENABLED: z.enum(["true", "false"]).default("true"),
   NOTIFIER_PUSH_MAX_PER_TICK: z.coerce.number().int().positive().default(50),
   NOTIFIER_PUSH_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(60),
@@ -909,8 +1146,8 @@ git commit -m "feat(notifier): ban applied and lifted generators"
 
 Two constraints specific to this task:
 
-1. `qualifiedLifeCondition(db)` references `players.gamertag`, so the query **must** join `players`.
-2. `life_qualified` has no "became qualified" timestamp — qualification is derived. The generator therefore selects **open** qualified lives whose `startedAt` is within the window. A life that qualifies long after it starts is missed by design; widening the window is the knob, and the natural key keeps re-runs safe.
+1. This generator windows on **`lives.qualifiedAt`** (materialized by Task 1B), not on `startedAt`. A life is announced when it qualified, which is exact. `qualifiedLifeCondition` is **not** used here — `qualifiedAt IS NOT NULL` is now the authoritative signal and needs no `players` join for the predicate.
+2. `survivalMilestoneGenerator` still needs the set of open qualified lives regardless of when they qualified, so it filters on `isNull(lives.endedAt)` + `isNotNull(lives.qualifiedAt)` with the window applied to the milestone arithmetic rather than to the query.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -924,7 +1161,7 @@ import { lifeQualifiedGenerator, survivalMilestoneGenerator } from "../src/gener
 
 const { db, sql } = getTestDb();
 const NOW = new Date("2026-07-19T12:00:00Z");
-const deps = { db, now: NOW, since: new Date("2026-06-01T00:00:00Z"), lookbackHours: 24 * 40, siteUrl: "https://s" };
+const deps = { db, now: NOW, since: new Date("2026-06-01T00:00:00Z"), lookbackHours: 48, siteUrl: "https://s" };
 
 beforeAll(async () => {
   await db.insert(user).values({ id: "lf1", name: "LF1", email: "lf1@x.com" });
@@ -932,17 +1169,24 @@ beforeAll(async () => {
   const [p] = await db.insert(players).values({ gamertag: "LifeOne" }).returning();
   await db.insert(gamertagLinks).values({ userId: "lf1", gamertag: "LifeOne", status: "verified", verifiedAt: new Date("2026-06-02T00:00:00Z") });
   await db.insert(lives).values([
-    // Open + qualified by playtime, started 8 days ago -> qualified + 7d milestone.
-    { serverId: s.id, playerId: p.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"), playtimeSeconds: 4000 },
-    // Open but NOT qualified (60s playtime, no kills, not pvp).
-    { serverId: s.id, playerId: p.id, lifeNumber: 2, startedAt: new Date("2026-07-18T12:00:00Z"), playtimeSeconds: 60 },
+    // Open + qualified 8 days ago -> life_qualified (in window) + 7d milestone.
+    { serverId: s.id, playerId: p.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"),
+      playtimeSeconds: 4000, qualifiedAt: new Date("2026-07-11T12:05:00Z") },
+    // Open but NOT qualified: qualified_at is null.
+    { serverId: s.id, playerId: p.id, lifeNumber: 2, startedAt: new Date("2026-07-18T12:00:00Z"),
+      playtimeSeconds: 60, qualifiedAt: null },
+    // Open + qualified, but LONG ago -> excluded from life_qualified by the window,
+    // still eligible for milestones.
+    { serverId: s.id, playerId: p.id, lifeNumber: 3, startedAt: new Date("2026-06-05T12:00:00Z"),
+      playtimeSeconds: 9000, qualifiedAt: new Date("2026-06-05T12:05:00Z") },
   ]);
 });
 afterAll(async () => { await sql.end(); });
 
 describe("lifeQualifiedGenerator", () => {
-  it("emits only for open qualified lives", async () => {
+  it("emits only for lives that qualified inside the window", async () => {
     const drafts = await lifeQualifiedGenerator(deps);
+    // life 1 only: life 2 never qualified, life 3 qualified before the 48h window.
     expect(drafts).toHaveLength(1);
     expect(drafts[0].kind).toBe("life_qualified");
     expect(drafts[0].userId).toBe("lf1");
@@ -952,15 +1196,18 @@ describe("lifeQualifiedGenerator", () => {
 });
 
 describe("survivalMilestoneGenerator", () => {
-  it("emits the 7-day milestone once a qualified life passes it", async () => {
+  it("emits 7d for the 8-day-old life and 7/14/30d for the 44-day-old one", async () => {
     const drafts = await survivalMilestoneGenerator(deps);
-    expect(drafts.map((d) => d.naturalKey)).toEqual([expect.stringMatching(/^milestone:7d:\d+$/)]);
+    const keys = drafts.map((d) => d.naturalKey).sort();
+    // Ignores the window entirely — eligibility is life age, not qualification time.
+    expect(keys.filter((k) => k.includes(":7d:"))).toHaveLength(2);
+    expect(keys.filter((k) => k.includes(":14d:"))).toHaveLength(1);
+    expect(keys.filter((k) => k.includes(":30d:"))).toHaveLength(1);
   });
 
-  it("does not emit 14d or 30d for an 8-day-old life", async () => {
+  it("never emits a milestone for the unqualified life", async () => {
     const drafts = await survivalMilestoneGenerator(deps);
-    expect(drafts.some((d) => d.naturalKey.includes(":14d:"))).toBe(false);
-    expect(drafts.some((d) => d.naturalKey.includes(":30d:"))).toBe(false);
+    expect(drafts.every((d) => !d.body.includes("life 2"))).toBe(true);
   });
 });
 ```
@@ -976,23 +1223,23 @@ Expected: FAIL — cannot resolve `../src/generators/lives.js`.
 
 ```ts
 import { gamertagLinks, lives, players, servers } from "@onelife/db";
-import { qualifiedLifeCondition } from "@onelife/read-models";
-import { and, eq, gte, isNull, isNotNull, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, isNotNull, sql, type SQL } from "drizzle-orm";
 import type { Generator, NotificationDraft } from "../types.js";
 import { windowStart } from "../types.js";
 import { playerSlug } from "./account.js";
 
 type Row = {
-  lifeId: number; lifeNumber: number; startedAt: Date;
+  lifeId: number; lifeNumber: number; startedAt: Date; qualifiedAt: Date;
   userId: string; gamertag: string; serverSlug: string | null; serverName: string;
 };
 
-/** Open, qualified lives owned by a verified user. qualifiedLifeCondition references
- *  players.gamertag, so the players join is REQUIRED — without it the SQL fails. */
-async function openQualifiedLives(deps: Parameters<Generator>[0], from: Date): Promise<Row[]> {
+/** Open, qualified lives owned by a verified user. qualified_at is materialized by the
+ *  projector fold (write-once), so IS NOT NULL is the authoritative qualification signal. */
+async function openQualifiedLives(deps: Parameters<Generator>[0], extra?: SQL): Promise<Row[]> {
   return deps.db
     .select({
       lifeId: lives.id, lifeNumber: lives.lifeNumber, startedAt: lives.startedAt,
+      qualifiedAt: lives.qualifiedAt,
       userId: gamertagLinks.userId, gamertag: gamertagLinks.gamertag,
       serverSlug: servers.slug, serverName: servers.name,
     })
@@ -1006,15 +1253,16 @@ async function openQualifiedLives(deps: Parameters<Generator>[0], from: Date): P
     .where(and(
       isNull(lives.endedAt),
       isNotNull(servers.slug),
-      gte(lives.startedAt, from),
-      qualifiedLifeCondition(deps.db),
+      isNotNull(lives.qualifiedAt),
+      ...(extra ? [extra] : []),
     )) as Promise<Row[]>;
 }
 
 const lifeHref = (r: Row) => `/players/${playerSlug(r.gamertag)}/${r.serverSlug}/lives/${r.lifeNumber}`;
 
 export const lifeQualifiedGenerator: Generator = async (deps) => {
-  const rows = await openQualifiedLives(deps, windowStart(deps));
+  // Window on the qualification instant itself — exact, unlike windowing on startedAt.
+  const rows = await openQualifiedLives(deps, gte(lives.qualifiedAt, windowStart(deps)));
   return rows.map((r): NotificationDraft => ({
     userId: r.userId,
     kind: "life_qualified",
@@ -1031,7 +1279,8 @@ const MILESTONE_DAYS = [7, 14, 30] as const;
  *  eligible once it has been open that long. The natural key carries the day count, so
  *  each threshold fires exactly once per life. */
 export const survivalMilestoneGenerator: Generator = async (deps) => {
-  const rows = await openQualifiedLives(deps, deps.since);
+  // No time filter: eligibility is the life's age, computed below, not when it qualified.
+  const rows = await openQualifiedLives(deps);
   const drafts: NotificationDraft[] = [];
   for (const r of rows) {
     const days = (deps.now.getTime() - r.startedAt.getTime()) / 86_400_000;
@@ -1733,7 +1982,7 @@ git commit -m "feat(notifier): worker entrypoint wiring both passes"
 **Files:**
 - Create: `apps/api/src/routes/notifications.ts`
 - Modify: `apps/api/src/app.ts:19` (import) and `:39` (registration)
-- Test: `apps/api/test/notifications.test.ts`
+- Test: `apps/api/test/notifications-routes.test.ts`
 
 **Interfaces:**
 - Produces: `registerNotificationRoutes(app: FastifyInstance, db: Database, auth: Auth, vapidPublicKey: string): void`
@@ -1742,56 +1991,145 @@ Routes: `GET /me/notifications`, `POST /me/notifications/read`, `POST /me/push-s
 
 - [ ] **Step 1: Write the failing test**
 
-`apps/api/test/notifications.test.ts`:
+`apps/api/test/notifications-routes.test.ts`. This mirrors the magic-link sign-in harness in `apps/api/test/tokens-routes.test.ts` — read that file first; the `signIn`/`cookieHeader`/`authed` helpers below are copied from it deliberately, because each API test file is self-contained.
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { user, notifications, pushSubscriptions } from "@onelife/db";
+import { eq } from "drizzle-orm";
+import { createAuth, type Mailer } from "@onelife/auth";
 import { buildApp } from "../src/app.js";
 import { getTestDb } from "@onelife/test-support";
 
 const { db, sql } = getTestDb();
-const app = buildApp(db);
+const svc = Math.floor(Math.random() * 1e8) + 6e8;
+const email = `ntf${svc}@example.com`;
 
-beforeAll(async () => { await app.ready(); });
-afterAll(async () => { await app.close(); await sql.end(); });
+let lastLink = "";
+const captureMailer: Mailer = { async send(msg) { lastLink = msg.url; } };
+const auth = createAuth(db, {
+  secret: "s".repeat(32), baseURL: "http://localhost", trustedOrigins: ["http://localhost"],
+  providers: {}, mailer: captureMailer,
+});
+const app = buildApp(db, { auth, corsOrigins: ["http://localhost"], vapidPublicKey: "TEST_PUBLIC_KEY" });
+
+function cookieHeader(setCookie: string | string[] | undefined): string {
+  const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  return arr.map((c) => c.split(";")[0]).join("; ");
+}
+
+let cookie = "";
+let userId = "";
+let otherUserId = "";
+
+async function signIn(): Promise<void> {
+  await app.inject({
+    method: "POST", url: "/api/auth/sign-in/magic-link",
+    headers: { "content-type": "application/json", host: "localhost", origin: "http://localhost" },
+    payload: { email },
+  });
+  const verifyPath = lastLink.replace(/^https?:\/\/[^/]+/, "");
+  const verify = await app.inject({ method: "GET", url: verifyPath, headers: { host: "localhost" } });
+  cookie = cookieHeader(verify.headers["set-cookie"] as string | string[] | undefined);
+}
+
+beforeAll(async () => {
+  await app.ready();
+  await signIn();
+  const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
+  userId = u!.id;
+
+  const [other] = await db.insert(user)
+    .values({ id: `ntf-other-${svc}`, name: "Other", email: `other${svc}@example.com` })
+    .returning();
+  otherUserId = other!.id;
+
+  await db.insert(notifications).values([
+    { userId, kind: "ban_applied", naturalKey: `ntf:${svc}:1`, title: "Mine unread", body: "b", href: "/h" },
+    { userId, kind: "tokens_granted", naturalKey: `ntf:${svc}:2`, title: "Mine read", body: "b", href: "/h", readAt: new Date() },
+    { userId: otherUserId, kind: "ban_applied", naturalKey: `ntf:${svc}:3`, title: "Theirs", body: "b", href: "/h" },
+  ]);
+});
+
+afterAll(async () => {
+  await sql`DELETE FROM notifications WHERE user_id IN (${userId}, ${otherUserId})`;
+  await sql`DELETE FROM push_subscriptions WHERE user_id IN (${userId}, ${otherUserId})`;
+  await sql`DELETE FROM "session" WHERE user_id = ${userId}`;
+  await sql`DELETE FROM "account" WHERE user_id = ${userId}`;
+  await sql`DELETE FROM "user" WHERE id IN (${userId}, ${otherUserId})`;
+  await sql.end();
+});
+
+const authed = () => ({ host: "localhost", cookie, "content-type": "application/json" });
 
 describe("notification routes", () => {
-  it("returns 401 for an unauthenticated feed request", async () => {
-    // Routes are only registered with auth opts; without them the path is absent (404).
-    // With auth wired, an anonymous call must be 401 — asserted in the authed app below.
-    const res = await app.inject({ method: "GET", url: "/me/notifications" });
-    expect([401, 404]).toContain(res.statusCode);
+  it("401 without a session", async () => {
+    const res = await app.inject({ method: "GET", url: "/me/notifications", headers: { host: "localhost" } });
+    expect(res.statusCode).toBe(401);
   });
-});
-```
 
-Then extend the existing authed-app test harness used by `apps/api/test/tokens.test.ts` (read that file and mirror its auth setup exactly) with:
-
-```ts
-it("rejects an anonymous feed request", async () => {
-  const res = await authedApp.inject({ method: "GET", url: "/me/notifications" });
-  expect(res.statusCode).toBe(401);
-});
-
-it("never returns another user's notifications", async () => {
-  // seed one notification for userA, call as userB
-  const res = await authedApp.inject({
-    method: "GET", url: "/me/notifications", headers: userBHeaders,
+  it("returns only the caller's notifications with an unread count", async () => {
+    const res = await app.inject({ method: "GET", url: "/me/notifications", headers: authed() });
+    expect(res.statusCode).toBe(200);
+    const bodyJson = res.json();
+    expect(bodyJson.items.map((i: { title: string }) => i.title).sort()).toEqual(["Mine read", "Mine unread"]);
+    expect(bodyJson.unreadCount).toBe(1);
   });
-  expect(res.statusCode).toBe(200);
-  expect(res.json().items).toHaveLength(0);
-});
 
-it("serves the vapid public key without auth", async () => {
-  const res = await authedApp.inject({ method: "GET", url: "/push/vapid-key" });
-  expect(res.statusCode).toBe(200);
-  expect(res.json()).toHaveProperty("publicKey");
+  it("marks all unread notifications read", async () => {
+    const post = await app.inject({ method: "POST", url: "/me/notifications/read", headers: authed(), payload: {} });
+    expect(post.statusCode).toBe(200);
+    const res = await app.inject({ method: "GET", url: "/me/notifications", headers: authed() });
+    expect(res.json().unreadCount).toBe(0);
+  });
+
+  it("never marks another user's notifications read", async () => {
+    const rows = await db.select().from(notifications).where(eq(notifications.userId, otherUserId));
+    expect(rows[0]!.readAt).toBeNull();
+  });
+
+  it("401 on subscribing without a session", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/me/push-subscriptions",
+      headers: { host: "localhost", "content-type": "application/json" },
+      payload: { endpoint: "e", keys: { p256dh: "p", auth: "a" } },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("upserts a push subscription instead of duplicating it", async () => {
+    const payload = { endpoint: `ep-${svc}`, keys: { p256dh: "p1", auth: "a1" } };
+    await app.inject({ method: "POST", url: "/me/push-subscriptions", headers: authed(), payload });
+    await app.inject({
+      method: "POST", url: "/me/push-subscriptions", headers: authed(),
+      payload: { ...payload, keys: { p256dh: "p2", auth: "a2" } },
+    });
+    const rows = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.p256dh).toBe("p2");
+  });
+
+  it("deletes a push subscription", async () => {
+    const res = await app.inject({
+      method: "DELETE", url: "/me/push-subscriptions", headers: authed(),
+      payload: { endpoint: `ep-${svc}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const rows = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("serves the vapid public key without a session", async () => {
+    const res = await app.inject({ method: "GET", url: "/push/vapid-key", headers: { host: "localhost" } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().publicKey).toBe("TEST_PUBLIC_KEY");
+  });
 });
 ```
 
 - [ ] **Step 2: Run it to confirm failure**
 
-Run: `pnpm --filter @onelife/api run test notifications`
+Run: `pnpm --filter @onelife/api run test notifications-routes`
 Expected: FAIL — route not registered.
 
 - [ ] **Step 3: Implement the routes**
@@ -1922,7 +2260,7 @@ Expected: PASS, including the new notification tests.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/api/src/routes/notifications.ts apps/api/src/app.ts apps/api/test/notifications.test.ts
+git add apps/api/src/routes/notifications.ts apps/api/src/app.ts apps/api/test/notifications-routes.test.ts
 git commit -m "feat(api): notification feed, read, and push subscription routes"
 ```
 
@@ -2531,7 +2869,9 @@ npx web-push generate-vapid-keys
 
 and note that `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a `mailto:` address) go into the shared `/var/www/dayzonelife.com/.env`, and that `VAPID_PUBLIC_KEY` must be readable by the **api** unit too, since `GET /push/vapid-key` serves it.
 
-Document the staged rollout from spec §8 as a runbook: deploy with `NOTIFIER_DRY_RUN=true` and no `NOTIFIER_SINCE`; then set `NOTIFIER_SINCE`; then `NOTIFIER_DRY_RUN=false` with `NOTIFIER_PUSH_ENABLED=false`; then enable push. Note this release needs a normal `./deploy/deploy.sh` — **no** `--rebuild`.
+Document the staged rollout from spec §8 as a runbook: deploy with `NOTIFIER_DRY_RUN=true` and no `NOTIFIER_SINCE`; then set `NOTIFIER_SINCE`; then `NOTIFIER_DRY_RUN=false` with `NOTIFIER_PUSH_ENABLED=false`; then enable push.
+
+**This release reshapes the `lives` projection** (new `qualified_at` column written by the fold), so it MUST deploy with `./deploy/deploy.sh --rebuild` — a normal deploy would leave `qualified_at` null on every existing life and the `life_qualified` notification would never fire for anyone.
 
 - [ ] **Step 3: Update the changelog**
 
@@ -2568,7 +2908,7 @@ Use the **finishing-a-feature** skill. The PR targets `develop` and requires bot
 
 **Two spec deviations, both deliberate:**
 
-1. **`life_qualified` has no qualification timestamp.** Qualification is derived, never materialized, so there is no column to window on. Task 6 windows on `lives.startedAt` for open qualified lives, which means a life that qualifies well after it starts falls outside the lookback and is never announced. Widening `NOTIFIER_LOOKBACK_HOURS` is the mitigation. If this proves lossy in staging, the fix is a `qualified_at` column — a schema change, not a tweak, so it is deliberately deferred rather than guessed at.
+1. **`life_qualified` windows on a new materialized `qualified_at` column** (Tasks 1 and 1B), not on `lives.startedAt` as the spec originally described. The spec's approach would have silently dropped any life that qualified more than a lookback-window after it started. Materializing the instant in the fold is exact, and it also replaces the read-time `lifeQualifiedAt` derivation for future consumers. Cost: this makes the release a projection reshape, so deploy requires `--rebuild`. Residual caveat, documented in Global Constraints: the fold credits playtime at session close, so a playtime-qualified life's `qualified_at` is backdated correctly but written at disconnect — hence the 48h lookback default.
 2. **`playerSlug` is duplicated** into `apps/notifier/src/generators/account.ts` rather than imported, because the worker must not depend on the web app. The two copies must stay in step or notification links 404. Task 4 carries a comment saying so.
 
 **Open item for the implementer.** Task 14 Step 2 assumes `icon-192.png` and `icon-512.png` exist in `apps/web/public/`. Verify before writing the manifest; if absent, generating them from the vendored brand assets is in scope for that task.
