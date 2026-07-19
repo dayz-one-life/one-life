@@ -7,10 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- R5d PR-C3 — **the News surface.** `/news` is live: a reverse-chron feed and a full interior for
+  the `kind='news'` features PR-C2's `newsTick` writes. New read-model
+  `packages/read-models/src/news-articles.ts` (`getPublishedNews` / `getNewsArticleBySlug` /
+  `getNewsSubjectStatus`), ordered **`created_at DESC`** rather than `death_at` — a Standing Dead
+  feature has no death — served by the `articles_kind_status_created_idx` from migration `0014`.
+  Public `GET /news` and `GET /news/:slug` are structural twins of the obituaries routes. The web
+  surface mirrors `apps/web/src/app/obituaries/`: feed, `[slug]` interior, `loading.tsx`, a dynamic
+  OG card, a `NewsArticle` JSON-LD block (through `ldScript()`, since an LLM headline can contain
+  `</script>`), and a new `components/news/`.
+- **The live status line** (spec §4.1.3). A Standing Dead feature is the only thing the paper
+  prints that its subject can falsify by acting, so the interior computes a status line **at
+  request time** — still idle ("as of publication, N days without a sighting"), returned
+  ("UPDATE: subject was seen again on …"), or died since (with a link to the obituary when the
+  morgue has filed). The prose above it is never regenerated. Death outranks return, and the return
+  predicate mirrors `findReturnedStandingDead` exactly, so the page and the newsdesk
+  de-publication sweep can never tell the reader different stories.
+- **Two timelines for a Long Form feature**, one for a Standing Dead. Parallel records converging
+  on the same minute are the flagship's visual argument; they stack on mobile and sit side by side
+  from `lg` up. Both guard on `mapSlug !== null` and degrade to whatever loaded.
+- `ArticleHero` gains an **`ink`** accent alongside `red` and `blue`. Morgue is red, Nursery is
+  blue, yellow already means beef; on a feature the photograph carries the page. News is the only
+  kind that renders a hero image (obituaries and birth notices lost theirs in v0.21.0).
 
 ### Changed
+- **The static News teaser is retired**, which removes `robots: { index: false }` from the `/news`
+  route. Per the repo's voice-first rule a teaser stays up until its content-engine slice ships;
+  this is that moment. News was the last of the three, so the shared `TeaserPage` component (and
+  its test) are deleted as dead code.
+- **`ArticleBody`'s blocks path is live in production for the first time.** PR-B built it and PR-C2
+  became the first writer to populate `articles.body_blocks`, but no shipped interior had ever
+  rendered it. The news read-model selects and casts the column, and the interior renders blocks
+  when present and the flat `body` when absent — an unknown block type is dropped by the switch's
+  `default: return null` rather than crashing the page.
 
 ### Fixed
+- **Three PR-C1 Fog Rule test rails were vacuous.** `long-form-cluster.test.ts`,
+  `long-form-targets.test.ts` and `standing-dead-targets.test.ts` each used `/\d{4}\.\d/` as their
+  *sole* coordinate assertion. That regex returns false for a short near-edge coordinate like
+  `812.4`, so all three would have passed on a real leak — `long-form-targets.test.ts` most
+  seriously, since it guards the `LongFormSubject` boundary spec §11 exists to protect. Each now
+  uses the recursive key-presence walk PR-C2 established, with the regex kept only as a documented
+  secondary signal. `standing-dead-targets.test.ts` additionally checked only the *top level* of
+  each row, so a nested leak was invisible.
+- **A retracted feature no longer leaks into any discovery surface.** It is excluded from the feed
+  query (and therefore from "More From the Desk", which reads it), its interior is `noindex`ed, its
+  hero bytes already 404 behind the media route's `status='published'` filter — so the interior
+  renders a retraction banner in place of a broken photo — and there is no sitemap. **The OG unfurl
+  card is stamped `RETRACTED` and its JSON-LD carries `creativeWorkStatus: "Retracted"`**: `noindex`
+  addresses crawlers and does nothing for a Discord/Slack/X unfurl, which is the first thing a
+  reader of a shared link sees, before they click. The URL keeps working: a reader who follows that
+  link gets the correction, not a 404.
+- **The interior can no longer print the same pull quote twice.** PR-C2's schema admits a `quote`
+  block and a standalone `pullQuote` independently and nothing in the prompt discourages using both,
+  so a model putting its best line in each would have shipped two identical stacked blockquotes —
+  invisible until now, because no shipped interior had ever rendered `ArticleBody`'s blocks path.
+  The standalone quote is suppressed render-side when the blocks already carry one, which also
+  repairs rows already written.
+- `newsShowingLine` follows the **birth** argument order `(page, total, pageSize)`, pinned by a test
+  that fails on a swap. `obituaryShowingLine` is `(page, pageSize, total)` and every parameter is a
+  `number`, so the mistake is entirely type-silent.
 
 ## [0.24.0] - 2026-07-19
 
