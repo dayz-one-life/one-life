@@ -20,8 +20,14 @@ export const IMAGE_SCENE_SYSTEM = [
   "- One clear subject caught mid-moment. Never posed, never glamorous, never professionally",
   "  composed.",
   "- Keep it generatable: a single simple subject, no complex multi-figure choreography.",
-  "- Tone: obituaries = deadpan mock-gravity; birth notices = doomed optimism. Punch up, never",
-  "  down. Rib first-lifers affectionately, never cruelly.",
+  "- Tone: obituaries = deadpan mock-gravity; birth notices = doomed optimism; news features =",
+  "  wire-service investigative restraint — the story is an absence or a convergence, never a",
+  "  person to laugh at. Punch up, never down. Rib first-lifers affectionately, never cruelly.",
+  "- A news subject may still be ALIVE. Never depict them identifiably, never imply their death,",
+  "  and never show a locale that could be recognised, placed, or navigated to — no landmark, no",
+  "  region, no route, no fix.",
+  "- If a stated cause is marked low confidence, choose a framing that does not assert that",
+  "  mechanism. Absence and aftermath assert nothing; a suspect or a weapon asserts everything.",
   "",
   "Prefer a category from the menu. ESCAPE HATCH: you may invent a new category when the story",
   "genuinely earns it — then you must supply its caption yourself, in the same deadpan register.",
@@ -33,6 +39,15 @@ export const IMAGE_SCENE_SYSTEM = [
   "Write the scene only — the fixed camera style is appended by the system.",
 ].join("\n");
 
+// Keyed lookup, not a ternary: the old `kind === "obituary" ? … : "birth notice (The Nursery)"`
+// labelled EVERY non-obituary kind a birth notice. Same non-throwing-Record caveat as
+// eligibleCategories — the explicit guard is required, not decorative.
+const KIND_LABEL: Record<ArticleKind, string> = {
+  obituary: "obituary (The Morgue)",
+  birth_notice: "birth notice (The Nursery)",
+  news: "news feature (The Newsroom)",
+};
+
 export function buildScenePrompt(args: {
   kind: ArticleKind;
   facts: Record<string, unknown>;
@@ -42,10 +57,17 @@ export function buildScenePrompt(args: {
   recent: RecentCover[];
 }): { system: string; user: string } {
   const lines: string[] = [];
-  lines.push(`Article kind: ${args.kind === "obituary" ? "obituary (The Morgue)" : "birth notice (The Nursery)"}`);
+  const label = KIND_LABEL[args.kind];
+  if (!label) throw new Error(`unknown article kind for scene prompt: ${args.kind}`);
+  lines.push(`Article kind: ${label}`);
   lines.push(`Headline: ${args.headline}`);
   if (args.lede) lines.push(`Lede: ${args.lede}`);
   lines.push(`Facts: ${JSON.stringify(args.facts)}`);
+  // The facts blob passes wholesale, so a hedged verdict arrives as undifferentiated JSON and
+  // the caption ends up asserting a mechanism the body hedges. Surface it as its own line.
+  if ((args.facts.verdict as { confidence?: string } | null | undefined)?.confidence === "low") {
+    lines.push("The stated cause is LOW CONFIDENCE — choose a framing that does not assert that mechanism.");
+  }
   lines.push("");
   lines.push("Category menu (eligible for this story):");
   for (const c of args.eligible) lines.push(`- ${c.caption}: ${c.example}`);
