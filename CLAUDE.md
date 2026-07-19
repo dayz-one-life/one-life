@@ -280,6 +280,19 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `NewsFacts` has no emote field, asserted structurally. `unqualified_subject` is **omitted from
   the observability log line**: the qualified gate lives in the candidate SQL, so the counter is
   structurally always 0 and printing it would be a lie an operator would act on.
+  **Go-live pacing (read this before flipping `NEWSDESK_DRY_RUN=false` on news):**
+  `NEWSDESK_NEWS_MAX_PER_TICK` is a per-tick batch size, applied **per arm** (`news-tick.ts` passes
+  it to both the Standing Dead finder and the Long Form finder), not a combined per-tick cap and not
+  a rate limit — at the shipped defaults (`MAX_PER_TICK=2`, `NEWSDESK_INTERVAL_SECONDS=300`) a
+  7-subject Standing Dead backlog drains in `ceil(7/2)=4` ticks, roughly **20 minutes**, not the
+  "over ~4 days" figure this feature's spec (§13.2) once assumed. `NEWSDESK_DRY_RUN` is also
+  **worker-global**, so the documented "dry-run for one interval" go-live step suspends obituaries,
+  birth notices, the Discord notifier and the image pass for that interval too (benign — all resume
+  next tick). And because a published news row is image-eligible the instant it publishes
+  (`findImageTargets` excludes only `obituary`/`birth_notice`) while PR-C3 (the web surface that
+  would render a news hero image) hasn't shipped, pair `NEWSDESK_NEWS_ENABLED=true` with
+  `NEWSDESK_IMAGES_ENABLED=false` until it does — otherwise every news article pays
+  ~$0.004/article for a photo nothing displays. Full arithmetic and reasoning: `.env.example`.
   PR-C3 (read-model + API + web surface) follows.
   **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
   for both (reserved for future news); the 165 existing images were deleted (migration 0013). The

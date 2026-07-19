@@ -25,9 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retraction (spec §4.1.3): a published Standing Dead feature whose subject has a session that
   connected after the article was created moves to `status='retracted'`. The row is never deleted,
   so the prose and its hero image survive rather than cascade away; `findImageTargets` already
-  filters `status='published'`, so a retracted feature can never acquire a photo.
+  filters `status='published'`, so a retracted feature can never acquire a photo. A **published**
+  news row, by contrast, is image-eligible the instant it publishes — enabling
+  `NEWSDESK_NEWS_ENABLED` also un-dormants `imageTick` for it — but PR-C3 (the web surface that
+  would render a news hero image) has not shipped, so until it does, pair go-live with
+  `NEWSDESK_IMAGES_ENABLED=false` or budget ~$0.004/article (`NEWSDESK_IMAGE_QUALITY=low`) for a
+  photo nothing displays.
 - Ten new environment variables, all documented in `.env.example`: `NEWSDESK_NEWS_ENABLED`,
-  `NEWSDESK_NEWS_SINCE`, `NEWSDESK_NEWS_MAX_PER_TICK` (2), `NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS`,
+  `NEWSDESK_NEWS_SINCE`, `NEWSDESK_NEWS_MAX_PER_TICK` (2, applied **per arm** — Standing Dead and
+  Long Form each get their own budget, so a tick can publish up to 2x this value; see
+  `.env.example` for the go-live arithmetic), `NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS`,
   `NEWSDESK_STANDING_DEAD_HOURS` (72), `NEWSDESK_STANDING_DEAD_MIN_PLAYTIME_SECONDS` (1800),
   `NEWSDESK_STANDING_DEAD_MIN_HITS` (100), `NEWSDESK_LONGFORM_WINDOW_SECONDS` (180),
   `NEWSDESK_LONGFORM_RADIUS_METERS` (100), `NEWSDESK_LONGFORM_MAX_FIX_AGE_SECONDS` (120).
