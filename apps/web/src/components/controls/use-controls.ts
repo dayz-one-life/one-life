@@ -2,10 +2,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccountStatus } from "@/lib/use-account-status";
 import { useCancelLink, useClaimGamertag } from "@/lib/use-gamertag-links";
-import { getMe, getPlayerPage, getServers, getTokens, redeemToken, setReferrer, transferToken } from "@/lib/api";
+import { getMe, getNotifications, getPlayerPage, getServers, getTokens, markNotificationsRead, redeemToken, setReferrer, transferToken } from "@/lib/api";
 import { playerSlug } from "@/lib/slug";
 import type { AccountStatus } from "@/lib/account-status";
-import type { Server, ServerStanding } from "@/lib/types";
+import type { AppNotification, Server, ServerStanding } from "@/lib/types";
 
 export type Controls = {
   status: AccountStatus;
@@ -14,6 +14,8 @@ export type Controls = {
   balance: number | null;
   servers: Server[];
   standing: ServerStanding[];
+  notifications: AppNotification[];
+  unreadCount: number;
 };
 
 /** One data source for all three control surfaces (rail, pill, sheet). */
@@ -30,6 +32,12 @@ export function useControls(): Controls {
     enabled: gamertag !== null,
     refetchInterval: 60_000, // ban countdowns tick once a minute
   });
+  const notifications = useQuery({
+    queryKey: ["notifications"],
+    queryFn: getNotifications,
+    enabled: signedIn,
+    refetchInterval: 60_000,
+  });
   return {
     status,
     name: me.data?.user.name || me.data?.user.email?.split("@")[0] || null,
@@ -37,6 +45,8 @@ export function useControls(): Controls {
     balance: tokens.data?.balance ?? null,
     servers: servers.data ?? [],
     standing: player.data?.standing ?? [],
+    notifications: notifications.data?.items ?? [],
+    unreadCount: notifications.data?.unreadCount ?? 0,
   };
 }
 
@@ -57,5 +67,9 @@ export function useControlsActions() {
       void qc.invalidateQueries({ queryKey: ["player-page"] });
     },
   });
-  return { claim, cancel, send, refer, redeem };
+  const markRead = useMutation({
+    mutationFn: () => markNotificationsRead(),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  return { claim, cancel, send, refer, redeem, markRead };
 }
