@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildLongFormClusters, longFormNaturalKey, type DeathCandidate } from "../src/long-form-cluster.js";
+import { buildLongFormClusters, longFormNaturalKey, applyLongFormExclusions, type DeathCandidate } from "../src/long-form-cluster.js";
 
 const T0 = new Date("2026-07-11T12:00:00.000Z");
 const at = (s: number) => new Date(T0.getTime() + s * 1000);
@@ -126,5 +126,64 @@ describe("buildLongFormClusters", () => {
     // Guards the un-escaped key format; see the comment in longFormNaturalKey.
     const observed = ["GabeFox101", "CUPID18", "YrJustBad", "Cee Lo GREEN 96"];
     for (const g of observed) expect(g).not.toContain("+");
+  });
+});
+
+const pair = (a: string, b: string, ca: string, cb: string) =>
+  buildLongFormClusters(
+    [cand({ gamertag: a, endedAt: at(0), x: 0, y: 0, deathCause: ca }),
+     cand({ gamertag: b, endedAt: at(27), x: 40, y: 0, deathCause: cb })],
+    OPTS)[0]!;
+
+describe("applyLongFormExclusions", () => {
+  it("drops a self-cluster (same gamertag twice)", () => {
+    const r = applyLongFormExclusions([pair("YrJustBad", "YrJustBad", "pvp", "pvp")], { suppressedGamertags: [] });
+    expect(r.clusters).toEqual([]);
+    expect(r.skipped.self_cluster).toBe(1);
+  });
+
+  it("drops a cluster CONTAINING a suicide, not only an all-suicide one", () => {
+    const r = applyLongFormExclusions([pair("Ay", "Bee", "suicide", "mauled")], { suppressedGamertags: [] });
+    expect(r.clusters).toEqual([]);
+    expect(r.skipped.suicide_subject).toBe(1);
+  });
+
+  it("does not treat a NULL death cause as a suicide", () => {
+    const c = buildLongFormClusters(
+      [cand({ gamertag: "Ay", endedAt: at(0), x: 0, y: 0, deathCause: null }),
+       cand({ gamertag: "Bee", endedAt: at(27), x: 40, y: 0, deathCause: "infected" })], OPTS)[0]!;
+    const r = applyLongFormExclusions([c], { suppressedGamertags: [] });
+    expect(r.clusters).toHaveLength(1);
+    expect(r.skipped.suicide_subject).toBe(0);
+  });
+
+  it("drops a cluster containing a suppressed gamertag, case-insensitively", () => {
+    const r = applyLongFormExclusions([pair("DevAccount", "Bee", "pvp", "pvp")], { suppressedGamertags: ["devaccount"] });
+    expect(r.clusters).toEqual([]);
+    expect(r.skipped.suppressed_gamertag).toBe(1);
+  });
+
+  it("counts self-cluster before suicide when a cluster trips both", () => {
+    const r = applyLongFormExclusions([pair("YrJustBad", "YrJustBad", "suicide", "suicide")], { suppressedGamertags: [] });
+    expect(r.skipped).toEqual({ self_cluster: 1, suicide_subject: 0, unqualified_subject: 0, suppressed_gamertag: 0 });
+  });
+
+  it("survives exactly one of the six verified production pairs", () => {
+    const clusters = [
+      pair("GabeFox101", "CUPID18", "infected", "died"),
+      pair("YrJustBad", "YrJustBad", "suicide", "suicide"),
+      pair("YrJustBad", "YrJustBad", "suicide", "suicide"),
+      pair("YrJustBad", "YrJustBad", "suicide", "suicide"),
+      pair("YrJustBad", "YrJustBad", "suicide", "suicide"),
+      pair("YrJustBad", "Cee Lo GREEN 96", "pvp", "pvp"),
+    ];
+    const r = applyLongFormExclusions(clusters, { suppressedGamertags: [] });
+    expect(r.clusters).toHaveLength(2); // 4 self-clusters removed; the two mixed pairs remain
+    expect(r.skipped.self_cluster).toBe(4);
+  });
+
+  it("returns a zeroed skip record when nothing is excluded", () => {
+    const r = applyLongFormExclusions([], { suppressedGamertags: [] });
+    expect(r.skipped).toEqual({ self_cluster: 0, suicide_subject: 0, unqualified_subject: 0, suppressed_gamertag: 0 });
   });
 });

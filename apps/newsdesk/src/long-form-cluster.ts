@@ -91,3 +91,47 @@ export function buildLongFormClusters(
   }
   return out;
 }
+
+export type LongFormExclusion =
+  | "self_cluster" | "suicide_subject" | "unqualified_subject" | "suppressed_gamertag";
+
+export interface LongFormResult {
+  clusters: LongFormCluster[];
+  /** Per-reason skip counts for the tick's log line (spec §14 observability).
+   *  NOTE: `unqualified_subject` is structurally always 0 here — the qualified gate lives in the
+   *  candidate SQL (long-form-targets.ts), so an unqualified death is a "candidate not selected"
+   *  and never reaches cluster construction. The field exists so the log shape is stable and the
+   *  exclusion is enumerated where a reader looks for it. */
+  skipped: Record<LongFormExclusion, number>;
+}
+
+export function applyLongFormExclusions(
+  clusters: LongFormCluster[],
+  opts: { suppressedGamertags: string[] },
+): LongFormResult {
+  const skipped: Record<LongFormExclusion, number> = {
+    self_cluster: 0, suicide_subject: 0, unqualified_subject: 0, suppressed_gamertag: 0,
+  };
+  const supp = new Set(opts.suppressedGamertags.map((g) => g.toLowerCase()));
+  const kept: LongFormCluster[] = [];
+
+  for (const c of clusters) {
+    const tags = c.subjects.map((s) => s.gamertag);
+    // 1. Self-cluster — one player's own consecutive rerolls are not a shared fate.
+    if (new Set(tags).size !== tags.length) { skipped.self_cluster++; continue; }
+    // 2. ANY suicide subject discards the whole cluster (spec §4.2) — a mixed cluster would
+    //    narrate a named real player's suicide as half of a shared fate, which is factually false.
+    //    Compare the literal "suicide": causeFamily() must NOT be used, it would fold the
+    //    distinction away. A NULL cause is not a suicide.
+    if (c.subjects.some((s) => s.deathCause === "suicide")) { skipped.suicide_subject++; continue; }
+    // 4. Suppressed gamertags (§13.3). Belt-and-braces: the candidate SQL also filters them, so
+    //    a suppressed player cannot claim a seed slot and suppress a legitimate cluster around it.
+    //    Removing a candidate can change cluster membership — that is intended, a suppressed
+    //    subject is not part of the story.
+    if (supp.size > 0 && c.subjects.some((s) => supp.has(s.gamertag.toLowerCase()))) {
+      skipped.suppressed_gamertag++; continue;
+    }
+    kept.push(c);
+  }
+  return { clusters: kept, skipped };
+}
