@@ -1,6 +1,7 @@
 import type { Database } from "@onelife/db";
 import { articles } from "@onelife/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import type { ArticleBlock } from "./obituary-articles.js";
 
 export const NEWS_FEED_PAGE_SIZE = 20;
 
@@ -127,5 +128,110 @@ export async function getPublishedNews(
     total: totalRow[0]?.c ?? 0,
     page,
     pageSize,
+  };
+}
+
+/** One person in a news feature, as the web surface needs them: enough to build a life-timeline
+ *  URL and nothing more. No row ids (they do not survive a projector rebuild) and no coordinates. */
+export interface NewsSubjectRef {
+  gamertag: string;
+  mapSlug: string | null;
+  lifeNumber: number;
+}
+
+/**
+ * The §4.1.3 status line, computed at REQUEST time and never regenerated prose. Populated by
+ * getNewsSubjectStatus for a Standing Dead article only; a Long Form subject is dead and the
+ * question does not arise.
+ */
+export type NewsSubjectStatus =
+  | { kind: "idle"; idleDaysAtPublication: number }
+  | { kind: "returned"; seenAt: Date }
+  | { kind: "died"; diedAt: Date; obituarySlug: string | null };
+
+export interface NewsArticleDetail extends NewsCard {
+  body: string;
+  /** R5d rich body. News is the FIRST kind whose writer populates articles.body_blocks — every
+   *  live interior before this took ArticleBody's flat fallback. Selected AND cast here; a
+   *  missing select would yield `undefined` and silently take the fallback forever. */
+  bodyBlocks: ArticleBlock[] | null;
+  pullQuote: { text: string; attribution: string } | null;
+  imageUrl: string | null;
+  imageCaption: string | null;
+  /** True when the subject came back and the newsdesk de-published the piece. The row still
+   *  RESOLVES — retraction removes it from discovery (feed, related rail, search index), not from
+   *  its URL — so the interior can render a truthful correction instead of a 404. */
+  retracted: boolean;
+  timeAliveSeconds: number;      // playtime_seconds of the primary. NEVER wall clock.
+  kills: number;
+  idleSeconds: number | null;    // Standing Dead only. The length of an ABSENCE, not of a life.
+  spanSeconds: number | null;    // Long Form only. TIME between first and last death — never a distance.
+  subjects: NewsSubjectRef[];
+  subjectStatus: NewsSubjectStatus | null;
+}
+
+// A news interior resolves for BOTH statuses. `failed` is excluded (its slug is NULL anyway) and
+// so is every other kind — an obituary slug must not resolve through the news route.
+const readableNews = inArray(articles.status, ["published", "retracted"]);
+
+/** A single news feature by slug, or null (unknown slug, failed stub, or another kind). */
+export async function getNewsArticleBySlug(
+  db: Database,
+  slug: string,
+): Promise<NewsArticleDetail | null> {
+  const rows = await db
+    .select({
+      ...CARD_COLS,
+      status: articles.status,
+      body: articles.body,
+      bodyBlocks: articles.bodyBlocks,
+      pullQuoteText: articles.pullQuoteText,
+      pullQuoteAttribution: articles.pullQuoteAttribution,
+      imageUrl: articles.imageUrl,
+      imageCaption: articles.imageCaption,
+      timeAliveSeconds: articles.timeAliveSeconds,
+      kills: articles.kills,
+    })
+    .from(articles)
+    .where(and(eq(articles.kind, "news"), readableNews, eq(articles.slug, slug)))
+    .limit(1);
+
+  const r = rows[0];
+  if (!r) return null;
+
+  const card = cardOf(r);
+  const facts = (r.facts ?? {}) as NewsFactsSnapshot;
+
+  // A Standing Dead article has exactly one subject and its facts always carry it; the fallback
+  // reconstructs a self-subject from the row's own identity columns so an older or malformed
+  // facts blob degrades to a working timeline link rather than an empty interior.
+  const subjects: NewsSubjectRef[] = (facts.subjects ?? [])
+    .filter((s): s is { gamertag: string; mapSlug?: string | null; lifeNumber?: number } =>
+      typeof s?.gamertag === "string")
+    .map((s) => ({
+      gamertag: s.gamertag,
+      mapSlug: s.mapSlug ?? null,
+      lifeNumber: s.lifeNumber ?? card.lifeNumber,
+    }));
+
+  return {
+    ...card,
+    body: r.body ?? "",
+    bodyBlocks: (r.bodyBlocks as ArticleBlock[] | null) ?? null,
+    pullQuote: r.pullQuoteText
+      ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" }
+      : null,
+    imageUrl: r.imageUrl,
+    imageCaption: r.imageCaption,
+    retracted: r.status === "retracted",
+    timeAliveSeconds: r.timeAliveSeconds,
+    kills: r.kills,
+    idleSeconds: facts.idleSeconds ?? null,
+    spanSeconds: facts.spanSeconds ?? null,
+    subjects: subjects.length > 0
+      ? subjects
+      : [{ gamertag: card.gamertag, mapSlug: card.mapSlug, lifeNumber: card.lifeNumber }],
+    // Populated in the next task; a Long Form article keeps it null permanently.
+    subjectStatus: null,
   };
 }
