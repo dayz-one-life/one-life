@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { RapSheet } from "./rap-sheet";
 import { PullQuote } from "@/components/shared/pull-quote";
+import { ArticleBody } from "@/components/shared/article-body";
 import { MoreFromMorgue } from "./more-from-morgue";
 import { Timeline } from "@/components/life/timeline";
 import type { ObituaryArticle, ObituaryCard } from "@/lib/types";
@@ -38,11 +39,7 @@ export function ObituaryArticleView({
 
       {article.pullQuote && <PullQuote text={article.pullQuote.text} attribution={article.pullQuote.attribution} />}
 
-      <div className="mt-5 space-y-4 font-mono text-[14px] leading-relaxed text-ink-soft">
-        {article.body.split(/\n{2,}/).map((para, i) => (
-          <p key={i}>{para}</p>
-        ))}
-      </div>
+      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-5" />
 
       {article.tags.length > 0 && (
         <p className="mt-6 flex flex-wrap gap-2">
