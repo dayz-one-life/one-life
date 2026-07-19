@@ -49,7 +49,7 @@ export class MemoryStore implements ProjectionStore {
     return nums.length ? Math.max(...nums) : 0;
   }
   async createLife(serverId: number, playerId: number, lifeNumber: number, startedAt: Date): Promise<LifeRow> {
-    const row = { id: this.seq++, serverId, playerId, lifeNumber, startedAt, endedAt: null, qualifiedAt: null, playtimeSeconds: 0 } as LifeElement;
+    const row = { id: this.seq++, serverId, playerId, lifeNumber, startedAt, endedAt: null, playtimeSeconds: 0 } as LifeElement;
     this.lives.push(row);
     return row;
   }
@@ -80,15 +80,9 @@ export class MemoryStore implements ProjectionStore {
     if (l.waterAtDeath == null && patch.water != null) l.waterAtDeath = patch.water;
     if (l.bleedSourcesAtDeath == null && patch.bleedSources != null) l.bleedSourcesAtDeath = patch.bleedSources;
   }
-  async addLifePlaytime(lifeId: number, seconds: number): Promise<number> {
-    const l = this.lives.find((x) => x.id === lifeId);
-    if (!l) return 0;
-    l.playtimeSeconds += seconds;
-    return l.playtimeSeconds;
-  }
-  async markLifeQualified(lifeId: number, at: Date): Promise<void> {
-    const l = this.lives.find((x) => x.id === lifeId);
-    if (l && l.qualifiedAt == null) l.qualifiedAt = at;
+  async addLifePlaytime(lifeId: number, seconds: number): Promise<void> {
+    const l = this.lives.find((x) => x.id === lifeId) as (FullLife & { playtimeSeconds: number }) | undefined;
+    if (l) l.playtimeSeconds += seconds;
   }
   async findLifeIdAt(serverId: number, playerId: number, at: Date): Promise<number | null> {
     const l = (this.lives as FullLife[]).find((x) => x.serverId === serverId && x.playerId === playerId

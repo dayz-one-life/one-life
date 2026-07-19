@@ -1,6 +1,3 @@
-ALTER TABLE "lives" ADD COLUMN IF NOT EXISTS "qualified_at" timestamp with time zone;
-CREATE INDEX IF NOT EXISTS "lives_qualified_at_idx" ON "lives" ("qualified_at") WHERE "qualified_at" IS NOT NULL;
-
 CREATE TABLE IF NOT EXISTS "notifications" (
   "id" bigserial PRIMARY KEY NOT NULL,
   "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE cascade,

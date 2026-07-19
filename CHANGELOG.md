@@ -18,14 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the public `GET /push/vapid-key` — back a new notifications panel in the web controls rail (bell +
   unread badge, mark-all-read, a push opt-in toggle), plus a service worker and PWA manifest so push
   notifications can be received and clicked through to the linked page.
-  **`life_qualified` is windowed on a new materialized `lives.qualified_at` column**, written
-  write-once by the projector fold at the moment a life first qualifies (playtime crossing the
-  threshold, a PvP death, or the killer's kill landing) rather than derived from `lives.startedAt` at
-  read time — exact instead of an approximation that could miss a life qualifying long after it
-  started. This makes the release a **projection reshape: deploy with `./deploy/deploy.sh
-  --rebuild`**, or every existing life's `qualified_at` stays `NULL` and `life_qualified` never fires
-  for pre-existing lives. `QUALIFY_SECONDS` moved from `packages/read-models/src/qualified.ts` to
-  `@onelife/domain` so `packages/projections` can share it without depending on `read-models`.
+  **`life_qualified` is windowed on the exact qualification instant, derived at read time** by
+  calling the existing `lifeQualifiedAt()` (`@onelife/read-models`) per open life, rather than on
+  `lives.startedAt` — which could miss a life that qualified long after it started. The notifier
+  loads every open life owned by a verified user on a slugged server (a small set — currently-alive
+  verified players) with its sessions and kills, and derives qualification in TypeScript. There is
+  deliberately **no SQL qualification prefilter**: `lives.playtime_seconds` only advances when a
+  session closes, so any stored-playtime filter would be blind to a life crossing the threshold
+  mid-session. Qualification therefore remains **derived, never materialized** — one source of truth,
+  shared with the survivors board, the enforcer and the newsdesk. **This release deploys normally,
+  without `--rebuild`.**
 
 ### Changed
 

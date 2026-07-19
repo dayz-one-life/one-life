@@ -13,11 +13,7 @@ export interface ProjectionStore {
   getMaxLifeNumber(serverId: number, playerId: number): Promise<number>;
   createLife(serverId: number, playerId: number, lifeNumber: number, startedAt: Date): Promise<LifeRow>;
   endLife(lifeId: number, ended: EndLife): Promise<void>;
-  /** Returns the life's NEW total playtime seconds, so the caller can detect the
-   *  instant the life crossed QUALIFY_SECONDS. */
-  addLifePlaytime(lifeId: number, seconds: number): Promise<number>;
-  /** Write-once: sets qualified_at only when it is currently null. */
-  markLifeQualified(lifeId: number, at: Date): Promise<void>;
+  addLifePlaytime(lifeId: number, seconds: number): Promise<void>;
   findLifeIdAt(serverId: number, playerId: number, at: Date): Promise<number | null>;
   getRecentlyEndedLifeId(serverId: number, playerId: number, endedAt: Date): Promise<number | null>;
   enrichLifeDeath(lifeId: number, patch: { cause: string; energy: number | null; water: number | null; bleedSources: number | null }): Promise<void>;

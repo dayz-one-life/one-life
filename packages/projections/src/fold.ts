@@ -1,7 +1,6 @@
 import type { ProjectionStore } from "./store.js";
 import type { ProjectionEvent, SessionRow } from "./types.js";
 import { validatePayload } from "./payloads.js";
-import { QUALIFY_SECONDS } from "@onelife/domain";
 
 const BUILD_TYPES = new Set([
   "build.placed", "build.built", "build.dismantled", "build.packed", "build.repaired",
@@ -23,14 +22,7 @@ async function closeOpen(store: ProjectionStore, session: SessionRow, at: Date, 
   }
   const d = durationSeconds(session.connectedAt, end);
   await store.closeSession(session.id, end, d, reason);
-  const total = await store.addLifePlaytime(session.lifeId, d);
-  const prior = total - d;
-  // Playtime is only credited at session close, so qualified_at is BACKDATED to the
-  // instant the life actually crossed the threshold mid-session.
-  if (prior < QUALIFY_SECONDS && total >= QUALIFY_SECONDS) {
-    const crossing = new Date(session.connectedAt.getTime() + (QUALIFY_SECONDS - prior) * 1000);
-    await store.markLifeQualified(session.lifeId, crossing);
-  }
+  await store.addLifePlaytime(session.lifeId, d);
 }
 
 async function onConnected(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
@@ -88,7 +80,6 @@ async function onDied(store: ProjectionStore, e: ProjectionEvent): Promise<void>
   const distance = e.payload.distance != null ? Number(e.payload.distance) : null;
 
   await store.endLife(life.id, { endedAt: e.occurredAt, cause, byGamertag: killer, weapon, distance, energy, water, bleedSources });
-  if (cause === "pvp") await store.markLifeQualified(life.id, e.occurredAt);
 
   if (cause === "pvp" && killer && killer !== victim) {
     const killerPlayer = await store.getPlayer(killer);
@@ -97,11 +88,6 @@ async function onDied(store: ProjectionStore, e: ProjectionEvent): Promise<void>
       victimGamertag: victim, victimPlayerId: player.id, victimLifeId: life.id,
       weapon, distance, occurredAt: e.occurredAt,
     });
-    // A kill qualifies the KILLER's life too — insertKill only records the victim's.
-    if (killerPlayer) {
-      const killerLifeId = await store.findLifeIdAt(e.serverId, killerPlayer.id, e.occurredAt);
-      if (killerLifeId != null) await store.markLifeQualified(killerLifeId, e.occurredAt);
-    }
   }
 }
 

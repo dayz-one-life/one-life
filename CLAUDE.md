@@ -535,12 +535,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   unset means OFF, never a silent epoch default that would flood every player with their whole
   history — plus `NOTIFIER_DRY_RUN`, defaults `true`) and **push** (its own `NOTIFIER_PUSH_ENABLED`
   kill switch, so delivery can be staged on after generation is already live; a subscription retires
-  itself after repeated failures). **`life_qualified` fires off a new materialized
-  `lives.qualified_at` column** (migration `0015`), written write-once by the projector fold at the
-  instant a life first qualifies (playtime crossing `QUALIFY_SECONDS`, a pvp death, or the killer's
-  kill landing) — not derived from `startedAt`, which would miss a life that qualifies long after it
-  started. Because that column is backfilled by a fold, **this release requires
-  `./deploy/deploy.sh --rebuild`**. Single-instance, at-least-once delivery (the push pass reads
+  itself after repeated failures). **`life_qualified` windows on the qualification instant DERIVED at
+  read time** — `apps/notifier/src/generators/lives.ts` loads every open life owned by a verified
+  user on a slugged server (with its sessions + kills) and calls `lifeQualifiedAt()`
+  (`@onelife/read-models`), not `startedAt`, which would miss a life that qualifies long after it
+  started. **Qualification is deliberately never materialized** (the `isLifeQualified` precedent) —
+  one source of truth, shared with the survivors board, the enforcer and the newsdesk. There is
+  **no SQL qualification prefilter**: `lives.playtime_seconds` only advances at session close, so
+  `qualifiedLifeCondition` is stale mid-session and would blind the generator to exactly the case it
+  exists for. The candidate set (currently-alive verified players) is small. Migration `0015` adds
+  only the two new tables, so **this release deploys normally, without `--rebuild`**. Single-instance, at-least-once delivery (the push pass reads
   unpushed rows without a row lock) — the same boundary as the Discord obituary notifier. Runbook +
   env vars: `deploy/README.md`.
 
@@ -559,18 +563,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   "no unique or exclusion constraint matching the ON CONFLICT specification" and article publishing
   dies on the next tick**. There are four such sites today: publish + failure-stub in each of
   `apps/newsdesk/src/pg-store.ts` and `apps/newsdesk/src/birth-pg-store.ts`. A news article, which
-  has no (server, gamertag, life) tuple, is deduped on `natural_key` instead), gained
-  `lives.qualified_at` (nullable timestamp, write-once) and two new durable tables,
-  `notifications` and `push_subscriptions`, in migration `0015` for player notifications — see the
-  Player notifications sub-project entry. `qualified_at` is written by the projector fold at the
-  instant a life first qualifies (**not** derived from `startedAt`), so this migration is a
-  **projection reshape**: it must ship with `./deploy/deploy.sh --rebuild`, or `qualified_at` stays
-  `NULL` on every pre-existing life. `notifications`/`push_subscriptions` are durable — absent from
+  has no (server, gamertag, life) tuple, is deduped on `natural_key` instead), gained two new durable
+  tables, `notifications` and `push_subscriptions`, in migration `0015` for player notifications —
+  see the Player notifications sub-project entry. Migration `0015` touches **no projection table**,
+  so it ships with a plain `./deploy/deploy.sh` (no `--rebuild`); life qualification stays derived at
+  read time via `lifeQualifiedAt()` and is never materialized on `lives`.
+  `notifications`/`push_subscriptions` are durable — absent from
   `apps/projector/src/rebuild.ts`'s truncate list, present in `APP_TABLES`
   (`packages/test-support/src/global-setup.ts`),
-  `domain` (zod events, emote/weapon dicts, and now `QUALIFY_SECONDS` — moved here from
-  `packages/read-models/src/qualified.ts` so `packages/projections` can share it without depending
-  on `read-models`),
+  `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
   `player-priors` — global cross-life reputation via `getPlayerPriors` — and

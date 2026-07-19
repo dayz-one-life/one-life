@@ -32,27 +32,6 @@ describe("death + kills + reboot fold", () => {
     expect(s.kills[0]!.killerPlayerId).not.toBeNull();
   });
 
-  it("marks a pvp victim's life qualified at the death instant", async () => {
-    const s = new MemoryStore();
-    await applyEvent(s, connect(1, "Victim", "2026-07-19T12:00:00Z"));
-    await applyEvent(s, { id: 2, serverId: 1, type: "player.died", occurredAt: new Date("2026-07-19T12:01:00Z"),
-      payload: { victim: "Victim", dayzId: "Victim=", cause: "pvp", killer: "Killer", weapon: "M4A1", distance: 50 } });
-    const v = await s.getPlayer("Victim");
-    const life = s.lives.find((l) => l.playerId === v!.id)!;
-    expect(life.qualifiedAt?.toISOString()).toBe("2026-07-19T12:01:00.000Z");
-  });
-
-  it("marks the KILLER's open life qualified at the kill instant", async () => {
-    const s = new MemoryStore();
-    await applyEvent(s, connect(1, "Killer", "2026-07-19T11:00:00Z"));
-    await applyEvent(s, connect(2, "Victim", "2026-07-19T12:00:00Z"));
-    await applyEvent(s, { id: 3, serverId: 1, type: "player.died", occurredAt: new Date("2026-07-19T12:01:00Z"),
-      payload: { victim: "Victim", dayzId: "Victim=", cause: "pvp", killer: "Killer", weapon: "M4A1", distance: 50 } });
-    const killerPlayer = await s.getPlayer("Killer");
-    const killerLife = s.lives.find((l) => l.playerId === killerPlayer!.id)!;
-    expect(killerLife.qualifiedAt?.toISOString()).toBe("2026-07-19T12:01:00.000Z");
-  });
-
   it("non-pvp death records no kill", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "A", "2026-07-06T12:00:00Z"));

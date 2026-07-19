@@ -77,11 +77,11 @@ sudo journalctl -u onelife-api -f         # tail logs
   in `.env` (`SITE_URL` is currently reserved/unused by this worker — every notification `href` is a
   relative path; it is threaded through `GeneratorDeps` but nothing reads it yet); see "Player
   notifications: environment + rollout" below for the full var list and the required staged go-live.
-  **⚠️ This release reshapes the `lives` projection** — a new `qualified_at` column is written by the
-  projector fold at the moment a life first qualifies. Deploy this release with
-  `./deploy/deploy.sh --rebuild`, not a plain `./deploy/deploy.sh`: a normal deploy leaves
-  `qualified_at` `NULL` on every existing life, and the `life_qualified` notification will never fire
-  for anyone (new lives still qualify correctly going forward — only the backfill is missed).
+  Migration `0015` adds only the two new durable tables (`notifications`, `push_subscriptions`) —
+  **no projection table changes**, so this release deploys with a plain `./deploy/deploy.sh`, **not**
+  `--rebuild`. The `life_qualified` notification derives each life's qualification instant at read
+  time via `lifeQualifiedAt()`, exactly as the survivors board and the enforcer do, so it works on
+  pre-existing lives immediately with no backfill.
 
 ## Player notifications: environment + rollout
 
@@ -170,8 +170,8 @@ cd /var/www/dayzonelife.com
   leaves the new code running and prints the checkpoint path (Postgres migrations
   are forward-only — restore is manual).
 - Use `--rebuild` only for releases whose migrations change projection-table shape
-  (e.g. v0.3.0's `0005`/`0006`, and the player-notifications release's new `lives.qualified_at`
-  column — see the `onelife-notifier` entry above). If a plain deploy's `db:migrate` aborts on a
+  (e.g. v0.3.0's `0005`/`0006`). The player-notifications release is **not** one of them — it adds
+  only new tables. If a plain deploy's `db:migrate` aborts on a
   projection-table constraint, that's the signal to re-run with `--rebuild`.
 
 <details><summary>Manual equivalent (fallback)</summary>

@@ -89,13 +89,8 @@ export const lives = pgTable("lives", {
   waterAtDeath: doublePrecision("water_at_death"),
   bleedSourcesAtDeath: integer("bleed_sources_at_death"),
   playtimeSeconds: integer("playtime_seconds").notNull().default(0),
-  // The instant this life became qualified (earliest of: playtime crossing QUALIFY_SECONDS,
-  // first kill in the life, pvp death). Written WRITE-ONCE by the projector fold; null until
-  // the life qualifies. Materializes what lifeQualifiedAt() computes at read time.
-  qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
 }, (t) => ({
   byPlayer: index("lives_player_idx").on(t.serverId, t.playerId),
-  qualifiedAtIdx: index("lives_qualified_at_idx").on(t.qualifiedAt).where(sql`${t.qualifiedAt} IS NOT NULL`),
 }));
 
 export const sessions = pgTable("sessions", {

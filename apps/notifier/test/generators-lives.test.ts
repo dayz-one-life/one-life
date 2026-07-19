@@ -1,30 +1,57 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { user, servers, players, lives, gamertagLinks } from "@onelife/db";
+import { user, servers, players, lives, sessions, gamertagLinks } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { lifeQualifiedGenerator, survivalMilestoneGenerator } from "../src/generators/lives.js";
 
 const { db, sql } = getTestDb();
 const NOW = new Date("2026-07-19T12:00:00Z");
 const deps = { db, now: NOW, since: new Date("2026-06-01T00:00:00Z"), lookbackHours: 48, siteUrl: "https://s" };
+// windowStart = max(since, now - 48h) = 2026-07-17T12:00:00Z.
 
 beforeAll(async () => {
   await db.insert(user).values({ id: "lf1", name: "LF1", email: "lf1@x.com" });
   const [s] = await db.insert(servers).values({ nitradoServiceId: 992001, name: "lifesrv", slug: "lifesrv" }).returning();
-  const [p] = await db.insert(players).values({ gamertag: "LifeOne" }).returning();
+  // lastSeenAt is the heartbeat that caps an OPEN session's contribution.
+  const [p] = await db.insert(players).values({ gamertag: "LifeOne", lastSeenAt: NOW }).returning();
   await db.insert(gamertagLinks).values({ userId: "lf1", gamertag: "LifeOne", status: "verified", verifiedAt: new Date("2026-06-02T00:00:00Z") });
-  await db.insert(lives).values([
-    // Started 8 days ago (-> 7d milestone) but qualified recently, inside the 48h
-    // lookback window (-> life_qualified fires). Qualification can lag well behind
-    // life start (e.g. playtime accrues slowly), so the two timestamps diverge here.
-    { serverId: s!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"),
-      playtimeSeconds: 4000, qualifiedAt: new Date("2026-07-19T10:00:00Z") },
-    // Open but NOT qualified: qualified_at is null.
-    { serverId: s!.id, playerId: p!.id, lifeNumber: 2, startedAt: new Date("2026-07-18T12:00:00Z"),
-      playtimeSeconds: 60, qualifiedAt: null },
-    // Open + qualified, but LONG ago -> excluded from life_qualified by the window,
-    // still eligible for milestones.
-    { serverId: s!.id, playerId: p!.id, lifeNumber: 3, startedAt: new Date("2026-06-05T12:00:00Z"),
-      playtimeSeconds: 9000, qualifiedAt: new Date("2026-06-05T12:05:00Z") },
+  const inserted = await db.insert(lives).values([
+    // 1. Started 8 days ago (-> 7d milestone). Its playtime only crosses 300s during a
+    //    session that starts inside the window, so it qualifies inside the window.
+    { serverId: s!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"), playtimeSeconds: 200 },
+    // 2. Open, one short closed session, no kills -> never qualified.
+    { serverId: s!.id, playerId: p!.id, lifeNumber: 2, startedAt: new Date("2026-07-18T12:00:00Z"), playtimeSeconds: 60 },
+    // 3. Open + qualified LONG ago -> excluded from life_qualified by the window,
+    //    and all its milestone crossings are outside the window too.
+    { serverId: s!.id, playerId: p!.id, lifeNumber: 3, startedAt: new Date("2026-06-05T12:00:00Z"), playtimeSeconds: 9000 },
+    // 4. THE MID-SESSION CASE the materialized column could not see: no closed session,
+    //    so lives.playtime_seconds is still 0, but the OPEN session connected at 11:00
+    //    and lastSeenAt is NOW (12:00) -> 3600s live playtime, crossing 300s at 11:05,
+    //    inside the window. Must be emitted.
+    { serverId: s!.id, playerId: p!.id, lifeNumber: 4, startedAt: new Date("2026-07-19T11:00:00Z"), playtimeSeconds: 0 },
+    // 5. BOUNDARY: qualifies at exactly windowStart (2026-07-17T12:00:00Z). The window
+    //    is inclusive, so it must be emitted. Too young for any milestone.
+    { serverId: s!.id, playerId: p!.id, lifeNumber: 5, startedAt: new Date("2026-07-17T11:55:00Z"), playtimeSeconds: 600 },
+  ]).returning();
+  const [l1, l2, l3, l4, l5] = inserted;
+  await db.insert(sessions).values([
+    // life 1: 200s already banked (closed, pre-window), then a session inside the window
+    // that carries it past 300s at 2026-07-18T12:01:40Z.
+    { serverId: s!.id, playerId: p!.id, lifeId: l1!.id, connectedAt: new Date("2026-07-11T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-11T12:03:20Z"), durationSeconds: 200 },
+    { serverId: s!.id, playerId: p!.id, lifeId: l1!.id, connectedAt: new Date("2026-07-18T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-18T12:10:00Z"), durationSeconds: 600 },
+    // life 2: 60s only.
+    { serverId: s!.id, playerId: p!.id, lifeId: l2!.id, connectedAt: new Date("2026-07-18T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-18T12:01:00Z"), durationSeconds: 60 },
+    // life 3: crossed 300s at 2026-06-05T12:05:00Z, far before the window.
+    { serverId: s!.id, playerId: p!.id, lifeId: l3!.id, connectedAt: new Date("2026-06-05T12:00:00Z"),
+      disconnectedAt: new Date("2026-06-05T14:30:00Z"), durationSeconds: 9000 },
+    // life 4: OPEN session, never closed -> zero stored playtime.
+    { serverId: s!.id, playerId: p!.id, lifeId: l4!.id, connectedAt: new Date("2026-07-19T11:00:00Z"),
+      disconnectedAt: null, durationSeconds: null },
+    // life 5: connected 11:55, closed after 600s -> crosses 300s at exactly 12:00:00Z.
+    { serverId: s!.id, playerId: p!.id, lifeId: l5!.id, connectedAt: new Date("2026-07-17T11:55:00Z"),
+      disconnectedAt: new Date("2026-07-17T12:05:00Z"), durationSeconds: 600 },
   ]);
 });
 afterAll(async () => { await sql.end(); });
@@ -32,24 +59,38 @@ afterAll(async () => { await sql.end(); });
 describe("lifeQualifiedGenerator", () => {
   it("emits only for lives that qualified inside the window", async () => {
     const drafts = await lifeQualifiedGenerator(deps);
-    // life 1 only: life 2 never qualified, life 3 qualified before the 48h window.
-    expect(drafts).toHaveLength(1);
+    const bodies = drafts.map((d) => d.body).sort();
+    // lives 1, 4 and 5. life 2 never qualified; life 3 qualified 2026-06-05, before windowStart.
+    expect(drafts).toHaveLength(3);
+    expect(bodies.some((b) => b.includes("life 1"))).toBe(true);
+    expect(bodies.some((b) => b.includes("life 4"))).toBe(true);
     expect(drafts[0]!.kind).toBe("life_qualified");
     expect(drafts[0]!.userId).toBe("lf1");
     expect(drafts[0]!.naturalKey).toMatch(/^life_qualified:\d+$/);
-    expect(drafts[0]!.href).toMatch(/^\/players\/lifeone\/lifesrv\/lives\/1$/);
+    expect(drafts.map((d) => d.href)).toContain("/players/lifeone/lifesrv/lives/1");
+  });
+
+  it("emits a life that crossed the threshold mid-session, with zero stored playtime", async () => {
+    // Regression: the retired lives.qualified_at column was only written at session
+    // close, so this life read as unqualified until the player disconnected.
+    const drafts = await lifeQualifiedGenerator(deps);
+    const l4 = drafts.find((d) => d.body.includes("life 4"));
+    expect(l4).toBeDefined();
+    expect(l4!.href).toBe("/players/lifeone/lifesrv/lives/4");
+  });
+
+  it("includes a life that qualified at exactly windowStart (inclusive lower bound)", async () => {
+    const drafts = await lifeQualifiedGenerator(deps);
+    expect(drafts.some((d) => d.body.includes("life 5"))).toBe(true);
   });
 });
 
 describe("survivalMilestoneGenerator", () => {
-  // windowStart = max(since, now - lookbackHours) = max(2026-06-01, 2026-07-17T12:00Z)
-  // = 2026-07-17T12:00:00Z.
   it("emits only the 7d milestone for the 8-day-old life, whose crossing instant falls inside the window", async () => {
     const drafts = await survivalMilestoneGenerator(deps);
     const keys = drafts.map((d) => d.naturalKey).sort();
     // Life 1 started 2026-07-11T12:00Z: its 7d crossing is 2026-07-18T12:00Z, inside the
-    // window, so it fires. Its 14d/30d crossings are in the future (days=8 < 14/30), so
-    // they aren't reached at all yet — irrelevant to the window fix, just not due.
+    // window, so it fires. Its 14d/30d crossings are in the future (days=8 < 14/30).
     expect(keys.filter((k) => k.includes(":7d:"))).toHaveLength(1);
     expect(keys.filter((k) => k.includes(":14d:"))).toHaveLength(0);
     expect(keys.filter((k) => k.includes(":30d:"))).toHaveLength(0);
@@ -57,11 +98,9 @@ describe("survivalMilestoneGenerator", () => {
 
   it("does not emit any milestone for a life whose crossing instants are long outside the window", async () => {
     const drafts = await survivalMilestoneGenerator(deps);
-    // Life 3 started 2026-06-05T12:00Z (44 days old at NOW): it has long since passed all
-    // three thresholds (7d/14d/30d crossings are 2026-06-12, 2026-06-19, 2026-07-05), but
-    // every one of those crossing instants is before windowStart (2026-07-17T12:00Z), so
-    // none should be emitted. Before the fix, all three fired on every tick forever.
-    expect(drafts.every((d) => !d.naturalKey.endsWith(":3"))).toBe(true);
+    // Life 3 started 2026-06-05T12:00Z (44 days old): all three crossings precede
+    // windowStart. Before the window fix, all three fired on every tick forever.
+    expect(drafts.every((d) => !d.body.includes("life 3"))).toBe(true);
   });
 
   it("never emits a milestone for the unqualified life", async () => {
