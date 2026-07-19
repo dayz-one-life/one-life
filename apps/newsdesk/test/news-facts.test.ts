@@ -10,6 +10,34 @@ const priors = (over: Partial<PlayerPriors> = {}): PlayerPriors => ({
   usualDeathCause: null, lastDeathCause: null, bestLifeMap: null, ...over,
 });
 
+/** Key names that would carry a raw map coordinate if one leaked through. */
+const COORDINATE_KEYS = new Set(["x", "y", "posX", "posY", "coordX", "coordY", "lat", "lon"]);
+
+/**
+ * Recursively collects every object key at any depth, including inside arrays (e.g. `subjects`).
+ * Value-independent by design: it proves the Fog Rule by shape, not by pattern-matching a
+ * coordinate-looking number, which is exactly what `/\d{4}\.\d/` fails to do near a map's low edge
+ * (e.g. "812.4").
+ */
+function collectKeys(value: unknown, keys: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeys(item, keys);
+  } else if (value !== null && typeof value === "object") {
+    for (const [key, val] of Object.entries(value)) {
+      keys.add(key);
+      collectKeys(val, keys);
+    }
+  }
+  return keys;
+}
+
+function assertNoCoordinateKeys(value: unknown): void {
+  const keys = collectKeys(value);
+  for (const forbidden of COORDINATE_KEYS) {
+    expect(keys.has(forbidden)).toBe(false);
+  }
+}
+
 /** Minimal LifeTimeline. Cast, matching birth-facts.test.ts: the real type is derived from
  *  getLifeDetail's return and is impractical to build by hand in a pure unit test. */
 function timeline(over: Partial<{ playtimeSeconds: number; kills: unknown[]; sessions: unknown[]; character: unknown }> = {}) {
@@ -117,7 +145,7 @@ function longFormFixture() {
     ["CUPID18", { timeline: timeline({ playtimeSeconds: 6660 }), priors: priors() }],
     ["GabeFox101", { timeline: timeline({ playtimeSeconds: 6700 }), priors: priors() }],
   ]);
-  return { cluster: cluster!, per };
+  return { cluster: cluster!, per, candidates: [a, b] };
 }
 
 describe("buildLongFormFacts", () => {
@@ -133,10 +161,26 @@ describe("buildLongFormFacts", () => {
   });
 
   it("reports the gap between deaths in SECONDS and never a distance", () => {
-    const { cluster, per } = longFormFixture();
+    const { cluster, per, candidates } = longFormFixture();
     const f = buildLongFormFacts(cluster, per);
     expect(f.spanSeconds).toBe(27);
+    // Cheap first signal — value-dependent and too weak on its own: /\d{4}\.\d/.test("7423.51")
+    // is true but /\d{4}\.\d/.test("812.4") is false, so a coordinate near a map's low edge would
+    // slip straight through this regex alone.
     expect(JSON.stringify(f)).not.toMatch(/\d{4}\.\d/);
+    // The real Fog Rule guard: value-independent, recurses into every subject, and would catch a
+    // coordinate at ANY magnitude, not just ones that happen to look like "\d{4}\.\d".
+    assertNoCoordinateKeys(f);
+    // Non-vacuity: prove the walk is actually discriminating, not just passing over a structure
+    // that could never have carried a coordinate. The raw DeathCandidate rows this cluster/facts
+    // object was built from genuinely DO carry x/y (§11's coordinate-bearing source) — `strip()`
+    // in long-form-cluster.ts and buildNewsSubject() are what remove them before they ever reach
+    // `f`. If either regressed and let x/y through, assertNoCoordinateKeys(f) above would fail.
+    for (const c of candidates) {
+      const sourceKeys = collectKeys(c as unknown as Record<string, unknown>);
+      expect(sourceKeys.has("x")).toBe(true);
+      expect(sourceKeys.has("y")).toBe(true);
+    }
   });
 
   it("flags a cluster of first-lifers, and drops the flag when one has a record", () => {
