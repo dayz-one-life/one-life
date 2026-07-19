@@ -5,9 +5,9 @@ const schema = z.object({
   SITE_URL: z.string().min(1),
   NOTIFIER_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   NOTIFIER_SINCE: z.string().optional(),
-  NOTIFIER_DRY_RUN: z.enum(["true", "false"]).default("true"),
+  NOTIFIER_DRY_RUN: z.string().optional(),
   NOTIFIER_LOOKBACK_HOURS: z.coerce.number().int().positive().default(48),
-  NOTIFIER_PUSH_ENABLED: z.enum(["true", "false"]).default("true"),
+  NOTIFIER_PUSH_ENABLED: z.string().optional(),
   NOTIFIER_PUSH_MAX_PER_TICK: z.coerce.number().int().positive().default(50),
   NOTIFIER_PUSH_MAX_AGE_MINUTES: z.coerce.number().int().positive().default(60),
   VAPID_PUBLIC_KEY: z.string().default(""),
@@ -38,10 +38,15 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     intervalSeconds: p.NOTIFIER_INTERVAL_SECONDS,
     logLevel: p.LOG_LEVEL,
     since: parseSince(p.NOTIFIER_SINCE),
-    dryRun: p.NOTIFIER_DRY_RUN === "true",
+    // SAFE DEFAULT: dry-run unless explicitly disabled with "false". Deliberately NOT an enum —
+    // a blank, mis-cased, or junk value must land on the safe side, not throw at module scope
+    // in main.ts and crash-loop the unit. Mirrors apps/newsdesk/src/config.ts.
+    dryRun: p.NOTIFIER_DRY_RUN !== "false",
     lookbackHours: p.NOTIFIER_LOOKBACK_HOURS,
     siteUrl: p.SITE_URL,
-    pushEnabled: p.NOTIFIER_PUSH_ENABLED === "true",
+    // Same idiom, same reason: an unparseable value leaves push on its configured default
+    // rather than killing the worker. VAPID validity is the real gate (see buildSender).
+    pushEnabled: p.NOTIFIER_PUSH_ENABLED !== "false",
     pushMaxPerTick: p.NOTIFIER_PUSH_MAX_PER_TICK,
     pushMaxAgeMinutes: p.NOTIFIER_PUSH_MAX_AGE_MINUTES,
     vapidPublicKey: p.VAPID_PUBLIC_KEY,

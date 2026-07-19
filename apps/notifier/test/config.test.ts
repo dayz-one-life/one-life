@@ -28,4 +28,36 @@ describe("loadConfig", () => {
   it("reads NOTIFIER_DRY_RUN=false as live", () => {
     expect(loadConfig({ ...base, NOTIFIER_DRY_RUN: "false" }).dryRun).toBe(false);
   });
+
+  // Operator input is not validated by an enum: a blank, mis-cased, or junk value must land on
+  // the SAFE side (dry-run ON, push OFF) instead of throwing at module scope and crash-looping.
+  it.each([
+    [undefined, true],
+    ["", true],
+    ["true", true],
+    ["TRUE", true],
+    ["FALSE", true],
+    ["false ", true],
+    ["banana", true],
+    ["false", false],
+  ])("resolves NOTIFIER_DRY_RUN=%o to %s without throwing", (raw, expected) => {
+    const env = raw === undefined ? { ...base } : { ...base, NOTIFIER_DRY_RUN: raw };
+    expect(() => loadConfig(env)).not.toThrow();
+    expect(loadConfig(env).dryRun).toBe(expected);
+  });
+
+  it.each([
+    [undefined, true],
+    ["", true],
+    ["true", true],
+    ["TRUE", true],
+    ["FALSE", true],
+    ["false ", true],
+    ["banana", true],
+    ["false", false],
+  ])("resolves NOTIFIER_PUSH_ENABLED=%o to %s without throwing", (raw, expected) => {
+    const env = raw === undefined ? { ...base } : { ...base, NOTIFIER_PUSH_ENABLED: raw };
+    expect(() => loadConfig(env)).not.toThrow();
+    expect(loadConfig(env).pushEnabled).toBe(expected);
+  });
 });

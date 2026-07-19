@@ -3,7 +3,7 @@ import { getDb } from "@onelife/db";
 import { loadConfig } from "./config.js";
 import { generateTick } from "./generate.js";
 import { pushTick } from "./push.js";
-import { webPushSender } from "./sender.js";
+import { buildSender } from "./sender.js";
 import * as pushStore from "./push-store.js";
 import { gamertagVerifiedGenerator, tokensGenerator } from "./generators/account.js";
 import { banAppliedGenerator, banLiftedGenerator } from "./generators/bans.js";
@@ -24,10 +24,11 @@ const generators = [
   articleGenerator,
 ];
 
-const hasVapid = Boolean(cfg.vapidPublicKey && cfg.vapidPrivateKey && cfg.vapidSubject);
-const send = hasVapid
-  ? webPushSender({ publicKey: cfg.vapidPublicKey, privateKey: cfg.vapidPrivateKey, subject: cfg.vapidSubject })
-  : null;
+// Missing OR invalid VAPID yields null (push OFF) rather than a module-scope throw — see buildSender.
+const send = buildSender(
+  { publicKey: cfg.vapidPublicKey, privateKey: cfg.vapidPrivateKey, subject: cfg.vapidSubject },
+  log,
+);
 
 async function loop(): Promise<void> {
   log.info({ interval: cfg.intervalSeconds, dryRun: cfg.dryRun, since: cfg.since?.toISOString() ?? null }, "notifier starting");
