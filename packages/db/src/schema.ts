@@ -89,6 +89,10 @@ export const lives = pgTable("lives", {
   waterAtDeath: doublePrecision("water_at_death"),
   bleedSourcesAtDeath: integer("bleed_sources_at_death"),
   playtimeSeconds: integer("playtime_seconds").notNull().default(0),
+  // The instant this life became qualified (earliest of: playtime crossing QUALIFY_SECONDS,
+  // first kill in the life, pvp death). Written WRITE-ONCE by the projector fold; null until
+  // the life qualifies. Materializes what lifeQualifiedAt() computes at read time.
+  qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
 }, (t) => ({
   byPlayer: index("lives_player_idx").on(t.serverId, t.playerId),
 }));
@@ -420,3 +424,39 @@ export const articleImages = pgTable("article_images", {
   height: integer("height"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate
+// list, so a --rebuild never drops a player's inbox. Dedup is the natural_key unique
+// index — a PLAIN unique index, so onConflictDoNothing against it takes no targetWhere. ──
+
+export const notifications = pgTable("notifications", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  naturalKey: text("natural_key").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  href: text("href").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+}, (t) => ({
+  uniqNatural: uniqueIndex("notifications_natural_key_uniq").on(t.naturalKey),
+  byUser: index("notifications_user_created_idx").on(t.userId, t.createdAt),
+}));
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  failureCount: integer("failure_count").notNull().default(0),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+}, (t) => ({
+  uniqEndpoint: uniqueIndex("push_subscriptions_endpoint_uniq").on(t.endpoint),
+  byUser: index("push_subscriptions_user_idx").on(t.userId),
+}));
