@@ -7,10 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Migration `0014`: `articles.natural_key` (text, unique WHERE NOT NULL) and `articles.body_blocks`
+  (jsonb) — the plumbing for the R5d news vertical, whose articles are keyed by a synthetic natural
+  key rather than a (server, gamertag, life) tuple and whose body is structured blocks rather than
+  flat text. Also adds the `articles_kind_status_created_idx (kind, status, created_at)` feed index.
+  Both new columns are nullable; all 168 existing rows are untouched and render unchanged. **Normal
+  deploy, no `--rebuild`** — `articles` isn't in the projector's truncate list and has no FK to
+  `players`/`lives`, so a projection rebuild can't reach it. During the deploy window itself, expect
+  a harmless transient: `deploy.sh` migrates before restarting the fleet, so the still-running old
+  newsdesk binary can raise Postgres `42P10` on a tick between the migration and its restart. This is
+  expected, not a regression — publish targets are re-derived by anti-join every sweep, so nothing is
+  queued or lost, and the tick after `onelife-newsdesk` restarts publishes normally.
 ### Changed
+- Migration `0014` makes `articles_kind_server_gamertag_life_uniq` **partial**
+  (`WHERE kind IN ('obituary','birth_notice')`), so a news article — which has no life tuple — is
+  not forced through the life natural key. Every `onConflictDoUpdate` targeting that index now
+  passes a matching `targetWhere`; without it Postgres raises "no unique or exclusion constraint
+  matching the ON CONFLICT specification" and publishing fails.
+- Obituary and birth-notice interiors now render their body through one shared `ArticleBody`
+  component, which takes an optional structured block list (`para` / `subhead` / `quote` / `list`)
+  and falls back to the existing paragraph-split of `articles.body` when none is stored. An
+  unrecognised block type is dropped rather than crashing the page. The two article read-models
+  now serve `body_blocks` end to end, but **no article kind writes it yet** — every published
+  obituary and birth notice still renders the flat fallback, byte-identically to before.
+- The `THE TRAIL ENDS HERE` image category now fires on every map for an unnamed cause (previously
+  only on Sakhal for these deaths), a consequence of the `environment` → `unknown` reclassification.
 ### Deprecated
 ### Removed
 ### Fixed
+- newsdesk: a death whose cause names no mechanism (a bare `died`, `environment`, `environmental`,
+  an empty token, or nothing at all) is now categorised `unknown` and tagged **Unknown**, not
+  **Environment**. The prose already said the record names no cause while the tag asserted terrain
+  or exposure — the paper contradicted itself on roughly 23% of deaths. A cause that names a real
+  mechanism (`bled_out`, `starvation`, `fall`, `wolf`, `vehicle`, …) still categorises
+  `environment`. Tags are frozen into `articles.tags` at publish time, so this is **forward-only**:
+  already-published obituaries keep their stale **Environment** tag until backfilled.
+- newsdesk: the `RECOVERED EFFECTS` image category now also fires for an `unknown` cause (it
+  previously gated on `environment || suicide` only), so the reclassified population does not
+  silently lose a menu entry.
 ### Security
 
 ## [0.21.2] - 2026-07-18

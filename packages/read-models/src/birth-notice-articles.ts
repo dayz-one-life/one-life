@@ -2,6 +2,7 @@ import type { Database } from "@onelife/db";
 import { articles } from "@onelife/db";
 import { and, eq, desc, sql } from "drizzle-orm";
 import type { PlayerPriors } from "./player-priors.js";
+import type { ArticleBlock } from "./obituary-articles.js";
 
 export const BIRTH_NOTICES_FEED_PAGE_SIZE = 20;
 
@@ -28,6 +29,7 @@ export interface BirthNoticesFeed {
 
 export interface BirthNoticeArticle extends BirthNoticeCard {
   body: string;
+  bodyBlocks: ArticleBlock[] | null;
   pullQuote: { text: string; attribution: string } | null;
   priors: PlayerPriors;
   endedAt: Date | null;
@@ -115,6 +117,7 @@ export async function getBirthNoticeBySlug(db: Database, slug: string): Promise<
     .select({
       ...CARD_COLS,
       body: articles.body,
+      bodyBlocks: articles.bodyBlocks,
       pullQuoteText: articles.pullQuoteText,
       pullQuoteAttribution: articles.pullQuoteAttribution,
       endedAt: articles.deathAt,
@@ -140,6 +143,7 @@ export async function getBirthNoticeBySlug(db: Database, slug: string): Promise<
     minutesToQualify: facts.minutesToQualify ?? null,
     priorLives: priors.livesLived,
     body: r.body ?? "",
+    bodyBlocks: (r.bodyBlocks as ArticleBlock[] | null) ?? null,
     pullQuote: r.pullQuoteText ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" } : null,
     priors,
     endedAt: r.endedAt,

@@ -42,4 +42,9 @@ describe("BirthNoticeArticleView", () => {
     render(<BirthNoticeArticleView article={article} more={[]} now={now} />);
     expect(document.querySelector("img")).toBeNull();
   });
+
+  test("body wrapper carries the birth notice's mt-6 top margin", () => {
+    render(<BirthNoticeArticleView article={article} more={[]} now={now} />);
+    expect(screen.getByText("The tide does not care who it drops on the sand.").parentElement).toHaveClass("mt-6");
+  });
 });

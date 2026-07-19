@@ -31,7 +31,7 @@ beforeAll(async () => {
     // freshest spawn — alive (death_at null), known quantity
     base({ status: "published", slug: `fresh-${svc}`, gamertag: `bn-a-${svc}`, lifeNumber: 5, lifeStartedAt: hrs(6), deathAt: null,
       headline: "Fresh Fool", lede: "f-lede", body: "f-body", tags: ["Fresh Spawns", "Chernarus", "Repeat Offender"],
-      pullQuoteText: "again?", pullQuoteAttribution: "a weary coast",
+      pullQuoteText: "again?", pullQuoteAttribution: "a weary coast", bodyBlocks: [{ type: "list", items: ["A rag", "A can", "No plan"] }],
       facts: { minutesToQualify: 8, priors: knownPriors, isKnownQuantity: true }, generatedAt: hrs(6),
       imageUrl: "/media/heroes/x.png", imageCaption: "LAST KNOWN PHOTO" }),
     // older spawn — died before the sweep (death_at set), first-lifer
@@ -95,5 +95,13 @@ describe("getBirthNoticeBySlug", () => {
   });
   it("returns null for an unknown or failed slug", async () => {
     expect(await getBirthNoticeBySlug(db, "no-such-slug")).toBeNull();
+  });
+  it("returns bodyBlocks when the row stores them", async () => {
+    const a = await getBirthNoticeBySlug(db, `fresh-${svc}`);
+    expect(a!.bodyBlocks).toEqual([{ type: "list", items: ["A rag", "A can", "No plan"] }]);
+  });
+  it("returns null bodyBlocks for a pre-R5d row", async () => {
+    const a = await getBirthNoticeBySlug(db, `stale-${svc}`);
+    expect(a!.bodyBlocks).toBeNull();
   });
 });

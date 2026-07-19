@@ -5,7 +5,7 @@ import type { BirthFacts } from "../src/birth-facts.js";
 
 const facts: ObituaryFacts = {
   gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus", lifeNumber: 1, timeAliveSeconds: 3600,
-  timeAliveLabel: "1h 0m", kills: 0, longestKillMeters: null, sessions: 1, cause: "environment",
+  timeAliveLabel: "1h 0m", kills: 0, longestKillMeters: null, sessions: 1, cause: "bled_out",
   causeCategory: "environment", killerGamertag: null, weapon: null, isLegend: false, freshSpawnVictim: false,
   endedAt: "2026-07-10T02:00:00.000Z",
   deathDistance: null, verdict: null, ordeals: null, hpLow: null,

@@ -204,7 +204,25 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), **R5b**
   Birth Notices / Fresh Spawns (spec
   `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), **R5c** article
-  images, with **R5d** (News feed + news-led home) next.
+  images, with **R5d** (News feed + news-led home) in flight —
+  spec `docs/superpowers/specs/2026-07-18-r5d-news-vertical-design.md`, shipping in three PRs.
+  **PR-A shipped (v0.21.2): prose fixes.** **PR-B is the plumbing**, no new vertical yet:
+  migration `0014` (`natural_key`, `body_blocks`, the `(kind, status, created_at)` feed index, and
+  the life natural-key unique index narrowed to `kind IN ('obituary','birth_notice')` — see the
+  `db` package entry for the `targetWhere` rule that narrowing imposes on every upsert), plus a
+  shared **`ArticleBody`** (`apps/web/src/components/shared/article-body.tsx`). `ArticleBody` takes
+  `blocks: ArticleBlock[] | null` — a union of `{type:"para"}` / `{type:"subhead"}` /
+  `{type:"quote"}` / `{type:"list"}` — and a `fallback: string`; with `blocks === null` it renders
+  the historical `body.split(/\n{2,}/)` paragraph path, so all 168 pre-0014 rows render
+  byte-identically. Its switch ends in `default: return null`, so a block type added by a future
+  vertical is dropped rather than crashing an interior. **Both shipped interiors (obituary + birth
+  notice) render through it** — three renderers collapsed into one before a third kind exists; add
+  new article kinds to `ArticleBody`, never a fourth inline `.split()`. `ArticleBlock` is declared
+  twice on purpose — once in `packages/read-models/src/obituary-articles.ts` (imported by
+  `birth-notice-articles.ts`; the barrel is `export *`, so one declaration only) and once in
+  `apps/web/src/lib/types.ts` for the DTO. `getObituaryBySlug`/`getBirthNoticeBySlug` select and
+  cast `articles.bodyBlocks` (interior only — never on feed `CARD_COLS`), but **no writer populates
+  the column yet**, so every live interior still takes the flat fallback.
   **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
   for both (reserved for future news); the 165 existing images were deleted (migration 0013). The
   pipeline, article_images table, media route, and ArticleHero are retained.**
@@ -384,6 +402,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (`./deploy/deploy.sh --rebuild`, or `pnpm --filter @onelife/projector run rebuild` directly on
   the host). Frozen `articles.facts` stay coarse (forward-only); lives,
   priors, and web surfaces update retroactively.
+  **Unrecorded causes are `unknown`, never `environment` (R5d PR-B).** `buildObituaryFacts`
+  (`apps/newsdesk/src/facts.ts`) derives `causeCategory` in the order killer/`pvp` → `suicide` →
+  a cause that names a real mechanism → `unknown`. "Names a real mechanism" is the shared predicate
+  `isUnrecordedCause` — which **lives in `facts.ts`** (it moved out of `prompt.ts`, which imports
+  it; `facts.ts` must never import `prompt.ts`) and rejects `""`, `died`, `environment`,
+  `environmental`, `unknown`. The invariant is `causeCategory === "unknown"` ⟺
+  `causeUnrecorded(facts)` for a non-pvp death, so the public tag (**Unknown**) and the prose
+  (which is forbidden by `NO_MECHANISM_DIRECTIVE` from naming terrain/exposure/weather) finally
+  agree. A verdict from `classifyDeath` counts as a named mechanism and rescues the category to
+  `environment`. Tags are frozen into `articles.tags` at publish, so this is **forward-only** —
+  already-published bare-`died` obituaries keep their stale **Environment** tag until backfilled.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
@@ -392,7 +421,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `discord_posted_at` + the `articles_discord_unposted_idx` partial index in migration `0010` for
   the Discord obituary notifier; gained the durable `article_images` table (bytes in Postgres) plus
   `image_caption`/`image_model`/`image_attempts`/`image_error` columns on `articles` in migration
-  `0012` for R5c article images — also never truncated on rebuild),
+  `0012` for R5c article images — also never truncated on rebuild; gained `natural_key` (unique
+  WHERE NOT NULL), `body_blocks` (jsonb), and the `articles_kind_status_created_idx` feed index in
+  migration `0014`, which also made `articles_kind_server_gamertag_life_uniq` **partial**
+  (`WHERE kind IN ('obituary','birth_notice')`) — **⚠️ any `onConflictDoUpdate` targeting that index
+  MUST pass `targetWhere: inArray(articles.kind, ["obituary","birth_notice"])`, or Postgres raises
+  "no unique or exclusion constraint matching the ON CONFLICT specification" and article publishing
+  dies on the next tick**. There are four such sites today: publish + failure-stub in each of
+  `apps/newsdesk/src/pg-store.ts` and `apps/newsdesk/src/birth-pg-store.ts`. A news article, which
+  has no (server, gamertag, life) tuple, is deduped on `natural_key` instead),
   `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
@@ -426,9 +463,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `UNKNOWN_DEATH_PHRASE` replace the bare `environment` token the model dressed into *"Loses Fight With
   Terrain"*, and `NO_MECHANISM_DIRECTIVE` (gated by `causeUnrecorded`, which requires **both** the raw cause
   and `verdict.cause` unrecorded) forbids inventing one. The low-confidence hedge line is an `else if` on
-  that gate — the two contradict each other if both render. **Known follow-up: a bare `died` cause still
-  buckets to `causeCategory:"environment"` and ships an `Environment` tag while the prose says no cause is
-  recorded (~23% of deaths) — fix before the next prod deploy.** The
+  that gate — the two contradict each other if both render. (**Resolved in PR-B**: a bare `died` cause used
+  to bucket to `causeCategory:"environment"` and ship an `Environment` tag while the prose said no cause was
+  recorded, on ~23% of deaths. It now categorises `unknown`. Tags are frozen at publish, so the fix is
+  forward-only — obituaries published before it keep the stale tag until backfilled.) The
   birth-notice pass is additionally gated by **`NEWSDESK_BIRTH_SINCE`** — an ISO-8601 cutoff
   timestamp; unset/empty/invalid ⇒ the pass is **off** (0 targets, no client call) — set it once to a
   go-live instant to begin **forward-only** coverage. Now in the `deploy.sh` restart fleet, so

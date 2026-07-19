@@ -21,6 +21,8 @@ export interface ObituaryFacts {
   cause: string | null;
   // "suicide" is its own category: a deliberate self-inflicted end is neither a player kill nor
   // an act of the environment, and the two read completely differently in prose and imagery.
+  // "environment" means a mechanism was actually NAMED (bled_out/starvation/wolf/fall/...);
+  // a bare `died` with no verdict is "unknown", never environment — see the derivation below.
   causeCategory: "pvp" | "suicide" | "environment" | "unknown";
   killerGamertag: string | null;
   weapon: string | null;
@@ -48,6 +50,23 @@ export function timeAliveLabel(seconds: number): string {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+/**
+ * D4 — cause tokens that name no real mechanism. `died` is what the ADM parser writes when the
+ * log line carries no killer and no entity; `environment`/`environmental` are the parser's and
+ * classifier's catch-alls. Handing any of these to the model as a bare word invited invention
+ * (a bare "environment" was published as the headline word "Terrain" for a death actually
+ * recorded as infected). Treat them as an explicit unknown instead — the absence IS the story.
+ *
+ * Lives here rather than in prompt.ts because the causeCategory derivation below is its first
+ * consumer: the tag and the prose must agree on one vocabulary of "no mechanism named".
+ */
+const UNRECORDED_CAUSES = new Set(["", "died", "environment", "environmental", "unknown"]);
+
+/** True when the cause token names no mechanism (null/empty/died/environment/unknown). */
+export function isUnrecordedCause(cause: string | null | undefined): boolean {
+  return UNRECORDED_CAUSES.has((cause ?? "").trim().toLowerCase());
+}
+
 /** Compose the factual snapshot the obituary prompt and Rap Sheet are built from. */
 export function buildObituaryFacts(
   target: ObituaryTarget,
@@ -63,14 +82,24 @@ export function buildObituaryFacts(
   const timeAliveSeconds = life.playtimeSeconds ?? 0;
   const cause = life.deathCause;
   const killerGamertag = life.deathByGamertag ?? null;
-  // Order matters: a killer name outranks everything (a player did it), then the explicit suicide
-  // token, then any other stated cause, then nothing at all.
+  // A cause token only counts as "environment" if it NAMES a mechanism. A bare `died` (and the
+  // parser's `environment`/`environmental` catch-alls) name nothing — a truthiness test used to
+  // file them as Environment, which published an "Environment" tag over prose that correctly
+  // said no cause was recorded. Mirrors causeUnrecorded(): the verdict can rescue the category
+  // when classifyDeath inferred a real mechanism (e.g. starvation) from a bare log line, so
+  // causeCategory === "unknown" <=> causeUnrecorded(facts) outside the pvp short-circuit.
+  // The rescue only asks whether a mechanism was named, not which; a verdict of `pvp`/`suicide`
+  // over a bare cause still lands on `environment`, unchanged from before — narrowing that is
+  // out of scope.
+  // Order matters: a killer name outranks everything (a player did it), then the explicit
+  // suicide token, then a named mechanism, then nothing at all.
+  const mechanismNamed = !isUnrecordedCause(cause) || !isUnrecordedCause(timeline.verdict?.cause ?? null);
   const causeCategory: ObituaryFacts["causeCategory"] =
     cause === "pvp" || killerGamertag
       ? "pvp"
       : cause === "suicide"
         ? "suicide"
-        : cause
+        : mechanismNamed
           ? "environment"
           : "unknown";
 
