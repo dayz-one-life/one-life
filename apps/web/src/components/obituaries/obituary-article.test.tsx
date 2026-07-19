@@ -33,4 +33,9 @@ describe("ObituaryArticleView", () => {
     render(<ObituaryArticleView article={article} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
     expect(document.querySelector("img")).toBeNull();
   });
+
+  test("body wrapper carries the obituary's mt-5 top margin", () => {
+    render(<ObituaryArticleView article={article} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
+    expect(screen.getByText("He left 212 kills behind.").parentElement).toHaveClass("mt-5");
+  });
 });

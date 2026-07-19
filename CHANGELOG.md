@@ -11,7 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (jsonb) — the plumbing for the R5d news vertical, whose articles are keyed by a synthetic natural
   key rather than a (server, gamertag, life) tuple and whose body is structured blocks rather than
   flat text. Also adds the `articles_kind_status_created_idx (kind, status, created_at)` feed index.
-  Both new columns are nullable; all 168 existing rows are untouched and render unchanged.
+  Both new columns are nullable; all 168 existing rows are untouched and render unchanged. **Normal
+  deploy, no `--rebuild`** — `articles` isn't in the projector's truncate list and has no FK to
+  `players`/`lives`, so a projection rebuild can't reach it. During the deploy window itself, expect
+  a harmless transient: `deploy.sh` migrates before restarting the fleet, so the still-running old
+  newsdesk binary can raise Postgres `42P10` on a tick between the migration and its restart. This is
+  expected, not a regression — publish targets are re-derived by anti-join every sweep, so nothing is
+  queued or lost, and the tick after `onelife-newsdesk` restarts publishes normally.
 ### Changed
 - Migration `0014` makes `articles_kind_server_gamertag_life_uniq` **partial**
   (`WHERE kind IN ('obituary','birth_notice')`), so a news article — which has no life tuple — is
