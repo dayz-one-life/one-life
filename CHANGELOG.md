@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- R5d news engine, **inert**: the two news trigger read-models and the article-image prerequisites,
+  with no caller and no production effect. `apps/newsdesk/src/standing-dead-targets.ts` finds
+  qualified open lives whose player has gone quiet for 72h and has *earned* coverage (a prior life
+  or >= 100 absorbed hits); `apps/newsdesk/src/long-form-targets.ts` +
+  `long-form-cluster.ts` find cliques of qualified deaths inside a shared time window and radius,
+  with four named exclusions (self-cluster, any suicide subject, unqualified subject, suppressed
+  gamertag) and per-reason skip counts. Both key their targets on a rebuild-stable `natural_key`
+  built only by `toISOString()` — never a projection row id, and never rendered in SQL — and
+  anti-join against `articles` in TypeScript so the written key and the anti-joined key are the
+  same string by construction. Neither carries coordinates off the boundary (spec §11); a
+  `news-targets.ts` barrel is the single import surface for the worker pass that follows.
+- `NEWSROOM_CATEGORIES` — a 13-entry image-framing menu for the news vertical, weighted to absence
+  and vacancy because a Standing Dead subject is alive and non-consenting.
 ### Changed
+- `ArticleKind` widens to three members (`obituary | birth_notice | news`), and the two binary
+  ternaries that keyed off it — `eligibleCategories`' menu choice and `buildScenePrompt`'s kind
+  label — become `Record` lookups with explicit runtime guards. The old ternaries handed *every*
+  non-obituary kind the Nursery menu and the "birth notice" label. `ImageTarget["kind"]` is retyped
+  to `ArticleKind`, so `findImageTargets`' `r.kind as ImageTarget["kind"]` cast stops contradicting
+  the query it sits under. `buildScenePrompt` also gains a news tone arm, an explicit
+  alive-subject rail, and a dedicated line when the stated death cause is low confidence.
+  **No production behaviour changes:** `findImageTargets` still excludes both shipped kinds and no
+  `kind='news'` row exists, so every one of these paths is unreachable until the news worker pass
+  lands. Normal deploy, no `--rebuild`, no migration.
 ### Deprecated
 ### Removed
 ### Fixed
