@@ -59,7 +59,7 @@ integer primary keys.
 |---|---|---|
 | `gamertag_verified` | `gamertag_links.status = 'verified'` | `gamertag_verified:<linkId>` |
 | `tokens_granted` | `token_transactions`, `delta > 0`, kind ∈ `monthly`/`referral`/`verification` | `tokens:<txId>` |
-| `tokens_received` | `token_transactions`, `kind = 'transfer'`, `delta > 0` | `tokens:<txId>` |
+| `tokens_received` | `token_transactions`, `kind = 'transfer_in'` | `tokens:<txId>` |
 
 ### Gameplay
 
@@ -87,9 +87,12 @@ boundary: an unverified claimant must never receive another player's gameplay hi
 
 **`life_qualified` is the only forward-looking notification.** Everything else reports
 something that already happened. Qualification is computed lazily and never
-materialized, but `qualifiedLifeCondition(db)` already expresses it as a SQL predicate,
-so the generator anti-joins against it directly. No new materialization, consistent
-with the `isLifeQualified` precedent.
+materialized, but `qualifiedLifeCondition(db)` (`packages/read-models/src/qualified-lives.ts`)
+already expresses it as a SQL predicate, so the generator anti-joins against it
+directly. No new materialization, consistent with the `isLifeQualified` precedent.
+Note the predicate's `exists(...)` arm references `players.gamertag`, so **any query
+using it must join `players`** — omitting the join produces a confusing SQL error
+rather than a wrong result.
 
 **One death produces up to three notifications** — `ban_applied` and
 `obituary_published` land within a tick of each other, `ban_lifted` follows 24 hours
@@ -131,8 +134,16 @@ Index on `(user_id, created_at DESC)` for the feed query, and a partial index on
 | `failure_count` | int default 0 | |
 | `disabled_at` | timestamptz null | |
 
-Both tables are added to `APP_TABLES` and are **never truncated on rebuild**, alongside
-`articles`, `bans`, and `article_images`.
+**Durability.** Two distinct lists, easy to confuse:
+
+- `rebuildAll` (`apps/projector/src/rebuild.ts`) truncates an explicit allow-list —
+  `positions, build_events, hit_events, kills, sessions, lives, players`. Durability
+  comes from **not being on that list**. Neither new table is added to it, so both
+  survive `./deploy/deploy.sh --rebuild`, as `articles`, `bans`, and `article_images`
+  already do.
+- `APP_TABLES` (`packages/test-support/src/global-setup.ts`) is the **test-harness**
+  wipe list and truncates everything for a clean slate. Both new tables **are** added
+  there, so test runs start empty.
 
 ## 3. The generator worker
 
