@@ -75,7 +75,7 @@ export function parseNewsArticle(raw: string): NewsArticle {
     json = JSON.parse(match[0]);
   }
   const p = schema.parse(json);
-  const blocks = p.blocks as ArticleBlock[];
+  const blocks: ArticleBlock[] = p.blocks;
   return {
     headline: p.headline,
     lede: p.lede,

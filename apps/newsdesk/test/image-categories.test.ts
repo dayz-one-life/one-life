@@ -182,6 +182,12 @@ describe("newsroom menu", () => {
     expect(newsSlugs({ ...standing, hitsAbsorbed: 100 })).toContain("what-it-took");
   });
 
+  it("the-regular is trigger-restricted to standing_dead (a Long Form primary with priors must not read as 'recently absent')", () => {
+    // Before the trigger restriction, a Long Form primary subject with any prior life would fire
+    // this gate on a DEATH piece — "recently absent" is false; the subject is dead, not absent.
+    expect(newsSlugs({ ...longform, priors: { livesLived: 2, totalKills: 4 } })).not.toContain("the-regular");
+  });
+
   it("shares no framing with the morgue or nursery menus", () => {
     const others = new Set([...MORGUE_CATEGORIES, ...NURSERY_CATEGORIES].map((c) => c.caption));
     for (const c of NEWSROOM_CATEGORIES) expect(others.has(c.caption)).toBe(false);

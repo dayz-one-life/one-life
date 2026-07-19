@@ -191,8 +191,11 @@ export const NEWSROOM_CATEGORIES: ImageCategory[] = [
   { slug: "the-regular", caption: "A KNOWN FACE, RECENTLY ABSENT",
     example: "A worn canvas jacket hanging alone on a nail in an empty wooden hallway, shoulders shaped by long use, a shut door beyond it and no one in frame.",
     // Priors gate: this framing asserts a history. A first-lifer has none, and the Standing Dead
-    // predicate already refuses to cover one without earned coverage.
-    eligible: (f) => (news(f).priors?.livesLived ?? 0) >= 1 },
+    // predicate already refuses to cover one without earned coverage. Standing Dead only: the
+    // caption asserts the subject is "recently absent" (alive, unattended), which is false for a
+    // Long Form death — `priors` there is the primary subject's, so a Long Form primary with any
+    // prior life would otherwise fire this gate on a death piece.
+    eligible: (f) => (news(f).priors?.livesLived ?? 0) >= 1 && news(f).trigger === "standing_dead" },
   { slug: "what-it-took", caption: "WHAT IT TOOK TO GET THIS FAR",
     example: "A stack of spent bandages, a bloodied rag and three empty saline bottles heaped on a scuffed table under a bare bulb, flash glaring off the wet glass.",
     // Endurance gate mirrors the earned-coverage clause (hitsAbsorbed >= 100). Objects only —
