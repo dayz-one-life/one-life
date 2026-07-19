@@ -118,8 +118,8 @@ export const setReferrer = (referrerGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
 
 export const getNotifications = () => apiGet<NotificationsFeed>("/api/me/notifications");
-export const markNotificationsRead = () =>
-  apiSend<{ ok: true }>("POST", "/api/me/notifications/read", {});
+export const markNotificationsRead = (ids: number[]) =>
+  apiSend<{ ok: true }>("POST", "/api/me/notifications/read", { ids });
 export const getVapidKey = () => apiGet<{ publicKey: string }>("/api/push/vapid-key");
 export const subscribePush = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
   apiSend<{ ok: true }>("POST", "/api/me/push-subscriptions", sub);

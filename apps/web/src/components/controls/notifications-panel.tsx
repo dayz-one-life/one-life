@@ -30,7 +30,10 @@ export function NotificationsPanel({
 }: {
   items: AppNotification[];
   unreadCount: number;
-  onOpen: () => void;
+  /** Receives the ids of the unread notifications this panel actually put on screen.
+   *  Anything deeper in the backlog must stay unread — the feed is paginated and the
+   *  user has not seen it. */
+  onOpen: (ids: number[]) => void;
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -42,10 +45,12 @@ export function NotificationsPanel({
   function toggle() {
     const next = !open;
     setOpen(next);
-    if (next && !opened.current) {
-      opened.current = true;
-      onOpen();
-    }
+    if (!next || opened.current) return;
+    const unreadIds = items.filter((n) => !n.readAt).map((n) => n.id);
+    // Nothing to mark means nothing to send: a read-only glance costs no request.
+    if (unreadIds.length === 0) return;
+    opened.current = true;
+    onOpen(unreadIds);
   }
 
   return (

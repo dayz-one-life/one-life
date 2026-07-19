@@ -2,11 +2,25 @@ import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { notifications, pushSubscriptions } from "@onelife/db";
-import { and, desc, eq, isNull, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
 import { getSession } from "../auth-plugin.js";
 
 const FEED_LIMIT = 20;
+/** A client may only ever have rendered what the feed served it, so this cap is far above
+ *  any honest call. It exists so a hostile caller can't hand us an unbounded IN list. */
+const MAX_READ_IDS = 500;
+
+// House style, matching /obituaries, /news and the survivors board: a page cursor, not a
+// keyset one. The feed is small, per-user and ordered by a stable created_at, so offset
+// paging has no drift problem worth a keyset cursor's extra surface.
+const feedQuery = z.object({ page: z.coerce.number().int().positive().catch(1) });
+
+/** Empty list is a legal no-op (the panel opened with nothing unread); over the cap is a
+ *  400 rather than a silent truncation, so a client bug is loud. */
+const readBody = z.object({
+  ids: z.array(z.coerce.number().int().positive()).max(MAX_READ_IDS),
+});
 
 const subscribeBody = z.object({
   endpoint: z.string().min(1),
@@ -21,6 +35,7 @@ export function registerNotificationRoutes(
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });
     const userId = session.user.id;
+    const { page } = feedQuery.parse(req.query);
 
     const [items, [counted]] = await Promise.all([
       db
@@ -31,24 +46,37 @@ export function registerNotificationRoutes(
         })
         .from(notifications)
         .where(eq(notifications.userId, userId))
-        .orderBy(desc(notifications.createdAt))
-        .limit(FEED_LIMIT),
+        .orderBy(desc(notifications.createdAt), desc(notifications.id))
+        .limit(FEED_LIMIT)
+        .offset((page - 1) * FEED_LIMIT),
       db
         .select({ n: dsql<number>`count(*)::int` })
         .from(notifications)
         .where(and(eq(notifications.userId, userId), isNull(notifications.readAt))),
     ]);
 
-    return { items, unreadCount: counted?.n ?? 0 };
+    return { items, unreadCount: counted?.n ?? 0, page, pageSize: FEED_LIMIT };
   });
 
+  // Scoped to the ids the client actually rendered: marking the whole inbox read would
+  // destroy the unread state of everything past the first page, which no UI can reach.
   app.post("/me/notifications/read", async (req, reply) => {
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const parsed = readBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
+    const { ids } = parsed.data;
+    if (ids.length === 0) return { ok: true };
+    // The ownership predicate stays in the WHERE clause — never a read-then-check — so a
+    // caller naming someone else's id updates zero rows.
     await db
       .update(notifications)
       .set({ readAt: new Date() })
-      .where(and(eq(notifications.userId, session.user.id), isNull(notifications.readAt)));
+      .where(and(
+        eq(notifications.userId, session.user.id),
+        isNull(notifications.readAt),
+        inArray(notifications.id, ids),
+      ));
     return { ok: true };
   });
 

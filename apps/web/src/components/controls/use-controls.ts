@@ -68,7 +68,7 @@ export function useControlsActions() {
     },
   });
   const markRead = useMutation({
-    mutationFn: () => markNotificationsRead(),
+    mutationFn: (ids: number[]) => markNotificationsRead(ids),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
   return { claim, cancel, send, refer, redeem, markRead };

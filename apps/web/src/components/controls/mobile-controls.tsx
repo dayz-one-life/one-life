@@ -97,7 +97,7 @@ export function MobileControls() {
             <NotificationsPanel
               items={c.notifications}
               unreadCount={c.unreadCount}
-              onOpen={() => a.markRead.mutate()}
+              onOpen={(ids) => a.markRead.mutate(ids)}
             >
               <PushToggle />
             </NotificationsPanel>

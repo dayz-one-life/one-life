@@ -43,7 +43,9 @@ describe("NotificationsPanel", () => {
     expect(screen.queryByTestId("unread-badge")).toBeNull();
   });
 
-  it("calls onOpen the first time it is expanded, not on collapse", () => {
+  // The third click is load-bearing: with only open+close, deleting the once-per-mount ref
+  // guard still passes, because a collapse never fires onOpen anyway.
+  it("calls onOpen the first time it is expanded, and never again", () => {
     const onOpen = vi.fn();
     render(<NotificationsPanel items={[item()]} unreadCount={1} onOpen={onOpen} />);
     const toggle = screen.getByRole("button", { name: /notifications/i });
@@ -51,6 +53,39 @@ describe("NotificationsPanel", () => {
     expect(onOpen).toHaveBeenCalledOnce();
     fireEvent.click(toggle);
     expect(onOpen).toHaveBeenCalledOnce();
+    fireEvent.click(toggle);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("reports only the unread ids it actually rendered", () => {
+    const onOpen = vi.fn();
+    render(
+      <NotificationsPanel
+        items={[
+          item({ id: 7 }),
+          item({ id: 8, readAt: "2026-07-19T11:45:00Z" }),
+          item({ id: 9 }),
+        ]}
+        // Deeper than the rendered page: the rest of the backlog must stay untouched.
+        unreadCount={40}
+        onOpen={onOpen}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(onOpen).toHaveBeenCalledWith([7, 9]);
+  });
+
+  it("does not fire onOpen when there is nothing unread to mark", () => {
+    const onOpen = vi.fn();
+    render(
+      <NotificationsPanel
+        items={[item({ readAt: "2026-07-19T11:45:00Z" })]}
+        unreadCount={0}
+        onOpen={onOpen}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("renders each item as a link to its href once expanded", () => {
