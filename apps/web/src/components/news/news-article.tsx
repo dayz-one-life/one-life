@@ -43,6 +43,10 @@ export function NewsArticleView({
   // once there are actually two timelines to compare.
   const isLongForm = article.trigger === "long_form";
   const sideBySide = isLongForm && shown.length > 1;
+  // The heading decision keys off actual multiplicity too, not just the trigger: a standing_dead
+  // piece somehow handed two timelines must still label them by subject rather than rendering two
+  // identically-headed "The Record So Far" blocks (the grid decision above is unaffected).
+  const namedHeadings = isLongForm || shown.length > 1;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
@@ -103,10 +107,10 @@ export function NewsArticleView({
       {shown.length > 0 && (
         <div className={cn("mt-8", sideBySide && "grid gap-x-8 gap-y-6 lg:grid-cols-2 lg:divide-x lg:divide-hairline")}>
           {shown.map((t, i) => (
-            <div key={t.gamertag} className={cn(sideBySide && i > 0 && "lg:pl-8")}>
+            <div key={`${t.gamertag}-${i}`} className={cn(sideBySide && i > 0 && "lg:pl-8")}>
               <Timeline
                 view={t.view}
-                heading={isLongForm ? `${t.gamertag} — The Final Reload` : "The Record So Far"}
+                heading={namedHeadings ? `${t.gamertag} — The Final Reload` : "The Record So Far"}
               />
             </div>
           ))}

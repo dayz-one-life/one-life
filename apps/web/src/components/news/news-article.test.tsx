@@ -183,6 +183,49 @@ describe("NewsArticleView — the timeline embed", () => {
     render(<NewsArticleView article={article()} more={[]} timelines={[]} now={now} />);
     expect(screen.queryByText(/Washed ashore/)).toBeNull();
   });
+
+  // I1: NEWS_TIMELINE_LIMIT's documented contract is that a theoretical third subject is still
+  // named in the prose/dossier but only the first NEWS_TIMELINE_LIMIT timelines actually render.
+  // No prior fixture supplies three, so `.slice(0, NEWS_TIMELINE_LIMIT)` had zero coverage.
+  it("renders only NEWS_TIMELINE_LIMIT timelines when three are supplied", () => {
+    const timelines: NewsTimeline[] = [
+      { gamertag: "CUPID18", view: view(false) },
+      { gamertag: "GabeFox101", view: view(false) },
+      { gamertag: "ThirdSubject", view: view(false) },
+    ];
+    render(<NewsArticleView
+      article={article({ trigger: "long_form", subjectCount: 3, subjectStatus: null, idleSeconds: null, spanSeconds: 27 })}
+      more={[]} timelines={timelines} now={now} />);
+    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(2);
+    expect(screen.getByRole("heading", { level: 2, name: /CUPID18/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: /GabeFox101/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: /ThirdSubject/ })).toBeNull();
+  });
+
+  // I2: the side-by-side grid is the Long Form format's whole visual argument — two columns from
+  // `lg` up, joined by a hairline rule, collapsing to a single stack on mobile and whenever there
+  // is only one timeline to show. No prior test asserted the grid classes at all.
+  it("applies the side-by-side grid classes for two timelines and omits them for one", () => {
+    const twoTimelines: NewsTimeline[] = [
+      { gamertag: "CUPID18", view: view(false) },
+      { gamertag: "GabeFox101", view: view(false) },
+    ];
+    const { container: twoUp } = render(<NewsArticleView
+      article={article({ trigger: "long_form", subjectCount: 2, subjectStatus: null, idleSeconds: null, spanSeconds: 27 })}
+      more={[]} timelines={twoTimelines} now={now} />);
+    const twoUpGrid = twoUp.querySelector(".mt-8");
+    expect(twoUpGrid).not.toBeNull();
+    expect(twoUpGrid).toHaveClass("lg:grid-cols-2");
+    expect(twoUpGrid).toHaveClass("lg:divide-x");
+
+    const { container: oneUp } = render(<NewsArticleView
+      article={article({ trigger: "long_form", subjectCount: 2, subjectStatus: null, idleSeconds: null, spanSeconds: 27 })}
+      more={[]} timelines={[{ gamertag: "CUPID18", view: view(false) }]} now={now} />);
+    const oneUpGrid = oneUp.querySelector(".mt-8");
+    expect(oneUpGrid).not.toBeNull();
+    expect(oneUpGrid).not.toHaveClass("lg:grid-cols-2");
+    expect(oneUpGrid).not.toHaveClass("lg:divide-x");
+  });
 });
 
 // `MoreFromTheDesk` (Task 9) has `if (rows.length === 0) return null;` — every existing test in
