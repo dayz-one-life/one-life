@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, hitEvents, articles } from "@onelife/db";
+import { servers, players, lives, sessions, hitEvents, positions, articles } from "@onelife/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { newsTick, longFormSkipLog } from "../src/news-tick.js";
+import { findStandingDeadTargets } from "../src/news-targets.js";
 import type { CompletionClient } from "../src/generate.js";
 
 const { db, sql } = getTestDb();
@@ -34,6 +35,20 @@ async function seedStandingDead(name: string, connectedAtH: number, disconnected
     connectedAt: hrs(connectedAtH), disconnectedAt: hrs(disconnectedAtH),
     durationSeconds: 7200, closeReason: "disconnect",
   });
+  return l!.id;
+}
+
+/** A qualified, freshly-fixed death — the raw material for a Long Form cluster. `x`/`y`/`endedAt`
+ *  drive clustering (radiusMeters/windowSeconds in `deps()`); the fix is recorded AT endedAt, well
+ *  inside maxFixAgeSeconds. Returns the (closed) life id. */
+async function seedLongFormDeath(name: string, startedAt: Date, endedAt: Date, x: number, y: number) {
+  const [p] = await db.insert(players).values({ gamertag: tag(name), lastSeenAt: endedAt }).returning();
+  pids.push(p!.id);
+  const [l] = await db.insert(lives).values({
+    serverId, playerId: p!.id, lifeNumber: 1, startedAt, endedAt,
+    deathCause: "infected", playtimeSeconds: 3600,
+  }).returning();
+  await db.insert(positions).values({ serverId, playerId: p!.id, gamertag: tag(name), x, y, recordedAt: endedAt });
   return l!.id;
 }
 
@@ -72,6 +87,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.delete(articles).where(eq(articles.serverId, serverId));
   await db.delete(hitEvents).where(eq(hitEvents.serverId, serverId));
+  await db.delete(positions).where(eq(positions.serverId, serverId));
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
   await db.delete(players).where(inArray(players.id, pids));
@@ -178,6 +194,33 @@ describe("newsTick — the Standing Dead arm", () => {
     const rows = await db.select().from(articles).where(eq(articles.gamertag, tag("suppressed")));
     expect(rows).toHaveLength(0);
   });
+
+  it("skips a target whose timeline cannot resolve (life vanished after targeting)", async () => {
+    // A target's life is queried twice per tick — once by findStandingDeadTargets, once by
+    // getLifeTimeline — and nothing in-process can change the DB between those two reads except
+    // this test itself. So the vanishing act is injected as a side effect of GENERATING the
+    // earlier-ordered target's article: the for-loop always finishes that target (including its
+    // model call) before moving on, giving a deterministic place to delete the next target's life
+    // out from under it. This reproduces the only real way news-tick.ts:157-160 fires in
+    // production: the life a target pointed at is gone by the time its turn comes up (e.g. a
+    // concurrent projector rebuild). "suppressed" is kept out of the way so this tick's only two
+    // targets are the pair below.
+    await seedStandingDead("skip-early", 105, 125);
+    const lateLifeId = await seedStandingDead("skip-late", 106, 126);
+    const vanishing: CompletionClient = {
+      complete: async () => {
+        await db.delete(sessions).where(eq(sessions.lifeId, lateLifeId));
+        await db.delete(lives).where(eq(lives.id, lateLifeId));
+        return okBody;
+      },
+    };
+    const r = await newsTick(db, deps({
+      client: vanishing, maxPerTick: 10, suppressedGamertags: [tag("suppressed")],
+    }));
+    expect(r.skipped).toBe(1);
+    const lateRows = await db.select().from(articles).where(eq(articles.gamertag, tag("skip-late")));
+    expect(lateRows).toHaveLength(0);
+  });
 });
 
 describe("newsTick — retraction", () => {
@@ -218,6 +261,69 @@ describe("newsTick — retraction", () => {
     const [still] = await db.select().from(articles).where(eq(articles.id, row!.id));
     expect(still!.status).toBe("retracted");
     expect(still!.headline).toBe("Nobody Has Seen Him Since Tuesday");
+
+    // Order-independent companion to the zero-call assertion above (which is decisive only
+    // because every earlier subject in this file happens to be terminal by now): directly prove
+    // the retracted subject's OWN natural key is absent from the tick's targets, regardless of
+    // what else is or isn't pending elsewhere in the file.
+    const targets = await findStandingDeadTargets(db, {
+      now: NOW, since: SINCE, standingDeadHours: 72, minPlaytimeSeconds: 1800,
+      minHitsAbsorbed: 100, suppressedGamertags: [], maxAttempts: 3, limit: 50,
+    });
+    expect(targets.some((t) => t.gamertag === tag("off-a"))).toBe(false);
+  });
+});
+
+describe("newsTick — the Long Form arm", () => {
+  it("clusters two nearby, near-simultaneous deaths into one published Long Form feature", async () => {
+    const base = hrs(150);
+    const endA = base;
+    const endB = new Date(base.getTime() + 60_000); // 60s later — inside the 180s window
+    const started = new Date(base.getTime() - 3_600_000);
+    await seedLongFormDeath("lf-a", started, endA, 6000, 6000);
+    await seedLongFormDeath("lf-b", started, endB, 6040, 6000); // 40m away — inside the 100m radius
+
+    const r = await newsTick(db, deps());
+    expect(r.longFormFound).toBeGreaterThanOrEqual(1);
+
+    const rows = (await newsRows()).filter(
+      (a) => a.status === "published" && (a.naturalKey ?? "").startsWith("long_form:"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.tags).toContain("The Long Form");
+    expect([tag("lf-a"), tag("lf-b")]).toContain(rows[0]!.gamertag);
+  });
+
+  it("skips a cluster in which one subject's timeline cannot resolve, and writes nothing", async () => {
+    // Both findLongFormTargets and findStandingDeadTargets run BEFORE either processing loop, so
+    // the cluster below is captured whole (both subjects present) up front. The Standing Dead loop
+    // then runs first — this test spends its one model call there, on a throwaway trigger subject,
+    // so `generated` stays 0 — and that call's side effect deletes the life backing the cluster's
+    // second subject before the Long Form loop reaches it. This reproduces the only real way
+    // news-tick.ts:206-209 fires in production: a subject's life is gone by the time its cluster's
+    // turn comes up (e.g. a concurrent projector rebuild) — publishing a shared-fate story missing
+    // one of its people is worse than not publishing it.
+    await seedStandingDead("lf-trigger", 107, 127);
+
+    const base = hrs(155);
+    const endA = base;
+    const endB = new Date(base.getTime() + 60_000);
+    const started = new Date(base.getTime() - 3_600_000);
+    await seedLongFormDeath("lf-broken-a", started, endA, 7000, 7000);
+    const lifeIdB = await seedLongFormDeath("lf-broken-b", started, endB, 7040, 7000);
+
+    const vanishing: CompletionClient = {
+      complete: async () => {
+        await db.delete(lives).where(eq(lives.id, lifeIdB));
+        throw new Error("trigger boom — keeps `generated` at 0 for this tick");
+      },
+    };
+    const r = await newsTick(db, deps({ client: vanishing, maxPerTick: 10 }));
+    expect(r.skipped).toBe(1);
+    expect(r.generated).toBe(0);
+
+    const broken = await db.select().from(articles).where(
+      inArray(articles.gamertag, [tag("lf-broken-a"), tag("lf-broken-b")]));
+    expect(broken).toHaveLength(0);
   });
 });
 

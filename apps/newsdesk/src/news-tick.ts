@@ -2,6 +2,7 @@ import type { Database } from "@onelife/db";
 import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
 import type { LifeTimeline, PlayerPriors } from "@onelife/read-models";
 import { findStandingDeadTargets, findLongFormTargets } from "./news-targets.js";
+import type { LongFormExclusion } from "./long-form-cluster.js";
 import { buildStandingDeadFacts, buildLongFormFacts } from "./news-facts.js";
 import type { NewsFacts } from "./news-facts.js";
 import { composeNewsTags } from "./news-prompt.js";
@@ -63,7 +64,9 @@ const LONG_FORM_CANDIDATE_LIMIT = 200;
  * SQL-layer filtered count — needs a return-shape change in the PR-C1 targeting layer, which this
  * PR must not touch.
  */
-export function longFormSkipLog(skipped: Record<string, number>): Record<string, number> {
+export function longFormSkipLog(
+  skipped: Partial<Record<LongFormExclusion, number>>,
+): Omit<Record<LongFormExclusion, number>, "unqualified_subject"> {
   return {
     self_cluster: skipped.self_cluster ?? 0,
     suicide_subject: skipped.suicide_subject ?? 0,
@@ -71,8 +74,7 @@ export function longFormSkipLog(skipped: Record<string, number>): Record<string,
   };
 }
 
-const emptySkips = (): Record<string, number> =>
-  ({ self_cluster: 0, suicide_subject: 0, suppressed_gamertag: 0 });
+const emptySkips = () => longFormSkipLog({});
 
 /**
  * One news cycle, the fourth sibling of newsdeskTick. TWO independent off-states, both returning
