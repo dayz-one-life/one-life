@@ -189,3 +189,41 @@ describe("earned coverage", () => {
       .not.toContain(tag("veteran"));
   });
 });
+
+describe("article anti-join", () => {
+  const stub = (naturalKey: string, o: { status: string; attempts: number }) => db.insert(articles).values({
+    kind: "news", status: o.status, naturalKey, attempts: o.attempts,
+    serverId, gamertag: tag("veteran"), map: "sakhal", lifeNumber: 2,
+    lifeStartedAt: hrs(1), deathAt: null,            // NULL for Standing Dead (spec §6)
+    slug: `sd-${naturalKey.length}-${svc}`, headline: "H", lede: "L", body: "B",
+    promptVersion: "news-v1", model: "test",
+  });
+  const keyFor = async () =>
+    (await findStandingDeadTargets(db, OPTS)).find((r) => r.gamertag === tag("veteran"))!.naturalKey;
+
+  it("suppresses a subject whose natural key is already published", async () => {
+    const k = await keyFor();
+    await stub(k, { status: "published", attempts: 1 });
+    expect(await tagsOf()).not.toContain(tag("veteran"));
+    await db.delete(articles).where(inArray(articles.naturalKey, [k]));
+  });
+
+  it("keeps retrying a failed subject until attempts reach maxAttempts", async () => {
+    const k = await keyFor();
+    await stub(k, { status: "failed", attempts: 2 });
+    expect(await tagsOf()).toContain(tag("veteran"));           // 2 < 3
+    await db.update(articles).set({ attempts: 3 }).where(inArray(articles.naturalKey, [k]));
+    expect(await tagsOf()).not.toContain(tag("veteran"));       // exhausted
+    await db.delete(articles).where(inArray(articles.naturalKey, [k]));
+  });
+
+  it("applies the limit AFTER the anti-join so a blocked subject never consumes a slot", async () => {
+    const rows = await findStandingDeadTargets(db, OPTS);
+    const first = rows[0]!;
+    await stub(first.naturalKey, { status: "published", attempts: 1 });
+    const capped = await findStandingDeadTargets(db, { ...OPTS, limit: 1 });
+    expect(capped.map((r) => r.naturalKey)).not.toContain(first.naturalKey);
+    expect(capped).toHaveLength(1);
+    await db.delete(articles).where(inArray(articles.naturalKey, [first.naturalKey]));
+  });
+});

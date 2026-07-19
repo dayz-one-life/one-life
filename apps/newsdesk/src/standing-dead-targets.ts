@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { hitEvents, lives, players, servers, sessions } from "@onelife/db";
-import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
+import { articles, hitEvents, lives, players, servers, sessions } from "@onelife/db";
+import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
 /** The Standing Dead's subject is an ABSENCE, not a death: a qualified life still open (no
@@ -97,7 +97,6 @@ export async function findStandingDeadTargets(
   // every row failing priorLifeExists; at this pool size (7 subjects) that is fine — do NOT add
   // an index for it.
   const earnedCoverage = sql`(${priorLifeExists} OR ${hitsAbsorbed} >= ${opts.minHitsAbsorbed})`;
-  const notPublished = sql`TRUE`;     // replaced in Task 13 (TS-side two-query anti-join)
 
   const rows = await db
     .select({
@@ -130,13 +129,14 @@ export async function findStandingDeadTargets(
       sql`${eligibleAt} >= ${opts.since.toISOString()}`,   // forward-only, on the ELIGIBILITY instant
       earnedCoverage,
       suppressed,
-      notPublished,
     ))
     // Oldest-idle first: the ~7-subject pool drains in a stable order across ticks.
     .orderBy(sql`${lastSeen} ASC`, asc(players.gamertag))
-    .limit(opts.limit);
+    // Over-fetch: the limit is applied AFTER the article anti-join, so a blocked subject never
+    // consumes a slot. The pool is ~7 subjects, so the multiplier is free.
+    .limit(opts.limit * 4 + 20);
 
-  return rows.map((r) => ({
+  const targets = rows.map((r) => ({
     lifeId: r.lifeId, serverId: r.serverId, gamertag: r.gamertag,
     map: r.map, mapSlug: r.mapSlug, lifeNumber: r.lifeNumber,
     lifeStartedAt: r.lifeStartedAt, playtimeSeconds: r.playtimeSeconds,
@@ -147,4 +147,20 @@ export async function findStandingDeadTargets(
     priorLives: Number(r.priorLives), hitsAbsorbed: Number(r.hitsAbsorbed),
     naturalKey: standingDeadNaturalKey(r.serverId, r.gamertag, r.lifeStartedAt),
   }));
+  if (targets.length === 0) return targets;
+
+  // Two-query anti-join rather than a SQL-computed key. Building the key in SQL would need a
+  // to_char() rendering that must match TS toISOString() EXACTLY; any drift makes the anti-join a
+  // silent no-op and every tick re-publishes the same subject as a new row — and the rows would
+  // not even collide on articles_natural_key_uniq, because the WRITTEN key comes from TS while the
+  // ANTI-JOINED key came from SQL. Doing it here makes toISOString() the sole producer of every key.
+  const blocked = await db
+    .select({ k: articles.naturalKey })
+    .from(articles)
+    .where(and(
+      inArray(articles.naturalKey, targets.map((t) => t.naturalKey)),
+      sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+    ));
+  const blockedSet = new Set(blocked.map((r) => r.k!));
+  return targets.filter((t) => !blockedSet.has(t.naturalKey)).slice(0, opts.limit);
 }
