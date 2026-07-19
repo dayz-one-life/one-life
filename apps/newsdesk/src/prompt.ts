@@ -35,6 +35,22 @@ export function isUnrecordedCause(cause: string | null | undefined): boolean {
 /** The one sentence the prompt gets when nothing named the mechanism. */
 export const UNKNOWN_DEATH_PHRASE = "unknown — the record does not name a mechanism.";
 
+/**
+ * D4 companion constraint. Saying "unknown" in the facts block is not enough — a model handed a
+ * blank will fill it. This names the failure mode explicitly and reframes the gap as the angle.
+ */
+export const NO_MECHANISM_DIRECTIVE =
+  `THE CAUSE OF DEATH IS NOT RECORDED. Do NOT name or imply a mechanism — no fall, no terrain, no exposure, no animal, no infected, no starvation, no thirst, no weather, no ambush. Do not guess, hedge toward, or hint at one, and do not dress the blank up as a cause. The paper does not know. Say so: the ABSENCE of a cause IS the story — the record simply stops, and a life ends with nothing written next to it. Write the gap, not a mechanism.`;
+
+/**
+ * True when nothing in the record names a mechanism for this death. A player kill is never
+ * unrecorded (the killer IS the mechanism), so pvp short-circuits to false.
+ */
+export function causeUnrecorded(facts: ObituaryFacts): boolean {
+  if (facts.causeCategory === "pvp" || facts.killerGamertag) return false;
+  return isUnrecordedCause(facts.cause) && isUnrecordedCause(facts.verdict?.cause ?? null);
+}
+
 /** Deterministic, qualitative death sentence for the prompt — words, never raw stat values. */
 export function describeDeath(facts: ObituaryFacts): string {
   if (facts.causeCategory === "pvp") {
@@ -133,6 +149,9 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   }
   lines.push("");
   lines.push(`Describe the manner of death in qualitative terms — never quote raw stat numbers (energy or water values).`);
+  if (causeUnrecorded(facts)) {
+    lines.push(NO_MECHANISM_DIRECTIVE);
+  }
   if (facts.verdict?.confidence === "low") {
     lines.push(`The cause of death is an inference from the record, not a certainty — hedge it in-voice ("the record is murky", "the island isn't saying").`);
   }

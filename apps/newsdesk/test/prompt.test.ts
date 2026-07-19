@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, isUnrecordedCause } from "../src/prompt.js";
+import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, isUnrecordedCause, NO_MECHANISM_DIRECTIVE, causeUnrecorded } from "../src/prompt.js";
 import type { ObituaryFacts } from "../src/facts.js";
 
 const facts: ObituaryFacts = {
@@ -109,6 +109,54 @@ describe("buildObituaryPrompt", () => {
     const { user } = buildObituaryPrompt(mkFacts({ isLegend: false, freshSpawnVictim: false, causeCategory: "environment", cause: "bled_out" }));
     expect(user).toMatch(/state funeral for an idiot/);
     expect(user).not.toMatch(/reroll/i);
+  });
+
+  // D4 — 18 of the 45 published obituaries were written from a bare "died". Saying "unknown" in
+  // the facts is not enough; the model must be told that inventing a mechanism is the failure.
+  it.each([
+    ["null cause", null],
+    ["bare 'died'", "died"],
+    ["bare 'environment'", "environment"],
+    ["bare 'unknown'", "unknown"],
+  ])("adds the no-invention constraint when the cause is unrecorded (%s)", (_label, cause) => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      causeCategory: "environment", cause, killerGamertag: null, verdict: null,
+      isLegend: false, freshSpawnVictim: false,
+    }));
+    expect(user).toContain(NO_MECHANISM_DIRECTIVE);
+    expect(user).toContain("THE CAUSE OF DEATH IS NOT RECORDED");
+    expect(user).toContain("the ABSENCE of a cause IS the story");
+    expect(user).toContain(UNKNOWN_DEATH_PHRASE);
+  });
+
+  it("omits the constraint for a recorded mechanism", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      causeCategory: "environment", cause: "infected", killerGamertag: null,
+      verdict: { cause: "infected", confidence: "high", conditions: [] },
+      isLegend: false, freshSpawnVictim: false,
+    }));
+    expect(user).not.toContain(NO_MECHANISM_DIRECTIVE);
+    expect(user).toContain("killed by the infected");
+  });
+
+  it("omits the constraint for a pvp death even when the cause token is bare", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      causeCategory: "pvp", cause: "died", killerGamertag: "Kilo", weapon: "M4A1", verdict: null,
+      isLegend: false, freshSpawnVictim: false,
+    }));
+    expect(user).not.toContain(NO_MECHANISM_DIRECTIVE);
+    expect(user).toContain("killed by another player (Kilo)");
+  });
+
+  it("causeUnrecorded is false for pvp and for any recorded mechanism", () => {
+    expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: "died", killerGamertag: null, verdict: null }))).toBe(true);
+    expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: null, killerGamertag: null, verdict: null }))).toBe(true);
+    expect(causeUnrecorded(mkFacts({ causeCategory: "pvp", cause: "died", killerGamertag: "Kilo", verdict: null }))).toBe(false);
+    expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: "wolf", killerGamertag: null, verdict: null }))).toBe(false);
+    expect(causeUnrecorded(mkFacts({
+      causeCategory: "environment", cause: "died", killerGamertag: null,
+      verdict: { cause: "starvation", confidence: "high", conditions: [] },
+    }))).toBe(false);
   });
 });
 
