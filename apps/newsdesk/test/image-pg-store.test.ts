@@ -95,6 +95,26 @@ describe("findImageTargets", () => {
     const mine = targets.filter((t) => [imaged.id, failed.id, exhausted.id].includes(t.articleId));
     expect(mine).toEqual([]);
   });
+
+  it("is inert while only the two shipped kinds exist — no news row means no image target", async () => {
+    // The safety claim of PR-C1 in one assertion. Both rows are published, un-imaged and have
+    // zero attempts, so they are eligible on every dimension EXCEPT kind.
+    const obit = await seedArticle({ kind: "obituary", imageUrl: null, imageAttempts: 0, createdAt: hrs(301) });
+    const birth = await seedArticle({ kind: "birth_notice", imageUrl: null, imageAttempts: 0, createdAt: hrs(302) });
+
+    const targets = await findImageTargets(db, { limit: 500, maxAttempts: 3 });
+    const mine = targets.filter((t) => [obit.id, birth.id].includes(t.articleId));
+    expect(mine).toEqual([]);
+  });
+
+  it("excludes a retracted row even though its kind is image-eligible", async () => {
+    // `articles.status` is free-text; C2's retraction sweep will write 'retracted'. findImageTargets
+    // filters eq(status,'published'), so a de-published article can never acquire a photo. Pinning
+    // it here means C2 inherits the guarantee rather than having to re-derive it.
+    const retracted = await seedArticle({ kind: "news", status: "retracted", createdAt: hrs(303) });
+    const targets = await findImageTargets(db, { limit: 500, maxAttempts: 3 });
+    expect(targets.map((t) => t.articleId)).not.toContain(retracted.id);
+  });
 });
 
 describe("recentCovers", () => {
