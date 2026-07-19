@@ -21,7 +21,7 @@ beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ob", map: "chernarusplus", slug: `oa-${svc}`, active: true }).returning();
   serverId = s!.id;
   await db.insert(articles).values([
-    base({ status: "published", slug: `early-${svc}`, lifeStartedAt: hrs(1), deathAt: hrs(2), timeAliveSeconds: 3600, kills: 1, longestKillMeters: 12, cause: "pvp", headline: "Early Death", lede: "e-lede", body: "e-body", tags: ["Obituaries", "Chernarus"], pullQuoteText: "q1", pullQuoteAttribution: "a coast source", facts: { sessions: 2, killerGamertag: "K1", weapon: "AK", verdict: { cause: "mauled", confidence: "high", conditions: ["bleeding", "hunted"] } }, generatedAt: hrs(2), imageUrl: "/media/heroes/x.png", imageCaption: "LAST KNOWN PHOTO" }),
+    base({ status: "published", slug: `early-${svc}`, lifeStartedAt: hrs(1), deathAt: hrs(2), timeAliveSeconds: 3600, kills: 1, longestKillMeters: 12, cause: "pvp", headline: "Early Death", lede: "e-lede", body: "e-body", tags: ["Obituaries", "Chernarus"], pullQuoteText: "q1", pullQuoteAttribution: "a coast source", bodyBlocks: [{ type: "para", text: "Block prose." }, { type: "subhead", text: "The Reckoning" }], facts: { sessions: 2, killerGamertag: "K1", weapon: "AK", verdict: { cause: "mauled", confidence: "high", conditions: ["bleeding", "hunted"] } }, generatedAt: hrs(2), imageUrl: "/media/heroes/x.png", imageCaption: "LAST KNOWN PHOTO" }),
     base({ status: "published", slug: `late-${svc}`, lifeStartedAt: hrs(4), deathAt: hrs(5), timeAliveSeconds: 3600, kills: 4, longestKillMeters: 300, cause: "pvp", headline: "Late Death", lede: "l-lede", body: "l-body", tags: ["Obituaries"], facts: { sessions: 1, killerGamertag: null, weapon: null }, generatedAt: hrs(5) }),
     base({ status: "failed", slug: null, lifeStartedAt: hrs(8), deathAt: hrs(9), attempts: 3, lastError: "boom" }),
   ]);
@@ -68,5 +68,16 @@ describe("getObituaryBySlug", () => {
   });
   it("returns null for an unknown or failed slug", async () => {
     expect(await getObituaryBySlug(db, "no-such-slug")).toBeNull();
+  });
+  it("returns bodyBlocks when the row stores them", async () => {
+    const a = await getObituaryBySlug(db, `early-${svc}`);
+    expect(a!.bodyBlocks).toEqual([
+      { type: "para", text: "Block prose." },
+      { type: "subhead", text: "The Reckoning" },
+    ]);
+  });
+  it("returns null bodyBlocks for a pre-R5d row", async () => {
+    const a = await getObituaryBySlug(db, `late-${svc}`);
+    expect(a!.bodyBlocks).toBeNull();
   });
 });
