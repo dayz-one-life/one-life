@@ -1,8 +1,9 @@
 import type { Database } from "@onelife/db";
-import { lives, players, servers, positions } from "@onelife/db";
-import { sql } from "drizzle-orm";
+import { lives, players, servers, positions, articles } from "@onelife/db";
+import { and, inArray, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 import type { DeathCandidate } from "./long-form-cluster.js";
+import { applyLongFormExclusions, buildLongFormClusters, type LongFormResult } from "./long-form-cluster.js";
 
 export interface LongFormCandidateOpts {
   since: Date;
@@ -108,4 +109,38 @@ export async function findLongFormCandidates(
     y: Number(r.y),
     fixAt: toDate(r.fix_at),
   }));
+}
+
+/** Nine required fields in total — see the interface note: a C2 call site that omits `now` or
+ *  `candidateLimit` will not compile. */
+export interface LongFormTargetOpts extends LongFormCandidateOpts {
+  windowSeconds: number; radiusMeters: number; maxAttempts: number; limit: number;
+}
+
+export async function findLongFormTargets(
+  db: Database,
+  opts: LongFormTargetOpts,
+): Promise<LongFormResult> {
+  const candidates = await findLongFormCandidates(db, opts);
+  const built = buildLongFormClusters(candidates, opts);
+  const { clusters, skipped } = applyLongFormExclusions(built, opts);
+  if (clusters.length === 0) return { clusters, skipped };
+
+  // Two-query anti-join, deliberately NOT a SQL-computed key. The Long Form key depends on the
+  // whole clique, so it cannot be built in SQL at all; doing it in TS also makes toISOString()
+  // the SOLE producer of every key, so the written key and the anti-joined key are the same
+  // string by construction. (A SQL to_char() rendering that drifted from JS would make the
+  // anti-join a silent no-op and re-publish the same subject every tick.)
+  const keys = clusters.map((c) => c.naturalKey);
+  const blocked = await db
+    .select({ k: articles.naturalKey })
+    .from(articles)
+    .where(and(
+      inArray(articles.naturalKey, keys),
+      sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+    ));
+  const blockedSet = new Set(blocked.map((r) => r.k!));
+
+  // The limit is applied AFTER the anti-join drop, so a blocked cluster never consumes a slot.
+  return { clusters: clusters.filter((c) => !blockedSet.has(c.naturalKey)).slice(0, opts.limit), skipped };
 }

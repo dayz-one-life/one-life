@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, positions } from "@onelife/db";
+import { servers, players, lives, sessions, positions, articles } from "@onelife/db";
 import { inArray } from "drizzle-orm";
-import { findLongFormCandidates } from "../src/long-form-targets.js";
+import { findLongFormCandidates, findLongFormTargets } from "../src/long-form-targets.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 53e7;
@@ -48,6 +48,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.delete(articles).where(inArray(articles.serverId, [serverId]));
   await db.delete(positions).where(inArray(positions.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
@@ -101,5 +102,61 @@ describe("findLongFormCandidates", () => {
   it("honours the forward-only `since` cutoff on ended_at", async () => {
     const rows = mine(await findLongFormCandidates(db, { ...OPTS, since: mins(61) }));
     expect(rows.map((r) => r.gamertag)).toEqual([tag("bee")]);
+  });
+});
+
+const T_OPTS = { ...OPTS, windowSeconds: 180, radiusMeters: 100, maxAttempts: 3, limit: 2 };
+// Generic for the same reason `mine` above is generic: a non-generic `{ primary: { gamertag:
+// string } }[]` parameter type would widen the filtered array down to that narrow shape,
+// dropping LongFormCluster's `subjects`/`naturalKey` fields that these tests assert on.
+const mineC = <T extends { primary: { gamertag: string } }>(r: { clusters: T[] }): T[] =>
+  r.clusters.filter((c) => c.primary.gamertag.endsWith(`-${svc}`));
+
+describe("findLongFormTargets", () => {
+  it("clusters the two fresh qualified deaths into one target", async () => {
+    const r = await findLongFormTargets(db, T_OPTS);
+    const cs = mineC(r);
+    expect(cs).toHaveLength(1);
+    expect(cs[0]!.subjects.map((s) => s.gamertag)).toEqual([tag("ay"), tag("bee")]);
+    expect(cs[0]!.naturalKey).toBe(
+      `long_form:${serverId}:${mins(60).toISOString()}:${[tag("ay"), tag("bee")].sort().join("+")}`);
+  });
+
+  it("returns a coordinate-free target — the fixture rows DO contain coordinates", async () => {
+    const r = await findLongFormTargets(db, T_OPTS);
+    expect(JSON.stringify(mineC(r))).not.toMatch(/\d{4}\.\d/);
+  });
+
+  it("suppresses a cluster whose natural key is already published", async () => {
+    const r0 = await findLongFormTargets(db, T_OPTS);
+    const key = mineC(r0)[0]!.naturalKey;
+    await db.insert(articles).values({
+      kind: "news", status: "published", naturalKey: key,
+      serverId, gamertag: tag("ay"), map: "chernarusplus", lifeNumber: 1,
+      lifeStartedAt: mins(0), deathAt: mins(60),
+      slug: `lf-published-${svc}`, headline: "H", lede: "L", body: "B",
+      promptVersion: "news-v1", model: "test", attempts: 1,
+    });
+    expect(mineC(await findLongFormTargets(db, T_OPTS))).toEqual([]);
+    await db.delete(articles).where(inArray(articles.naturalKey, [key]));
+  });
+
+  it("suppresses a cluster whose failed article has exhausted attempts, but not one that has not", async () => {
+    const key = mineC(await findLongFormTargets(db, T_OPTS))[0]!.naturalKey;
+    await db.insert(articles).values({
+      kind: "news", status: "failed", naturalKey: key, attempts: 1,
+      serverId, gamertag: tag("ay"), map: "chernarusplus", lifeNumber: 1,
+      lifeStartedAt: mins(0), promptVersion: "news-v1", model: "test",
+    });
+    expect(mineC(await findLongFormTargets(db, T_OPTS))).toHaveLength(1); // 1 < maxAttempts 3
+    await db.update(articles).set({ attempts: 3 }).where(inArray(articles.naturalKey, [key]));
+    expect(mineC(await findLongFormTargets(db, T_OPTS))).toEqual([]);
+    await db.delete(articles).where(inArray(articles.naturalKey, [key]));
+  });
+
+  it("reports per-reason skip counts", async () => {
+    const r = await findLongFormTargets(db, T_OPTS);
+    expect(Object.keys(r.skipped).sort()).toEqual(
+      ["self_cluster", "suicide_subject", "suppressed_gamertag", "unqualified_subject"]);
   });
 });
