@@ -9,7 +9,7 @@ export type ProjectionEvent = {
 };
 
 export type PlayerRow = { id: number; gamertag: string; lastSeenAt: Date | null };
-export type LifeRow = { id: number; playerId: number; lifeNumber: number; startedAt: Date; endedAt: Date | null };
+export type LifeRow = { id: number; playerId: number; lifeNumber: number; startedAt: Date; endedAt: Date | null; qualifiedAt: Date | null };
 export type SessionRow = { id: number; playerId: number; lifeId: number; connectedAt: Date };
 
 export type EndLife = {

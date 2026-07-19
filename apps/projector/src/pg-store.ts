@@ -33,7 +33,7 @@ export class PgProjectionStore implements ProjectionStore {
     const r = await this.tx.select().from(lives)
       .where(and(eq(lives.serverId, serverId), eq(lives.playerId, playerId), isNull(lives.endedAt)));
     const l = r[0];
-    return l ? { id: l.id, playerId: l.playerId, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt } : null;
+    return l ? { id: l.id, playerId: l.playerId, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt, qualifiedAt: l.qualifiedAt } : null;
   }
   async getMaxLifeNumber(serverId: number, playerId: number): Promise<number> {
     const r = await this.tx.select({ m: sql<number>`coalesce(max(${lives.lifeNumber}), 0)` }).from(lives)
@@ -42,7 +42,7 @@ export class PgProjectionStore implements ProjectionStore {
   }
   async createLife(serverId: number, playerId: number, lifeNumber: number, startedAt: Date): Promise<LifeRow> {
     const [row] = await this.tx.insert(lives).values({ serverId, playerId, lifeNumber, startedAt }).returning();
-    return { id: row!.id, playerId, lifeNumber, startedAt, endedAt: null };
+    return { id: row!.id, playerId, lifeNumber, startedAt, endedAt: null, qualifiedAt: null };
   }
   async endLife(lifeId: number, e: EndLife): Promise<void> {
     await this.tx.update(lives).set({
@@ -50,8 +50,19 @@ export class PgProjectionStore implements ProjectionStore {
       energyAtDeath: e.energy ?? null, waterAtDeath: e.water ?? null, bleedSourcesAtDeath: e.bleedSources ?? null,
     }).where(eq(lives.id, lifeId));
   }
-  async addLifePlaytime(lifeId: number, seconds: number): Promise<void> {
-    await this.tx.update(lives).set({ playtimeSeconds: sql`${lives.playtimeSeconds} + ${seconds}` }).where(eq(lives.id, lifeId));
+  async addLifePlaytime(lifeId: number, seconds: number): Promise<number> {
+    const rows = await this.tx.update(lives)
+      .set({ playtimeSeconds: sql`${lives.playtimeSeconds} + ${seconds}` })
+      .where(eq(lives.id, lifeId))
+      .returning({ total: lives.playtimeSeconds });
+    return rows[0]?.total ?? 0;
+  }
+  /** Write-once. The IS NULL guard is in the WHERE clause, so a concurrent or replayed
+   *  event can never move an already-recorded qualification later. */
+  async markLifeQualified(lifeId: number, at: Date): Promise<void> {
+    await this.tx.update(lives)
+      .set({ qualifiedAt: at })
+      .where(and(eq(lives.id, lifeId), isNull(lives.qualifiedAt)));
   }
   async getRecentlyEndedLifeId(serverId: number, playerId: number, endedAt: Date): Promise<number | null> {
     const rows = await this.tx.select({ id: lives.id }).from(lives)

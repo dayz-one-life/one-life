@@ -1,7 +1,9 @@
+import { QUALIFY_SECONDS } from "@onelife/domain";
+
 export { livePlaytime } from "./playtime.js";
 
 /** A life counts only once it has survived 5 minutes of accumulated playtime OR seen lethal PvP. */
-export const QUALIFY_SECONDS = 300;
+export { QUALIFY_SECONDS };
 
 export type QualificationInput = {
   deathCause: string | null;         // lives.death_cause ("pvp" = the victim died in PvP)
