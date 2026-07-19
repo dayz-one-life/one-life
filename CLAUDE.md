@@ -404,7 +404,27 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
   `newsdesk` (obituary + birth-notice generation sweep, run as **four passes** each interval; **`NEWSDESK_DRY_RUN`
   defaults `true`** — logs intended articles without calling OpenRouter or writing; set `false` to
-  generate; needs `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`. The
+  generate; needs `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`.
+  **Prose-quality Phase 0 (R5d PR-A)** — four defects found by reading 168 real published articles out of a
+  prod dump, all fixed forward-only (`articles.facts` is frozen, so already-published articles keep their
+  errors): (1) **the prompts seeded their own repetition** — 89 of 123 birth notices reused the byte-identical
+  attribution `"a voice on the coast"` because that string was an *example* in `birth-voice.ts`; examples
+  deleted, and both desks now get a do-not-reuse block built by `recentProse` (`prose-pg-store.ts`, the
+  `recentCovers` pattern applied to prose) → `recentProseBlock` (`prose-block.ts`), fetched **once per tick**
+  above the loop, plus a deterministic `dedupePullQuote` backstop (`prose-backstop.ts`) that nulls a repeated
+  attribution post-parse. (2) **obituaries lacked the priors block birth notices get**, so the model inferred
+  "rookie" and shipped an 11th life headlined *"Livonia Debut"*; `tick.ts` now calls `getPlayerPriors` and
+  `ObituaryFacts` carries `priors`/`isKnownQuantity`, mirroring `birth-facts.ts` exactly. (3) **suicide has
+  its own `causeCategory`** (the union is now `pvp|suicide|environment|unknown`) + a `Self-Inflicted` tag,
+  explicit stances in all six `causeCategory`-gated image predicates, and a `SUICIDE_RESET_SECONDS` (300)
+  tone split — a spawn reroll reads as paperwork, a long run that ends by choice gets the record but never
+  speculation about a state of mind. (4) **an unrecorded cause says so** — `isUnrecordedCause`/
+  `UNKNOWN_DEATH_PHRASE` replace the bare `environment` token the model dressed into *"Loses Fight With
+  Terrain"*, and `NO_MECHANISM_DIRECTIVE` (gated by `causeUnrecorded`, which requires **both** the raw cause
+  and `verdict.cause` unrecorded) forbids inventing one. The low-confidence hedge line is an `else if` on
+  that gate — the two contradict each other if both render. **Known follow-up: a bare `died` cause still
+  buckets to `causeCategory:"environment"` and ships an `Environment` tag while the prose says no cause is
+  recorded (~23% of deaths) — fix before the next prod deploy.** The
   birth-notice pass is additionally gated by **`NEWSDESK_BIRTH_SINCE`** — an ISO-8601 cutoff
   timestamp; unset/empty/invalid ⇒ the pass is **off** (0 targets, no client call) — set it once to a
   go-live instant to begin **forward-only** coverage. Now in the `deploy.sh` restart fleet, so
