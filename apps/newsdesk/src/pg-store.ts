@@ -162,6 +162,7 @@ export async function recordObituaryFailure(
     .values({ ...id, status: "failed", attempts: 1, lastError: input.error })
     .onConflictDoUpdate({
       target: CONFLICT,
+      targetWhere: CONFLICT_WHERE,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: input.error },
     });
 }
