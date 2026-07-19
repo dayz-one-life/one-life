@@ -46,7 +46,7 @@ function primaryOf(f: NewsFacts): NewsSubject {
 /** The NOT NULL columns `articles` inherited from the two life-keyed kinds, filled from the
  *  primary subject. Written identically by the publish path and the failure-stub path, so a stub
  *  and its eventual article are the same row. */
-function identity(f: NewsFacts) {
+function IDENTITY(f: NewsFacts) {
   const p = primaryOf(f);
   return {
     kind: "news" as const,
@@ -75,7 +75,7 @@ export async function publishNews(db: Database, input: PublishNewsInput): Promis
   const { facts: f, article: a } = input;
   const p = primaryOf(f);
   const values = {
-    ...identity(f),
+    ...IDENTITY(f),
     status: "published" as const,
     slug: newsSlug(f.trigger, a.headline, f.primaryGamertag, f.serverId, p.lifeNumber),
     headline: a.headline,
@@ -113,7 +113,7 @@ export async function recordNewsFailure(
   db: Database,
   args: { facts: NewsFacts; error: string },
 ): Promise<void> {
-  const id = identity(args.facts);
+  const id = IDENTITY(args.facts);
   await db
     .insert(articles)
     .values({ ...id, status: "failed", attempts: 1, lastError: args.error })
