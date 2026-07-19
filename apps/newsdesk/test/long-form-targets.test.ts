@@ -159,4 +159,23 @@ describe("findLongFormTargets", () => {
     expect(Object.keys(r.skipped).sort()).toEqual(
       ["self_cluster", "suicide_subject", "suppressed_gamertag", "unqualified_subject"]);
   });
+
+  it("the exported target type carries no x/y even though DeathCandidate does", async () => {
+    const cands = await findLongFormCandidates(db, OPTS);
+    expect(cands.some((c) => typeof c.x === "number")).toBe(true);   // source rows DO have coords
+    const r = await findLongFormTargets(db, T_OPTS);
+    for (const c of mineC(r)) for (const s of c.subjects) {
+      expect(Object.keys(s)).not.toContain("x");
+      expect(Object.keys(s)).not.toContain("y");
+      expect(Object.keys(s)).not.toContain("fixAt");
+    }
+  });
+});
+
+it("re-exports both finders through the news-targets barrel", async () => {
+  const barrel = await import("../src/news-targets.js");
+  expect(typeof barrel.findStandingDeadTargets).toBe("function");
+  expect(typeof barrel.findLongFormTargets).toBe("function");
+  expect(typeof barrel.findLongFormCandidates).toBe("function");
+  expect(typeof barrel.standingDeadNaturalKey).toBe("function");
 });

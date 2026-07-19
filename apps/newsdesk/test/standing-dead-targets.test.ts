@@ -227,3 +227,29 @@ describe("article anti-join", () => {
     await db.delete(articles).where(inArray(articles.naturalKey, [first.naturalKey]));
   });
 });
+
+describe("population funnel (§4.1.2 shape)", () => {
+  it("each successive gate is a strict subset of the looser one", async () => {
+    const loose = { ...OPTS, minPlaytimeSeconds: 0, minHitsAbsorbed: 0, standingDeadHours: 0 };
+    const setOf = async (o: typeof OPTS) =>
+      new Set((await findStandingDeadTargets(db, { ...o, limit: 500 }))
+        .filter((r) => r.gamertag.endsWith(`-${svc}`)).map((r) => r.gamertag));
+
+    const all = await setOf(loose);
+    const idle = await setOf({ ...loose, standingDeadHours: 72 });
+    const played = await setOf({ ...loose, standingDeadHours: 72, minPlaytimeSeconds: 1800 });
+    const earned = await setOf(OPTS);
+
+    for (const g of idle) expect(all.has(g)).toBe(true);
+    for (const g of played) expect(idle.has(g)).toBe(true);
+    for (const g of earned) expect(played.has(g)).toBe(true);
+    expect(earned.size).toBeLessThan(played.size);   // the earned-coverage clause bites
+  });
+
+  it("returns no coordinate-shaped number — a Standing Dead target carries no fix at all", async () => {
+    const rows = await findStandingDeadTargets(db, OPTS);
+    expect(JSON.stringify(rows)).not.toMatch(/\d{4}\.\d/);
+    expect(Object.keys(rows[0] ?? {})).not.toContain("x");
+    expect(Object.keys(rows[0] ?? {})).not.toContain("y");
+  });
+});
