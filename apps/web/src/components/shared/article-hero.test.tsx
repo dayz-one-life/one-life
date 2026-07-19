@@ -17,4 +17,8 @@ describe("ArticleHero", () => {
     render(<ArticleHero src="/media/heroes/x.png" caption={null} accent="blue" />);
     expect(document.querySelector("figcaption")).toBeNull();
   });
+  it("renders the ink accent on the caption rule", () => {
+    render(<ArticleHero src="/media/heroes/x.png" caption="A ROOM, RECENTLY LEFT" accent="ink" />);
+    expect(screen.getByText("A ROOM, RECENTLY LEFT")).toHaveClass("border-ink");
+  });
 });

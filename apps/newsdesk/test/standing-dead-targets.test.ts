@@ -4,6 +4,34 @@ import { servers, players, lives, sessions, hitEvents, articles } from "@onelife
 import { inArray } from "drizzle-orm";
 import { findStandingDeadTargets, type StandingDeadOpts } from "../src/standing-dead-targets.js";
 
+/** Key names that would carry a raw map coordinate if one leaked through. Ported from
+ *  news-facts.test.ts — test-local by convention; the newsdesk suite has no shared helper module. */
+const COORDINATE_KEYS = new Set(["x", "y", "posX", "posY", "coordX", "coordY", "lat", "lon"]);
+
+/**
+ * Recursively collects every object key at any depth, including inside arrays. Value-independent
+ * by design: it proves the Fog Rule by SHAPE, not by pattern-matching a coordinate-looking number,
+ * which is exactly what `/\d{4}\.\d/` fails to do near a map's low edge (e.g. "812.4").
+ */
+function collectKeys(value: unknown, keys: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeys(item, keys);
+  } else if (value !== null && typeof value === "object") {
+    for (const [key, val] of Object.entries(value)) {
+      keys.add(key);
+      collectKeys(val, keys);
+    }
+  }
+  return keys;
+}
+
+function assertNoCoordinateKeys(value: unknown): void {
+  const keys = collectKeys(value);
+  for (const forbidden of COORDINATE_KEYS) {
+    expect(keys.has(forbidden)).toBe(false);
+  }
+}
+
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 53e7;
 const t0 = new Date("2026-07-01T00:00:00.000Z");
@@ -246,10 +274,15 @@ describe("population funnel (§4.1.2 shape)", () => {
     expect(earned.size).toBeLessThan(played.size);   // the earned-coverage clause bites
   });
 
-  it("returns no coordinate-shaped number — a Standing Dead target carries no fix at all", async () => {
+  it("returns no coordinate key at any depth — a Standing Dead target carries no fix at all", async () => {
     const rows = await findStandingDeadTargets(db, OPTS);
-    expect(JSON.stringify(rows)).not.toMatch(/\d{4}\.\d/);
-    expect(Object.keys(rows[0] ?? {})).not.toContain("x");
-    expect(Object.keys(rows[0] ?? {})).not.toContain("y");
+    // Guard: an empty `rows` would make the key walk below inspect nothing and pass vacuously
+    // (this defect class — a vacuous walk over an empty collection — has recurred three times in
+    // this codebase). Mirrors the `toHaveLength(1)` sanity check in long-form-cluster.test.ts.
+    expect(rows.length).toBeGreaterThan(0);
+    // The previous version checked Object.keys of the TOP LEVEL only, so a nested leak was
+    // invisible; and its regex misses a low-edge coordinate like 812.4. Both are fixed here.
+    assertNoCoordinateKeys(rows);
+    expect(JSON.stringify(rows)).not.toMatch(/\d{4}\.\d/);   // cheap secondary signal only
   });
 });
