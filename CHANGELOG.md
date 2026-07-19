@@ -32,6 +32,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **Push notifications survived sign-out on a shared browser.** Nothing tore the subscription down,
+  so after user A signed out and user B signed in, A's notifications — including obituary headlines
+  carrying A's gamertag — kept firing as OS notifications on B's device, and B's "turn off" deleted
+  zero rows because the DELETE is scoped to the session user. Sign-out now runs a shared
+  `signOutAndTeardownPush()` (`apps/web/src/lib/push.ts`, used by both the desktop rail and the
+  mobile sheet, so the two handlers can't drift): it deletes the server row **before** `signOut()`,
+  while the session is still valid, and never throws — a failed teardown must not trap anyone in a
+  session.
+- **The push toggle now reconciles browser state with the server.** It read only
+  `Notification.permission` and the browser's `PushSubscription`, both of which are untouched when
+  the notifier retires an endpoint after repeated delivery failures or when the account on the
+  machine changes — so the rail said "on" in exactly the cases where no push could arrive. New
+  `GET /me/push-subscriptions?endpoint=…` reports whether the **session user** has a live
+  (non-disabled) row; ownership and `disabled_at` are both WHERE-clause predicates, so another
+  user's row reads as inactive rather than leaking. An unreachable server falls back to "off",
+  the self-healing direction: turning it back on upserts by endpoint and repairs the row.
+- **A failed unsubscribe reported "off" while pushes continued.** `disable()` set the state in a
+  `finally`, so a rejected server call skipped `sub.unsubscribe()` and still rendered "off" — the
+  one direction that never self-heals, because a user who believes they turned push off will not
+  touch the control again. It now sets "off" only on success and otherwise shows an error state
+  saying push is still on, with a retry.
+- **An unset `VAPID_PUBLIC_KEY` failed silently forever.** It was read straight off `process.env`
+  outside the API's validated config, and the `onelife-api` unit has its own `EnvironmentFile`
+  (`deploy/README.md`), so this was a live path: the API booted clean, `GET /push/vapid-key` served
+  `""`, `subscribe()` threw, the toggle swallowed it, and the notifier reported success because it
+  found zero subscriptions. It is now in `apps/api/src/config.ts` and logs a loud startup warning
+  when empty — a warning rather than a boot failure, since push is optional and refusing to start
+  would take the whole public site down with it.
 
 ## [0.25.0] - 2026-07-19
 

@@ -6,6 +6,11 @@ import { useControls, useControlsActions } from "./use-controls";
 
 vi.mock("./use-controls", () => ({ useControls: vi.fn(), useControlsActions: vi.fn() }));
 vi.mock("@/lib/auth-client", () => ({ signOut: vi.fn(async () => {}) }));
+// Sign-out must go through the shared helper, which tears the push subscription down before
+// the session dies. A bare signOut() here leaves a shared browser delivering this user's
+// notifications to whoever signs in next.
+const signOutAndTeardownPush = vi.fn(async () => {});
+vi.mock("@/lib/push", () => ({ signOutAndTeardownPush: () => signOutAndTeardownPush() }));
 
 const mut = () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false, error: null });
 const base = { name: "Boots", provider: "discord", balance: 3, servers: [], standing: [], notifications: [], unreadCount: 0 };
@@ -55,6 +60,13 @@ describe("ControlsRail", () => {
     expect(screen.getByText("No life")).toBeInTheDocument(); // never-played server renders idle
     expect(screen.getByRole("link", { name: "Your profile →" })).toHaveAttribute("href", "/players/bootscoldwater");
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  test("sign out tears down push before ending the session", () => {
+    (useControls as Mock).mockReturnValue({ ...base, status: { kind: "unlinked" } });
+    render(<ControlsRail />);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
   });
 
   test("verified: opening notifications reveals the list and marks them read", () => {

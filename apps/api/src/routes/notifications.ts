@@ -27,6 +27,7 @@ const subscribeBody = z.object({
   keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
 });
 const unsubscribeBody = z.object({ endpoint: z.string().min(1) });
+const statusQuery = z.object({ endpoint: z.string().min(1) });
 
 export function registerNotificationRoutes(
   app: FastifyInstance, db: Database, auth: Auth, vapidPublicKey: string,
@@ -102,6 +103,29 @@ export function registerNotificationRoutes(
         },
       });
     return { ok: true };
+  });
+
+  // The browser's PushSubscription object outlives everything the server knows about it: it
+  // survives sign-out, it survives an account switch on a shared machine, and it is untouched
+  // when the notifier retires the row after repeated delivery failures. A toggle that reads
+  // only browser state therefore says "on" in exactly the cases where no push will arrive.
+  // The ownership predicate is in the WHERE clause, so another user's row reads as inactive
+  // rather than leaking that it exists.
+  app.get("/me/push-subscriptions", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const parsed = statusQuery.safeParse(req.query);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
+    const [row] = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(and(
+        eq(pushSubscriptions.userId, session.user.id),
+        eq(pushSubscriptions.endpoint, parsed.data.endpoint),
+        isNull(pushSubscriptions.disabledAt),
+      ))
+      .limit(1);
+    return { active: row !== undefined };
   });
 
   app.delete("/me/push-subscriptions", async (req, reply) => {

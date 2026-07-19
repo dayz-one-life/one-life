@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { signOut } from "@/lib/auth-client";
+import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
 import { useControls, useControlsActions } from "./use-controls";
@@ -134,7 +134,7 @@ export function MobileControls() {
           )}
           <button
             type="button"
-            onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
+            onClick={() => void signOutAndTeardownPush()}
             className="text-cream-muted hover:text-paper"
           >
             Sign out

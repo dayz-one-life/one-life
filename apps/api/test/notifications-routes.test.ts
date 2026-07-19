@@ -152,6 +152,67 @@ describe("notification routes", () => {
     expect(rows).toHaveLength(0);
   });
 
+  // The browser's PushSubscription object survives sign-out, account switches and the
+  // notifier retiring a row after repeated delivery failures. The toggle therefore cannot
+  // trust it alone — this route is the server's side of that reconciliation.
+  describe("GET /me/push-subscriptions", () => {
+    const endpoint = `ep-status-${svc}`;
+
+    it("401 without a session", async () => {
+      const res = await app.inject({
+        method: "GET", url: `/me/push-subscriptions?endpoint=${endpoint}`,
+        headers: { host: "localhost" },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("400 without an endpoint", async () => {
+      const res = await app.inject({ method: "GET", url: "/me/push-subscriptions", headers: authed() });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("reports inactive when the caller has no row for the endpoint", async () => {
+      const res = await app.inject({
+        method: "GET", url: `/me/push-subscriptions?endpoint=${endpoint}`, headers: authed(),
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().active).toBe(false);
+    });
+
+    it("reports active for the caller's live subscription", async () => {
+      await db.insert(pushSubscriptions).values({ userId, endpoint, p256dh: "p", auth: "a" });
+      const res = await app.inject({
+        method: "GET", url: `/me/push-subscriptions?endpoint=${endpoint}`, headers: authed(),
+      });
+      expect(res.json().active).toBe(true);
+    });
+
+    // The notifier retires a subscription after 5 failed deliveries. The browser object is
+    // untouched, so without this the rail would keep claiming push is on forever.
+    it("reports inactive once the notifier has disabled the row", async () => {
+      await db.update(pushSubscriptions)
+        .set({ disabledAt: new Date() })
+        .where(eq(pushSubscriptions.endpoint, endpoint));
+      const res = await app.inject({
+        method: "GET", url: `/me/push-subscriptions?endpoint=${endpoint}`, headers: authed(),
+      });
+      expect(res.json().active).toBe(false);
+      await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    });
+
+    // The shared-browser case: A signs out leaving the row behind, B signs in. B must be
+    // told push is off for them, not shown A's subscription as if it were theirs.
+    it("reports inactive when the row belongs to another user", async () => {
+      const shared = `ep-shared-${svc}`;
+      await db.insert(pushSubscriptions).values({ userId: otherUserId, endpoint: shared, p256dh: "p", auth: "a" });
+      const res = await app.inject({
+        method: "GET", url: `/me/push-subscriptions?endpoint=${shared}`, headers: authed(),
+      });
+      expect(res.json().active).toBe(false);
+      await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, shared));
+    });
+  });
+
   it("serves the vapid public key without a session", async () => {
     const res = await app.inject({ method: "GET", url: "/push/vapid-key", headers: { host: "localhost" } });
     expect(res.statusCode).toBe(200);

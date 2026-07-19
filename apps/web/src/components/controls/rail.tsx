@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { signOut } from "@/lib/auth-client";
+import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
 import { ApiError } from "@/lib/api";
@@ -48,7 +48,7 @@ function SignedInFooter({ profileSlug }: { profileSlug?: string }) {
       )}
       <button
         type="button"
-        onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
+        onClick={() => void signOutAndTeardownPush()}
         className="text-ink-muted hover:text-red"
       >
         Sign out
