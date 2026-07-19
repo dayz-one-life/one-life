@@ -8,7 +8,7 @@ vi.mock("./use-controls", () => ({ useControls: vi.fn(), useControlsActions: vi.
 vi.mock("@/lib/auth-client", () => ({ signOut: vi.fn(async () => {}) }));
 
 const mut = () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false, error: null });
-const base = { name: "Boots", provider: "discord", balance: 3, servers: [], standing: [] };
+const base = { name: "Boots", provider: "discord", balance: 3, servers: [], standing: [], notifications: [], unreadCount: 0 };
 
 beforeEach(() => {
   (useControlsActions as Mock).mockReturnValue({ claim: mut(), cancel: mut(), send: mut(), refer: mut(), redeem: mut() });
