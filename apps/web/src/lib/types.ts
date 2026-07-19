@@ -225,3 +225,17 @@ export type BirthNoticeArticle = BirthNoticeCard & {
   };
   endedAt: string | null;
 };
+
+/** Named AppNotification to avoid shadowing the DOM's global Notification type,
+ *  which the push permission flow depends on. */
+export type AppNotification = {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  href: string;
+  createdAt: string;
+  readAt: string | null;
+};
+
+export type NotificationsFeed = { items: AppNotification[]; unreadCount: number };

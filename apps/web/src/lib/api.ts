@@ -4,6 +4,7 @@ import type {
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
   ObituariesFeed, ObituaryArticle,
   BirthNoticesFeed, BirthNoticeArticle,
+  AppNotification, NotificationsFeed,
 } from "./types";
 
 export class ApiError extends Error {
@@ -114,6 +115,15 @@ export const transferToken = (toGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
 export const setReferrer = (referrerGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
+
+export const getNotifications = () => apiGet<NotificationsFeed>("/api/me/notifications");
+export const markNotificationsRead = () =>
+  apiSend<{ ok: true }>("POST", "/api/me/notifications/read", {});
+export const getVapidKey = () => apiGet<{ publicKey: string }>("/api/push/vapid-key");
+export const subscribePush = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+  apiSend<{ ok: true }>("POST", "/api/me/push-subscriptions", sub);
+export const unsubscribePush = (endpoint: string) =>
+  apiSend<{ ok: true }>("DELETE", "/api/me/push-subscriptions", { endpoint });
 
 async function getOrNull<T>(path: string): Promise<T | null> {
   try {
