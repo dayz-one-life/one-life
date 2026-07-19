@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.21.2] - 2026-07-18
+
+### Fixed
+- newsdesk: suicides get their own cause category (`Self-Inflicted`), with a spawn-reroll vs. real-run tone split.
+- newsdesk: obituaries now receive the player's global priors, so an 11th life is no longer headlined as a debut.
+- newsdesk: an unrecorded cause of death reads as an explicit unknown; the model is forbidden from inventing a mechanism.
+- newsdesk: both desks are shown their recently published prose and forbidden from reusing an attribution, with a deterministic backstop that drops a repeated one.
+- newsdesk: `articles.facts` is frozen forward-only, so these fixes protect future obituaries and birth notices only — the 45 already-published obituaries keep their errors.
+
 ## [0.21.1] - 2026-07-18
 
 ### Changed

@@ -9,6 +9,8 @@ const facts: ObituaryFacts = {
   causeCategory: "environment", killerGamertag: null, weapon: null, isLegend: false, freshSpawnVictim: false,
   endedAt: "2026-07-10T02:00:00.000Z",
   deathDistance: null, verdict: null, ordeals: null, hpLow: null,
+  priors: { livesLived: 0, longestLifeSeconds: 0, totalKills: 0, usualDeathCause: null, lastDeathCause: null, bestLifeMap: null },
+  isKnownQuantity: false,
 };
 
 const stub = (payload: unknown): CompletionClient => ({ complete: async () => JSON.stringify(payload) });

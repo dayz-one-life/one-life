@@ -19,6 +19,10 @@ data/
 # DayZ server logs dropped at repo root for analysis (package test fixtures still track)
 /*.ADM
 /*.RPT
+
+# production DB dumps dropped at repo root for analysis — real player data, never committed
+/*.sql
+/*.dump
 .next/
 
 # OS / editor cruft

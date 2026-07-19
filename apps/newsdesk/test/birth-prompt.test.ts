@@ -43,6 +43,22 @@ describe("buildBirthPrompt", () => {
   });
 });
 
+describe("buildBirthPrompt — recent prose", () => {
+  it("omits the block entirely when nothing is recent", () => {
+    const { user } = buildBirthPrompt(known);
+    expect(user).not.toMatch(/RECENTLY PUBLISHED/);
+  });
+
+  it("splices the do-not-reuse block when recent prose is supplied", () => {
+    const { user } = buildBirthPrompt(known, [
+      { headline: "Old Arrival", attribution: "a harbourmaster with a ledger", opener: "Another one washed up." },
+    ]);
+    expect(user).toMatch(/do NOT reuse/i);
+    expect(user).toContain("Old Arrival");
+    expect(user).toContain("a harbourmaster with a ledger");
+  });
+});
+
 describe("parseBirthNotice", () => {
   const valid = JSON.stringify({
     headline: "Another Fool Washes Ashore", lede: "The tide brought a gift.", body: "It will not keep.",

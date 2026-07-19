@@ -1,10 +1,15 @@
 import type { Database } from "@onelife/db";
 import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
 import { findBirthNoticeTargets, publishBirthNotice, recordBirthNoticeFailure } from "./birth-pg-store.js";
+import { recentProse } from "./prose-pg-store.js";
 import { buildBirthFacts } from "./birth-facts.js";
 import { composeBirthTags } from "./birth-prompt.js";
 import { generateBirthNotice } from "./generate.js";
 import type { NewsdeskDeps, NewsdeskResult } from "./tick.js";
+import { dedupePullQuote } from "./prose-backstop.js";
+
+/** Mirror of tick.ts: the do-not-reuse window, fetched once per tick. */
+const RECENT_PROSE_LIMIT = 12;
 
 /**
  * One birth-notice cycle, the sibling of newsdeskTick. Forward-only: `since` is the go-live cutoff.
@@ -26,6 +31,8 @@ export async function birthNoticeTick(
   let failed = 0;
   let skipped = 0;
 
+  const recent = deps.dryRun || targets.length === 0 ? [] : await recentProse(db, "birth_notice", RECENT_PROSE_LIMIT);
+
   for (const t of targets) {
     const timeline = await getLifeTimeline(db, t.serverId, t.gamertag, t.lifeId);
     if (!timeline) {
@@ -41,10 +48,11 @@ export async function birthNoticeTick(
     }
 
     try {
-      const notice = await generateBirthNotice(deps.client, facts);
+      const notice = await generateBirthNotice(deps.client, facts, recent);
+      const deduped = dedupePullQuote(notice, recent);
       // Reserved tags (Fresh Spawns / map / priors label) are composed deterministically; the LLM
       // only contributes at most one flavor tag.
-      const tagged = { ...notice, tags: composeBirthTags(facts, notice.tags) };
+      const tagged = { ...deduped, tags: composeBirthTags(facts, deduped.tags) };
       await publishBirthNotice(db, {
         target: t,
         facts,
