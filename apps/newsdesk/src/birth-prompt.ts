@@ -3,6 +3,8 @@ import type { BirthFacts } from "./birth-facts.js";
 import { BIRTH_SYSTEM } from "./birth-voice.js";
 import { mapLabel } from "./prompt.js";
 import { timeAliveLabel } from "./facts.js";
+import type { RecentProse } from "./prose-pg-store.js";
+import { recentProseBlock } from "./prose-block.js";
 
 export const BIRTH_PROMPT_VERSION = "birth-v1";
 
@@ -15,7 +17,7 @@ export interface BirthNotice {
 }
 
 /** Build the {system, user} messages for one birth notice from the arrival snapshot. */
-export function buildBirthPrompt(facts: BirthFacts): { system: string; user: string } {
+export function buildBirthPrompt(facts: BirthFacts, recent: RecentProse[] = []): { system: string; user: string } {
   const lines: string[] = [];
   lines.push(`Write the birth notice for this new life. Facts (present tense — the subject is ALIVE):`);
   lines.push(`- Callsign: ${facts.gamertag}`);
@@ -45,6 +47,8 @@ export function buildBirthPrompt(facts: BirthFacts): { system: string; user: str
   } else {
     lines.push(`TONE — STRANGER: no priors, a first life, a stranger to these shores. Welcome the new fool with doomed optimism and mock-ceremony. Do NOT mock them for being new, green, or unlucky — the joke is the world they just walked into, never the person.`);
   }
+  lines.push("");
+  lines.push(...recentProseBlock(recent));
   lines.push("");
   lines.push(`Respond with only the JSON object described in your instructions.`);
   return { system: BIRTH_SYSTEM, user: lines.join("\n") };
