@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { PullQuote } from "@/components/shared/pull-quote";
+import { ArticleBody } from "@/components/shared/article-body";
 import { PriorsBox } from "./priors-box";
 import { MoreFreshMeat } from "./more-fresh-meat";
 import type { BirthNoticeArticle, BirthNoticeCard } from "@/lib/types";
@@ -28,11 +29,7 @@ export function BirthNoticeArticleView({
         </p>
       </div>
 
-      <div className="mt-6 space-y-4 font-mono text-[14px] leading-relaxed text-ink-soft">
-        {article.body.split(/\n{2,}/).map((para, i) => (
-          <p key={i}>{para}</p>
-        ))}
-      </div>
+      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-6" />
 
       {article.pullQuote && <PullQuote text={article.pullQuote.text} attribution={article.pullQuote.attribution} />}
 
