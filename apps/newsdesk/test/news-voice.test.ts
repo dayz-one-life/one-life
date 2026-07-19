@@ -14,6 +14,25 @@ describe("NEWS_SYSTEM — the vendored brand tone rows", () => {
     expect(NEWS_SYSTEM).toMatch(/the sneer is fully off/i);
     expect(NEWS_SYSTEM).toMatch(/cold forensic mock-epic/i);
     expect(NEWS_SYSTEM).toMatch(/nobody leaves it looking good/i);
+
+    // The two registers are opposite and must never blend into one self-contradictory
+    // sentence carrying both — each must live on its own line, and neither line may
+    // borrow the other's vocabulary.
+    const lines = NEWS_SYSTEM.split("\n");
+    const freshLine = lines.find((l) => /reverent/i.test(l));
+    const gearedLine = lines.find((l) => /cold forensic mock-epic/i.test(l));
+
+    expect(freshLine).toBeDefined();
+    expect(gearedLine).toBeDefined();
+    expect(freshLine).not.toBe(gearedLine);
+
+    expect(freshLine).toMatch(/the sneer is fully off/i);
+    expect(freshLine).not.toMatch(/cold forensic mock-epic/i);
+    expect(freshLine).not.toMatch(/nobody leaves it looking good/i);
+
+    expect(gearedLine).toMatch(/nobody leaves it looking good/i);
+    expect(gearedLine).not.toMatch(/reverent/i);
+    expect(gearedLine).not.toMatch(/the sneer is fully off/i);
   });
 });
 

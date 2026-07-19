@@ -7,7 +7,7 @@
  * The Newsroom differs from both sibling desks in one way that governs everything else: its
  * subjects did not die on cue and did not ask to be covered. A Standing Dead subject is ALIVE,
  * has usually never visited the site, and can falsify the article simply by playing again. The
- * governing rule above all: report the absence, never explain the person.
+ * governing rule above all: report the record, never the reason.
  *
  * NOTE ON EXAMPLES: this file deliberately contains NO example attributions, headlines, or
  * openings. 89 of 123 birth notices reused one byte-identical attribution because that string sat
@@ -67,4 +67,4 @@ where each Block is exactly one of:
 - pullQuote: one in-voice quote with an anonymous attribution, or null if none earns its place.
 - tags: an array of 0-2 short, specific FLAVOR tags only. Do NOT include "News", the map name, or the trigger name — those are added automatically.
 
-The governing rule above all: report the absence, never explain the person.`;
+The governing rule above all: report the record, never the reason.`;
