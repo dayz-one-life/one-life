@@ -387,12 +387,25 @@ export const articles = pgTable("articles", {
   imageError: text("image_error"),                                  // last image-pass failure
   generatedAt: timestamp("generated_at", { withTimezone: true }),
   discordPostedAt: timestamp("discord_posted_at", { withTimezone: true }), // set when the obituary link was posted to Discord; NULL = unposted
+  // R5d — kind-agnostic dedupe key for article kinds NOT keyed by a life (news items key on a
+  // source-derived string). NULL for obituaries/birth notices, which keep the life natural key.
+  naturalKey: text("natural_key"),
+  // R5d — rich body as an ordered block array (para|subhead|quote|list). NULL on every pre-R5d
+  // row; the web renderer falls back to splitting flat `body` on blank lines when it is NULL.
+  bodyBlocks: jsonb("body_blocks"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq").on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt),
+  // PARTIAL: only the two life-keyed kinds are constrained by the life tuple. A news row carries
+  // no life and must not collide. Because this index is partial, EVERY onConflictDoUpdate that
+  // targets it must pass a matching `targetWhere` — see apps/newsdesk/src/{pg-store,birth-pg-store}.ts.
+  uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq")
+    .on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt)
+    .where(sql`${t.kind} IN ('obituary','birth_notice')`),
+  uniqNaturalKey: uniqueIndex("articles_natural_key_uniq").on(t.naturalKey).where(sql`${t.naturalKey} IS NOT NULL`),
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
   bornIdx: index("articles_kind_status_born_idx").on(t.kind, t.status, t.lifeStartedAt),
+  createdIdx: index("articles_kind_status_created_idx").on(t.kind, t.status, t.createdAt),
   discordUnpostedIdx: index("articles_discord_unposted_idx").on(t.deathAt).where(sql`${t.kind} = 'obituary' AND ${t.status} = 'published' AND ${t.discordPostedAt} IS NULL`),
   imageMissingIdx: index("articles_image_missing_idx").on(t.createdAt).where(sql`${t.status} = 'published' AND ${t.imageUrl} IS NULL`),
 }));
