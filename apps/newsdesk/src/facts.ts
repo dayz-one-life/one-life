@@ -21,6 +21,8 @@ export interface ObituaryFacts {
   cause: string | null;
   // "suicide" is its own category: a deliberate self-inflicted end is neither a player kill nor
   // an act of the environment, and the two read completely differently in prose and imagery.
+  // "environment" means a mechanism was actually NAMED (bled_out/starvation/wolf/fall/...);
+  // a bare `died` with no verdict is "unknown", never environment — see the derivation below.
   causeCategory: "pvp" | "suicide" | "environment" | "unknown";
   killerGamertag: string | null;
   weapon: string | null;
@@ -80,14 +82,24 @@ export function buildObituaryFacts(
   const timeAliveSeconds = life.playtimeSeconds ?? 0;
   const cause = life.deathCause;
   const killerGamertag = life.deathByGamertag ?? null;
-  // Order matters: a killer name outranks everything (a player did it), then the explicit suicide
-  // token, then any other stated cause, then nothing at all.
+  // A cause token only counts as "environment" if it NAMES a mechanism. A bare `died` (and the
+  // parser's `environment`/`environmental` catch-alls) name nothing — a truthiness test used to
+  // file them as Environment, which published an "Environment" tag over prose that correctly
+  // said no cause was recorded. Mirrors causeUnrecorded(): the verdict can rescue the category
+  // when classifyDeath inferred a real mechanism (e.g. starvation) from a bare log line, so
+  // causeCategory === "unknown" <=> causeUnrecorded(facts) outside the pvp short-circuit.
+  // The rescue only asks whether a mechanism was named, not which; a verdict of `pvp`/`suicide`
+  // over a bare cause still lands on `environment`, unchanged from before — narrowing that is
+  // out of scope.
+  // Order matters: a killer name outranks everything (a player did it), then the explicit
+  // suicide token, then a named mechanism, then nothing at all.
+  const mechanismNamed = !isUnrecordedCause(cause) || !isUnrecordedCause(timeline.verdict?.cause ?? null);
   const causeCategory: ObituaryFacts["causeCategory"] =
     cause === "pvp" || killerGamertag
       ? "pvp"
       : cause === "suicide"
         ? "suicide"
-        : cause
+        : mechanismNamed
           ? "environment"
           : "unknown";
 

@@ -120,7 +120,7 @@ describe("buildObituaryPrompt", () => {
     ["bare 'unknown'", "unknown"],
   ])("adds the no-invention constraint when the cause is unrecorded (%s)", (_label, cause) => {
     const { user } = buildObituaryPrompt(mkFacts({
-      causeCategory: "environment", cause, killerGamertag: null, verdict: null,
+      causeCategory: "unknown", cause, killerGamertag: null, verdict: null,
       isLegend: false, freshSpawnVictim: false,
     }));
     expect(user).toContain(NO_MECHANISM_DIRECTIVE);
@@ -154,7 +154,7 @@ describe("buildObituaryPrompt", () => {
   // implies an inferred cause exists right after the directive says none does.
   it("an unrecorded cause with a low-confidence 'unknown' verdict gets the no-mechanism directive, never the hedge", () => {
     const { user } = buildObituaryPrompt(mkFacts({
-      causeCategory: "environment", cause: "died", killerGamertag: null,
+      causeCategory: "unknown", cause: "died", killerGamertag: null,
       verdict: { cause: "unknown", confidence: "low", conditions: [] },
       isLegend: false, freshSpawnVictim: false,
     }));
@@ -163,8 +163,8 @@ describe("buildObituaryPrompt", () => {
   });
 
   it("causeUnrecorded is false for pvp and for any recorded mechanism", () => {
-    expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: "died", killerGamertag: null, verdict: null }))).toBe(true);
-    expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: null, killerGamertag: null, verdict: null }))).toBe(true);
+    expect(causeUnrecorded(mkFacts({ causeCategory: "unknown", cause: "died", killerGamertag: null, verdict: null }))).toBe(true);
+    expect(causeUnrecorded(mkFacts({ causeCategory: "unknown", cause: null, killerGamertag: null, verdict: null }))).toBe(true);
     expect(causeUnrecorded(mkFacts({ causeCategory: "pvp", cause: "died", killerGamertag: "Kilo", verdict: null }))).toBe(false);
     expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: "wolf", killerGamertag: null, verdict: null }))).toBe(false);
     expect(causeUnrecorded(mkFacts({
@@ -240,7 +240,7 @@ describe("describeDeath", () => {
     ["bare 'environment'", "environment"],
     ["bare 'unknown'", "unknown"],
   ])("no verdict + %s reads as an explicit unknown, never a mechanism", (_label, cause) => {
-    const s = describeDeath(mkFacts({ causeCategory: "environment", cause, verdict: null, killerGamertag: null }));
+    const s = describeDeath(mkFacts({ causeCategory: "unknown", cause, verdict: null, killerGamertag: null }));
     expect(s).toBe(UNKNOWN_DEATH_PHRASE);
     expect(s).toBe("unknown — the record does not name a mechanism.");
     expect(s).not.toMatch(/fall|terrain|wolf|bear|animal|infected|starv|dehydrat|environment/i);
@@ -248,7 +248,7 @@ describe("describeDeath", () => {
 
   it("a verdict that names nothing also reads as an explicit unknown, keeping the factual state", () => {
     const s = describeDeath(mkFacts({
-      causeCategory: "environment", cause: "died", killerGamertag: null,
+      causeCategory: "unknown", cause: "died", killerGamertag: null,
       verdict: { cause: "unknown", confidence: "low", conditions: ["starving"] },
     }));
     expect(s).toBe("unknown — the record does not name a mechanism. At the end they were starving.");
