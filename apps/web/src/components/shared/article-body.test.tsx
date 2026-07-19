@@ -25,6 +25,16 @@ describe("ArticleBody — flat fallback (the 168-existing-rows guarantee)", () =
     expect(container.querySelectorAll("p")).toHaveLength(3);
   });
 
+  it("uses the flat path when blocks is a malformed non-array (e.g. a stray JSON object)", () => {
+    const malformed = { type: "para" } as unknown as ArticleBlock[];
+    const { container } = render(<ArticleBody blocks={malformed} fallback={FLAT} />);
+    const paras = container.querySelectorAll("p");
+    expect(paras).toHaveLength(3);
+    expect(paras[0]!.textContent).toBe("First paragraph.");
+    expect(paras[1]!.textContent).toBe("Second paragraph.");
+    expect(paras[2]!.textContent).toBe("Third paragraph.");
+  });
+
   it("keeps the shared body wrapper classes and appends the caller className", () => {
     const { container } = render(<ArticleBody blocks={null} fallback={FLAT} className="mt-5" />);
     const wrapper = container.firstElementChild!;

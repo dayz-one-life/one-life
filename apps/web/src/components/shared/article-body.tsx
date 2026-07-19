@@ -3,7 +3,8 @@ import type { ArticleBlock } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Shared article body. `blocks` is the R5d rich body; when it is null/absent (every article
- *  written before R5d) it falls back to splitting the flat `body` on blank lines — byte-identical
+ *  written before R5d) — or, since `blocks` arrives as unchecked jsonb, anything else that isn't a
+ *  usable array — it falls back to splitting the flat `body` on blank lines — byte-identical
  *  output to the two hand-rolled renderers this replaced. An unrecognised block type is dropped
  *  (`default: return null`) so a newer writer can ship a new kind without breaking an older page. */
 export function ArticleBody({
@@ -17,7 +18,7 @@ export function ArticleBody({
 }) {
   const wrapper = cn("space-y-4 font-mono text-[14px] leading-relaxed text-ink-soft", className);
 
-  if (!blocks || blocks.length === 0) {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
     return (
       <div className={wrapper}>
         {fallback.split(/\n{2,}/).map((para, i) => (
