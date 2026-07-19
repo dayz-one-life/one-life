@@ -311,7 +311,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   the de-publication sweep cannot disagree. **Timelines: one for a Standing Dead piece, two side by
   side (`lg:grid-cols-2 lg:divide-x`) for a Long Form** — parallel records converging on the same
   minute are the flagship's visual argument — both guarding on `mapSlug !== null` and degrading to
-  whatever loaded. **Retraction on the surface:** a retracted feature drops out of the feed (and
+  whatever loaded. A Long Form subject degraded out this way (no `mapSlug`, or the fetch throws) is
+  named only in the prose and the JSON-LD `about` array, never in rendered page chrome — the dossier
+  shows a bare subject count. This does **not** match the obituary interior's behaviour, which has
+  only one subject and can never reach this state; the fix (render callsigns from
+  `article.subjects` independent of timeline availability) is a follow-up, not shipped here.
+  **Retraction on the surface:** a retracted feature drops out of the feed (and
   therefore out of More From the Desk, which reads it), `noindex`es its interior, and swaps its
   hero photo for a retraction banner because the media route serves bytes only for
   `status='published'`; its URL keeps working so a shared link yields the correction, not a 404.

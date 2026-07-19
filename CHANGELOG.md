@@ -25,7 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   de-publication sweep can never tell the reader different stories.
 - **Two timelines for a Long Form feature**, one for a Standing Dead. Parallel records converging
   on the same minute are the flagship's visual argument; they stack on mobile and sit side by side
-  from `lg` up. Both guard on `mapSlug !== null` and degrade to whatever loaded.
+  from `lg` up. Both guard on `mapSlug !== null` and degrade to whatever loaded. A subject whose
+  timeline fails to load this way (no `mapSlug`, or the fetch throws) is named only in the article
+  prose and the JSON-LD `about` array — the rendered dossier shows a bare subject count, not their
+  callsign. Follow-up: render callsigns from `article.subjects` in the dossier or byline,
+  independent of timeline availability.
 - `ArticleHero` gains an **`ink`** accent alongside `red` and `blue`. Morgue is red, Nursery is
   blue, yellow already means beef; on a feature the photograph carries the page. News is the only
   kind that renders a hero image (obituaries and birth notices lost theirs in v0.21.0).
@@ -57,7 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   card is stamped `RETRACTED` and its JSON-LD carries `creativeWorkStatus: "Retracted"`**: `noindex`
   addresses crawlers and does nothing for a Discord/Slack/X unfurl, which is the first thing a
   reader of a shared link sees, before they click. The URL keeps working: a reader who follows that
-  link gets the correction, not a 404.
+  link gets the correction, not a 404. The overprint is confirmed by **code inspection only** — this
+  repo has no route or OG-image tests at all (`ImageResponse` needs the Next OG runtime, which is
+  unavailable under the test runner), so what's verified is that the file compiles and the route
+  appears in the build's route table, not that the overprint renders or is legible. It needs one
+  manual check before the news pass is enabled.
 - **The interior can no longer print the same pull quote twice.** PR-C2's schema admits a `quote`
   block and a standalone `pullQuote` independently and nothing in the prompt discourages using both,
   so a model putting its best line in each would have shipped two identical stacked blockquotes —

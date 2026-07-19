@@ -51,8 +51,17 @@ describe("newsShowingLine", () => {
 });
 
 describe("newsUpdateDate", () => {
+  // TWO fixtures, one each side of midnight UTC, are both needed to pin UTC discipline (never
+  // getDate()/getMonth()/getFullYear()). 23:30Z only diverges from local wall-clock date on a
+  // POSITIVE UTC offset; 00:30Z only diverges on a NEGATIVE one. Together the pair fails under a
+  // getUTC* -> get* mutation on any nonzero offset. Neither fixture — nor the pair — can detect
+  // that mutation on an offset-0 (UTC) CI runner, where getDate() === getUTCDate() always; that
+  // gap would need an explicit TZ set in the test environment to close.
   it("formats in UTC, deterministically — never toLocaleDateString", () => {
     expect(newsUpdateDate("2026-07-14T23:30:00Z")).toBe("14 JUL 2026");
+  });
+  it("formats in UTC on the western side of midnight too", () => {
+    expect(newsUpdateDate("2026-07-14T00:30:00Z")).toBe("14 JUL 2026");
   });
 });
 

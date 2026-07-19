@@ -179,6 +179,23 @@ describe("NewsArticleView — the timeline embed", () => {
     expect(screen.getAllByText(/Washed ashore/)).toHaveLength(1);
   });
 
+  // NF-2 (whole-branch review): `namedHeadings` is `isLongForm || shown.length > 1`, and the
+  // second clause carries its own three-line comment explaining why — a standing_dead piece
+  // somehow handed two timelines must still label them by subject, not render two identically-
+  // headed "The Record So Far" blocks. Every other fixture in this file only exercises the
+  // `isLongForm` half of that OR; this is the one that exercises `shown.length > 1` on its own,
+  // with `isLongForm` false. It fails under `namedHeadings = isLongForm`.
+  it("labels headings by subject, not trigger, when a Standing Dead piece somehow carries two timelines", () => {
+    const timelines: NewsTimeline[] = [
+      { gamertag: "CUPID18", view: view(false) },
+      { gamertag: "GabeFox101", view: view(false) },
+    ];
+    render(<NewsArticleView article={article()} more={[]} timelines={timelines} now={now} />);
+    expect(screen.getByRole("heading", { level: 2, name: /CUPID18/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: /GabeFox101/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "The Record So Far" })).toBeNull();
+  });
+
   it("renders no timeline section at all when none loaded", () => {
     render(<NewsArticleView article={article()} more={[]} timelines={[]} now={now} />);
     expect(screen.queryByText(/Washed ashore/)).toBeNull();
