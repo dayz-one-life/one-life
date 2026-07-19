@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteUrl, ldScript, birthNoticeLd, articleLd } from "./seo";
+import { absoluteUrl, ldScript, birthNoticeLd, articleLd, newsLd } from "./seo";
 
 describe("seo helpers", () => {
   it("builds absolute urls", () => {
@@ -64,5 +64,36 @@ describe("articleLd", () => {
   it("has no image key when no image is passed", () => {
     const ld = articleLd(article, "https://x/y") as Record<string, unknown>;
     expect(ld).not.toHaveProperty("image");
+  });
+});
+
+describe("newsLd", () => {
+  const a = {
+    headline: "Still Standing, Somewhere", lede: "L", createdAt: "2026-07-12T00:00:00Z",
+    subjects: [{ gamertag: "GabeFox101" }, { gamertag: "CUPID18" }],
+    imageUrl: "/media/heroes/x.png", retracted: false,
+  };
+
+  it("emits a NewsArticle about EVERY subject, dated created_at, in the News collection", () => {
+    const ld = newsLd(a, "https://x/news/still-standing") as Record<string, unknown>;
+    expect(ld["@type"]).toBe("NewsArticle");
+    expect(ld.datePublished).toBe("2026-07-12T00:00:00Z");
+    expect((ld.about as { name: string }[]).map((p) => p.name)).toEqual(["GabeFox101", "CUPID18"]);
+    expect((ld.isPartOf as Record<string, unknown>).name).toBe("News");
+    expect(ld).not.toHaveProperty("creativeWorkStatus");
+  });
+
+  // Retraction must reach the STRUCTURED DATA, not stop at the interior's visible banner. An
+  // unqualified NewsArticle asserts a headline the desk has withdrawn.
+  it("QUALIFIES a retracted feature and drops the image it can no longer serve", () => {
+    const ld = newsLd({ ...a, retracted: true }, "https://x/news/still-standing") as Record<string, unknown>;
+    expect(ld.creativeWorkStatus).toBe("Retracted");
+    expect(ld).not.toHaveProperty("image");
+  });
+
+  it("escapes </script> when rendered through ldScript", () => {
+    const out = ldScript(newsLd({ ...a, headline: "X </script><script>alert(1)</script>" }, "https://x/y"));
+    expect(out).not.toContain("</script>");
+    expect(out).toContain("\\u003c");
   });
 });

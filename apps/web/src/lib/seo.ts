@@ -59,3 +59,34 @@ export function birthNoticeLd(
     isPartOf: { "@type": "CollectionPage", name: "Fresh Spawns", url: absoluteUrl("/fresh-spawns") },
   };
 }
+
+/** The news feature's JSON-LD. `datePublished` is created_at: a Standing Dead feature has no
+ *  death and its subject is alive, so there is no other honest date. `about` lists EVERY subject —
+ *  a Long Form piece is about a shared ending, not about its primary. Must be emitted through
+ *  ldScript(), like every other JSON-LD sink here.
+ *
+ *  A RETRACTED feature is QUALIFIED, never emitted bare. The interior is noindexed, but the block
+ *  is still read by anything that parses the page directly, and an unqualified `NewsArticle` there
+ *  asserts a headline the desk has withdrawn. `creativeWorkStatus` is schema.org's term for it. */
+export function newsLd(
+  a: {
+    headline: string; lede: string; createdAt: string;
+    subjects: { gamertag: string }[]; imageUrl: string | null; retracted: boolean;
+  },
+  url: string,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: a.headline,
+    description: a.lede,
+    url,
+    datePublished: a.createdAt,
+    ...(a.retracted ? { creativeWorkStatus: "Retracted" } : {}),
+    // A retracted feature's hero bytes 404 behind the media route's published-only filter, so a
+    // retracted piece never advertises an image it cannot serve.
+    ...(a.imageUrl && !a.retracted ? { image: absoluteUrl(a.imageUrl) } : {}),
+    about: a.subjects.map((s) => ({ "@type": "Person", name: s.gamertag })),
+    isPartOf: { "@type": "CollectionPage", name: "News", url: absoluteUrl("/news") },
+  };
+}
