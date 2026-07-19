@@ -1,6 +1,34 @@
 import { describe, it, expect } from "vitest";
 import { buildLongFormClusters, longFormNaturalKey, applyLongFormExclusions, type DeathCandidate } from "../src/long-form-cluster.js";
 
+/** Key names that would carry a raw map coordinate if one leaked through. Ported from
+ *  news-facts.test.ts — test-local by convention; the newsdesk suite has no shared helper module. */
+const COORDINATE_KEYS = new Set(["x", "y", "posX", "posY", "coordX", "coordY", "lat", "lon"]);
+
+/**
+ * Recursively collects every object key at any depth, including inside arrays. Value-independent
+ * by design: it proves the Fog Rule by SHAPE, not by pattern-matching a coordinate-looking number,
+ * which is exactly what `/\d{4}\.\d/` fails to do near a map's low edge (e.g. "812.4").
+ */
+function collectKeys(value: unknown, keys: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeys(item, keys);
+  } else if (value !== null && typeof value === "object") {
+    for (const [key, val] of Object.entries(value)) {
+      keys.add(key);
+      collectKeys(val, keys);
+    }
+  }
+  return keys;
+}
+
+function assertNoCoordinateKeys(value: unknown): void {
+  const keys = collectKeys(value);
+  for (const forbidden of COORDINATE_KEYS) {
+    expect(keys.has(forbidden)).toBe(false);
+  }
+}
+
 const T0 = new Date("2026-07-11T12:00:00.000Z");
 const at = (s: number) => new Date(T0.getTime() + s * 1000);
 let seq = 0;
@@ -113,12 +141,21 @@ describe("buildLongFormClusters", () => {
       .toBe("long_form:7:2026-07-11T12:00:00.000Z:Ay+Zed");
   });
 
-  it("carries no coordinate-shaped number in the returned clusters", () => {
+  it("carries no coordinate key and no coordinate-shaped number in the returned clusters", () => {
     const rows = [
-      cand({ gamertag: "A", endedAt: at(0), x: 7423.51, y: 9210.88 }),
-      cand({ gamertag: "B", endedAt: at(20), x: 7443.19, y: 9245.02 }),
+      // A cluster near a map's LOW edge: 812.40/832.08/910.88/945.02 have only 3 digits before
+      // the decimal point, so none match /\d{4}\.\d/ — a real leak here would sail past the old
+      // regex-only rail, which is exactly why the key walk below is the primary rail. (Same
+      // ~39m offset as this file's original high-value fixture, shifted down so the pair still
+      // clusters — a naive high/low pairing here would be >6600m apart and never cluster at
+      // all, making the assertion below vacuously pass against an empty array.)
+      cand({ gamertag: "A", endedAt: at(0), x: 812.4, y: 910.88 }),
+      cand({ gamertag: "B", endedAt: at(20), x: 832.08, y: 945.02 }),
     ];
     const out = buildLongFormClusters(rows, OPTS);
+    expect(out).toHaveLength(1); // sanity: the pair must actually cluster, or the walk below has nothing to inspect
+    assertNoCoordinateKeys(out);
+    // Cheap secondary signal only. It is NOT sufficient on its own (see the fixture comment).
     expect(JSON.stringify(out)).not.toMatch(/\d{4}\.\d/);
   });
 
