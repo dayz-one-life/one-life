@@ -23,6 +23,12 @@ beforeAll(async () => {
       map: "chernarusplus", lifeNumber: 3, lifeStartedAt: new Date("2026-07-18T00:00:00Z"),
       deathAt: new Date("2026-07-19T09:00:00Z"), headline: "x", lede: "l", body: "b",
       generatedAt: new Date("2026-07-19T09:05:00Z") },
+    // Published, owned, right kind — but generated two days before the window opens. If the
+    // window clause regresses, the whole published back-catalogue ships at go-live.
+    { kind: "obituary", status: "published", slug: "art-ob-old", serverId: s!.id, gamertag: "ArtOne",
+      map: "chernarusplus", lifeNumber: 4, lifeStartedAt: new Date("2026-07-10T00:00:00Z"),
+      deathAt: new Date("2026-07-17T09:00:00Z"), headline: "Old news", lede: "l", body: "b",
+      generatedAt: new Date("2026-07-17T09:05:00Z") },
   ]);
 });
 afterAll(async () => { await sql.end(); });
@@ -40,5 +46,16 @@ describe("articleGenerator", () => {
     expect(ob.href).toBe("/obituaries/art-ob-1");
     expect(bn.href).toBe("/fresh-spawns/art-bn-1");
     expect(ob.naturalKey).toMatch(/^article:\d+$/);
+  });
+
+  it("skips articles generated before the window opened", async () => {
+    const drafts = await articleGenerator(deps);
+    expect(drafts.some((d) => d.body === "Old news")).toBe(false);
+    expect(drafts).toHaveLength(2);
+  });
+
+  it("emits nothing once the window has moved past every article", async () => {
+    const narrow = await articleGenerator({ ...deps, now: new Date("2026-07-19T23:00:00Z"), lookbackHours: 1 });
+    expect(narrow).toHaveLength(0);
   });
 });

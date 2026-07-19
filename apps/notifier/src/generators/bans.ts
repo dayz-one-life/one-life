@@ -22,7 +22,13 @@ export const banAppliedGenerator: Generator = async (deps) => {
     .from(bans)
     .innerJoin(gamertagLinks, verifiedOwner)
     .innerJoin(servers, eq(servers.id, bans.serverId))
-    .where(and(eq(bans.status, "applied"), gte(bans.bannedAt, from)));
+    // Window on created_at — the moment the ban row was written — NOT banned_at, which is the
+    // DEATH time. If ingest/projector fall behind by more than the lookback, banned_at is already
+    // outside the window when the ban lands and the player is never told they were banned.
+    // No status filter: under ENFORCER_DRY_RUN (the production default) markApplied() is never
+    // called, so rows sit at 'pending' forever and applied_at stays NULL — filtering on either
+    // would be a clause that is always false in the configuration we actually run.
+    .where(gte(bans.createdAt, from));
 
   return rows.map((r): NotificationDraft => ({
     userId: r.userId,
@@ -44,7 +50,12 @@ export const banLiftedGenerator: Generator = async (deps) => {
     .from(bans)
     .innerJoin(gamertagLinks, verifiedOwner)
     .innerJoin(servers, eq(servers.id, bans.serverId))
-    .where(and(inArray(bans.status, ["expired", "lifted"]), gte(bans.expiresAt, from)));
+    // Window on lifted_at — the instant the player actually came back in — NOT expires_at, which
+    // is only banned_at + BAN_DURATION_HOURS. expires_at both emits a spurious "You're back in"
+    // for bans resolved before go-live and silently drops a ban the enforcer marked expired late.
+    // lifted_at is non-null once status is expired|lifted (markExpired/markLifted, and redeem's
+    // straight-to-lifted path), and both enforcer paths stamp it under dry-run too.
+    .where(and(inArray(bans.status, ["expired", "lifted"]), gte(bans.liftedAt, from)));
 
   return rows.map((r): NotificationDraft => ({
     userId: r.userId,
