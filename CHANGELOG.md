@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.22.0] - 2026-07-19
+
+
+### Added
 - Migration `0014`: `articles.natural_key` (text, unique WHERE NOT NULL) and `articles.body_blocks`
   (jsonb) — the plumbing for the R5d news vertical, whose articles are keyed by a synthetic natural
   key rather than a (server, gamertag, life) tuple and whose body is structured blocks rather than
@@ -32,8 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   obituary and birth notice still renders the flat fallback, byte-identically to before.
 - The `THE TRAIL ENDS HERE` image category now fires on every map for an unnamed cause (previously
   only on Sakhal for these deaths), a consequence of the `environment` → `unknown` reclassification.
-### Deprecated
-### Removed
 ### Fixed
 - newsdesk: a death whose cause names no mechanism (a bare `died`, `environment`, `environmental`,
   an empty token, or nothing at all) is now categorised `unknown` and tagged **Unknown**, not
@@ -45,7 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - newsdesk: the `RECOVERED EFFECTS` image category now also fires for an `unknown` cause (it
   previously gated on `environment || suicide` only), so the reclassified population does not
   silently lose a menu entry.
-### Security
 
 ## [0.21.2] - 2026-07-18
 
