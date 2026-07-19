@@ -9,7 +9,10 @@ const log = pino({ level: cfg.logLevel });
 const { db } = getDb(cfg.databaseUrl);
 const authCfg = loadAuthConfig(process.env);
 const auth = createAuth(db, authCfg);
-const app = buildApp(db, { auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins });
+const app = buildApp(db, {
+  auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins,
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? "",
+});
 
 app.listen({ port: cfg.port, host: "0.0.0.0" })
   .then((addr) => log.info({ addr }, "api listening"))

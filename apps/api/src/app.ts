@@ -17,11 +17,13 @@ import { registerObituariesRoutes } from "./routes/obituaries.js";
 import { registerBirthNoticesRoutes } from "./routes/birth-notices.js";
 import { registerFreshSpawnsRoutes } from "./routes/fresh-spawns.js";
 import { registerMediaRoutes } from "./routes/media.js";
+import { registerNotificationRoutes } from "./routes/notifications.js";
 
 export interface AuthOptions {
   auth: Auth;
   authConfig?: AuthConfig;
   corsOrigins: string[];
+  vapidPublicKey?: string;
 }
 
 export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
@@ -37,6 +39,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerMeRoute(app, opts.auth);
     registerGamertagLinkRoutes(app, db, opts.auth);
     registerTokenRoutes(app, db, opts.auth);
+    registerNotificationRoutes(app, db, opts.auth, opts.vapidPublicKey ?? "");
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);
