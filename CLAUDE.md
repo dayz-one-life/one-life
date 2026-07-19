@@ -437,6 +437,30 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   agree. A verdict from `classifyDeath` counts as a named mechanism and rescues the category to
   `environment`. Tags are frozen into `articles.tags` at publish, so this is **forward-only** —
   already-published bare-`died` obituaries keep their stale **Environment** tag until backfilled.
+- **Player notifications**: a new `apps/notifier` worker + web surface that tells a signed-in player
+  about things that happened to their own account — a **nine-kind catalogue**: gamertag verified,
+  tokens received/granted, ban applied/lifted, life qualified, survival milestone, and
+  obituary/birth-notice published (the last two only for the player who is the subject). Every kind
+  is generated **per user, scoped to their own gamertag/verified links** — the feature never
+  surfaces another player's activity, matching the same verified-link boundary the account rail
+  already enforces for self-unban and tokens. Rows land in a new durable `notifications` table (fed
+  by seven generator functions across `apps/notifier/src/generators/`, deduped by a unique
+  `natural_key` per notification instance) and are delivered two ways: an in-app feed (bell icon +
+  unread badge in the R3 controls rail, `GET /me/notifications` + `POST /me/notifications/read`) and
+  opt-in browser Web Push (`push_subscriptions` table, VAPID-signed via `web-push`, a service worker
+  + PWA manifest, `POST`/`DELETE /me/push-subscriptions`, public `GET /push/vapid-key`). The worker
+  runs two independently-gated passes per tick: **generate** (forward-only `NOTIFIER_SINCE` cutoff —
+  unset means OFF, never a silent epoch default that would flood every player with their whole
+  history — plus `NOTIFIER_DRY_RUN`, defaults `true`) and **push** (its own `NOTIFIER_PUSH_ENABLED`
+  kill switch, so delivery can be staged on after generation is already live; a subscription retires
+  itself after repeated failures). **`life_qualified` fires off a new materialized
+  `lives.qualified_at` column** (migration `0015`), written write-once by the projector fold at the
+  instant a life first qualifies (playtime crossing `QUALIFY_SECONDS`, a pvp death, or the killer's
+  kill landing) — not derived from `startedAt`, which would miss a life that qualifies long after it
+  started. Because that column is backfilled by a fold, **this release requires
+  `./deploy/deploy.sh --rebuild`**. Single-instance, at-least-once delivery (the push pass reads
+  unpushed rows without a row lock) — the same boundary as the Discord obituary notifier. Runbook +
+  env vars: `deploy/README.md`.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
@@ -453,8 +477,18 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   "no unique or exclusion constraint matching the ON CONFLICT specification" and article publishing
   dies on the next tick**. There are four such sites today: publish + failure-stub in each of
   `apps/newsdesk/src/pg-store.ts` and `apps/newsdesk/src/birth-pg-store.ts`. A news article, which
-  has no (server, gamertag, life) tuple, is deduped on `natural_key` instead),
-  `domain` (zod events, emote/weapon dicts),
+  has no (server, gamertag, life) tuple, is deduped on `natural_key` instead), gained
+  `lives.qualified_at` (nullable timestamp, write-once) and two new durable tables,
+  `notifications` and `push_subscriptions`, in migration `0015` for player notifications — see the
+  Player notifications sub-project entry. `qualified_at` is written by the projector fold at the
+  instant a life first qualifies (**not** derived from `startedAt`), so this migration is a
+  **projection reshape**: it must ship with `./deploy/deploy.sh --rebuild`, or `qualified_at` stays
+  `NULL` on every pre-existing life. `notifications`/`push_subscriptions` are durable — absent from
+  `apps/projector/src/rebuild.ts`'s truncate list, present in `APP_TABLES`
+  (`packages/test-support/src/global-setup.ts`),
+  `domain` (zod events, emote/weapon dicts, and now `QUALIFY_SECONDS` — moved here from
+  `packages/read-models/src/qualified.ts` so `packages/projections` can share it without depending
+  on `read-models`),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
   `player-priors` — global cross-life reputation via `getPlayerPriors` — and
@@ -514,7 +548,21 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   so this pass is dormant until a `news` kind ships),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
-  systemd unit).
+  systemd unit),
+  `notifier` (player-notifications worker, two passes per tick: **generate** — nine notification
+  kinds (gamertag verified, tokens received/granted, ban applied/lifted, life qualified, survival
+  milestone, obituary/birth-notice published) written to the `notifications` table, deduped by a
+  unique `natural_key` (a **plain** unique index, unlike `articles`' partial one — its
+  `onConflictDoNothing` takes no `targetWhere`, do not copy the newsdesk pattern) — and **push** —
+  delivers unread, recent rows as browser Web Push, retiring a subscription after repeated
+  delivery failures. Generation is gated by a forward-only **`NOTIFIER_SINCE`** cutoff (unset =
+  OFF, never a silent epoch default) plus **`NOTIFIER_DRY_RUN`** (defaults `true`); push has its own
+  independent **`NOTIFIER_PUSH_ENABLED`** kill switch, so generation and delivery can be staged on
+  separately. Needs `DATABASE_URL` + `SITE_URL`, and (for push) `VAPID_PUBLIC_KEY`/
+  `VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` — `VAPID_PUBLIC_KEY` is also read by the **api** unit, which
+  serves it publicly at `GET /push/vapid-key`. **Single-instance, at-least-once delivery** — the
+  push pass reads unpushed rows without a row lock, same boundary as the Discord obituary notifier.
+  Needs a `onelife-notifier` systemd unit; deploy runbook in `deploy/README.md`).
 
 ## Commands
 

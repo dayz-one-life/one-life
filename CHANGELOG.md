@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Player notifications: a new `apps/notifier` worker sweeps the event history for nine
+  notification kinds — gamertag verified, tokens received/granted, ban applied/lifted, life
+  qualified, survival milestone, and obituary/birth-notice published — writes them to a new durable
+  `notifications` table, and delivers unread ones as browser Web Push (`push_subscriptions` table,
+  VAPID-signed, an endpoint retires itself after repeated delivery failures). Generation is gated by
+  a forward-only `NOTIFIER_SINCE` cutoff (unset = OFF) and `NOTIFIER_DRY_RUN` (defaults `true`); push
+  has its own `NOTIFIER_PUSH_ENABLED` kill switch, independent of generation. New API routes —
+  `GET /me/notifications`, `POST /me/notifications/read`, `POST`/`DELETE /me/push-subscriptions`, and
+  the public `GET /push/vapid-key` — back a new notifications panel in the web controls rail (bell +
+  unread badge, mark-all-read, a push opt-in toggle), plus a service worker and PWA manifest so push
+  notifications can be received and clicked through to the linked page.
+  **`life_qualified` is windowed on a new materialized `lives.qualified_at` column**, written
+  write-once by the projector fold at the moment a life first qualifies (playtime crossing the
+  threshold, a PvP death, or the killer's kill landing) rather than derived from `lives.startedAt` at
+  read time — exact instead of an approximation that could miss a life qualifying long after it
+  started. This makes the release a **projection reshape: deploy with `./deploy/deploy.sh
+  --rebuild`**, or every existing life's `qualified_at` stays `NULL` and `life_qualified` never fires
+  for pre-existing lives. `QUALIFY_SECONDS` moved from `packages/read-models/src/qualified.ts` to
+  `@onelife/domain` so `packages/projections` can share it without depending on `read-models`.
 ### Changed
 ### Deprecated
 ### Removed

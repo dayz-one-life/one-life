@@ -12,7 +12,7 @@ factory.eli5hq.com). The One Life platform runs as **systemd services** against 
 | Reverse proxy | nginx `dayzonelife.com` vhost | apex serves the app; `www` + `:80` 301 → `https://dayzonelife.com` |
 | Web (Next.js) | `127.0.0.1:3010` | `onelife-web.service`; the ONLY upstream nginx talks to |
 | API (Fastify) | `127.0.0.1:3011` | `onelife-api.service`; reached only via Next.js rewrites, not nginx |
-| Workers | no ports | verifier, projector, enforcer, granter, rebooter, newsdesk (+ ingest, disabled) |
+| Workers | no ports | verifier, projector, enforcer, granter, rebooter, newsdesk, notifier (+ ingest, disabled) |
 | Database | host Postgres `127.0.0.1:5432` | role `onelife`, db `onelife` (+ `onelife_test`) |
 
 **Request flow:** browser → nginx (`:443`) → web (`:3010`). The web app's
@@ -30,7 +30,7 @@ Units live in `/etc/systemd/system/onelife-*.service`. All run as user `acab`,
 
 ```bash
 # status of the fleet
-for s in web api verifier projector enforcer granter rebooter newsdesk ingest; do
+for s in web api verifier projector enforcer granter rebooter newsdesk notifier ingest; do
   printf "onelife-%-10s %s\n" "$s" "$(systemctl is-active onelife-$s)"; done
 
 sudo systemctl restart onelife-web        # restart one
@@ -68,6 +68,64 @@ sudo journalctl -u onelife-api -f         # tail logs
   `NEWSDESK_DRY_RUN`. Delivery is tracked in `articles.discord_posted_at`, so obituaries published
   while the webhook was unset are posted once it is set. Ships in migration `0011` — a normal
   `./deploy/deploy.sh` (migrate) picks it up, no `--rebuild`.
+- **onelife-notifier** — `pnpm --filter @onelife/notifier start`. Two passes per tick: **generate**
+  (nine notification kinds — gamertag verified, tokens received/granted, ban applied/lifted, life
+  qualified, survival milestone, obituary/birth-notice published — written to the durable
+  `notifications` table) and **push** (delivers unread, recent notifications to subscribed browsers
+  via Web Push, retiring an endpoint after repeated failures). Requires a `onelife-notifier` systemd
+  unit on the host (create it alongside the other worker units). Needs `DATABASE_URL` and `SITE_URL`
+  in `.env`; see "Player notifications: environment + rollout" below for the full var list and the
+  required staged go-live.
+  **⚠️ This release reshapes the `lives` projection** — a new `qualified_at` column is written by the
+  projector fold at the moment a life first qualifies. Deploy this release with
+  `./deploy/deploy.sh --rebuild`, not a plain `./deploy/deploy.sh`: a normal deploy leaves
+  `qualified_at` `NULL` on every existing life, and the `life_qualified` notification will never fire
+  for anyone (new lives still qualify correctly going forward — only the backfill is missed).
+
+## Player notifications: environment + rollout
+
+`apps/notifier` (see `apps/notifier/src/config.ts` for the authoritative schema) reads:
+
+```
+DATABASE_URL=                               # shared with the rest of the fleet
+SITE_URL=https://dayzonelife.com            # used to build absolute notification links
+NOTIFIER_INTERVAL_SECONDS=60                # sweep cadence
+NOTIFIER_SINCE=                             # ISO-8601 go-live cutoff; UNSET = generation OFF
+NOTIFIER_DRY_RUN=true                       # logs intended notifications; set false to write them
+NOTIFIER_LOOKBACK_HOURS=48                  # per-tick generator query window
+NOTIFIER_PUSH_ENABLED=true                  # kill switch for the push pass (generation is unaffected)
+NOTIFIER_PUSH_MAX_PER_TICK=50
+NOTIFIER_PUSH_MAX_AGE_MINUTES=60            # don't push a notification older than this
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=                              # a mailto: address, e.g. mailto:ops@dayzonelife.com
+LOG_LEVEL=info
+```
+
+Generate the VAPID key pair once, before first enabling push:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` into the shared
+`/var/www/dayzonelife.com/.env`. **`VAPID_PUBLIC_KEY` must also be readable by the `onelife-api`
+unit** — the API serves it publicly at `GET /push/vapid-key` so the browser can call
+`pushManager.subscribe()`; the private key is notifier-only and must never reach the API or the
+web bundle.
+
+**Staged rollout (spec §8) — go live in four steps, not one:**
+
+1. Deploy with `NOTIFIER_DRY_RUN=true` and `NOTIFIER_SINCE` unset. The unit runs, generation is
+   fully OFF (no rows written), push is inert (nothing to push). Confirms the service starts cleanly.
+2. Set `NOTIFIER_SINCE` to a go-live instant (still `NOTIFIER_DRY_RUN=true`). Generators run and log
+   what *would* be written, with zero effect on the `notifications` table — a dry-run rehearsal
+   against real data.
+3. Set `NOTIFIER_DRY_RUN=false` with `NOTIFIER_PUSH_ENABLED=false`. Notifications are now written and
+   readable in the web rail, but no browser push is sent yet.
+4. Set `NOTIFIER_PUSH_ENABLED=true` (and confirm VAPID keys are set) to turn on delivery.
+
+Restart `onelife-notifier` after each `.env` change (`sudo systemctl restart onelife-notifier`).
 
 ## Environment
 
@@ -111,7 +169,8 @@ cd /var/www/dayzonelife.com
   leaves the new code running and prints the checkpoint path (Postgres migrations
   are forward-only — restore is manual).
 - Use `--rebuild` only for releases whose migrations change projection-table shape
-  (e.g. v0.3.0's `0005`/`0006`). If a plain deploy's `db:migrate` aborts on a
+  (e.g. v0.3.0's `0005`/`0006`, and the player-notifications release's new `lives.qualified_at`
+  column — see the `onelife-notifier` entry above). If a plain deploy's `db:migrate` aborts on a
   projection-table constraint, that's the signal to re-run with `--rebuild`.
 
 <details><summary>Manual equivalent (fallback)</summary>
@@ -123,7 +182,8 @@ pnpm install --frozen-lockfile
 pnpm --filter @onelife/db run db:migrate   # if there are new migrations
 pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
-     onelife-projector onelife-enforcer onelife-granter onelife-rebooter onelife-newsdesk
+     onelife-projector onelife-enforcer onelife-granter onelife-rebooter onelife-newsdesk \
+     onelife-notifier
 ```
 </details>
 
