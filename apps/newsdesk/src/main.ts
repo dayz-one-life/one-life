@@ -4,9 +4,11 @@ import { loadConfig } from "./config.js";
 import { newsdeskTick } from "./tick.js";
 import { birthNoticeTick } from "./birth-tick.js";
 import { imageTick } from "./image-tick.js";
+import { newsTick } from "./news-tick.js";
 import { openrouterClient, openrouterImageClient } from "./openrouter.js";
 import { OBITUARY_PROMPT_VERSION } from "./prompt.js";
 import { BIRTH_PROMPT_VERSION } from "./birth-prompt.js";
+import { NEWS_PROMPT_VERSION } from "./news-prompt.js";
 import { notifyDiscord } from "./notify.js";
 import { findUnpostedObituaries, markObituaryPosted } from "./pg-store.js";
 import { postToDiscordWebhook } from "./discord.js";
@@ -30,6 +32,26 @@ async function loop(): Promise<void> {
     log.info({ birthSince: cfg.birthSince.toISOString() }, "birth-notice pass is on (forward-only from this cutoff)");
   }
   if (!cfg.imagesEnabled) log.warn("NEWSDESK_IMAGES_ENABLED=false — the article-image pass is OFF.");
+  if (!cfg.newsEnabled) {
+    log.warn("NEWSDESK_NEWS_ENABLED is not 'true' — the news pass is OFF.");
+  } else if (cfg.newsSince === null) {
+    log.warn("NEWSDESK_NEWS_ENABLED is on but NEWSDESK_NEWS_SINCE is unset — the news pass is still OFF. Set it to an ISO-8601 go-live timestamp to begin coverage.");
+  } else {
+    log.info(
+      {
+        newsSince: cfg.newsSince.toISOString(),
+        maxPerTick: cfg.newsMaxPerTick,
+        standingDeadHours: cfg.standingDeadHours,
+        minPlaytimeSeconds: cfg.standingDeadMinPlaytimeSeconds,
+        minHitsAbsorbed: cfg.standingDeadMinHits,
+        longFormWindowSeconds: cfg.longFormWindowSeconds,
+        longFormRadiusMeters: cfg.longFormRadiusMeters,
+        longFormMaxFixAgeSeconds: cfg.longFormMaxFixAgeSeconds,
+        suppressedGamertags: cfg.newsSuppressedGamertags.length,
+      },
+      "news pass is on (forward-only from this cutoff)",
+    );
+  }
   // eslint-disable-next-line no-constant-condition
   while (true) {
     // Obituary pass.
@@ -82,6 +104,36 @@ async function loop(): Promise<void> {
       if (nd.posted || nd.failed) log.info(nd, "discord notify tick");
     } catch (err) {
       log.error({ err }, "discord notify failed");
+    }
+
+    // News pass (a no-op when the kill switch is off or newsSince is null — newsTick
+    // short-circuits to zeros before touching the DB or the model).
+    try {
+      const nr = await newsTick(db, {
+        client,
+        dryRun: cfg.dryRun,
+        batchCap: cfg.batchCap,
+        maxAttempts: cfg.maxAttempts,
+        promptVersion: NEWS_PROMPT_VERSION,
+        model: cfg.model,
+        now: new Date(),
+        log,
+        enabled: cfg.newsEnabled,
+        since: cfg.newsSince,
+        maxPerTick: cfg.newsMaxPerTick,
+        standingDeadHours: cfg.standingDeadHours,
+        minPlaytimeSeconds: cfg.standingDeadMinPlaytimeSeconds,
+        minHitsAbsorbed: cfg.standingDeadMinHits,
+        suppressedGamertags: cfg.newsSuppressedGamertags,
+        windowSeconds: cfg.longFormWindowSeconds,
+        radiusMeters: cfg.longFormRadiusMeters,
+        maxFixAgeSeconds: cfg.longFormMaxFixAgeSeconds,
+      });
+      // newsTick already emits its own §14 observability line when it is enabled; nothing to
+      // re-log here. `nr` is referenced so the result is not silently discarded by a linter.
+      if (nr.failed) log.warn({ failed: nr.failed }, "news tick had failures");
+    } catch (err) {
+      log.error({ err }, "news tick failed");
     }
 
     // Image pass (both kinds; a no-op when NEWSDESK_IMAGES_ENABLED=false).

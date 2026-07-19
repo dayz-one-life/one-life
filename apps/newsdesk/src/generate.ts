@@ -2,6 +2,8 @@ import type { ObituaryFacts } from "./facts.js";
 import { buildObituaryPrompt, parseObituary, type Obituary } from "./prompt.js";
 import type { BirthFacts } from "./birth-facts.js";
 import { buildBirthPrompt, parseBirthNotice, type BirthNotice } from "./birth-prompt.js";
+import type { NewsFacts } from "./news-facts.js";
+import { buildNewsPrompt, parseNewsArticle, type NewsArticle } from "./news-prompt.js";
 import type { RecentProse } from "./prose-pg-store.js";
 
 /** The one capability the generator needs — real OpenRouter in prod, a stub in tests. */
@@ -29,4 +31,16 @@ export async function generateBirthNotice(
   const { system, user } = buildBirthPrompt(facts, recent);
   const raw = await client.complete({ system, user });
   return parseBirthNotice(raw);
+}
+
+/** News-pass sibling of generateObituary: build the Newsroom prompt, call the model, parse the
+ *  block union and DERIVE `body` from the para blocks. Throws on client or parse failure. */
+export async function generateNews(
+  client: CompletionClient,
+  facts: NewsFacts,
+  recent: RecentProse[] = [],
+): Promise<NewsArticle> {
+  const { system, user } = buildNewsPrompt(facts, recent);
+  const raw = await client.complete({ system, user });
+  return parseNewsArticle(raw);
 }

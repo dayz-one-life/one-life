@@ -38,6 +38,10 @@ export interface PublishBirthInput {
   now: Date;
 }
 
+// DUPLICATED VERBATIM in pg-store.ts and news-pg-store.ts — deliberate, not an oversight. The slug
+// *builders* around this helper differ genuinely per kind, slugs are frozen at publish time, and a
+// shared helper would couple the three: changing one kind's slugging would silently rewrite
+// another kind's URLs. Do not extract it.
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }

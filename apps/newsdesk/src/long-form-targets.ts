@@ -137,7 +137,10 @@ export async function findLongFormTargets(
     .from(articles)
     .where(and(
       inArray(articles.naturalKey, keys),
-      sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+      // Kept byte-for-byte identical to the Standing Dead anti-join so the two cannot drift. A
+      // Long Form subject is dead and is never swept, so 'retracted' is unreachable here today —
+      // one predicate, one meaning, is worth more than the one term it saves.
+      sql`(${articles.status} IN ('published','retracted') OR ${articles.attempts} >= ${opts.maxAttempts})`,
     ));
   const blockedSet = new Set(blocked.map((r) => r.k!));
 

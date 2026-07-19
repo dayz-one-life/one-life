@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildScenePrompt, parseScene, IMAGE_SCENE_SYSTEM } from "../src/image-scene.js";
 import { MORGUE_CATEGORIES, eligibleCategories } from "../src/image-categories.js";
-import type { ArticleKind } from "../src/image-categories.js";
+import type { ArticleKind, NewsImageFacts } from "../src/image-categories.js";
 
 const eligible = MORGUE_CATEGORIES.slice(0, 3);
 const base = {
@@ -87,15 +87,18 @@ describe("IMAGE_SCENE_SYSTEM", () => {
 });
 
 describe("news scene prompt — composed path", () => {
-  const facts = { trigger: "standing_dead", map: "chernarusplus", idleHours: 140,
+  // The other half of the compile-time guard. Untyped, this literal would keep compiling and keep
+  // passing against a drifted contract, and the cut emote slot would survive here in the repo.
+  const facts: NewsImageFacts = { trigger: "standing_dead", map: "chernarusplus", idleHours: 140,
     timeAliveSeconds: 9200, hitsAbsorbed: 140, lifeNumber: 4,
-    priors: { livesLived: 3, totalKills: 6 }, subjectCount: 1, allFreshSubjects: false,
-    lastExpressiveEmote: "EmoteGreeting" };
+    priors: { livesLived: 3, totalKills: 6 }, subjectCount: 1, allFreshSubjects: false };
 
   it("offers only newsroom framings and never a nursery or morgue one", () => {
     const eligible = eligibleCategories("news", facts);
     const { user } = buildScenePrompt({ kind: "news", facts, headline: "Nobody Has Seen Him Since Tuesday",
-      lede: "He logged off and the server kept going without him.", eligible, recent: [] });
+      // "logged off" is one of the six framings FORBIDDEN_FRAMING_DIRECTIVE bans by name; a
+      // fixture must not model the thing the desk forbids.
+      lede: "The record simply stops.", eligible, recent: [] });
     expect(user).toContain("news feature (The Newsroom)");
     for (const c of eligible) expect(user).toContain(c.caption);
     expect(user).not.toContain("PICTURED: OPTIMISM");

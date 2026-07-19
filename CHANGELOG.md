@@ -7,10 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 ### Changed
+
+### Fixed
+
+## [0.24.0] - 2026-07-19
+
+### Added
+- R5d PR-C2 — the `newsTick` pass, **shipped disabled**. The fifth `apps/newsdesk` sweep turns the
+  PR-C1 Standing Dead and Long Form targets into published `kind='news'` features. Until an
+  operator sets **both** `NEWSDESK_NEWS_ENABLED=true` and an ISO `NEWSDESK_NEWS_SINCE` there is
+  **no article row, no model call, and no external write**; either unset short-circuits the tick to
+  zeros before it touches the database or the model, and `NEWSDESK_DRY_RUN` still gates every write
+  on top of that.
+  New files: `news-facts.ts` (the frozen `NewsFacts` snapshot for both triggers),
+  `news-voice.ts` (the Newsroom register, vendored from the brand bible's three new tone rows —
+  The Standing Dead; The Long Form, fresh subjects; The Long Form, any subject geared),
+  `news-prompt.ts` (`news-v1`, both trigger arms, the block-union parse), `news-pg-store.ts`
+  (slug, publish, failure stub, retraction) and `news-tick.ts`.
+- Rich body for news: the model emits `blocks` only and `body` is **derived** post-parse as the
+  `para` blocks joined by a blank line, so the OG card and meta description can never quote text
+  that is not on the page. Zod validates shape only — it caps block and list counts and imposes no
+  minimum length, because length is funded by fact density and a floor is a padding instruction.
+- Retraction (spec §4.1.3): a published Standing Dead feature whose subject has a session that
+  connected after the article was created moves to `status='retracted'`. The row is never deleted,
+  so the prose and its hero image survive rather than cascade away; `findImageTargets` already
+  filters `status='published'`, so a retracted feature can never acquire a photo. A **published**
+  news row, by contrast, is image-eligible the instant it publishes — enabling
+  `NEWSDESK_NEWS_ENABLED` also un-dormants `imageTick` for it — but PR-C3 (the web surface that
+  would render a news hero image) has not shipped, so until it does, pair go-live with
+  `NEWSDESK_IMAGES_ENABLED=false` or budget ~$0.004/article (`NEWSDESK_IMAGE_QUALITY=low`) for a
+  photo nothing displays.
+- Ten new environment variables, all documented in `.env.example`: `NEWSDESK_NEWS_ENABLED`,
+  `NEWSDESK_NEWS_SINCE`, `NEWSDESK_NEWS_MAX_PER_TICK` (2, applied **per arm** — Standing Dead and
+  Long Form each get their own budget, so a tick can publish up to 2x this value; see
+  `.env.example` for the go-live arithmetic), `NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS`,
+  `NEWSDESK_STANDING_DEAD_HOURS` (72), `NEWSDESK_STANDING_DEAD_MIN_PLAYTIME_SECONDS` (1800),
+  `NEWSDESK_STANDING_DEAD_MIN_HITS` (100), `NEWSDESK_LONGFORM_WINDOW_SECONDS` (180),
+  `NEWSDESK_LONGFORM_RADIUS_METERS` (100), `NEWSDESK_LONGFORM_MAX_FIX_AGE_SECONDS` (120).
+  The spec said seven; the three Long Form knobs are required non-defaulted fields of
+  `LongFormTargetOpts` and cannot be hardcoded at the call site without pinning tuning into source.
+- Tests for the spec §11 hard rails, asserted on built objects rather than sources: no
+  coordinate-shaped key at any depth (over a fixture whose source rows carry a deliberately SHORT
+  coordinate a four-digit regex would miss), no emote-shaped key at all, no projection row id,
+  playtime-not-wall-clock, gamertags verbatim, and the forbidden real-player framings as a token
+  test. Plus the three boundary cases PR-C1 deferred: Long Form cross-server at the SQL layer, the
+  inclusive `maxFixAgeSeconds` edge, and the upper `now` bound.
+
+### Changed
+- `NEWSROOM_CATEGORIES`' `eligible` predicates now read through a typed accessor over a published
+  `NewsImageFacts` type instead of bare keys on an untyped `Record`. A rename on either side is now
+  a compile error; previously a drift between what the facts builder wrote and what a gate read
+  failed **closed and silent** — the gate simply never fired and the imagery was quietly
+  impoverished, with no error anywhere.
+- `apps/newsdesk/src/config.ts`'s `parseBirthSince` becomes the shared `parseSince`, so the birth
+  and news cutoffs cannot drift in parsing behaviour.
+
 ### Deprecated
 ### Removed
+- The "last expressive emote" slot of spec §4.1.4 is cut before it shipped. The allowlist covers
+  roughly 49 events corpus-wide, so it carries no signal, and reaching it means querying
+  `events.payload` — the same column holding the 5,633 coordinate rows the Fog Rule exists to keep
+  off this boundary. `NewsFacts` has no emote field, which is now asserted structurally.
+
 ### Fixed
+- The news anti-join in `standing-dead-targets.ts` and `long-form-targets.ts` now blocks on
+  `status IN ('published','retracted')`, not `status = 'published'`. A retracted Standing Dead
+  article keeps its natural key and its subject keeps satisfying the idle predicate, so the
+  narrower predicate would have regenerated the identical feature — a paid model call — on every
+  tick, only for the retraction sweep at the end of that same tick to take it down again. Spec
+  §4.1.3 requires that the prose is never regenerated; retraction durability comes from this
+  predicate, not from the row continuing to exist.
+- `packages/db/src/schema.ts`'s `kind` column comment said `'obituary' | 'birth_notice'`; it has
+  admitted `'news'` since migration `0014`. Its `status` comment likewise said `published|failed`
+  and now admits `retracted`.
+
 ### Security
 
 ## [0.23.0] - 2026-07-19

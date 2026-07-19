@@ -15,6 +15,38 @@
 export type ArticleKind = "obituary" | "birth_notice" | "news";
 export type FactsSnapshot = Record<string, unknown>;
 
+/**
+ * The exact fact vocabulary the NEWSROOM gates below read, published as a type so the two sides
+ * cannot drift. `news-facts.ts` declares `NewsFacts = NewsImageFacts & {…}`, so a builder that
+ * stops emitting one of these fields is a COMPILE error; the `news()` accessor below means a
+ * rename here is a compile error in the predicates too.
+ *
+ * Why this exists: these predicates used to read bare keys off an untyped Record. A mismatch
+ * between what the facts builder writes and what a gate reads fails CLOSED and SILENT — the gate
+ * simply never fires, the imagery is quietly impoverished, and nothing errors.
+ *
+ * A `type`, deliberately not an `interface`: an interface has no implicit index signature and so
+ * does not assign to `FactsSnapshot`, which would make every typed fixture fail to compile at the
+ * call site (the trap `PublishBirthFacts` in birth-pg-store.ts already documents).
+ */
+export type NewsImageFacts = {
+  trigger: "standing_dead" | "long_form";
+  map: string;                      // servers.map codename, e.g. "sakhal"
+  idleHours: number | null;         // Standing Dead only; null for a Long Form cluster
+  timeAliveSeconds: number;         // PLAYTIME of the primary subject — never wall clock
+  hitsAbsorbed: number;             // Standing Dead endurance signal; 0 for a Long Form cluster
+  lifeNumber: number;               // primary subject's per-map life number
+  priors: { livesLived: number; totalKills: number };
+  subjectCount: number;
+  allFreshSubjects: boolean;
+};
+
+/** Typed view of the untyped snapshot for the NEWSROOM gates. `Partial` because the value really
+ *  is a jsonb blob at runtime and a legacy or half-written row may be missing anything; the point
+ *  of the cast is the COMPILE-time key check, not a runtime guarantee — every read below still
+ *  defends itself with `??` or `n()`. */
+const news = (f: FactsSnapshot) => f as unknown as Partial<NewsImageFacts>;
+
 export interface ImageCategory {
   slug: string;
   caption: string;      // stored verbatim in articles.image_caption when picked
@@ -131,16 +163,13 @@ export const NURSERY_CATEGORIES: ImageCategory[] = [
     eligible: (f) => (priors(f).livesLived ?? 0) === 0 },
 ];
 
-// The Newsroom menu (R5d). The facts vocabulary these gates read — and which newsTick MUST
-// freeze into articles.facts, or every gate silently fails closed:
-//   trigger: "standing_dead" | "long_form"   map: string   idleHours: number
-//   timeAliveSeconds: number   hitsAbsorbed: number   lifeNumber: number
-//   priors: { livesLived?, totalKills? }     subjectCount: number
-//   allFreshSubjects: boolean                lastExpressiveEmote: string | null
+// The Newsroom menu (R5d). The facts vocabulary these gates read is the NewsImageFacts type
+// above — not a comment. Every gate reads it through the typed `news()` accessor, so a rename on
+// either side is a compile error rather than a gate that silently stops firing.
 //
-// These key names are the exact ones the C2 facts builders emit — `timeAliveSeconds`, not
-// `playtimeSeconds`; `lastExpressiveEmote`, not `lastEmote`. No shipped gate reads either of
-// those two, so a mismatch would not fail a test — it would just mislead the next gate author.
+// `lastExpressiveEmote` is NOT part of the contract: the expressive-emote allowlist covers ~49
+// events corpus-wide (no signal), and reaching it means querying events.payload — the same column
+// that holds 5,633 coordinate rows the Fog Rule exists to keep off this boundary.
 //
 // FOG RULE, STRICTER HERE (spec §4.1.4): a Standing Dead subject is ALIVE and non-consenting.
 // No framing may imply a death, a position fix, a route, or a recognisable locale. Favour
@@ -150,10 +179,10 @@ export const NEWSROOM_CATEGORIES: ImageCategory[] = [
     example: "A small abandoned camp in wet pine woods at dusk: a collapsed tarp shelter, a cold fire ring gone to grey ash, an enamel mug still upright on a flat stone, nothing living anywhere in frame.",
     // Standing Dead only: vacancy is the whole story. Never offered to Long Form, where a
     // deserted camp would read as the aftermath of a death that happened somewhere else.
-    eligible: (f) => f.trigger === "standing_dead" },
+    eligible: (f) => news(f).trigger === "standing_dead" },
   { slug: "unslept-bedroll", caption: "THE BED WAS NEVER SLEPT IN",
     example: "A rolled sleeping bag lying flat and unopened on bare floorboards in a derelict wooden room, one boot tipped over beside it, grey light through a broken window and drifted dust across everything.",
-    eligible: (f) => f.trigger === "standing_dead" },
+    eligible: (f) => news(f).trigger === "standing_dead" },
   { slug: "no-forwarding-address", caption: "NO FORWARDING ADDRESS",
     example: "An empty dirt crossroads in flat farmland under low grey cloud, a leaning wooden signpost with both arms snapped off, tyre ruts filling with rain and no traffic in either direction.",
     // Deliberately signless and directionless: an intact sign would name a place and break the
@@ -162,13 +191,16 @@ export const NEWSROOM_CATEGORIES: ImageCategory[] = [
   { slug: "the-regular", caption: "A KNOWN FACE, RECENTLY ABSENT",
     example: "A worn canvas jacket hanging alone on a nail in an empty wooden hallway, shoulders shaped by long use, a shut door beyond it and no one in frame.",
     // Priors gate: this framing asserts a history. A first-lifer has none, and the Standing Dead
-    // predicate already refuses to cover one without earned coverage.
-    eligible: (f) => (priors(f).livesLived ?? 0) >= 1 },
+    // predicate already refuses to cover one without earned coverage. Standing Dead only: the
+    // caption asserts the subject is "recently absent" (alive, unattended), which is false for a
+    // Long Form death — `priors` there is the primary subject's, so a Long Form primary with any
+    // prior life would otherwise fire this gate on a death piece.
+    eligible: (f) => (news(f).priors?.livesLived ?? 0) >= 1 && news(f).trigger === "standing_dead" },
   { slug: "what-it-took", caption: "WHAT IT TOOK TO GET THIS FAR",
     example: "A stack of spent bandages, a bloodied rag and three empty saline bottles heaped on a scuffed table under a bare bulb, flash glaring off the wet glass.",
     // Endurance gate mirrors the earned-coverage clause (hitsAbsorbed >= 100). Objects only —
     // no wound, no body, and nothing that implies the subject stopped surviving.
-    eligible: (f) => (n(f.hitsAbsorbed) ?? 0) >= 100 },
+    eligible: (f) => (n(news(f).hitsAbsorbed) ?? 0) >= 100 },
   { slug: "last-transmission", caption: "LAST RECORDED TRANSMISSION",
     example: "A battered handheld radio lying face-up in wet grass beside a fallen birch, its dial glowing faintly, nobody holding it and nothing but drizzle in the background.",
     eligible: () => true },
@@ -181,26 +213,26 @@ export const NEWSROOM_CATEGORIES: ImageCategory[] = [
     example: "A rusted metal gate standing half open across a muddy farm track, grass grown thick and undisturbed through the gap where it has not swung in weeks, thin fog in the treeline behind.",
     // Idle framing only fires once the absence is genuinely long, so the photo can't out-claim
     // the copy. 72h is the trigger floor; this wants visibly more.
-    eligible: (f) => (n(f.idleHours) ?? 0) >= 120 },
+    eligible: (f) => (n(news(f).idleHours) ?? 0) >= 120 },
   { slug: "two-sets-of-tracks", caption: "TWO SETS OF TRACKS, ONE DIRECTION",
     example: "Two lines of bootprints pressed into wet mud along a forest verge, converging and then ending at a churned patch of grass, no figures anywhere and rain filling the deeper prints.",
     // Long Form only: a convergence framing. Applied to a lone Standing Dead subject it would
     // invent a companion who does not exist.
-    eligible: (f) => f.trigger === "long_form" },
+    eligible: (f) => news(f).trigger === "long_form" },
   { slug: "same-minute", caption: "WITHIN THE SAME MINUTE",
     example: "Two dropped backpacks lying a few metres apart in long wet grass at the edge of a clearing, both still open, rain beading on the canvas, nothing else in the frame.",
     // Objects at a distance from each other carry the coincidence without a corpse or a fix.
-    eligible: (f) => f.trigger === "long_form" && (n(f.subjectCount) ?? 0) >= 2 },
+    eligible: (f) => news(f).trigger === "long_form" && (n(news(f).subjectCount) ?? 0) >= 2 },
   { slug: "the-world-did-this", caption: "THE WORLD DID THIS, NOT THEM",
     example: "A wide flat view of an empty rain-soaked field under a heavy pressing sky, a single leafless tree off-centre and a treeline dissolving into fog at the far edge.",
     // The fresh-subject tone branch: when every subject is a first-lifer the story is the world,
     // never the two men's competence. Punch up, never down.
-    eligible: (f) => f.trigger === "long_form" && f.allFreshSubjects === true },
+    eligible: (f) => news(f).trigger === "long_form" && news(f).allFreshSubjects === true },
   { slug: "conditions-noted", caption: "CONDITIONS WERE NOTED",
     example: "Driving snow across a bare white slope at dusk, the flash lighting every falling flake into a wall of bright dots, a line of fence posts vanishing into the whiteout.",
     // Weather framing is honest for Sakhal and nowhere else — this is the one map cue the Fog
     // Rule permits, because the map is already in the dateline.
-    eligible: (f) => f.map === "sakhal" },
+    eligible: (f) => news(f).map === "sakhal" },
   { slug: "the-desk-has-questions", caption: "THE DESK HAS QUESTIONS",
     example: "A cluttered corner of a derelict room lit hard by flash: an overturned wooden chair, a tin cup on its side, a single muddy bootprint on bare boards, and no one to explain any of it.",
     eligible: () => true },
