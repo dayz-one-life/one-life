@@ -96,7 +96,7 @@ describe("news scene prompt — composed path", () => {
   it("offers only newsroom framings and never a nursery or morgue one", () => {
     const eligible = eligibleCategories("news", facts);
     const { user } = buildScenePrompt({ kind: "news", facts, headline: "Nobody Has Seen Him Since Tuesday",
-      // "logged off" is one of the four framings FORBIDDEN_FRAMING_DIRECTIVE bans by name; a
+      // "logged off" is one of the six framings FORBIDDEN_FRAMING_DIRECTIVE bans by name; a
       // fixture must not model the thing the desk forbids.
       lede: "The record simply stops.", eligible, recent: [] });
     expect(user).toContain("news feature (The Newsroom)");
