@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { articles, lives, players, servers } from "@onelife/db";
-import { and, eq, desc, asc, isNull, isNotNull, notExists, sql } from "drizzle-orm";
+import { and, eq, desc, asc, inArray, isNull, isNotNull, notExists, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
 export interface ObituaryTarget {
@@ -56,6 +56,10 @@ export function obituarySlug(headline: string, gamertag: string, serverId: numbe
 
 // The article's identity is the natural life tuple — the conflict target for both upserts.
 const CONFLICT = [articles.kind, articles.serverId, articles.gamertag, articles.lifeStartedAt];
+// Migration 0014 made that unique index PARTIAL. Postgres only matches an ON CONFLICT target to a
+// partial index when the statement repeats its predicate, so every upsert here must pass this
+// alongside `target` — omitting it raises 42P10 and kills publishing on the next tick.
+const CONFLICT_WHERE = inArray(articles.kind, ["obituary", "birth_notice"]);
 
 /** Qualified dead lives that need an obituary: no published article and no exhausted failed stub.
  *  Anti-joins `articles` on the natural key (server + gamertag + life_started_at). */
@@ -142,6 +146,7 @@ export async function publishObituary(db: Database, input: PublishInput): Promis
     .values({ ...values, attempts: 1 })
     .onConflictDoUpdate({
       target: CONFLICT,
+      targetWhere: CONFLICT_WHERE,
       set: { ...values, attempts: sql`${articles.attempts} + 1`, lastError: null },
     });
 }
@@ -157,6 +162,7 @@ export async function recordObituaryFailure(
     .values({ ...id, status: "failed", attempts: 1, lastError: input.error })
     .onConflictDoUpdate({
       target: CONFLICT,
+      targetWhere: CONFLICT_WHERE,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: input.error },
     });
 }

@@ -160,6 +160,17 @@ export type LifeTimelineData = {
   verdict: DeathVerdictDto | null;
 };
 
+/**
+ * Rich-body block union (R5d). `articles.body_blocks` is jsonb and null for every article written
+ * before R5d, so this is always optional — a null/absent value means "render the flat `body`".
+ * A future block type an older client does not know about is dropped by the renderer, never thrown.
+ */
+export type ArticleBlock =
+  | { type: "para"; text: string }
+  | { type: "subhead"; text: string }
+  | { type: "quote"; text: string; attribution: string }
+  | { type: "list"; items: string[] };
+
 export type ObituaryCard = {
   slug: string;
   gamertag: string;
@@ -178,6 +189,7 @@ export type ObituaryCard = {
 export type ObituariesFeed = { rows: ObituaryCard[]; total: number; page: number; pageSize: number };
 export type ObituaryArticle = ObituaryCard & {
   body: string;
+  bodyBlocks?: ArticleBlock[] | null;
   pullQuote: { text: string; attribution: string } | null;
   sessions: number;
   killerGamertag: string | null;
@@ -201,6 +213,7 @@ export type BirthNoticeCard = {
 export type BirthNoticesFeed = { rows: BirthNoticeCard[]; total: number; page: number; pageSize: number };
 export type BirthNoticeArticle = BirthNoticeCard & {
   body: string;
+  bodyBlocks?: ArticleBlock[] | null;
   pullQuote: { text: string; attribution: string } | null;
   priors: {
     livesLived: number;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryFacts, timeAliveLabel } from "../src/facts.js";
+import { buildObituaryFacts, timeAliveLabel, isUnrecordedCause } from "../src/facts.js";
 import type { ObituaryTarget } from "../src/pg-store.js";
 import type { PlayerPriors } from "@onelife/read-models";
 
@@ -91,6 +91,53 @@ describe("buildObituaryFacts", () => {
     expect(f.causeCategory).toBe("unknown");
   });
 
+  it.each([["died"], ["environment"], ["environmental"], ["unknown"], [""], ["  DIED  "]])(
+    "classifies a bare/unrecorded cause (%s) as unknown, never environment",
+    (deathCause) => {
+      const f = buildObituaryFacts(
+        target,
+        timeline({ life: { deathCause, deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 }, kills: [] }),
+        noPriors,
+      );
+      expect(f.causeCategory).toBe("unknown");
+    },
+  );
+
+  it("a verdict that names a mechanism rescues a bare cause back to environment", () => {
+    const f = buildObituaryFacts(
+      target,
+      timeline({
+        life: { deathCause: "died", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 },
+        kills: [],
+        verdict: { cause: "starvation", confidence: "high", conditions: ["starving"], basis: {} },
+      }),
+      noPriors,
+    );
+    expect(f.causeCategory).toBe("environment");
+  });
+
+  it("a verdict that names nothing does NOT rescue a bare cause", () => {
+    const f = buildObituaryFacts(
+      target,
+      timeline({
+        life: { deathCause: "died", deathByGamertag: null, deathWeapon: null, playtimeSeconds: 3600 },
+        kills: [],
+        verdict: { cause: "unknown", confidence: "low", conditions: [], basis: {} },
+      }),
+      noPriors,
+    );
+    expect(f.causeCategory).toBe("unknown");
+  });
+
+  it("a bare cause with a named killer stays pvp — a player kill is never unknown", () => {
+    const f = buildObituaryFacts(
+      target,
+      timeline({ life: { deathCause: "died", deathByGamertag: "Kilo", deathWeapon: "M4A1", playtimeSeconds: 3600 }, kills: [] }),
+      noPriors,
+    );
+    expect(f.causeCategory).toBe("pvp");
+  });
+
   it("carries verdict, ordeals, hpLow, and deathDistance into the facts", () => {
     const t = timeline({
       life: { deathCause: "pvp", deathByGamertag: "Camper", deathWeapon: "SKS", deathDistance: 153.4, playtimeSeconds: 600 },
@@ -116,5 +163,16 @@ describe("buildObituaryFacts", () => {
     const f = buildObituaryFacts(target, timeline(), noPriors);
     expect(f.priors.livesLived).toBe(0);
     expect(f.isKnownQuantity).toBe(false);
+  });
+});
+
+describe("isUnrecordedCause", () => {
+  it("covers the unknown set, case- and whitespace-insensitively", () => {
+    for (const c of [null, undefined, "", "  ", "died", "Died", " ENVIRONMENT ", "environmental", "unknown"]) {
+      expect(isUnrecordedCause(c)).toBe(true);
+    }
+    for (const c of ["infected", "wolf", "bear", "animal", "fall", "pvp", "bled_out", "starvation", "suicide"]) {
+      expect(isUnrecordedCause(c)).toBe(false);
+    }
   });
 });

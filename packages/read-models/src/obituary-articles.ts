@@ -4,6 +4,17 @@ import { and, eq, desc, sql } from "drizzle-orm";
 
 export const OBITUARIES_FEED_PAGE_SIZE = 20;
 
+/**
+ * R5d rich-body block union. `articles.body_blocks` is jsonb and NULL on every pre-R5d row, so
+ * every consumer must handle null by rendering the flat `body`. Declared here and imported by
+ * birth-notice-articles.ts — `index.ts` is a barrel of `export *`, so declaring it twice collides.
+ */
+export type ArticleBlock =
+  | { type: "para"; text: string }
+  | { type: "subhead"; text: string }
+  | { type: "quote"; text: string; attribution: string }
+  | { type: "list"; items: string[] };
+
 export interface ObituaryCard {
   slug: string;
   gamertag: string;
@@ -29,6 +40,7 @@ export interface ObituariesFeed {
 
 export interface ObituaryArticle extends ObituaryCard {
   body: string;
+  bodyBlocks: ArticleBlock[] | null;
   pullQuote: { text: string; attribution: string } | null;
   sessions: number;
   killerGamertag: string | null;
@@ -101,6 +113,7 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     .select({
       ...CARD_COLS,
       body: articles.body,
+      bodyBlocks: articles.bodyBlocks,
       pullQuoteText: articles.pullQuoteText,
       pullQuoteAttribution: articles.pullQuoteAttribution,
       facts: articles.facts,
@@ -127,6 +140,7 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     cause: r.cause,
     deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
     body: r.body ?? "",
+    bodyBlocks: (r.bodyBlocks as ArticleBlock[] | null) ?? null,
     pullQuote: r.pullQuoteText ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" } : null,
     sessions: facts.sessions ?? 0,
     killerGamertag: facts.killerGamertag ?? null,
