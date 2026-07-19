@@ -239,3 +239,47 @@ export type AppNotification = {
 };
 
 export type NotificationsFeed = { items: AppNotification[]; unreadCount: number };
+
+export type NewsTrigger = "standing_dead" | "long_form";
+
+export type NewsSubjectRef = { gamertag: string; mapSlug: string | null; lifeNumber: number };
+
+export type NewsCard = {
+  slug: string;
+  trigger: NewsTrigger;
+  gamertag: string;
+  map: string;
+  mapSlug: string | null;
+  lifeNumber: number;
+  headline: string;
+  lede: string;
+  tags: string[];
+  subjectCount: number;
+  createdAt: string;
+};
+export type NewsFeed = { rows: NewsCard[]; total: number; page: number; pageSize: number };
+
+/**
+ * The §4.1.3 status line, computed server-side at request time. `idleDaysAtPublication` is the
+ * FROZEN idle figure as of publication and is never recomputed against `now` — the whole point of
+ * the line is that the paper reports what it knew when it printed, then corrects itself.
+ */
+export type NewsSubjectStatus =
+  | { kind: "idle"; idleDaysAtPublication: number }
+  | { kind: "returned"; seenAt: string }
+  | { kind: "died"; diedAt: string; obituarySlug: string | null };
+
+export type NewsArticle = NewsCard & {
+  body: string;
+  bodyBlocks?: ArticleBlock[] | null;
+  pullQuote: { text: string; attribution: string } | null;
+  imageUrl: string | null;
+  imageCaption: string | null;
+  retracted: boolean;
+  timeAliveSeconds: number;
+  kills: number;
+  idleSeconds: number | null;
+  spanSeconds: number | null;
+  subjects: NewsSubjectRef[];
+  subjectStatus: NewsSubjectStatus | null;
+};

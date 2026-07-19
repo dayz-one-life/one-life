@@ -26,10 +26,154 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   --rebuild`**, or every existing life's `qualified_at` stays `NULL` and `life_qualified` never fires
   for pre-existing lives. `QUALIFY_SECONDS` moved from `packages/read-models/src/qualified.ts` to
   `@onelife/domain` so `packages/projections` can share it without depending on `read-models`.
+
 ### Changed
+
+### Fixed
+
+## [0.25.0] - 2026-07-19
+
+### Added
+- R5d PR-C3 — **the News surface.** `/news` is live: a reverse-chron feed and a full interior for
+  the `kind='news'` features PR-C2's `newsTick` writes. New read-model
+  `packages/read-models/src/news-articles.ts` (`getPublishedNews` / `getNewsArticleBySlug` /
+  `getNewsSubjectStatus`), ordered **`created_at DESC`** rather than `death_at` — a Standing Dead
+  feature has no death — served by the `articles_kind_status_created_idx` from migration `0014`.
+  Public `GET /news` and `GET /news/:slug` are structural twins of the obituaries routes. The web
+  surface mirrors `apps/web/src/app/obituaries/`: feed, `[slug]` interior, `loading.tsx`, a dynamic
+  OG card, a `NewsArticle` JSON-LD block (through `ldScript()`, since an LLM headline can contain
+  `</script>`), and a new `components/news/`.
+- **The live status line** (spec §4.1.3). A Standing Dead feature is the only thing the paper
+  prints that its subject can falsify by acting, so the interior computes a status line **at
+  request time** — still idle ("as of publication, N days without a sighting"), returned
+  ("UPDATE: subject was seen again on …"), or died since (with a link to the obituary when the
+  morgue has filed). The prose above it is never regenerated. Death outranks return, and the return
+  predicate mirrors `findReturnedStandingDead` exactly, so the page and the newsdesk
+  de-publication sweep can never tell the reader different stories.
+- **Two timelines for a Long Form feature**, one for a Standing Dead. Parallel records converging
+  on the same minute are the flagship's visual argument; they stack on mobile and sit side by side
+  from `lg` up. Both guard on `mapSlug !== null` and degrade to whatever loaded. A subject whose
+  timeline fails to load this way (no `mapSlug`, or the fetch throws) is named only in the article
+  prose and the JSON-LD `about` array — the rendered dossier shows a bare subject count, not their
+  callsign. Follow-up: render callsigns from `article.subjects` in the dossier or byline,
+  independent of timeline availability.
+- `ArticleHero` gains an **`ink`** accent alongside `red` and `blue`. Morgue is red, Nursery is
+  blue, yellow already means beef; on a feature the photograph carries the page. News is the only
+  kind that renders a hero image (obituaries and birth notices lost theirs in v0.21.0).
+
+### Changed
+- **The static News teaser is retired**, which removes `robots: { index: false }` from the `/news`
+  route. Per the repo's voice-first rule a teaser stays up until its content-engine slice ships;
+  this is that moment. News was the last of the three, so the shared `TeaserPage` component (and
+  its test) are deleted as dead code.
+- **`ArticleBody`'s blocks path is live in production for the first time.** PR-B built it and PR-C2
+  became the first writer to populate `articles.body_blocks`, but no shipped interior had ever
+  rendered it. The news read-model selects and casts the column, and the interior renders blocks
+  when present and the flat `body` when absent — an unknown block type is dropped by the switch's
+  `default: return null` rather than crashing the page.
+
+### Fixed
+- **Three PR-C1 Fog Rule test rails were vacuous.** `long-form-cluster.test.ts`,
+  `long-form-targets.test.ts` and `standing-dead-targets.test.ts` each used `/\d{4}\.\d/` as their
+  *sole* coordinate assertion. That regex returns false for a short near-edge coordinate like
+  `812.4`, so all three would have passed on a real leak — `long-form-targets.test.ts` most
+  seriously, since it guards the `LongFormSubject` boundary spec §11 exists to protect. Each now
+  uses the recursive key-presence walk PR-C2 established, with the regex kept only as a documented
+  secondary signal. `standing-dead-targets.test.ts` additionally checked only the *top level* of
+  each row, so a nested leak was invisible.
+- **A retracted feature no longer leaks into any discovery surface.** It is excluded from the feed
+  query (and therefore from "More From the Desk", which reads it), its interior is `noindex`ed, its
+  hero bytes already 404 behind the media route's `status='published'` filter — so the interior
+  renders a retraction banner in place of a broken photo — and there is no sitemap. **The OG unfurl
+  card is stamped `RETRACTED` and its JSON-LD carries `creativeWorkStatus: "Retracted"`**: `noindex`
+  addresses crawlers and does nothing for a Discord/Slack/X unfurl, which is the first thing a
+  reader of a shared link sees, before they click. The URL keeps working: a reader who follows that
+  link gets the correction, not a 404. The overprint is confirmed by **code inspection only** — this
+  repo has no route or OG-image tests at all (`ImageResponse` needs the Next OG runtime, which is
+  unavailable under the test runner), so what's verified is that the file compiles and the route
+  appears in the build's route table, not that the overprint renders or is legible. It needs one
+  manual check before the news pass is enabled.
+- **The interior can no longer print the same pull quote twice.** PR-C2's schema admits a `quote`
+  block and a standalone `pullQuote` independently and nothing in the prompt discourages using both,
+  so a model putting its best line in each would have shipped two identical stacked blockquotes —
+  invisible until now, because no shipped interior had ever rendered `ArticleBody`'s blocks path.
+  The standalone quote is suppressed render-side when the blocks already carry one, which also
+  repairs rows already written.
+- `newsShowingLine` follows the **birth** argument order `(page, total, pageSize)`, pinned by a test
+  that fails on a swap. `obituaryShowingLine` is `(page, pageSize, total)` and every parameter is a
+  `number`, so the mistake is entirely type-silent.
+
+## [0.24.0] - 2026-07-19
+
+### Added
+- R5d PR-C2 — the `newsTick` pass, **shipped disabled**. The fifth `apps/newsdesk` sweep turns the
+  PR-C1 Standing Dead and Long Form targets into published `kind='news'` features. Until an
+  operator sets **both** `NEWSDESK_NEWS_ENABLED=true` and an ISO `NEWSDESK_NEWS_SINCE` there is
+  **no article row, no model call, and no external write**; either unset short-circuits the tick to
+  zeros before it touches the database or the model, and `NEWSDESK_DRY_RUN` still gates every write
+  on top of that.
+  New files: `news-facts.ts` (the frozen `NewsFacts` snapshot for both triggers),
+  `news-voice.ts` (the Newsroom register, vendored from the brand bible's three new tone rows —
+  The Standing Dead; The Long Form, fresh subjects; The Long Form, any subject geared),
+  `news-prompt.ts` (`news-v1`, both trigger arms, the block-union parse), `news-pg-store.ts`
+  (slug, publish, failure stub, retraction) and `news-tick.ts`.
+- Rich body for news: the model emits `blocks` only and `body` is **derived** post-parse as the
+  `para` blocks joined by a blank line, so the OG card and meta description can never quote text
+  that is not on the page. Zod validates shape only — it caps block and list counts and imposes no
+  minimum length, because length is funded by fact density and a floor is a padding instruction.
+- Retraction (spec §4.1.3): a published Standing Dead feature whose subject has a session that
+  connected after the article was created moves to `status='retracted'`. The row is never deleted,
+  so the prose and its hero image survive rather than cascade away; `findImageTargets` already
+  filters `status='published'`, so a retracted feature can never acquire a photo. A **published**
+  news row, by contrast, is image-eligible the instant it publishes — enabling
+  `NEWSDESK_NEWS_ENABLED` also un-dormants `imageTick` for it — but PR-C3 (the web surface that
+  would render a news hero image) has not shipped, so until it does, pair go-live with
+  `NEWSDESK_IMAGES_ENABLED=false` or budget ~$0.004/article (`NEWSDESK_IMAGE_QUALITY=low`) for a
+  photo nothing displays.
+- Ten new environment variables, all documented in `.env.example`: `NEWSDESK_NEWS_ENABLED`,
+  `NEWSDESK_NEWS_SINCE`, `NEWSDESK_NEWS_MAX_PER_TICK` (2, applied **per arm** — Standing Dead and
+  Long Form each get their own budget, so a tick can publish up to 2x this value; see
+  `.env.example` for the go-live arithmetic), `NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS`,
+  `NEWSDESK_STANDING_DEAD_HOURS` (72), `NEWSDESK_STANDING_DEAD_MIN_PLAYTIME_SECONDS` (1800),
+  `NEWSDESK_STANDING_DEAD_MIN_HITS` (100), `NEWSDESK_LONGFORM_WINDOW_SECONDS` (180),
+  `NEWSDESK_LONGFORM_RADIUS_METERS` (100), `NEWSDESK_LONGFORM_MAX_FIX_AGE_SECONDS` (120).
+  The spec said seven; the three Long Form knobs are required non-defaulted fields of
+  `LongFormTargetOpts` and cannot be hardcoded at the call site without pinning tuning into source.
+- Tests for the spec §11 hard rails, asserted on built objects rather than sources: no
+  coordinate-shaped key at any depth (over a fixture whose source rows carry a deliberately SHORT
+  coordinate a four-digit regex would miss), no emote-shaped key at all, no projection row id,
+  playtime-not-wall-clock, gamertags verbatim, and the forbidden real-player framings as a token
+  test. Plus the three boundary cases PR-C1 deferred: Long Form cross-server at the SQL layer, the
+  inclusive `maxFixAgeSeconds` edge, and the upper `now` bound.
+
+### Changed
+- `NEWSROOM_CATEGORIES`' `eligible` predicates now read through a typed accessor over a published
+  `NewsImageFacts` type instead of bare keys on an untyped `Record`. A rename on either side is now
+  a compile error; previously a drift between what the facts builder wrote and what a gate read
+  failed **closed and silent** — the gate simply never fired and the imagery was quietly
+  impoverished, with no error anywhere.
+- `apps/newsdesk/src/config.ts`'s `parseBirthSince` becomes the shared `parseSince`, so the birth
+  and news cutoffs cannot drift in parsing behaviour.
+
 ### Deprecated
 ### Removed
+- The "last expressive emote" slot of spec §4.1.4 is cut before it shipped. The allowlist covers
+  roughly 49 events corpus-wide, so it carries no signal, and reaching it means querying
+  `events.payload` — the same column holding the 5,633 coordinate rows the Fog Rule exists to keep
+  off this boundary. `NewsFacts` has no emote field, which is now asserted structurally.
+
 ### Fixed
+- The news anti-join in `standing-dead-targets.ts` and `long-form-targets.ts` now blocks on
+  `status IN ('published','retracted')`, not `status = 'published'`. A retracted Standing Dead
+  article keeps its natural key and its subject keeps satisfying the idle predicate, so the
+  narrower predicate would have regenerated the identical feature — a paid model call — on every
+  tick, only for the retraction sweep at the end of that same tick to take it down again. Spec
+  §4.1.3 requires that the prose is never regenerated; retraction durability comes from this
+  predicate, not from the row continuing to exist.
+- `packages/db/src/schema.ts`'s `kind` column comment said `'obituary' | 'birth_notice'`; it has
+  admitted `'news'` since migration `0014`. Its `status` comment likewise said `published|failed`
+  and now admits `retracted`.
+
 ### Security
 
 ## [0.23.0] - 2026-07-19

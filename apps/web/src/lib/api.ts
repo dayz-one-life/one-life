@@ -5,6 +5,7 @@ import type {
   ObituariesFeed, ObituaryArticle,
   BirthNoticesFeed, BirthNoticeArticle,
   AppNotification, NotificationsFeed,
+  NewsFeed, NewsArticle,
 } from "./types";
 
 export class ApiError extends Error {
@@ -152,3 +153,8 @@ export const getBirthNoticesFeed = (page: number) =>
   apiGet<BirthNoticesFeed>(`/api/birth-notices?page=${page}`);
 export const getBirthNotice = (slug: string) =>
   getOrNull<BirthNoticeArticle>(`/api/birth-notices/${encodeURIComponent(slug)}`);
+
+export const getNewsFeed = (page: number) =>
+  apiGet<NewsFeed>(`/api/news?page=${page}`);
+export const getNewsArticle = (slug: string) =>
+  getOrNull<NewsArticle>(`/api/news/${encodeURIComponent(slug)}`);

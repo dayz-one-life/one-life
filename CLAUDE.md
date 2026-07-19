@@ -204,8 +204,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   content engine (spec `docs/superpowers/specs/2026-07-17-r5a-newsdesk-obituaries-design.md`), **R5b**
   Birth Notices / Fresh Spawns (spec
   `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), **R5c** article
-  images, with **R5d** (News feed + news-led home) in flight —
-  spec `docs/superpowers/specs/2026-07-18-r5d-news-vertical-design.md`, shipping in three PRs.
+  images, and **R5d** (the News vertical) ✅ —
+  spec `docs/superpowers/specs/2026-07-18-r5d-news-vertical-design.md`, shipped in three PRs.
+  The news-led home page was cut from the slice and is a §15 follow-up; `/news` is a section, not
+  the front page.
   **PR-A shipped (v0.21.2): prose fixes.** **PR-B is the plumbing**, no new vertical yet:
   migration `0014` (`natural_key`, `body_blocks`, the `(kind, status, created_at)` feed index, and
   the life natural-key unique index narrowed to `kind IN ('obituary','birth_notice')` — see the
@@ -223,8 +225,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `apps/web/src/lib/types.ts` for the DTO. `getObituaryBySlug`/`getBirthNoticeBySlug` select and
   cast `articles.bodyBlocks` (interior only — never on feed `CARD_COLS`), but **no writer populates
   the column yet**, so every live interior still takes the flat fallback.
-  **R5d in flight, PR-C1 (inert engine) shipped.** The news vertical's targeting layer and image
-  prerequisites exist but **nothing calls them** — production output is byte-identical. Two trigger
+  **R5d shipped — PR-C1 (inert engine), PR-C2 (`newsTick`, shipped disabled) and PR-C3 (the public
+  surface) all landed. The pass is still OFF in production** until an operator sets both
+  `NEWSDESK_NEWS_ENABLED=true` and an ISO `NEWSDESK_NEWS_SINCE`; `/news` renders an honest empty
+  state until then. The news
+  vertical's targeting layer, image prerequisites and worker pass all exist; there is still **no
+  article row, no model call, and no external write**, because the pass is off unless an operator
+  sets **both** `NEWSDESK_NEWS_ENABLED=true` and an ISO `NEWSDESK_NEWS_SINCE`. Two trigger
   read-models live in `apps/newsdesk/src`, behind one barrel `news-targets.ts`: **Standing Dead**
   (`standing-dead-targets.ts` — a qualified *open* life whose player has been idle 72h, measured by
   `MAX(COALESCE(sessions.disconnected_at, sessions.connected_at))` so the crash-and-never-returned
@@ -244,9 +251,84 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   menu and the "birth notice" label. `NEWSROOM_CATEGORIES` (13 entries) is the news image menu,
   weighted to **absence and vacancy** because a Standing Dead subject is **alive and
   non-consenting** — no framing may imply a death, a fix, a route, or a recognisable locale.
-  Inertness is guaranteed by `findImageTargets`' `notInArray(articles.kind, ["obituary",
-  "birth_notice"])` plus the fact that nothing writes a `kind='news'` row yet — asserted directly
-  in `image-pg-store.test.ts`. PR-C2 (`newsTick`, shipped OFF) and PR-C3 (API + web) follow.
+  Image eligibility is `findImageTargets`' `notInArray(articles.kind, ["obituary",
+  "birth_notice"])`, so a published news row becomes image-eligible automatically — enabling the
+  news pass therefore also un-dormants `imageTick`.
+  **PR-C2 shipped — `newsTick`, disabled.** `apps/newsdesk/src/news-tick.ts` is the fifth pass:
+  Standing Dead arm → Long Form arm → retraction sweep, each target failure-isolated into a
+  `status='failed'` stub. **Two independent off-states** (`NEWSDESK_NEWS_ENABLED !== "true"`, or an
+  unset/invalid `NEWSDESK_NEWS_SINCE`) return zeros *before* any query and any model call, and
+  `NEWSDESK_DRY_RUN` gates every write on top. `NewsFacts` (`news-facts.ts`) is the frozen
+  `articles.facts` snapshot for both triggers and is declared as
+  `NewsImageFacts & {…}` — intersecting the image menu's fact vocabulary, so a builder that stops
+  emitting a gated field is a **compile error** rather than an image gate that silently stops
+  firing. **News dedupes on `natural_key`, not the life tuple**, so both its upserts pass
+  `targetWhere: isNotNull(articles.naturalKey)` (`articles_natural_key_uniq` is partial —
+  `WHERE natural_key IS NOT NULL`); the **failure stub writes the key too**, or every retry would
+  insert a fresh row forever. The slug is **trigger-prefixed** (`standing-dead-…` / `long-form-…`)
+  so a feature about the same life as an obituary cannot collide on `articles_slug_uniq`.
+  **Rich body:** the model emits `blocks` only and `body` is derived as the `para` blocks joined
+  by a blank line, so the share card can never quote text that is not on the page; zod validates
+  shape only and **never a minimum length** (§5 — length is funded by fact density, and a floor is
+  a padding instruction that would also burn an attempt on a thin cluster).
+  **Retraction:** a published `standing_dead` article whose subject has a session that *connected*
+  after `created_at` moves to `status='retracted'` — never deleted, so the prose and its hero image
+  survive rather than cascade away (and `findImageTargets` filters `status='published'`, so it can
+  never acquire a photo). **Durability comes from the anti-join, not from the row existing:** the
+  PR-C1 predicate in `standing-dead-targets.ts` / `long-form-targets.ts` was widened — the sole
+  sanctioned change to that layer — from `status = 'published'` to
+  `status IN ('published','retracted')`. Narrow it back and the pass regenerates the identical
+  feature every tick (a paid model call each time) only for the sweep to retract it again, forever;
+  spec §4.1.3 requires that the prose is never regenerated.
+  **The expressive-emote slot of §4.1.4 was cut** — ~49 events
+  corpus-wide is no signal, and reaching it means querying `events.payload`, the coordinate column;
+  `NewsFacts` has no emote field, asserted structurally. `unqualified_subject` is **omitted from
+  the observability log line**: the qualified gate lives in the candidate SQL, so the counter is
+  structurally always 0 and printing it would be a lie an operator would act on.
+  **Go-live pacing (read this before flipping `NEWSDESK_DRY_RUN=false` on news):**
+  `NEWSDESK_NEWS_MAX_PER_TICK` is a per-tick batch size, applied **per arm** (`news-tick.ts` passes
+  it to both the Standing Dead finder and the Long Form finder), not a combined per-tick cap and not
+  a rate limit — at the shipped defaults (`MAX_PER_TICK=2`, `NEWSDESK_INTERVAL_SECONDS=300`) a
+  7-subject Standing Dead backlog drains in `ceil(7/2)=4` ticks, roughly **20 minutes**, not the
+  "over ~4 days" figure this feature's spec (§13.2) once assumed. `NEWSDESK_DRY_RUN` is also
+  **worker-global**, so the documented "dry-run for one interval" go-live step suspends obituaries,
+  birth notices, the Discord notifier and the image pass for that interval too (benign — all resume
+  next tick). And because a published news row is image-eligible the instant it publishes
+  (`findImageTargets` excludes only `obituary`/`birth_notice`), and **PR-C3 has now shipped the
+  surface that renders it** — the news interior displays the hero photo through `ArticleHero`
+  (`accent="ink"`), so `NEWSDESK_IMAGES_ENABLED` may be left at its `true` default when news goes
+  live. Full arithmetic and reasoning: `.env.example`.
+  **PR-C3 shipped — the public surface.** Read-model `packages/read-models/src/news-articles.ts`
+  (`getPublishedNews` / `getNewsArticleBySlug` / `getNewsSubjectStatus`), ordered **`created_at
+  DESC`** because a Standing Dead feature has no death (served by
+  `articles_kind_status_created_idx`); public `GET /news` + `GET /news/:slug`; and a web surface
+  mirroring `apps/web/src/app/obituaries/` — feed, `[slug]` interior, `loading.tsx`, dynamic OG
+  card, `NewsArticle` JSON-LD via `ldScript()`, and `apps/web/src/components/news/`. Interior
+  order: masthead → `ArticleHero` → lede → **status line** → dossier → `ArticleBody` → pull quote →
+  tags → timelines → More From the Desk. **The status line (spec §4.1.3) is computed at request
+  time and the prose is never regenerated** — still idle / returned / died-since, with death
+  outranking return, and the return predicate mirroring `findReturnedStandingDead` so the page and
+  the de-publication sweep cannot disagree. **Timelines: one for a Standing Dead piece, two side by
+  side (`lg:grid-cols-2 lg:divide-x`) for a Long Form** — parallel records converging on the same
+  minute are the flagship's visual argument — both guarding on `mapSlug !== null` and degrading to
+  whatever loaded. A Long Form subject degraded out this way (no `mapSlug`, or the fetch throws) is
+  named only in the prose and the JSON-LD `about` array, never in rendered page chrome — the dossier
+  shows a bare subject count. This does **not** match the obituary interior's behaviour, which has
+  only one subject and can never reach this state; the fix (render callsigns from
+  `article.subjects` independent of timeline availability) is a follow-up, not shipped here.
+  **Retraction on the surface:** a retracted feature drops out of the feed (and
+  therefore out of More From the Desk, which reads it), `noindex`es its interior, and swaps its
+  hero photo for a retraction banner because the media route serves bytes only for
+  `status='published'`; its URL keeps working so a shared link yields the correction, not a 404.
+  There is no sitemap. **This is also where `ArticleBody`'s blocks path goes live in production for
+  the first time** — PR-B built it and PR-C2 became its first writer, but no shipped interior had
+  ever rendered it; the news read-model is the first to select and cast `body_blocks`.
+  **`ArticleHero`'s `accent` is now `"red" | "blue" | "ink"`** (news uses `ink`), and the static
+  **News teaser is retired**, removing `robots: { index: false }` from the route — the last of the
+  three teasers to go.
+  **`newsShowingLine` follows the BIRTH argument order `(page, total, pageSize)`**, pinned by a
+  test: `obituaryShowingLine` is `(page, pageSize, total)` and all three parameters are `number`,
+  so a swap is entirely type-silent.
   **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
   for both (reserved for future news); the 165 existing images were deleted (migration 0013). The
   pipeline, article_images table, media route, and ArticleHero are retained.**
@@ -322,8 +404,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   a dynamic OG image. Facts (Rap Sheet, Final Reload) are read models only — the LLM writes voice,
   never invents events (Fog Rule: map dateline, never coordinates). Backed by
   `getPublishedObituaries`/`getObituaryBySlug` (`packages/read-models/src/obituary-articles.ts`) and
-  public `GET /obituaries` (now published articles) + `GET /obituaries/:slug`. News stays a static
-  teaser until R5d.
+  public `GET /obituaries` (now published articles) + `GET /obituaries/:slug`. (News stayed a static
+  teaser until R5d PR-C3 retired it.)
   **Discord obituary notifier:** the newsdesk worker also posts a plain link to each published
   obituary into Discord via an incoming webhook (Discord unfurls the OG card), tracked/retried
   through `articles.discord_posted_at` (migration `0011`) so nothing is dropped and the
@@ -396,8 +478,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   assets, never as a webfont. **Voice-first rule:** each section's static teaser — no fake counts,
   no dry copy — stays up until the content engine can actually write it; the underlying
   read-models land ahead of the UI (R4) but a teaser doesn't retire until its content-engine slice
-  ships. **Obituaries' teaser retired as of R5a; Fresh Spawns' teaser retired as of R5b**; News stays
-  static until R5d.
+  ships. **Obituaries' teaser retired as of R5a; Fresh Spawns' as of R5b; News' as of R5d PR-C3** —
+  all three teasers are now gone.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
@@ -501,7 +583,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
-  `newsdesk` (obituary + birth-notice generation sweep, run as **four passes** each interval; **`NEWSDESK_DRY_RUN`
+  `newsdesk` (obituary + birth-notice + news generation sweep, run as **five passes** each interval
+  — obituary, birth notice, Discord notify, news (off by default), images; **`NEWSDESK_DRY_RUN`
   defaults `true`** — logs intended articles without calling OpenRouter or writing; set `false` to
   generate; needs `OPENROUTER_API_KEY` + `NEWSDESK_MODEL`, default `anthropic/claude-sonnet-5`.
   **Prose-quality Phase 0 (R5d PR-A)** — four defects found by reading 168 real published articles out of a
