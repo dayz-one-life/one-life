@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { articles } from "@onelife/db";
-import { isNotNull, sql } from "drizzle-orm";
+import { articles, players, sessions } from "@onelife/db";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { NewsFacts, NewsSubject } from "./news-facts.js";
 import type { NewsArticle } from "./news-prompt.js";
 
@@ -122,4 +122,79 @@ export async function recordNewsFailure(
       targetWhere: CONFLICT_WHERE,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: args.error },
     });
+}
+
+/** A published Standing Dead article whose subject has since been seen again. */
+export interface ReturnedSubject {
+  articleId: number;
+  naturalKey: string;
+  gamertag: string;
+  slug: string | null;
+}
+
+/**
+ * The de-publication sweep (spec §4.1.3). A Standing Dead article is the ONLY thing the paper
+ * prints that its subject can falsify by acting, and it stays live and indexed until something
+ * takes it down. Any PUBLISHED standing_dead article whose subject has a session on that server
+ * that CONNECTED after the article was created is a candidate for retraction.
+ *
+ *  - `connected_at >`, not COALESCE(disconnected_at, connected_at): a session that began before
+ *    publication and ended after it is the session the article was written about, not a return.
+ *  - The trigger is read off the natural_key prefix, which is written by exactly one function
+ *    (standingDeadNaturalKey) and is rebuild-stable. Long Form subjects are dead and cannot come
+ *    back, so they are never swept. `starts_with` rather than LIKE: in a LIKE pattern the `_` in
+ *    'standing_dead:' is a single-character wildcard, which is not the predicate this comment
+ *    claims.
+ *  - Already-'retracted' rows are excluded, so a returned subject is swept once, not every tick.
+ *  - The row is NEVER deleted. Deleting would cascade the hero image away via
+ *    article_images.article_id ON DELETE CASCADE, and would lose the prose. findImageTargets
+ *    filters status='published', so a retracted article can never acquire a photo either.
+ *    What stops the subject being re-covered is NOT this row existing — it is the anti-join in
+ *    standing-dead-targets.ts / long-form-targets.ts, which blocks on
+ *    `status IN ('published','retracted')`. If that predicate is ever narrowed back to
+ *    'published', this sweep becomes an infinite regenerate-then-retract loop that spends a paid
+ *    model call every tick (spec §4.1.3: the prose is never regenerated).
+ */
+export async function findReturnedStandingDead(
+  db: Database,
+  opts: { limit: number },
+): Promise<ReturnedSubject[]> {
+  const rows = await db
+    .select({
+      articleId: articles.id,
+      naturalKey: articles.naturalKey,
+      gamertag: articles.gamertag,
+      slug: articles.slug,
+    })
+    .from(articles)
+    .where(
+      and(
+        eq(articles.kind, "news"),
+        eq(articles.status, "published"),
+        sql`starts_with(${articles.naturalKey}, 'standing_dead:')`,
+        sql`EXISTS (
+          SELECT 1
+          FROM ${sessions} s
+          INNER JOIN ${players} p ON p.id = s.player_id
+          WHERE s.server_id = ${articles.serverId}
+            AND p.gamertag = ${articles.gamertag}
+            AND s.connected_at > ${articles.createdAt}
+        )`,
+      ),
+    )
+    .limit(opts.limit);
+
+  return rows.map((r) => ({
+    articleId: r.articleId,
+    naturalKey: r.naturalKey ?? "",
+    gamertag: r.gamertag,
+    slug: r.slug,
+  }));
+}
+
+/** Move the given articles to `status='retracted'`. Separate from the finder so the sweep can sit
+ *  behind NEWSDESK_DRY_RUN like every other write in this worker. */
+export async function retractNewsArticles(db: Database, articleIds: number[]): Promise<void> {
+  if (articleIds.length === 0) return;
+  await db.update(articles).set({ status: "retracted" }).where(inArray(articles.id, articleIds));
 }
