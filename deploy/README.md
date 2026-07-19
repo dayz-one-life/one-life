@@ -64,7 +64,8 @@ sudo journalctl -u onelife-api -f         # tail logs
   incoming-webhook URL — a **secret**; keep it only in the host `.env`, never commit it) plus
   `SITE_URL` (default `https://dayzonelife.com`, used to build the absolute obituary link) and
   optionally `NEWSDESK_DISCORD_MAX_PER_TICK` (default `10`, the per-sweep post cap that drains the
-  back-catalogue on first live run). Empty webhook ⇒ the notifier is a no-op; it respects
+  back-catalogue on first live run). Empty webhook ⇒ the Discord notifier sweep is a no-op (this is
+  the newsdesk's Discord pass, unrelated to the `onelife-notifier` worker below); it respects
   `NEWSDESK_DRY_RUN`. Delivery is tracked in `articles.discord_posted_at`, so obituaries published
   while the webhook was unset are posted once it is set. Ships in migration `0011` — a normal
   `./deploy/deploy.sh` (migrate) picks it up, no `--rebuild`.

@@ -32,6 +32,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **Ban notifications windowed on columns that don't record the events they stand for.**
+  `ban_applied` looked at `bans.banned_at`, which is the *death* time, not when the ban was placed —
+  if ingest or the projector fall behind by more than `NOTIFIER_LOOKBACK_HOURS`, `banned_at` is
+  already outside the window by the time the ban row lands and the player is never told they were
+  banned. It now windows on `bans.created_at`, the moment the row was written. `ban_lifted` looked
+  at `bans.expires_at`, which is only `banned_at + BAN_DURATION_HOURS`: that both announced "You're
+  back in" at go-live for bans resolved *before* `NOTIFIER_SINCE`, and dropped the notification
+  entirely when the enforcer marked a ban expired late. It now windows on `bans.lifted_at`, stamped
+  by `markExpired`/`markLifted` and by `redeem`'s straight-to-lifted path — including under
+  `ENFORCER_DRY_RUN`. `ban_applied` deliberately has **no** status/`applied_at` filter: under
+  `ENFORCER_DRY_RUN` (the production default) `markApplied()` is never called, so rows sit at
+  `pending` with a NULL `applied_at` and either filter would be a clause that is always false in
+  the configuration we actually run.
+- **Survival milestones had no lower bound.** The generator emitted a milestone whenever a life's
+  age crossed 7/14/30 days, without flooring on the window like every other generator — so at
+  go-live it would fire all crossed thresholds at once for every already-old open life, and
+  re-derive the same drafts on every tick thereafter. A milestone now fires only when its crossing
+  instant (`startedAt + N days`) falls inside the window.
+- **Opening the notifications panel destroyed unread notifications.** The panel POSTed a blanket
+  "mark everything unread as read" while the feed only ever served the newest 20 rows, so any
+  backlog deeper than one page was marked read without ever being shown, and was then unreachable —
+  the feed endpoint took no parameters at all. `POST /me/notifications/read` now takes an explicit
+  `{ ids }` list (capped at 500; empty is a no-op, over-cap is a 400), with the user-ownership
+  predicate still in the WHERE clause so naming another user's id updates zero rows; the panel sends
+  only the ids it actually rendered. `GET /me/notifications` takes `?page=` in house style, so older
+  unread stay reachable and the badge can drain.
+- **Two startup paths could crash-loop the notifier.** `NOTIFIER_DRY_RUN` and
+  `NOTIFIER_PUSH_ENABLED` used `z.enum(["true","false"])`, whose `.default()` fires only on
+  `undefined` — a blank value (the usual way to "unset" a var in an env file), `FALSE`, or a
+  trailing space threw out of `loadConfig` at module scope with no try/catch. They now use the house
+  idiom from `apps/newsdesk/src/config.ts` (`z.string().optional()` plus `!== "false"`), so
+  unparseable input lands on the safe side instead of killing the unit. Separately,
+  `webpush.setVapidDetails()` throws *synchronously* on a subject missing its `mailto:` prefix or a
+  malformed key, and the sender was built at module top level — a typo'd VAPID subject killed the
+  process before the loop started, so generation never ran either, and `deploy.sh`'s post-start
+  `systemctl is-active` check failed. A guarded `buildSender()` now falls back to `null` (push off,
+  generation continues).
 - **Push notifications survived sign-out on a shared browser.** Nothing tore the subscription down,
   so after user A signed out and user B signed in, A's notifications — including obituary headlines
   carrying A's gamertag — kept firing as OS notifications on B's device, and B's "turn off" deleted
