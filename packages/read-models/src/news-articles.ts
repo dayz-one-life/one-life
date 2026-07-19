@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { articles } from "@onelife/db";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { articles, lives, players, sessions } from "@onelife/db";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { ArticleBlock } from "./obituary-articles.js";
 
 export const NEWS_FEED_PAGE_SIZE = 20;
@@ -183,6 +183,8 @@ export async function getNewsArticleBySlug(
     .select({
       ...CARD_COLS,
       status: articles.status,
+      serverId: articles.serverId,
+      lifeStartedAt: articles.lifeStartedAt,
       body: articles.body,
       bodyBlocks: articles.bodyBlocks,
       pullQuoteText: articles.pullQuoteText,
@@ -231,7 +233,91 @@ export async function getNewsArticleBySlug(
     subjects: subjects.length > 0
       ? subjects
       : [{ gamertag: card.gamertag, mapSlug: card.mapSlug, lifeNumber: card.lifeNumber }],
-    // Populated in the next task; a Long Form article keeps it null permanently.
-    subjectStatus: null,
+    // A Long Form subject is dead; the question does not arise, and the line stays off.
+    subjectStatus: card.trigger === "standing_dead"
+      ? await getNewsSubjectStatus(db, {
+          serverId: r.serverId,
+          gamertag: card.gamertag,
+          lifeStartedAt: r.lifeStartedAt,
+          createdAt: card.createdAt,
+          idleSecondsAtPublication: facts.idleSeconds ?? null,
+        })
+      : null,
   };
+}
+
+/**
+ * Spec §4.1.3. The prose of a Standing Dead feature is never regenerated; only this line is live.
+ *
+ * Branch order is DEATH FIRST, deliberately. A subject who died must have returned to do it, so
+ * both predicates can hold at once — and "he came back" is a footnote next to "he is in the
+ * morgue now". Reporting the return in that case would be technically true and editorially false.
+ *
+ * The return predicate MIRRORS findReturnedStandingDead in apps/newsdesk/src/news-pg-store.ts:
+ * scoped by (server, gamertag) rather than by life id, and keyed on `connected_at >`, never on
+ * COALESCE(disconnected_at, connected_at) — a session that BEGAN before publication and ended
+ * after it is the session the article was written about, not a return. Keeping the two identical
+ * means the page and the de-publication sweep can never tell the reader different stories.
+ *
+ * A missing life row (the projections were rebuilt, or the life was folded away) degrades to
+ * `idle` rather than throwing: an unavailable projection must not 500 a published page.
+ */
+export async function getNewsSubjectStatus(
+  db: Database,
+  args: {
+    serverId: number;
+    gamertag: string;
+    lifeStartedAt: Date;
+    createdAt: Date;
+    idleSecondsAtPublication: number | null;
+  },
+): Promise<NewsSubjectStatus> {
+  const idle: NewsSubjectStatus = {
+    kind: "idle",
+    idleDaysAtPublication: Math.floor((args.idleSecondsAtPublication ?? 0) / 86_400),
+  };
+
+  const lifeRows = await db
+    .select({ endedAt: lives.endedAt })
+    .from(lives)
+    .innerJoin(players, eq(players.id, lives.playerId))
+    .where(and(
+      eq(lives.serverId, args.serverId),
+      eq(players.gamertag, args.gamertag),
+      eq(lives.startedAt, args.lifeStartedAt),
+    ))
+    .limit(1);
+
+  const life = lifeRows[0];
+  if (!life) return idle;
+
+  if (life.endedAt) {
+    const obit = await db
+      .select({ slug: articles.slug })
+      .from(articles)
+      .where(and(
+        eq(articles.kind, "obituary"),
+        eq(articles.status, "published"),
+        eq(articles.serverId, args.serverId),
+        eq(articles.gamertag, args.gamertag),
+        eq(articles.lifeStartedAt, args.lifeStartedAt),
+      ))
+      .limit(1);
+    return { kind: "died", diedAt: life.endedAt, obituarySlug: obit[0]?.slug ?? null };
+  }
+
+  const seen = await db
+    .select({ connectedAt: sessions.connectedAt })
+    .from(sessions)
+    .innerJoin(players, eq(players.id, sessions.playerId))
+    .where(and(
+      eq(sessions.serverId, args.serverId),
+      eq(players.gamertag, args.gamertag),
+      gt(sessions.connectedAt, args.createdAt),
+    ))
+    .orderBy(desc(sessions.connectedAt))
+    .limit(1);
+
+  const back = seen[0];
+  return back ? { kind: "returned", seenAt: back.connectedAt } : idle;
 }

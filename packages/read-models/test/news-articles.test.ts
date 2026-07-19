@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, articles } from "@onelife/db";
+import { servers, articles, players, lives, sessions, positions } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getPublishedNews, getNewsArticleBySlug } from "../src/news-articles.js";
 
@@ -62,6 +62,22 @@ afterAll(async () => {
 });
 
 const mine = <T extends { gamertag: string }>(rows: T[]) => rows.filter((r) => r.gamertag === tag);
+
+/** Recursively collects every object key at any depth, including inside arrays. Proves the Fog
+ *  Rule by SHAPE rather than by pattern-matching a coordinate-looking number — the same walk
+ *  apps/newsdesk/test/news-facts.test.ts uses. */
+function collectKeys(value: unknown, keys: Set<string> = new Set()): Set<string> {
+  if (value instanceof Date) return keys;
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeys(item, keys);
+  } else if (value !== null && typeof value === "object") {
+    for (const [key, val] of Object.entries(value)) {
+      keys.add(key);
+      collectKeys(val, keys);
+    }
+  }
+  return keys;
+}
 
 describe("getPublishedNews", () => {
   it("returns published news newest-CREATED first — not by death_at, which a Standing Dead row lacks", async () => {
@@ -215,11 +231,131 @@ describe("getNewsArticleBySlug", () => {
     expect(await getNewsArticleBySlug(db, "no-such-news-slug")).toBeNull();
   });
 
-  it("never resolves an obituary or a birth notice through the news route", async () => {
+  it("never resolves an obituary through the news route", async () => {
     await db.insert(articles).values(base({
       kind: "obituary", status: "published", slug: `not-news-${svc}`,
       lifeStartedAt: hrs(40), deathAt: hrs(41), headline: "Not News", lede: "x", naturalKey: null,
     }));
     expect(await getNewsArticleBySlug(db, `not-news-${svc}`)).toBeNull();
+  });
+});
+
+describe("getNewsSubjectStatus (the §4.1.3 live status line)", () => {
+  // Three real subjects on real projections: one still gone, one who came back, one who died.
+  // Their lives carry REAL `positions` rows — the §11 rail is only meaningful over source data
+  // that actually contains coordinates.
+  const IDLE = `sub-idle-${svc}`;
+  const BACK = `sub-back-${svc}`;
+  const DEAD = `sub-dead-${svc}`;
+  const born = hrs(50);
+  const published = hrs(60);
+
+  const seedSubject = async (gamertag: string, opts: { endedAt: Date | null; lastConnectAt: Date }) => {
+    const [p] = await db.insert(players).values({ gamertag }).returning();
+    const [l] = await db.insert(lives).values({
+      serverId, playerId: p!.id, lifeNumber: 1, startedAt: born,
+      endedAt: opts.endedAt, playtimeSeconds: 5600,
+    }).returning();
+    await db.insert(sessions).values({
+      serverId, playerId: p!.id, lifeId: l!.id,
+      connectedAt: opts.lastConnectAt, disconnectedAt: null,
+    });
+    // Coordinates DO exist for this subject. Nothing the read-model returns may carry them.
+    // `positions` is (serverId, playerId, gamertag, x, y, recordedAt) — there is no z column.
+    await db.insert(positions).values({
+      serverId, playerId: p!.id, gamertag, recordedAt: opts.lastConnectAt, x: 7423.51, y: 812.4,
+    });
+    await db.insert(articles).values(base({
+      status: "published", slug: `status-${gamertag}`,
+      naturalKey: `standing_dead:${serverId}:${gamertag}:${born.toISOString()}`,
+      // `new Date(born.toISOString())`, NOT `born`. In production this value travels
+      // Date → toISOString() → new Date() through IDENTITY in apps/newsdesk/src/news-pg-store.ts,
+      // i.e. truncated to millisecond precision, while lives.started_at is timestamptz
+      // (microsecond). getNewsSubjectStatus joins on exact equality, so inserting the SAME Date
+      // object into both tables would make the join hold trivially and the fixture could never
+      // detect a precision mismatch — which would not throw, it would fall into the "missing life
+      // row" branch and silently pin every Standing Dead interior to `idle` forever.
+      gamertag, lifeStartedAt: new Date(born.toISOString()),
+      headline: `Status ${gamertag}`, lede: "s-lede",
+      body: "B", createdAt: published, timeAliveSeconds: 5600, kills: 0,
+      facts: {
+        trigger: "standing_dead", subjectCount: 1, idleSeconds: 259200,
+        subjects: [{ gamertag, mapSlug: `na-${svc}`, lifeNumber: 1 }],
+      },
+    }));
+    return l!.id;
+  };
+
+  beforeAll(async () => {
+    // Idle: last connect BEFORE publication, life still open.
+    await seedSubject(IDLE, { endedAt: null, lastConnectAt: hrs(52) });
+    // Returned: a session that CONNECTED after publication, life still open.
+    await seedSubject(BACK, { endedAt: null, lastConnectAt: hrs(70) });
+    // Died: the life closed after publication.
+    await seedSubject(DEAD, { endedAt: hrs(75), lastConnectAt: hrs(72) });
+    // …and the morgue desk filed for them.
+    await db.insert(articles).values(base({
+      kind: "obituary", status: "published", slug: `obit-for-${DEAD}`, naturalKey: null,
+      gamertag: DEAD, lifeStartedAt: born, deathAt: hrs(75),
+      headline: "He Did Not Outlast The Correction", lede: "o-lede", body: "B", createdAt: hrs(76),
+    }));
+  });
+
+  afterAll(async () => {
+    for (const g of [IDLE, BACK, DEAD]) {
+      await db.delete(sessions).where(eq(sessions.serverId, serverId));
+      await db.delete(positions).where(eq(positions.serverId, serverId));
+      await db.delete(lives).where(eq(lives.serverId, serverId));
+      await db.delete(players).where(eq(players.gamertag, g));
+    }
+  });
+
+  it("still idle → the frozen idle figure, in whole days, as of publication", async () => {
+    const a = await getNewsArticleBySlug(db, `status-${IDLE}`);
+    expect(a!.subjectStatus).toEqual({ kind: "idle", idleDaysAtPublication: 3 });
+  });
+
+  it("returned → the connect instant of the session that falsified the piece", async () => {
+    const a = await getNewsArticleBySlug(db, `status-${BACK}`);
+    expect(a!.subjectStatus).toMatchObject({ kind: "returned" });
+    expect((a!.subjectStatus as { seenAt: Date }).seenAt.toISOString()).toBe(hrs(70).toISOString());
+  });
+
+  it("died since → the death instant and the obituary slug, death outranking the return", async () => {
+    const a = await getNewsArticleBySlug(db, `status-${DEAD}`);
+    expect(a!.subjectStatus).toEqual({
+      kind: "died", diedAt: hrs(75), obituarySlug: `obit-for-${DEAD}`,
+    });
+  });
+
+  it("a Long Form article never carries a status line", async () => {
+    const lf = await getNewsArticleBySlug(db, `detail-lf-${svc}`);
+    expect(lf!.subjectStatus).toBeNull();
+  });
+
+  it("falls back to idle when no life row matches — a rebuild must not break the page", async () => {
+    const orphan = await getNewsArticleBySlug(db, `detail-${svc}`);
+    expect(orphan!.subjectStatus).toEqual({ kind: "idle", idleDaysAtPublication: 3 });
+  });
+
+  // ── THE §11 FOG RAIL, SOURCE HALF ──
+  // Every subject above has real `positions` rows carrying 7423.51 / 812.4. Note 812.4:
+  // it is a legitimate near-edge coordinate that does NOT match /\d{4}\.\d/, which is why the key
+  // walk is the primary assertion and the regex is only a secondary signal.
+  it("returns no coordinate key and no coordinate-shaped value, over fixtures that HAVE coordinates", async () => {
+    const detail = await getNewsArticleBySlug(db, `status-${IDLE}`);
+    const feed = await getPublishedNews(db, { page: 1, pageSize: 100 });
+    for (const out of [detail, feed]) {
+      const keys = collectKeys(out);
+      // The SAME eight keys as COORDINATE_KEYS in apps/newsdesk/test/news-facts.test.ts and in the
+      // three files Task 1 repairs. One canonical set across the repo — there is no `z` column in
+      // `positions`, and a divergent list would confuse the next person porting the helper.
+      for (const forbidden of ["x", "y", "posX", "posY", "coordX", "coordY", "lat", "lon"]) {
+        expect(keys.has(forbidden)).toBe(false);
+      }
+      expect(JSON.stringify(out)).not.toContain("7423.51");
+      expect(JSON.stringify(out)).not.toContain("812.4");
+      expect(JSON.stringify(out)).not.toMatch(/\d{4}\.\d/);   // secondary signal only
+    }
   });
 });
