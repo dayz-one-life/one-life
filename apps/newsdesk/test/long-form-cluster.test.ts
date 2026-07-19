@@ -168,7 +168,10 @@ describe("applyLongFormExclusions", () => {
     expect(r.skipped).toEqual({ self_cluster: 1, suicide_subject: 0, unqualified_subject: 0, suppressed_gamertag: 0 });
   });
 
-  it("survives exactly one of the six verified production pairs", () => {
+  // Two survive here, not the one the real 7-day dataset yields: suppression is not configured in this
+  // fixture, so the dev-account pvp pair is still present. In production NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS
+  // removes it, leaving the single GabeFox101/CUPID18 cluster.
+  it("removes the four self-clusters from the six verified production pairs", () => {
     const clusters = [
       pair("GabeFox101", "CUPID18", "infected", "died"),
       pair("YrJustBad", "YrJustBad", "suicide", "suicide"),
