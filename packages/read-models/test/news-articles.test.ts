@@ -47,6 +47,11 @@ beforeAll(async () => {
       status: "failed", slug: null, naturalKey: `standing_dead:${serverId}:${tag}:${hrs(9).toISOString()}`,
       headline: null, lede: null, body: null, attempts: 3, lastError: "boom", createdAt: hrs(9),
     }),
+    base({
+      status: "published", slug: `sd-nosubj-${svc}`, naturalKey: `standing_dead:${serverId}:${tag}:${hrs(-1).toISOString()}`,
+      headline: "No Subject Count Recorded", lede: "nosubj-lede", tags: ["News", "Chernarus", "The Standing Dead"],
+      createdAt: hrs(-1), facts: { trigger: "standing_dead" },
+    }),
   ]);
 });
 
@@ -64,6 +69,7 @@ describe("getPublishedNews", () => {
     expect(mine(res.rows).map((r) => r.headline)).toEqual([
       "Two Went Out Together",
       "The Man Who Did Not Come Back",
+      "No Subject Count Recorded",
     ]);
   });
 
@@ -81,11 +87,12 @@ describe("getPublishedNews", () => {
     expect(byHead.get("Two Went Out Together")!.trigger).toBe("long_form");
   });
 
-  it("reads subjectCount from facts, defaulting to 1", async () => {
+  it("reads subjectCount from facts, defaulting to 1 when facts omits it", async () => {
     const res = await getPublishedNews(db, { page: 1, pageSize: 100 });
     const byHead = new Map(mine(res.rows).map((r) => [r.headline, r]));
     expect(byHead.get("Two Went Out Together")!.subjectCount).toBe(2);
     expect(byHead.get("The Man Who Did Not Come Back")!.subjectCount).toBe(1);
+    expect(byHead.get("No Subject Count Recorded")!.subjectCount).toBe(1);
   });
 
   it("paginates", async () => {
