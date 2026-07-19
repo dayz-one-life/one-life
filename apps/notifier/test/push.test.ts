@@ -76,6 +76,18 @@ describe("pushTick", () => {
     expect((store as never as { markPushed: unknown }).markPushed).not.toHaveBeenCalled();
   });
 
+  it("stamps the row once at least one of two subscriptions accepts, while recording the other's failure", async () => {
+    const store = makeStore({ activeSubscriptionsFor: vi.fn(async () => [sub(10), sub(11)]) });
+    const send = vi.fn()
+      .mockResolvedValueOnce({ ok: true as const })
+      .mockResolvedValueOnce({ ok: false as const, gone: false, error: "500" });
+    const r = await pushTick(db, { ...base, store, send });
+    expect(r.sent).toBe(1);
+    expect(r.failed).toBe(1);
+    expect((store as never as { markPushed: unknown }).markPushed).toHaveBeenCalledWith(db, 1, NOW);
+    expect((store as never as { recordFailure: unknown }).recordFailure).toHaveBeenCalledWith(db, 11, NOW);
+  });
+
   it("does not send in dry run", async () => {
     const store = makeStore();
     const send = vi.fn();
