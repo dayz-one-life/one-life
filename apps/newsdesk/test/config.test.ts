@@ -78,3 +78,68 @@ describe("newsdesk config — article images (R5c)", () => {
     expect(loadConfig({ DATABASE_URL: "x", NEWSDESK_IMAGES_ENABLED: "0" }).imagesEnabled).toBe(true);
   });
 });
+
+describe("newsdesk config — the news pass (R5d PR-C2)", () => {
+  it("ships OFF: newsEnabled false and newsSince null when both are unset", () => {
+    const c = loadConfig({ ...BASE });
+    expect(c.newsEnabled).toBe(false);
+    expect(c.newsSince).toBeNull();
+  });
+
+  it("enables ONLY on the exact string 'true'", () => {
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_ENABLED: "true" }).newsEnabled).toBe(true);
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_ENABLED: "1" }).newsEnabled).toBe(false);
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_ENABLED: "TRUE" }).newsEnabled).toBe(false);
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_ENABLED: "" }).newsEnabled).toBe(false);
+  });
+
+  it("parses NEWSDESK_NEWS_SINCE like the birth cutoff: valid ISO in, junk to null", () => {
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_SINCE: "2026-07-19T00:00:00Z" }).newsSince?.toISOString())
+      .toBe("2026-07-19T00:00:00.000Z");
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_SINCE: "   " }).newsSince).toBeNull();
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_SINCE: "not-a-date" }).newsSince).toBeNull();
+  });
+
+  it("does not disturb the birth cutoff when the news cutoff is set", () => {
+    const c = loadConfig({ ...BASE, NEWSDESK_NEWS_SINCE: "2026-07-19T00:00:00Z" });
+    expect(c.birthSince).toBeNull();
+  });
+
+  it("defaults every trigger knob to the spec value", () => {
+    const c = loadConfig({ ...BASE });
+    expect(c.newsMaxPerTick).toBe(2);
+    expect(c.standingDeadHours).toBe(72);
+    expect(c.standingDeadMinPlaytimeSeconds).toBe(1800);
+    expect(c.standingDeadMinHits).toBe(100);
+    expect(c.longFormWindowSeconds).toBe(180);
+    expect(c.longFormRadiusMeters).toBe(100);
+    expect(c.longFormMaxFixAgeSeconds).toBe(120);
+  });
+
+  it("overrides every trigger knob from the environment", () => {
+    const c = loadConfig({
+      ...BASE,
+      NEWSDESK_NEWS_MAX_PER_TICK: "5",
+      NEWSDESK_STANDING_DEAD_HOURS: "96",
+      NEWSDESK_STANDING_DEAD_MIN_PLAYTIME_SECONDS: "3600",
+      NEWSDESK_STANDING_DEAD_MIN_HITS: "50",
+      NEWSDESK_LONGFORM_WINDOW_SECONDS: "300",
+      NEWSDESK_LONGFORM_RADIUS_METERS: "150",
+      NEWSDESK_LONGFORM_MAX_FIX_AGE_SECONDS: "60",
+    });
+    expect(c.newsMaxPerTick).toBe(5);
+    expect(c.standingDeadHours).toBe(96);
+    expect(c.standingDeadMinPlaytimeSeconds).toBe(3600);
+    expect(c.standingDeadMinHits).toBe(50);
+    expect(c.longFormWindowSeconds).toBe(300);
+    expect(c.longFormRadiusMeters).toBe(150);
+    expect(c.longFormMaxFixAgeSeconds).toBe(60);
+  });
+
+  it("splits the suppression list, trims, drops empties, and preserves case", () => {
+    expect(loadConfig({ ...BASE }).newsSuppressedGamertags).toEqual([]);
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS: "" }).newsSuppressedGamertags).toEqual([]);
+    expect(loadConfig({ ...BASE, NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS: " YrJustBad , ,Cee Lo GREEN 96 " }).newsSuppressedGamertags)
+      .toEqual(["YrJustBad", "Cee Lo GREEN 96"]);
+  });
+});

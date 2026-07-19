@@ -159,7 +159,12 @@ export async function findStandingDeadTargets(
     .from(articles)
     .where(and(
       inArray(articles.naturalKey, targets.map((t) => t.naturalKey)),
-      sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+      // 'retracted' blocks too, and that is load-bearing rather than tidy. A retracted Standing
+      // Dead article keeps its natural key, and its subject keeps satisfying the idle predicate —
+      // so on a 'published'-only test the next tick would spend a paid model call regenerating
+      // the identical feature, and the retraction sweep at the end of that same tick would take
+      // it down again, every tick, forever. Spec §4.1.3: the prose is never regenerated.
+      sql`(${articles.status} IN ('published','retracted') OR ${articles.attempts} >= ${opts.maxAttempts})`,
     ));
   const blockedSet = new Set(blocked.map((r) => r.k!));
   return targets.filter((t) => !blockedSet.has(t.naturalKey)).slice(0, opts.limit);

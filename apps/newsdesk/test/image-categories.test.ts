@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { MORGUE_CATEGORIES, NURSERY_CATEGORIES, NEWSROOM_CATEGORIES, eligibleCategories } from "../src/image-categories.js";
-import type { ArticleKind } from "../src/image-categories.js";
+import type { ArticleKind, NewsImageFacts } from "../src/image-categories.js";
 
 describe("ArticleKind", () => {
   it("admits news", () => {
@@ -138,12 +138,16 @@ describe("eligibleCategories — kind routing", () => {
 });
 
 describe("newsroom menu", () => {
-  const standing = { trigger: "standing_dead", map: "chernarusplus", idleHours: 96,
+  // Typed against the published contract, NOT a loose literal: if news-facts.ts renames a field,
+  // NewsImageFacts changes, and this fixture stops compiling. `lastExpressiveEmote` is gone —
+  // the emote slot was cut (no allowlist signal, and reading it means querying events.payload,
+  // the column that also holds coordinates).
+  const standing: NewsImageFacts = { trigger: "standing_dead", map: "chernarusplus", idleHours: 96,
     timeAliveSeconds: 5400, hitsAbsorbed: 12, lifeNumber: 3, priors: { livesLived: 2, totalKills: 4 },
-    subjectCount: 1, allFreshSubjects: false, lastExpressiveEmote: null };
-  const longform = { trigger: "long_form", map: "sakhal", idleHours: 0, timeAliveSeconds: 0,
-    hitsAbsorbed: 0, lifeNumber: 1, priors: { livesLived: 0, totalKills: 0 },
-    subjectCount: 2, allFreshSubjects: true, lastExpressiveEmote: null };
+    subjectCount: 1, allFreshSubjects: false };
+  const longform: NewsImageFacts = { trigger: "long_form", map: "sakhal", idleHours: null,
+    timeAliveSeconds: 0, hitsAbsorbed: 0, lifeNumber: 1, priors: { livesLived: 0, totalKills: 0 },
+    subjectCount: 2, allFreshSubjects: true };
   const newsSlugs = (f: Record<string, unknown>) => eligibleCategories("news", f).map((c) => c.slug);
 
   it("carries 13 entries with unique kebab slugs and CAPS captions <= 48 chars", () => {
@@ -178,8 +182,28 @@ describe("newsroom menu", () => {
     expect(newsSlugs({ ...standing, hitsAbsorbed: 100 })).toContain("what-it-took");
   });
 
+  it("the-regular is trigger-restricted to standing_dead (a Long Form primary with priors must not read as 'recently absent')", () => {
+    // Before the trigger restriction, a Long Form primary subject with any prior life would fire
+    // this gate on a DEATH piece — "recently absent" is false; the subject is dead, not absent.
+    expect(newsSlugs({ ...longform, priors: { livesLived: 2, totalKills: 4 } })).not.toContain("the-regular");
+  });
+
   it("shares no framing with the morgue or nursery menus", () => {
     const others = new Set([...MORGUE_CATEGORIES, ...NURSERY_CATEGORIES].map((c) => c.caption));
     for (const c of NEWSROOM_CATEGORIES) expect(others.has(c.caption)).toBe(false);
+  });
+
+  it("carries no emote-shaped key in the facts contract (spec §11: EmoteSuicide never reaches a payload)", () => {
+    // TYPE-ANCHORED, not behavioural: these are fixtures declared in this file, so the real guard
+    // is the `NewsImageFacts` annotation above (a compile-time check). The behavioural rail is
+    // Task 11's keysDeep walk over a BUILT NewsFacts object — do not read this as coverage of it.
+    expect(Object.keys(standing).some((k) => /emote/i.test(k))).toBe(false);
+    expect(Object.keys(longform).some((k) => /emote/i.test(k))).toBe(false);
+  });
+
+  it("a null idleHours never trips the long-idle framing", () => {
+    expect(newsSlugs(longform)).not.toContain("long-idle");
+    expect(newsSlugs({ ...standing, idleHours: 119 })).not.toContain("long-idle");
+    expect(newsSlugs({ ...standing, idleHours: 120 })).toContain("long-idle");
   });
 });
