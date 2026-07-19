@@ -353,8 +353,8 @@ export const characters = pgTable("characters", {
 // attempts bumped) so retries are bounded. ──
 export const articles = pgTable("articles", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  kind: text("kind").notNull(),                                       // 'obituary' | 'birth_notice'
-  status: text("status").notNull().default("published"),             // published|failed
+  kind: text("kind").notNull(),                       // 'obituary' | 'birth_notice' | 'news'
+  status: text("status").notNull().default("published"),  // published|failed|retracted
   slug: text("slug"),                                                // null on a failed stub
   serverId: integer("server_id").notNull().references(() => servers.id),
   gamertag: text("gamertag").notNull(),                              // natural-key: player identity
