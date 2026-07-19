@@ -15,6 +15,7 @@ import { registerAuthMethodsRoute } from "./routes/auth-methods.js";
 import { registerSurvivorsRoutes } from "./routes/survivors.js";
 import { registerObituariesRoutes } from "./routes/obituaries.js";
 import { registerBirthNoticesRoutes } from "./routes/birth-notices.js";
+import { registerNewsRoutes } from "./routes/news.js";
 import { registerFreshSpawnsRoutes } from "./routes/fresh-spawns.js";
 import { registerMediaRoutes } from "./routes/media.js";
 
@@ -46,6 +47,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   registerSurvivorsRoutes(app, db);
   registerObituariesRoutes(app, db);
   registerBirthNoticesRoutes(app, db);
+  registerNewsRoutes(app, db);
   registerFreshSpawnsRoutes(app, db);
   registerMediaRoutes(app, db);
   return app;

@@ -4,6 +4,34 @@ import { servers, players, lives, sessions, positions, articles } from "@onelife
 import { inArray } from "drizzle-orm";
 import { findLongFormCandidates, findLongFormTargets } from "../src/long-form-targets.js";
 
+/** Key names that would carry a raw map coordinate if one leaked through. Ported from
+ *  news-facts.test.ts — test-local by convention; the newsdesk suite has no shared helper module. */
+const COORDINATE_KEYS = new Set(["x", "y", "posX", "posY", "coordX", "coordY", "lat", "lon"]);
+
+/**
+ * Recursively collects every object key at any depth, including inside arrays. Value-independent
+ * by design: it proves the Fog Rule by SHAPE, not by pattern-matching a coordinate-looking number,
+ * which is exactly what `/\d{4}\.\d/` fails to do near a map's low edge (e.g. "812.4").
+ */
+function collectKeys(value: unknown, keys: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const item of value) collectKeys(item, keys);
+  } else if (value !== null && typeof value === "object") {
+    for (const [key, val] of Object.entries(value)) {
+      keys.add(key);
+      collectKeys(val, keys);
+    }
+  }
+  return keys;
+}
+
+function assertNoCoordinateKeys(value: unknown): void {
+  const keys = collectKeys(value);
+  for (const forbidden of COORDINATE_KEYS) {
+    expect(keys.has(forbidden)).toBe(false);
+  }
+}
+
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 53e7;
 const t0 = new Date("2026-07-11T00:00:00.000Z");
@@ -124,7 +152,15 @@ describe("findLongFormTargets", () => {
 
   it("returns a coordinate-free target — the fixture rows DO contain coordinates", async () => {
     const r = await findLongFormTargets(db, T_OPTS);
-    expect(JSON.stringify(mineC(r))).not.toMatch(/\d{4}\.\d/);
+    // Guard: an empty mineC(r) would make the key walk below inspect nothing and pass vacuously
+    // (this defect class — a vacuous walk over an empty collection — has recurred three times in
+    // this codebase). Mirrors the `toHaveLength(1)` sanity check in long-form-cluster.test.ts.
+    expect(mineC(r)).toHaveLength(1);
+    // THE §11 BOUNDARY ASSERTION. DeathCandidate carries x/y; LongFormSubject must not. The key
+    // walk is the primary rail — the old sole assertion here was /\d{4}\.\d/, which returns false
+    // for a low-edge coordinate like 812.4 and would therefore have passed on a real leak.
+    assertNoCoordinateKeys(mineC(r));
+    expect(JSON.stringify(mineC(r))).not.toMatch(/\d{4}\.\d/);   // cheap secondary signal only
   });
 
   it("suppresses a cluster whose natural key is already published", async () => {
