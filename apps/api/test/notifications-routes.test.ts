@@ -113,6 +113,28 @@ describe("notification routes", () => {
     expect(rows[0]!.p256dh).toBe("p2");
   });
 
+  it("transfers ownership of a push subscription owned by another user", async () => {
+    const endpoint = `ep-other-${svc}`;
+    await db.insert(pushSubscriptions).values({
+      userId: otherUserId, endpoint, p256dh: "op1", auth: "oa1",
+      failureCount: 3, disabledAt: new Date(),
+    });
+
+    const res = await app.inject({
+      method: "POST", url: "/me/push-subscriptions", headers: authed(),
+      payload: { endpoint, keys: { p256dh: "p3", auth: "a3" } },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const rows = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.userId).toBe(userId);
+    expect(rows[0]!.failureCount).toBe(0);
+    expect(rows[0]!.disabledAt).toBeNull();
+
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+  });
+
   it("deletes a push subscription", async () => {
     const res = await app.inject({
       method: "DELETE", url: "/me/push-subscriptions", headers: authed(),
