@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { lives, players, servers, sessions } from "@onelife/db";
+import { hitEvents, lives, players, servers, sessions } from "@onelife/db";
 import { and, asc, eq, gte, isNull, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
@@ -69,7 +69,34 @@ export async function findStandingDeadTargets(
         sql`, `,
       )}]::text[])`;
 
-  const earnedCoverage = sql`TRUE`;   // replaced in Task 12
+  // priorLives: any earlier life by the SAME PLAYER on ANY server (players are one global identity
+  // per gamertag; lives are per-server). Mirrors getPlayerPriors' `lt(lives.startedAt, before)` —
+  // this must agree with `priors.livesLived` in the facts builder.
+  // EXISTS, not count(*) >= 1: same result, short-circuits on the first row.
+  const priorLifeExists = sql`EXISTS (
+    SELECT 1 FROM ${lives} pl
+    WHERE pl.player_id = ${lives.playerId}
+      AND pl.started_at < ${lives.startedAt}
+  )`;
+
+  // hitsAbsorbed: hit_events against this subject inside the life window. Keyed on
+  // victim_gamertag, which is NOT NULL and is the leading column of hit_events_natural_uniq, so
+  // this is indexed. hit_events.victim_player_id is NULLABLE — joining on it would silently
+  // undercount, so it must NOT be used.
+  const hitsAbsorbed = sql<number>`(
+    SELECT count(*) FROM ${hitEvents} h
+    WHERE h.server_id = ${lives.serverId}
+      AND h.victim_gamertag = ${players.gamertag}
+      AND h.occurred_at >= ${lives.startedAt}
+      AND (${lives.endedAt} IS NULL OR h.occurred_at <= ${lives.endedAt})
+  )`;
+
+  // The subject has EARNED coverage: they either chose to come back after a previous life, or
+  // physically endured something worth reporting. A first-life, zero-kill, low-contact bounce is
+  // never a Standing Dead subject (spec §4.1.1). The OR means Postgres may evaluate the count for
+  // every row failing priorLifeExists; at this pool size (7 subjects) that is fine — do NOT add
+  // an index for it.
+  const earnedCoverage = sql`(${priorLifeExists} OR ${hitsAbsorbed} >= ${opts.minHitsAbsorbed})`;
   const notPublished = sql`TRUE`;     // replaced in Task 13 (TS-side two-query anti-join)
 
   const rows = await db
@@ -78,7 +105,9 @@ export async function findStandingDeadTargets(
       map: servers.map, mapSlug: servers.slug, lifeNumber: lives.lifeNumber,
       lifeStartedAt: lives.startedAt, playtimeSeconds: lives.playtimeSeconds,
       lastSeenAt: lastSeen, eligibleAt,
-      priorLives: sql<number>`0`, hitsAbsorbed: sql<number>`0`,
+      priorLives: sql<number>`(SELECT count(*) FROM ${lives} pl
+        WHERE pl.player_id = ${lives.playerId} AND pl.started_at < ${lives.startedAt})`,
+      hitsAbsorbed,
     })
     .from(lives)
     .innerJoin(players, eq(players.id, lives.playerId))

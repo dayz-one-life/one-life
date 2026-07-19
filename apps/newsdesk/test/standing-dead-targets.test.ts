@@ -63,6 +63,12 @@ beforeAll(async () => {
   await seed("crashed", { playtime: 7200, connectedAt: hrs(100), disconnectedAt: null, priorLife: true });
   // idle but only 25 min of playtime -> below the 1800s gate
   await seed("brief", { playtime: 1500, connectedAt: hrs(98), disconnectedAt: hrs(100), priorLife: true });
+  // first life, no prior, 5 hits -> FAILS earned coverage (the "low-contact bounce" case)
+  await seed("bounce", { playtime: 7200, connectedAt: hrs(98), disconnectedAt: hrs(100), hits: 5 });
+  // first life, no prior, exactly 100 hits -> PASSES on the hits arm (inclusive boundary)
+  await seed("battered", { playtime: 7200, connectedAt: hrs(98), disconnectedAt: hrs(100), hits: 100 });
+  // first life, no prior, 99 hits -> FAILS (one short)
+  await seed("bruised", { playtime: 7200, connectedAt: hrs(98), disconnectedAt: hrs(100), hits: 99 });
 });
 
 afterAll(async () => {
@@ -143,5 +149,43 @@ describe("findStandingDeadTargets", () => {
     const t = await tagsOf({ ...OPTS, suppressedGamertags: [tag("veteran").toUpperCase()] });
     expect(t).not.toContain(tag("veteran"));
     expect(t).toContain(tag("edge-in"));
+  });
+});
+
+describe("earned coverage", () => {
+  it("admits a subject with a prior life and no hits", async () => {
+    expect(await tagsOf()).toContain(tag("veteran"));
+  });
+
+  it("rejects a first-life, low-contact bounce — a hard predicate clause, not prompt guidance", async () => {
+    expect(await tagsOf()).not.toContain(tag("bounce"));
+  });
+
+  it("admits on the hits arm at exactly the threshold and rejects one short", async () => {
+    const t = await tagsOf();
+    expect(t).toContain(tag("battered"));
+    expect(t).not.toContain(tag("bruised"));
+  });
+
+  it("reports priorLives and hitsAbsorbed on the target", async () => {
+    const rows = await findStandingDeadTargets(db, OPTS);
+    const b = rows.find((r) => r.gamertag === tag("battered"))!;
+    expect(b.priorLives).toBe(0);
+    expect(b.hitsAbsorbed).toBe(100);
+    const v = rows.find((r) => r.gamertag === tag("veteran"))!;
+    expect(v.priorLives).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not count hits outside the life window", async () => {
+    await db.insert(hitEvents).values({
+      serverId, victimGamertag: tag("bruised"), attackerGamertag: "before",
+      attackerType: "infected", bodyPart: "pre", occurredAt: hrs(0),   // before startedAt (hrs 1)
+    });
+    expect(await tagsOf()).not.toContain(tag("bruised"));
+  });
+
+  it("excludes a suppressed gamertag case-insensitively", async () => {
+    expect(await tagsOf({ ...OPTS, suppressedGamertags: [tag("veteran").toUpperCase()] }))
+      .not.toContain(tag("veteran"));
   });
 });
