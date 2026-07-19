@@ -10,7 +10,9 @@
 // "unknown". These predicates read it off a Record<string, unknown>, so the compiler will NOT
 // flag a missing arm — every gate below states its suicide stance explicitly on purpose.
 
-export type ArticleKind = "obituary" | "birth_notice";
+// Three members as of R5d. Widening this deliberately makes the MENUS / KIND_LABEL Records
+// below exhaustive-checked: a missing `news` arm is a compile error, not a silent fallthrough.
+export type ArticleKind = "obituary" | "birth_notice" | "news";
 export type FactsSnapshot = Record<string, unknown>;
 
 export interface ImageCategory {
@@ -129,7 +131,96 @@ export const NURSERY_CATEGORIES: ImageCategory[] = [
     eligible: (f) => (priors(f).livesLived ?? 0) === 0 },
 ];
 
+// The Newsroom menu (R5d). The facts vocabulary these gates read — and which newsTick MUST
+// freeze into articles.facts, or every gate silently fails closed:
+//   trigger: "standing_dead" | "long_form"   map: string   idleHours: number
+//   timeAliveSeconds: number   hitsAbsorbed: number   lifeNumber: number
+//   priors: { livesLived?, totalKills? }     subjectCount: number
+//   allFreshSubjects: boolean                lastExpressiveEmote: string | null
+//
+// These key names are the exact ones the C2 facts builders emit — `timeAliveSeconds`, not
+// `playtimeSeconds`; `lastExpressiveEmote`, not `lastEmote`. No shipped gate reads either of
+// those two, so a mismatch would not fail a test — it would just mislead the next gate author.
+//
+// FOG RULE, STRICTER HERE (spec §4.1.4): a Standing Dead subject is ALIVE and non-consenting.
+// No framing may imply a death, a position fix, a route, or a recognisable locale. Favour
+// absence and vacancy — the story is that nobody came back, not that somebody died.
+export const NEWSROOM_CATEGORIES: ImageCategory[] = [
+  { slug: "unattended-camp", caption: "NOBODY CAME BACK FOR THIS",
+    example: "A small abandoned camp in wet pine woods at dusk: a collapsed tarp shelter, a cold fire ring gone to grey ash, an enamel mug still upright on a flat stone, nothing living anywhere in frame.",
+    // Standing Dead only: vacancy is the whole story. Never offered to Long Form, where a
+    // deserted camp would read as the aftermath of a death that happened somewhere else.
+    eligible: (f) => f.trigger === "standing_dead" },
+  { slug: "unslept-bedroll", caption: "THE BED WAS NEVER SLEPT IN",
+    example: "A rolled sleeping bag lying flat and unopened on bare floorboards in a derelict wooden room, one boot tipped over beside it, grey light through a broken window and drifted dust across everything.",
+    eligible: (f) => f.trigger === "standing_dead" },
+  { slug: "no-forwarding-address", caption: "NO FORWARDING ADDRESS",
+    example: "An empty dirt crossroads in flat farmland under low grey cloud, a leaning wooden signpost with both arms snapped off, tyre ruts filling with rain and no traffic in either direction.",
+    // Deliberately signless and directionless: an intact sign would name a place and break the
+    // Fog Rule for a subject who is alive and locatable.
+    eligible: () => true },
+  { slug: "the-regular", caption: "A KNOWN FACE, RECENTLY ABSENT",
+    example: "A worn canvas jacket hanging alone on a nail in an empty wooden hallway, shoulders shaped by long use, a shut door beyond it and no one in frame.",
+    // Priors gate: this framing asserts a history. A first-lifer has none, and the Standing Dead
+    // predicate already refuses to cover one without earned coverage.
+    eligible: (f) => (priors(f).livesLived ?? 0) >= 1 },
+  { slug: "what-it-took", caption: "WHAT IT TOOK TO GET THIS FAR",
+    example: "A stack of spent bandages, a bloodied rag and three empty saline bottles heaped on a scuffed table under a bare bulb, flash glaring off the wet glass.",
+    // Endurance gate mirrors the earned-coverage clause (hitsAbsorbed >= 100). Objects only —
+    // no wound, no body, and nothing that implies the subject stopped surviving.
+    eligible: (f) => (n(f.hitsAbsorbed) ?? 0) >= 100 },
+  { slug: "last-transmission", caption: "LAST RECORDED TRANSMISSION",
+    example: "A battered handheld radio lying face-up in wet grass beside a fallen birch, its dial glowing faintly, nobody holding it and nothing but drizzle in the background.",
+    eligible: () => true },
+  { slug: "still-listed", caption: "STILL LISTED AS ACTIVE",
+    example: "A rain-warped paper pinned to a rotting noticeboard, its writing washed to illegible grey smears, one dog-eared corner lifting in the wind under an overcast sky.",
+    // Illegible by construction: no legible text is a hard rail, and this framing is the one
+    // most likely to tempt the model into writing a name.
+    eligible: () => true },
+  { slug: "long-idle", caption: "SOME TIME HAS PASSED",
+    example: "A rusted metal gate standing half open across a muddy farm track, grass grown thick and undisturbed through the gap where it has not swung in weeks, thin fog in the treeline behind.",
+    // Idle framing only fires once the absence is genuinely long, so the photo can't out-claim
+    // the copy. 72h is the trigger floor; this wants visibly more.
+    eligible: (f) => (n(f.idleHours) ?? 0) >= 120 },
+  { slug: "two-sets-of-tracks", caption: "TWO SETS OF TRACKS, ONE DIRECTION",
+    example: "Two lines of bootprints pressed into wet mud along a forest verge, converging and then ending at a churned patch of grass, no figures anywhere and rain filling the deeper prints.",
+    // Long Form only: a convergence framing. Applied to a lone Standing Dead subject it would
+    // invent a companion who does not exist.
+    eligible: (f) => f.trigger === "long_form" },
+  { slug: "same-minute", caption: "WITHIN THE SAME MINUTE",
+    example: "Two dropped backpacks lying a few metres apart in long wet grass at the edge of a clearing, both still open, rain beading on the canvas, nothing else in the frame.",
+    // Objects at a distance from each other carry the coincidence without a corpse or a fix.
+    eligible: (f) => f.trigger === "long_form" && (n(f.subjectCount) ?? 0) >= 2 },
+  { slug: "the-world-did-this", caption: "THE WORLD DID THIS, NOT THEM",
+    example: "A wide flat view of an empty rain-soaked field under a heavy pressing sky, a single leafless tree off-centre and a treeline dissolving into fog at the far edge.",
+    // The fresh-subject tone branch: when every subject is a first-lifer the story is the world,
+    // never the two men's competence. Punch up, never down.
+    eligible: (f) => f.trigger === "long_form" && f.allFreshSubjects === true },
+  { slug: "conditions-noted", caption: "CONDITIONS WERE NOTED",
+    example: "Driving snow across a bare white slope at dusk, the flash lighting every falling flake into a wall of bright dots, a line of fence posts vanishing into the whiteout.",
+    // Weather framing is honest for Sakhal and nowhere else — this is the one map cue the Fog
+    // Rule permits, because the map is already in the dateline.
+    eligible: (f) => f.map === "sakhal" },
+  { slug: "the-desk-has-questions", caption: "THE DESK HAS QUESTIONS",
+    example: "A cluttered corner of a derelict room lit hard by flash: an overturned wooden chair, a tin cup on its side, a single muddy bootprint on bare boards, and no one to explain any of it.",
+    eligible: () => true },
+];
+
+// Keyed lookup, not a ternary: the old `kind === "obituary" ? MORGUE : NURSERY` handed every
+// non-obituary kind the Nursery menu, so news photos would all be fresh-spawn framings.
+const MENUS: Record<ArticleKind, ImageCategory[]> = {
+  obituary: MORGUE_CATEGORIES,
+  birth_notice: NURSERY_CATEGORIES,
+  news: NEWSROOM_CATEGORIES,
+};
+
 export function eligibleCategories(kind: ArticleKind, facts: FactsSnapshot): ImageCategory[] {
-  const menu = kind === "obituary" ? MORGUE_CATEGORIES : NURSERY_CATEGORIES;
+  // A Record lookup does NOT throw on a miss — TS types this as ImageCategory[] while the
+  // runtime yields undefined for any key outside the union, and image-pg-store.ts casts a raw
+  // db `text` column into ArticleKind unchecked. Without this guard, `.filter` on undefined is
+  // an opaque TypeError inside imageTick's try/catch that burns an image_attempts retry.
+  // Precedent: buildImagePrompt's `if (!ratio) throw new Error(`unknown image kind: ${kind}`)`.
+  const menu = MENUS[kind];
+  if (!menu) throw new Error(`no image category menu for article kind: ${kind}`);
   return menu.filter((c) => c.eligible(facts));
 }

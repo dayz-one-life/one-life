@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildScenePrompt, parseScene } from "../src/image-scene.js";
-import { MORGUE_CATEGORIES } from "../src/image-categories.js";
+import { buildScenePrompt, parseScene, IMAGE_SCENE_SYSTEM } from "../src/image-scene.js";
+import { MORGUE_CATEGORIES, eligibleCategories } from "../src/image-categories.js";
+import type { ArticleKind } from "../src/image-categories.js";
 
 const eligible = MORGUE_CATEGORIES.slice(0, 3);
 const base = {
@@ -49,5 +50,67 @@ describe("parseScene", () => {
   it("rejects captions over 48 chars and scenes under 20", () => {
     expect(() => parseScene(JSON.stringify({ caption: "X".repeat(49), scene: "A perfectly valid scene line for the test." }))).toThrow();
     expect(() => parseScene(JSON.stringify({ caption: "OK", scene: "too short" }))).toThrow();
+  });
+});
+
+const args = (over: Partial<Parameters<typeof buildScenePrompt>[0]> = {}) => ({
+  kind: "news" as ArticleKind, facts: {}, headline: "H", lede: null,
+  eligible: [], recent: [], ...over,
+});
+
+describe("buildScenePrompt — kind label", () => {
+  it("labels news as a news feature, not a birth notice", () => {
+    const { user } = buildScenePrompt(args());
+    expect(user).toContain("Article kind: news feature (The Newsroom)");
+    expect(user).not.toContain("The Nursery");
+  });
+
+  it("throws on an unknown kind", () => {
+    expect(() => buildScenePrompt(args({ kind: "bogus" as ArticleKind })))
+      .toThrow(/unknown article kind for scene prompt/);
+  });
+
+  it("flags a low-confidence verdict explicitly instead of burying it in the facts JSON", () => {
+    const { user } = buildScenePrompt(args({ facts: { verdict: { cause: "bled_out", confidence: "low" } } }));
+    expect(user).toContain("The stated cause is LOW CONFIDENCE");
+    expect(buildScenePrompt(args({ facts: { verdict: { cause: "pvp", confidence: "high" } } })).user)
+      .not.toContain("LOW CONFIDENCE");
+  });
+});
+
+describe("IMAGE_SCENE_SYSTEM", () => {
+  it("carries a news tone arm and the alive-subject rail", () => {
+    expect(IMAGE_SCENE_SYSTEM).toContain("news features =");
+    expect(IMAGE_SCENE_SYSTEM).toContain("A news subject may still be ALIVE");
+    expect(IMAGE_SCENE_SYSTEM).toContain("low confidence");
+  });
+});
+
+describe("news scene prompt — composed path", () => {
+  const facts = { trigger: "standing_dead", map: "chernarusplus", idleHours: 140,
+    timeAliveSeconds: 9200, hitsAbsorbed: 140, lifeNumber: 4,
+    priors: { livesLived: 3, totalKills: 6 }, subjectCount: 1, allFreshSubjects: false,
+    lastExpressiveEmote: "EmoteGreeting" };
+
+  it("offers only newsroom framings and never a nursery or morgue one", () => {
+    const eligible = eligibleCategories("news", facts);
+    const { user } = buildScenePrompt({ kind: "news", facts, headline: "Nobody Has Seen Him Since Tuesday",
+      lede: "He logged off and the server kept going without him.", eligible, recent: [] });
+    expect(user).toContain("news feature (The Newsroom)");
+    for (const c of eligible) expect(user).toContain(c.caption);
+    expect(user).not.toContain("PICTURED: OPTIMISM");
+    expect(user).not.toContain("SCENE OF THE INCIDENT");
+  });
+
+  it("offers the long-idle, veteran and endurance framings on these facts", () => {
+    const slugs = eligibleCategories("news", facts).map((c) => c.slug);
+    expect(slugs).toEqual(expect.arrayContaining(["unattended-camp", "long-idle", "the-regular", "what-it-took"]));
+    expect(slugs).not.toContain("two-sets-of-tracks");
+  });
+
+  it("leaks no coordinate-shaped number from a facts blob into the prompt", () => {
+    const { user } = buildScenePrompt({ kind: "news", facts, headline: "H", lede: null,
+      eligible: eligibleCategories("news", facts), recent: [] });
+    expect(user).not.toMatch(/\d{4}\.\d/);
   });
 });
