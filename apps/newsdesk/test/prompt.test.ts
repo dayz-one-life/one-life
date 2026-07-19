@@ -148,6 +148,20 @@ describe("buildObituaryPrompt", () => {
     expect(user).toContain("killed by another player (Kilo)");
   });
 
+  // Regression: an unrecorded cause (bare "died") always carries a low-confidence "unknown"
+  // verdict from classifyDeath, since life-timeline always populates a verdict for an ended life.
+  // The no-mechanism directive and the low-confidence hedge must never co-render — the hedge
+  // implies an inferred cause exists right after the directive says none does.
+  it("an unrecorded cause with a low-confidence 'unknown' verdict gets the no-mechanism directive, never the hedge", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      causeCategory: "environment", cause: "died", killerGamertag: null,
+      verdict: { cause: "unknown", confidence: "low", conditions: [] },
+      isLegend: false, freshSpawnVictim: false,
+    }));
+    expect(user).toContain(NO_MECHANISM_DIRECTIVE);
+    expect(user).not.toContain("hedge it in-voice");
+  });
+
   it("causeUnrecorded is false for pvp and for any recorded mechanism", () => {
     expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: "died", killerGamertag: null, verdict: null }))).toBe(true);
     expect(causeUnrecorded(mkFacts({ causeCategory: "environment", cause: null, killerGamertag: null, verdict: null }))).toBe(true);

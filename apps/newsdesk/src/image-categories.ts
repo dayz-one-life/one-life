@@ -66,7 +66,9 @@ export const MORGUE_CATEGORIES: ImageCategory[] = [
     eligible: (f) => f.causeCategory === "pvp" && f.killerGamertag != null },
   { slug: "first-aid-attempted", caption: "FIRST AID WAS ATTEMPTED",
     example: "An empty saline bag hangs from a low birch branch like a makeshift IV stand, torn sterile wrappers scattered on the moss below it, harsh flash against the dusk.",
-    // Includes suicide via !== "pvp" — intentional: an attempted rescue is dignified.
+    // Currently includes suicide via the !== "pvp" test. Whether "FIRST AID WAS ATTEMPTED" is the
+    // right framing for a self-inflicted death (dignified rescue, or tasteless) is an open owner
+    // decision, deliberately deferred — revisit when this news kind becomes image-eligible.
     eligible: (f) => f.causeCategory !== "pvp" },
   { slug: "visibility-factor", caption: "VISIBILITY WAS A FACTOR",
     example: "A night flash detonates against a wall of fog, blowing the frame to grey-white with one bare tree as the only legible shape.",

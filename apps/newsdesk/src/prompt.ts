@@ -151,8 +151,7 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   lines.push(`Describe the manner of death in qualitative terms — never quote raw stat numbers (energy or water values).`);
   if (causeUnrecorded(facts)) {
     lines.push(NO_MECHANISM_DIRECTIVE);
-  }
-  if (facts.verdict?.confidence === "low") {
+  } else if (facts.verdict?.confidence === "low") {
     lines.push(`The cause of death is an inference from the record, not a certainty — hedge it in-voice ("the record is murky", "the island isn't saying").`);
   }
   lines.push("");
