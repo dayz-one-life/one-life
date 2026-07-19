@@ -157,6 +157,7 @@ export async function recordBirthNoticeFailure(
     .values({ ...id, status: "failed", attempts: 1, lastError: args.error })
     .onConflictDoUpdate({
       target: CONFLICT,
+      targetWhere: CONFLICT_WHERE,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: args.error },
     });
 }
