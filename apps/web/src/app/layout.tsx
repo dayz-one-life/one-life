@@ -12,6 +12,7 @@ export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "One Life", template: "%s · One Life" },
   description: "All the deaths fit to print. One Life is a hardcore permadeath DayZ community — one life per server, a 24-hour ban when it ends, and an obituary that stands forever.",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
