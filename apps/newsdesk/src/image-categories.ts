@@ -10,7 +10,9 @@
 // "unknown". These predicates read it off a Record<string, unknown>, so the compiler will NOT
 // flag a missing arm — every gate below states its suicide stance explicitly on purpose.
 
-export type ArticleKind = "obituary" | "birth_notice";
+// Three members as of R5d. Widening this deliberately makes the MENUS / KIND_LABEL Records
+// below exhaustive-checked: a missing `news` arm is a compile error, not a silent fallthrough.
+export type ArticleKind = "obituary" | "birth_notice" | "news";
 export type FactsSnapshot = Record<string, unknown>;
 
 export interface ImageCategory {

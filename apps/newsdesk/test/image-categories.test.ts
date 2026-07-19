@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { MORGUE_CATEGORIES, NURSERY_CATEGORIES, eligibleCategories } from "../src/image-categories.js";
+import type { ArticleKind } from "../src/image-categories.js";
+
+describe("ArticleKind", () => {
+  it("admits news", () => {
+    const kinds: ArticleKind[] = ["obituary", "birth_notice", "news"];
+    expect(kinds).toHaveLength(3);
+  });
+});
 
 const slugs = (kind: "obituary" | "birth_notice", facts: Record<string, unknown>) =>
   eligibleCategories(kind, facts).map((c) => c.slug);
