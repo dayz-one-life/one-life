@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION } from "../src/prompt.js";
+import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, isUnrecordedCause } from "../src/prompt.js";
 import type { ObituaryFacts } from "../src/facts.js";
 
 const facts: ObituaryFacts = {
@@ -166,6 +166,62 @@ describe("describeDeath", () => {
       .toBe("killed by a wolf (not a player kill). They were in good health at the end.");
     expect(describeDeath(mkFacts({ causeCategory: "environment", cause: "fall", verdict: { cause: "fall", confidence: "high", conditions: [] } })))
       .toBe("died in a fall (not a player kill).");
+  });
+
+  // D4 — the most-exercised path in the system: 19 of 84 recorded deaths carry a bare "died",
+  // and 18 of 45 published obituaries were written from one. A bare mechanism token invites the
+  // model to invent one ("Terrain" for a death actually recorded as infected).
+  it.each([
+    ["null cause", null],
+    ["empty cause", ""],
+    ["bare 'died'", "died"],
+    ["bare 'environment'", "environment"],
+    ["bare 'unknown'", "unknown"],
+  ])("no verdict + %s reads as an explicit unknown, never a mechanism", (_label, cause) => {
+    const s = describeDeath(mkFacts({ causeCategory: "environment", cause, verdict: null, killerGamertag: null }));
+    expect(s).toBe(UNKNOWN_DEATH_PHRASE);
+    expect(s).toBe("unknown — the record does not name a mechanism.");
+    expect(s).not.toMatch(/fall|terrain|wolf|bear|animal|infected|starv|dehydrat|environment/i);
+  });
+
+  it("a verdict that names nothing also reads as an explicit unknown, keeping the factual state", () => {
+    const s = describeDeath(mkFacts({
+      causeCategory: "environment", cause: "died", killerGamertag: null,
+      verdict: { cause: "unknown", confidence: "low", conditions: ["starving"] },
+    }));
+    expect(s).toBe("unknown — the record does not name a mechanism. At the end they were starving.");
+  });
+
+  it("an 'environmental' verdict over a REAL mechanism still names the mechanism", () => {
+    const s = describeDeath(mkFacts({
+      causeCategory: "environment", cause: "infected", killerGamertag: null,
+      verdict: { cause: "environmental", confidence: "high", conditions: [] },
+    }));
+    expect(s).toBe("infected (not a player kill).");
+  });
+
+  it.each([
+    ["infected", "infected (not a player kill)."],
+    ["wolf", "wolf (not a player kill)."],
+    ["bled_out", "bled out (not a player kill)."],
+    ["fall", "fall (not a player kill)."],
+  ])("a known cause (%s) with no verdict still describes normally", (cause, expected) => {
+    expect(describeDeath(mkFacts({ causeCategory: "environment", cause, verdict: null, killerGamertag: null })))
+      .toBe(expected);
+  });
+
+  it("pvp wins over an unrecorded cause token — a player kill is never an unknown", () => {
+    const s = describeDeath(mkFacts({ causeCategory: "pvp", cause: "died", killerGamertag: "Kilo", weapon: "M4A1", deathDistance: 384.2, verdict: null }));
+    expect(s).toBe("killed by another player (Kilo), M4A1, from 384m.");
+  });
+
+  it("isUnrecordedCause covers the unknown set, case- and whitespace-insensitively", () => {
+    for (const c of [null, undefined, "", "  ", "died", "Died", " ENVIRONMENT ", "environmental", "unknown"]) {
+      expect(isUnrecordedCause(c)).toBe(true);
+    }
+    for (const c of ["infected", "wolf", "bear", "animal", "fall", "pvp", "bled_out", "starvation", "suicide"]) {
+      expect(isUnrecordedCause(c)).toBe(false);
+    }
   });
 });
 

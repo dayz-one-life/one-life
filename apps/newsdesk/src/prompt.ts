@@ -18,6 +18,23 @@ export interface Obituary {
 const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
 export const mapLabel = (map: string): string => MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 
+/**
+ * D4 — cause tokens that name no real mechanism. `died` is what the ADM parser writes when the
+ * log line carries no killer and no entity; `environment`/`environmental` are the parser's and
+ * classifier's catch-alls. Handing any of these to the model as a bare word invited invention
+ * (a bare "environment" was published as the headline word "Terrain" for a death actually
+ * recorded as infected). Treat them as an explicit unknown instead — the absence IS the story.
+ */
+const UNRECORDED_CAUSES = new Set(["", "died", "environment", "environmental", "unknown"]);
+
+/** True when the cause token names no mechanism (null/empty/died/environment/unknown). */
+export function isUnrecordedCause(cause: string | null | undefined): boolean {
+  return UNRECORDED_CAUSES.has((cause ?? "").trim().toLowerCase());
+}
+
+/** The one sentence the prompt gets when nothing named the mechanism. */
+export const UNKNOWN_DEATH_PHRASE = "unknown — the record does not name a mechanism.";
+
 /** Deterministic, qualitative death sentence for the prompt — words, never raw stat values. */
 export function describeDeath(facts: ObituaryFacts): string {
   if (facts.causeCategory === "pvp") {
@@ -31,7 +48,20 @@ export function describeDeath(facts: ObituaryFacts): string {
     // The bare "suicide" token must never reach the model as a raw word — it is the one cause
     // whose phrasing carries a duty of care, so phrase it here exactly as the verdict path does.
     if (facts.cause === "suicide") return "died by their own hand (not a player kill).";
-    return facts.cause ? `${facts.cause.replace(/_/g, " ")} (not a player kill).` : "unknown.";
+    // D4: no verdict and no mechanism token — say so plainly rather than emitting a bare word.
+    if (isUnrecordedCause(facts.cause)) return UNKNOWN_DEATH_PHRASE;
+    return `${facts.cause!.replace(/_/g, " ")} (not a player kill).`;
+  }
+  const conds = v.conditions.filter((c) => c !== "healthy");
+  const state = conds.length
+    ? ` At the end they were ${conds.join(" and ")}.`
+    : v.conditions.includes("healthy") ? " They were in good health at the end." : "";
+  const hedge = v.confidence === "low" ? "likely " : "";
+  // D4: a verdict of "environmental"/"unknown" names nothing either. Fall back to the recorded
+  // mechanism when there is one; otherwise it is an explicit unknown, plus the factual state.
+  if (isUnrecordedCause(v.cause)) {
+    if (isUnrecordedCause(facts.cause)) return `${UNKNOWN_DEATH_PHRASE}${state}`;
+    return `${hedge}${facts.cause!.replace(/_/g, " ")} (not a player kill).${state}`;
   }
   const noun: Record<string, string> = {
     suicide: "died by their own hand",
@@ -46,15 +76,8 @@ export function describeDeath(facts: ObituaryFacts): string {
     fall: "died in a fall",
     vehicle: "killed by a vehicle",
     explosion: "killed in an explosion",
-    environmental: facts.cause ? facts.cause.replace(/_/g, " ") : "the environment",
-    unknown: "unknown",
   };
   const base = noun[v.cause] ?? v.cause.replace(/_/g, " ");
-  const hedge = v.confidence === "low" ? "likely " : "";
-  const conds = v.conditions.filter((c) => c !== "healthy");
-  const state = conds.length
-    ? ` At the end they were ${conds.join(" and ")}.`
-    : v.conditions.includes("healthy") ? " They were in good health at the end." : "";
   return `${hedge}${base} (not a player kill).${state}`;
 }
 
