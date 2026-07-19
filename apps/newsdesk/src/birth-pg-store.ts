@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { articles, lives, players, servers } from "@onelife/db";
-import { and, eq, asc, gte, notExists, sql } from "drizzle-orm";
+import { and, eq, asc, gte, inArray, notExists, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
 export interface BirthNoticeTarget {
@@ -52,6 +52,10 @@ export function birthNoticeSlug(headline: string, gamertag: string, serverId: nu
 
 // The article's identity is the natural life tuple — the conflict target for both upserts.
 const CONFLICT = [articles.kind, articles.serverId, articles.gamertag, articles.lifeStartedAt];
+// Migration 0014 made that unique index PARTIAL; an ON CONFLICT target only matches a partial
+// index when the statement repeats its predicate. Mirrors pg-store.ts — deliberately duplicated,
+// each store owns its own conflict spec (see also the mirrored CONFLICT above).
+const CONFLICT_WHERE = inArray(articles.kind, ["obituary", "birth_notice"]);
 
 /** Qualified lives (alive OR dead) needing a birth notice: born on/after `since`, no published
  *  article and no exhausted failed stub. Anti-joins `articles` on the natural key with
@@ -137,6 +141,7 @@ export async function publishBirthNotice(db: Database, input: PublishBirthInput)
     .values({ ...values, attempts: 1 })
     .onConflictDoUpdate({
       target: CONFLICT,
+      targetWhere: CONFLICT_WHERE,
       set: { ...values, attempts: sql`${articles.attempts} + 1`, lastError: null },
     });
 }
