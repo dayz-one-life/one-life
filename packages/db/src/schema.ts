@@ -95,6 +95,7 @@ export const lives = pgTable("lives", {
   qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
 }, (t) => ({
   byPlayer: index("lives_player_idx").on(t.serverId, t.playerId),
+  qualifiedAtIdx: index("lives_qualified_at_idx").on(t.qualifiedAt).where(sql`${t.qualifiedAt} IS NOT NULL`),
 }));
 
 export const sessions = pgTable("sessions", {
@@ -443,6 +444,7 @@ export const notifications = pgTable("notifications", {
 }, (t) => ({
   uniqNatural: uniqueIndex("notifications_natural_key_uniq").on(t.naturalKey),
   byUser: index("notifications_user_created_idx").on(t.userId, t.createdAt),
+  unpushedIdx: index("notifications_unpushed_idx").on(t.createdAt).where(sql`${t.pushedAt} IS NULL`),
 }));
 
 export const pushSubscriptions = pgTable("push_subscriptions", {
