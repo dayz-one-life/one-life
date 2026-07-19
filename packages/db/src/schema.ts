@@ -428,7 +428,17 @@ export const articleImages = pgTable("article_images", {
 
 // ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate
 // list, so a --rebuild never drops a player's inbox. Dedup is the natural_key unique
-// index — a PLAIN unique index, so onConflictDoNothing against it takes no targetWhere. ──
+// index — a PLAIN unique index, so onConflictDoNothing against it takes no targetWhere.
+//
+// ⚠️ Latent gotcha: some natural keys embed lives.id (e.g. "life_qualified:<lifeId>",
+// "milestone:<days>d:<lifeId>"), but rebuild.ts truncates `lives` WITH RESTART IDENTITY,
+// so lifeId is reassigned on every projection rebuild — while this table is never
+// truncated. After a future rebuild that shifts numbering, a legitimately-qualifying life
+// could collide with a stale key left by a retired life and silently get no notification
+// (the row already "exists" per the unique index). Zero impact today (table is empty at
+// rebuild time in this release) and partially self-correcting since replay is
+// deterministic, but a real risk once notifications have accumulated across a rebuild.
+// Not fixed here — flagging for whoever changes the key scheme or the rebuild strategy. ──
 
 export const notifications = pgTable("notifications", {
   id: bigserial("id", { mode: "number" }).primaryKey(),

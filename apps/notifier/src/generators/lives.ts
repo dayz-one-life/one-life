@@ -51,17 +51,25 @@ export const lifeQualifiedGenerator: Generator = async (deps) => {
 
 const MILESTONE_DAYS = [7, 14, 30] as const;
 
-/** Milestones are time-derived, so the window is the milestone itself: a life is only
- *  eligible once it has been open that long. The natural key carries the day count, so
- *  each threshold fires exactly once per life. */
+/** Milestones are time-derived, so the window is the milestone's crossing instant
+ *  (startedAt + m days): a life is only eligible once it has been open that long AND
+ *  that crossing falls inside the current lookback window. Without the latter check, a
+ *  life far older than any threshold would re-emit every threshold on every tick forever
+ *  (and, at go-live, would emit all three thresholds at once for old open lives). The
+ *  natural key carries the day count, so each threshold fires exactly once per life
+ *  regardless.  */
 export const survivalMilestoneGenerator: Generator = async (deps) => {
-  // No time filter: eligibility is the life's age, computed below, not when it qualified.
+  // No DB-level time filter: eligibility is the life's age, computed below, not when it
+  // qualified. The window is enforced per-milestone against the crossing instant instead.
   const rows = await openQualifiedLives(deps);
+  const start = windowStart(deps);
   const drafts: NotificationDraft[] = [];
   for (const r of rows) {
     const days = (deps.now.getTime() - r.startedAt.getTime()) / 86_400_000;
     for (const m of MILESTONE_DAYS) {
       if (days < m) continue;
+      const crossedAt = new Date(r.startedAt.getTime() + m * 86_400_000);
+      if (crossedAt < start) continue;
       drafts.push({
         userId: r.userId,
         kind: "survival_milestone",

@@ -191,7 +191,7 @@ Two rails, both places the newsdesk previously got bitten:
 
 A naive generator would rescan all history every tick. Each generator instead queries a
 window: rows whose driving timestamp falls within `NOTIFIER_LOOKBACK_HOURS`
-(default 24), floored by the global `NOTIFIER_SINCE` cutoff.
+(default 48), floored by the global `NOTIFIER_SINCE` cutoff.
 
 `NOTIFIER_SINCE` unset, empty, or unparseable ⇒ **generation is off**: zero drafts, no
 writes. This is the `NEWSDESK_BIRTH_SINCE` precedent. It is set once, to a go-live

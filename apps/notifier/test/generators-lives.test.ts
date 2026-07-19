@@ -42,17 +42,37 @@ describe("lifeQualifiedGenerator", () => {
 });
 
 describe("survivalMilestoneGenerator", () => {
-  it("emits 7d for the 8-day-old life and 7/14/30d for the 44-day-old one", async () => {
+  // windowStart = max(since, now - lookbackHours) = max(2026-06-01, 2026-07-17T12:00Z)
+  // = 2026-07-17T12:00:00Z.
+  it("emits only the 7d milestone for the 8-day-old life, whose crossing instant falls inside the window", async () => {
     const drafts = await survivalMilestoneGenerator(deps);
     const keys = drafts.map((d) => d.naturalKey).sort();
-    // Ignores the window entirely — eligibility is life age, not qualification time.
-    expect(keys.filter((k) => k.includes(":7d:"))).toHaveLength(2);
-    expect(keys.filter((k) => k.includes(":14d:"))).toHaveLength(1);
-    expect(keys.filter((k) => k.includes(":30d:"))).toHaveLength(1);
+    // Life 1 started 2026-07-11T12:00Z: its 7d crossing is 2026-07-18T12:00Z, inside the
+    // window, so it fires. Its 14d/30d crossings are in the future (days=8 < 14/30), so
+    // they aren't reached at all yet — irrelevant to the window fix, just not due.
+    expect(keys.filter((k) => k.includes(":7d:"))).toHaveLength(1);
+    expect(keys.filter((k) => k.includes(":14d:"))).toHaveLength(0);
+    expect(keys.filter((k) => k.includes(":30d:"))).toHaveLength(0);
+  });
+
+  it("does not emit any milestone for a life whose crossing instants are long outside the window", async () => {
+    const drafts = await survivalMilestoneGenerator(deps);
+    // Life 3 started 2026-06-05T12:00Z (44 days old at NOW): it has long since passed all
+    // three thresholds (7d/14d/30d crossings are 2026-06-12, 2026-06-19, 2026-07-05), but
+    // every one of those crossing instants is before windowStart (2026-07-17T12:00Z), so
+    // none should be emitted. Before the fix, all three fired on every tick forever.
+    expect(drafts.every((d) => !d.naturalKey.endsWith(":3"))).toBe(true);
   });
 
   it("never emits a milestone for the unqualified life", async () => {
     const drafts = await survivalMilestoneGenerator(deps);
     expect(drafts.every((d) => !d.body.includes("life 2"))).toBe(true);
+  });
+
+  it("emits exactly one draft in total across all fixture lives", async () => {
+    const drafts = await survivalMilestoneGenerator(deps);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.naturalKey).toMatch(/^milestone:7d:\d+$/);
+    expect(drafts[0]!.body).toContain("life 1");
   });
 });

@@ -74,8 +74,9 @@ sudo journalctl -u onelife-api -f         # tail logs
   `notifications` table) and **push** (delivers unread, recent notifications to subscribed browsers
   via Web Push, retiring an endpoint after repeated failures). Requires a `onelife-notifier` systemd
   unit on the host (create it alongside the other worker units). Needs `DATABASE_URL` and `SITE_URL`
-  in `.env`; see "Player notifications: environment + rollout" below for the full var list and the
-  required staged go-live.
+  in `.env` (`SITE_URL` is currently reserved/unused by this worker — every notification `href` is a
+  relative path; it is threaded through `GeneratorDeps` but nothing reads it yet); see "Player
+  notifications: environment + rollout" below for the full var list and the required staged go-live.
   **⚠️ This release reshapes the `lives` projection** — a new `qualified_at` column is written by the
   projector fold at the moment a life first qualifies. Deploy this release with
   `./deploy/deploy.sh --rebuild`, not a plain `./deploy/deploy.sh`: a normal deploy leaves
@@ -88,7 +89,7 @@ sudo journalctl -u onelife-api -f         # tail logs
 
 ```
 DATABASE_URL=                               # shared with the rest of the fleet
-SITE_URL=https://dayzonelife.com            # used to build absolute notification links
+SITE_URL=https://dayzonelife.com            # reserved/unused: every notification href is a relative path; not currently read
 NOTIFIER_INTERVAL_SECONDS=60                # sweep cadence
 NOTIFIER_SINCE=                             # ISO-8601 go-live cutoff; UNSET = generation OFF
 NOTIFIER_DRY_RUN=true                       # logs intended notifications; set false to write them
