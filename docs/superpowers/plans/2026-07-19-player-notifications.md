@@ -95,6 +95,13 @@ In `packages/db/src/schema.ts`, in the `lives` table definition, add after `play
   qualifiedAt: timestamp("qualified_at", { withTimezone: true }),
 ```
 
+And in the same table's `(t) => ({ ... })` index block (add one in the file's neighbouring
+style if `lives` has none):
+
+```ts
+  qualifiedAtIdx: index("lives_qualified_at_idx").on(t.qualifiedAt).where(sql`${t.qualifiedAt} IS NOT NULL`),
+```
+
 - [ ] **Step 1: Add the tables to the schema**
 
 Append to `packages/db/src/schema.ts`:
@@ -118,6 +125,10 @@ export const notifications = pgTable("notifications", {
 }, (t) => ({
   uniqNatural: uniqueIndex("notifications_natural_key_uniq").on(t.naturalKey),
   byUser: index("notifications_user_created_idx").on(t.userId, t.createdAt),
+  // Partial indexes MUST be declared here too, not only in the SQL — this repo manages
+  // them in drizzle (see articles_discord_unposted_idx, schema.ts ~line 413). A partial
+  // index present only in the migration would be dropped by a future drizzle-kit generate.
+  unpushedIdx: index("notifications_unpushed_idx").on(t.createdAt).where(sql`${t.pushedAt} IS NULL`),
 }));
 
 export const pushSubscriptions = pgTable("push_subscriptions", {
