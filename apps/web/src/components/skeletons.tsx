@@ -90,8 +90,10 @@ export function LifeSkeleton() {
 }
 
 /** Placeholder for the generated tabloid photo atop an article interior, before it (or its
- *  absence) is known — mirrors ArticleHero's 4:5 max-w-md frame. Retained for future news/
- *  editorial interiors; currently unused (no article kind renders a hero image). */
+ *  absence) is known — mirrors ArticleHero's 4:5 max-w-md frame. Since R5d PR-C3 the `news`
+ *  kind is the only one that renders a hero image (obituaries/birth notices lost theirs in
+ *  v0.21.0), so this is the news interior's placeholder: it is rendered by
+ *  apps/web/src/app/news/[slug]/loading.tsx. */
 export function ArticleHeroSkeleton() {
   return <Bar className="my-6 aspect-[4/5] w-full max-w-md" />;
 }
