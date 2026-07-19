@@ -1181,8 +1181,10 @@ beforeAll(async () => {
   await db.insert(gamertagLinks).values({ userId: "lf1", gamertag: "LifeOne", status: "verified", verifiedAt: new Date("2026-06-02T00:00:00Z") });
   await db.insert(lives).values([
     // Open + qualified 8 days ago -> life_qualified (in window) + 7d milestone.
+    // qualifiedAt must be INSIDE the 48h window (windowStart = NOW - 48h = 2026-07-17T12:00Z);
+    // startedAt stays 8 days back so the milestone test still sees an 8-day-old life.
     { serverId: s.id, playerId: p.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"),
-      playtimeSeconds: 4000, qualifiedAt: new Date("2026-07-11T12:05:00Z") },
+      playtimeSeconds: 4000, qualifiedAt: new Date("2026-07-19T10:00:00Z") },
     // Open but NOT qualified: qualified_at is null.
     { serverId: s.id, playerId: p.id, lifeNumber: 2, startedAt: new Date("2026-07-18T12:00:00Z"),
       playtimeSeconds: 60, qualifiedAt: null },
