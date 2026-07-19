@@ -44,7 +44,10 @@ describe("push store", () => {
 
   it("recordFailure disables a subscription at the fifth failure", async () => {
     const [s] = await db.insert(pushSubscriptions).values({ userId: "ps1", endpoint: "e3", p256dh: "p", auth: "a" }).returning();
-    for (let i = 0; i < 5; i++) await recordFailure(db, s!.id, NOW);
+    for (let i = 0; i < 4; i++) await recordFailure(db, s!.id, NOW);
+    // Still active at 4 failures — this is what proves the threshold is 5, not 1.
+    expect(await activeSubscriptionsFor(db, "ps1")).toHaveLength(1);
+    await recordFailure(db, s!.id, NOW);
     expect(await activeSubscriptionsFor(db, "ps1")).toHaveLength(0);
   });
 
