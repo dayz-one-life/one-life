@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ObituaryFacts } from "./facts.js";
-import { timeAliveLabel, SUICIDE_RESET_SECONDS } from "./facts.js";
+import { timeAliveLabel, SUICIDE_RESET_SECONDS, isUnrecordedCause } from "./facts.js";
 import { OBITUARY_SYSTEM } from "./voice.js";
 import type { RecentProse } from "./prose-pg-store.js";
 import { recentProseBlock } from "./prose-block.js";
@@ -17,20 +17,6 @@ export interface Obituary {
 
 const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
 export const mapLabel = (map: string): string => MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
-
-/**
- * D4 — cause tokens that name no real mechanism. `died` is what the ADM parser writes when the
- * log line carries no killer and no entity; `environment`/`environmental` are the parser's and
- * classifier's catch-alls. Handing any of these to the model as a bare word invited invention
- * (a bare "environment" was published as the headline word "Terrain" for a death actually
- * recorded as infected). Treat them as an explicit unknown instead — the absence IS the story.
- */
-const UNRECORDED_CAUSES = new Set(["", "died", "environment", "environmental", "unknown"]);
-
-/** True when the cause token names no mechanism (null/empty/died/environment/unknown). */
-export function isUnrecordedCause(cause: string | null | undefined): boolean {
-  return UNRECORDED_CAUSES.has((cause ?? "").trim().toLowerCase());
-}
 
 /** The one sentence the prompt gets when nothing named the mechanism. */
 export const UNKNOWN_DEATH_PHRASE = "unknown — the record does not name a mechanism.";

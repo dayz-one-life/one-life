@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, isUnrecordedCause, NO_MECHANISM_DIRECTIVE, causeUnrecorded } from "../src/prompt.js";
+import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, NO_MECHANISM_DIRECTIVE, causeUnrecorded } from "../src/prompt.js";
 import type { ObituaryFacts } from "../src/facts.js";
 
 const facts: ObituaryFacts = {
@@ -275,15 +275,6 @@ describe("describeDeath", () => {
   it("pvp wins over an unrecorded cause token — a player kill is never an unknown", () => {
     const s = describeDeath(mkFacts({ causeCategory: "pvp", cause: "died", killerGamertag: "Kilo", weapon: "M4A1", deathDistance: 384.2, verdict: null }));
     expect(s).toBe("killed by another player (Kilo), M4A1, from 384m.");
-  });
-
-  it("isUnrecordedCause covers the unknown set, case- and whitespace-insensitively", () => {
-    for (const c of [null, undefined, "", "  ", "died", "Died", " ENVIRONMENT ", "environmental", "unknown"]) {
-      expect(isUnrecordedCause(c)).toBe(true);
-    }
-    for (const c of ["infected", "wolf", "bear", "animal", "fall", "pvp", "bled_out", "starvation", "suicide"]) {
-      expect(isUnrecordedCause(c)).toBe(false);
-    }
   });
 });
 

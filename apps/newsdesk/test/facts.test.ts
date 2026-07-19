@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryFacts, timeAliveLabel } from "../src/facts.js";
+import { buildObituaryFacts, timeAliveLabel, isUnrecordedCause } from "../src/facts.js";
 import type { ObituaryTarget } from "../src/pg-store.js";
 import type { PlayerPriors } from "@onelife/read-models";
 
@@ -116,5 +116,16 @@ describe("buildObituaryFacts", () => {
     const f = buildObituaryFacts(target, timeline(), noPriors);
     expect(f.priors.livesLived).toBe(0);
     expect(f.isKnownQuantity).toBe(false);
+  });
+});
+
+describe("isUnrecordedCause", () => {
+  it("covers the unknown set, case- and whitespace-insensitively", () => {
+    for (const c of [null, undefined, "", "  ", "died", "Died", " ENVIRONMENT ", "environmental", "unknown"]) {
+      expect(isUnrecordedCause(c)).toBe(true);
+    }
+    for (const c of ["infected", "wolf", "bear", "animal", "fall", "pvp", "bled_out", "starvation", "suicide"]) {
+      expect(isUnrecordedCause(c)).toBe(false);
+    }
   });
 });

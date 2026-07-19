@@ -48,6 +48,23 @@ export function timeAliveLabel(seconds: number): string {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
+/**
+ * D4 — cause tokens that name no real mechanism. `died` is what the ADM parser writes when the
+ * log line carries no killer and no entity; `environment`/`environmental` are the parser's and
+ * classifier's catch-alls. Handing any of these to the model as a bare word invited invention
+ * (a bare "environment" was published as the headline word "Terrain" for a death actually
+ * recorded as infected). Treat them as an explicit unknown instead — the absence IS the story.
+ *
+ * Lives here rather than in prompt.ts because the causeCategory derivation below is its first
+ * consumer: the tag and the prose must agree on one vocabulary of "no mechanism named".
+ */
+const UNRECORDED_CAUSES = new Set(["", "died", "environment", "environmental", "unknown"]);
+
+/** True when the cause token names no mechanism (null/empty/died/environment/unknown). */
+export function isUnrecordedCause(cause: string | null | undefined): boolean {
+  return UNRECORDED_CAUSES.has((cause ?? "").trim().toLowerCase());
+}
+
 /** Compose the factual snapshot the obituary prompt and Rap Sheet are built from. */
 export function buildObituaryFacts(
   target: ObituaryTarget,
