@@ -463,9 +463,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `UNKNOWN_DEATH_PHRASE` replace the bare `environment` token the model dressed into *"Loses Fight With
   Terrain"*, and `NO_MECHANISM_DIRECTIVE` (gated by `causeUnrecorded`, which requires **both** the raw cause
   and `verdict.cause` unrecorded) forbids inventing one. The low-confidence hedge line is an `else if` on
-  that gate — the two contradict each other if both render. **Known follow-up: a bare `died` cause still
-  buckets to `causeCategory:"environment"` and ships an `Environment` tag while the prose says no cause is
-  recorded (~23% of deaths) — fix before the next prod deploy.** The
+  that gate — the two contradict each other if both render. (**Resolved in PR-B**: a bare `died` cause used
+  to bucket to `causeCategory:"environment"` and ship an `Environment` tag while the prose said no cause was
+  recorded, on ~23% of deaths. It now categorises `unknown`. Tags are frozen at publish, so the fix is
+  forward-only — obituaries published before it keep the stale tag until backfilled.) The
   birth-notice pass is additionally gated by **`NEWSDESK_BIRTH_SINCE`** — an ISO-8601 cutoff
   timestamp; unset/empty/invalid ⇒ the pass is **off** (0 targets, no client call) — set it once to a
   go-live instant to begin **forward-only** coverage. Now in the `deploy.sh` restart fleet, so
