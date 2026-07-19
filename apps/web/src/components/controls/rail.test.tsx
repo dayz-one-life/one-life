@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
 import { ControlsRail } from "./rail";
@@ -11,7 +11,7 @@ const mut = () => ({ mutate: vi.fn(), isPending: false, isError: false, isSucces
 const base = { name: "Boots", provider: "discord", balance: 3, servers: [], standing: [], notifications: [], unreadCount: 0 };
 
 beforeEach(() => {
-  (useControlsActions as Mock).mockReturnValue({ claim: mut(), cancel: mut(), send: mut(), refer: mut(), redeem: mut() });
+  (useControlsActions as Mock).mockReturnValue({ claim: mut(), cancel: mut(), send: mut(), refer: mut(), redeem: mut(), markRead: mut() });
 });
 
 describe("ControlsRail", () => {
@@ -55,6 +55,30 @@ describe("ControlsRail", () => {
     expect(screen.getByText("No life")).toBeInTheDocument(); // never-played server renders idle
     expect(screen.getByRole("link", { name: "Your profile →" })).toHaveAttribute("href", "/players/bootscoldwater");
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  test("verified: opening notifications reveals the list and marks them read", () => {
+    const actions = { claim: mut(), cancel: mut(), send: mut(), refer: mut(), redeem: mut(), markRead: mut() };
+    (useControlsActions as Mock).mockReturnValue(actions);
+    (useControls as Mock).mockReturnValue({
+      ...base,
+      status: { kind: "verified", link: { id: 1, gamertag: "BootsColdwater", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null } },
+      notifications: [
+        { id: 7, kind: "ban_applied", title: "You died on a qualified life", body: "24 hours.", href: "/players/bootscoldwater", createdAt: "2026-07-19T11:30:00Z", readAt: null },
+      ],
+      unreadCount: 1,
+    });
+    render(<ControlsRail />);
+
+    // Collapsed: the badge shows, the item does not.
+    expect(screen.getByTestId("unread-badge")).toHaveTextContent("1");
+    expect(screen.queryByText("You died on a qualified life")).not.toBeInTheDocument();
+    expect(actions.markRead.mutate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+
+    expect(screen.getByRole("link", { name: /You died on a qualified life/ })).toHaveAttribute("href", "/players/bootscoldwater");
+    expect(actions.markRead.mutate).toHaveBeenCalledTimes(1);
   });
 
   test("loading: skeleton, nothing interactive", () => {
