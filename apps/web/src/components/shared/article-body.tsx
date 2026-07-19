@@ -1,0 +1,58 @@
+import { PullQuote } from "@/components/shared/pull-quote";
+import type { ArticleBlock } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+/** Shared article body. `blocks` is the R5d rich body; when it is null/absent (every article
+ *  written before R5d) it falls back to splitting the flat `body` on blank lines — byte-identical
+ *  output to the two hand-rolled renderers this replaced. An unrecognised block type is dropped
+ *  (`default: return null`) so a newer writer can ship a new kind without breaking an older page. */
+export function ArticleBody({
+  blocks,
+  fallback,
+  className,
+}: {
+  blocks?: ArticleBlock[] | null;
+  fallback: string;
+  className?: string;
+}) {
+  const wrapper = cn("space-y-4 font-mono text-[14px] leading-relaxed text-ink-soft", className);
+
+  if (!blocks || blocks.length === 0) {
+    return (
+      <div className={wrapper}>
+        {fallback.split(/\n{2,}/).map((para, i) => (
+          <p key={i}>{para}</p>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={wrapper}>
+      {blocks.map((block, i) => {
+        switch (block.type) {
+          case "para":
+            return <p key={i}>{block.text}</p>;
+          case "subhead":
+            return (
+              <h2 key={i} className="pt-2 font-display text-2xl font-bold uppercase leading-tight text-ink">
+                {block.text}
+              </h2>
+            );
+          case "quote":
+            return <PullQuote key={i} text={block.text} attribution={block.attribution} />;
+          case "list":
+            return (
+              <ul key={i} className="list-disc space-y-1 pl-5">
+                {block.items.map((item, j) => (
+                  <li key={j}>{item}</li>
+                ))}
+              </ul>
+            );
+          default:
+            return null;
+        }
+      })}
+    </div>
+  );
+}
