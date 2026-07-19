@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.23.0] - 2026-07-19
+
+
+### Added
 - R5d news engine, **inert**: the two news trigger read-models and the article-image prerequisites,
   with no caller and no production effect. `apps/newsdesk/src/standing-dead-targets.ts` finds
   qualified open lives whose player has gone quiet for 72h and has *earned* coverage (a prior life
@@ -31,10 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **No production behaviour changes:** `findImageTargets` still excludes both shipped kinds and no
   `kind='news'` row exists, so every one of these paths is unreachable until the news worker pass
   lands. Normal deploy, no `--rebuild`, no migration.
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.22.0] - 2026-07-19
 
