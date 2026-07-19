@@ -99,6 +99,13 @@
       "when": 1784408003707,
       "tag": "0013_drop_obituary_birth_images",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784426821824,
+      "tag": "0014_article_natural_key_and_blocks",
+      "breakpoints": true
     }
   ]
 }
