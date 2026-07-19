@@ -15,7 +15,7 @@ describe("menus", () => {
 });
 
 describe("eligibleCategories — obituary gates", () => {
-  const base = { causeCategory: "environment", cause: "died", weapon: null, killerGamertag: null,
+  const base = { causeCategory: "environment", cause: "bled_out", weapon: null, killerGamertag: null,
     kills: 3, timeAliveSeconds: 7200, freshSpawnVictim: false, map: "chernarusplus" };
 
   it("ungated categories always fire", () => {
@@ -37,6 +37,16 @@ describe("eligibleCategories — obituary gates", () => {
     expect(slugs("obituary", { ...base, causeCategory: "unknown" })).toContain("trail-ends-here");
     expect(slugs("obituary", base)).not.toContain("trail-ends-here");
     expect(slugs("obituary", { ...base, map: "sakhal" })).toContain("trail-ends-here");
+  });
+  it("an unrecorded cause (causeCategory 'unknown') keeps effects and gains the mystery framing", () => {
+    const unknown = { ...base, causeCategory: "unknown", cause: "died" };
+    const s = slugs("obituary", unknown);
+    expect(s).toContain("effects");             // recovered belongings are cause-agnostic
+    expect(s).toContain("trail-ends-here");     // widened: fires on every map, not just Sakhal
+    expect(s).toContain("visibility-factor");
+    expect(s).toContain("first-aid-attempted");
+    expect(s).not.toContain("vantage");
+    expect(s).not.toContain("approached-for-comment");
   });
   it("suicide gates: effects + first-aid fire; blame/mystery/conditions framings never do", () => {
     const suicide = { ...base, causeCategory: "suicide", cause: "suicide" };
@@ -61,7 +71,7 @@ describe("eligibleCategories — obituary gates", () => {
     expect(slugs("obituary", { ...base, timeAliveSeconds: 700000 })).toContain("construction-halted");
   });
   it("cause-string gates stay dormant on today's coarse vocabulary", () => {
-    const s = slugs("obituary", base); // cause: "died"
+    const s = slugs("obituary", base); // cause: "bled_out" — matches no substring gate
     for (const slug of ["driver-not-pictured", "gravity-undefeated", "suspect-at-large"]) expect(s).not.toContain(slug);
     expect(slugs("obituary", { ...base, cause: "killed by Wolf" })).toContain("suspect-at-large");
   });

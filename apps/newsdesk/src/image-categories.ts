@@ -46,7 +46,9 @@ export const MORGUE_CATEGORIES: ImageCategory[] = [
     example: "An empty rusted food can and a bent spoon lying in wet grass beside a cold campfire ring, a torn empty backpack slumped against a birch stump.",
     // Suicide included deliberately: recovered belongings are the one morgue framing that
     // reports a self-inflicted death without a body, a suspect, or an assigned blame.
-    eligible: (f) => f.causeCategory === "environment" || f.causeCategory === "suicide" },
+    // "unknown" included too: belongings assert no mechanism, so they stay honest for the ~23%
+    // of deaths whose cause the record never named.
+    eligible: (f) => f.causeCategory === "environment" || f.causeCategory === "suicide" || f.causeCategory === "unknown" },
   { slug: "driver-not-pictured", caption: "DRIVER NOT PICTURED",
     example: "A rust-eaten sedan sits crumpled against a roadside pine in thick fog, driver's door hanging open and one headlight still burning weakly into the drizzle, flash glaring off the wet windshield.",
     eligible: (f) => /vehicle|car|transport|truck/.test(s(f.cause)) },
