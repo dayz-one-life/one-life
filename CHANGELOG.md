@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.24.0] - 2026-07-19
+
+### Added
 - R5d PR-C2 — the `newsTick` pass, **shipped disabled**. The fifth `apps/newsdesk` sweep turns the
   PR-C1 Standing Dead and Long Form targets into published `kind='news'` features. Until an
   operator sets **both** `NEWSDESK_NEWS_ENABLED=true` and an ISO `NEWSDESK_NEWS_SINCE` there is
