@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { MORGUE_CATEGORIES, NURSERY_CATEGORIES, eligibleCategories } from "../src/image-categories.js";
+import { MORGUE_CATEGORIES, NURSERY_CATEGORIES, NEWSROOM_CATEGORIES, eligibleCategories } from "../src/image-categories.js";
+import type { ArticleKind } from "../src/image-categories.js";
+
+describe("ArticleKind", () => {
+  it("admits news", () => {
+    const kinds: ArticleKind[] = ["obituary", "birth_notice", "news"];
+    expect(kinds).toHaveLength(3);
+  });
+});
 
 const slugs = (kind: "obituary" | "birth_notice", facts: Record<string, unknown>) =>
   eligibleCategories(kind, facts).map((c) => c.slug);
@@ -114,5 +122,64 @@ describe("eligibleCategories — birth gates", () => {
   });
   it("slow-burner needs >= 60 minutes", () => {
     expect(slugs("birth_notice", { ...first, minutesToQualify: 75 })).toContain("slow-burner");
+  });
+});
+
+describe("eligibleCategories — kind routing", () => {
+  it("never hands a non-obituary kind the nursery menu by default", () => {
+    const newsSlugs = eligibleCategories("news", {}).map((c) => c.slug);
+    const nurserySlugs = NURSERY_CATEGORIES.map((c) => c.slug);
+    expect(newsSlugs.some((s) => nurserySlugs.includes(s))).toBe(false);
+  });
+
+  it("throws on a kind with no menu rather than filtering undefined", () => {
+    expect(() => eligibleCategories("bogus" as ArticleKind, {})).toThrow(/no image category menu/);
+  });
+});
+
+describe("newsroom menu", () => {
+  const standing = { trigger: "standing_dead", map: "chernarusplus", idleHours: 96,
+    timeAliveSeconds: 5400, hitsAbsorbed: 12, lifeNumber: 3, priors: { livesLived: 2, totalKills: 4 },
+    subjectCount: 1, allFreshSubjects: false, lastExpressiveEmote: null };
+  const longform = { trigger: "long_form", map: "sakhal", idleHours: 0, timeAliveSeconds: 0,
+    hitsAbsorbed: 0, lifeNumber: 1, priors: { livesLived: 0, totalKills: 0 },
+    subjectCount: 2, allFreshSubjects: true, lastExpressiveEmote: null };
+  const newsSlugs = (f: Record<string, unknown>) => eligibleCategories("news", f).map((c) => c.slug);
+
+  it("carries 13 entries with unique kebab slugs and CAPS captions <= 48 chars", () => {
+    expect(NEWSROOM_CATEGORIES).toHaveLength(13);
+    const all = [...MORGUE_CATEGORIES, ...NURSERY_CATEGORIES, ...NEWSROOM_CATEGORIES];
+    expect(new Set(all.map((c) => c.slug)).size).toBe(all.length);
+    for (const c of NEWSROOM_CATEGORIES) {
+      expect(c.slug).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+      expect(c.caption).toBe(c.caption.toUpperCase());
+      expect(c.caption.length).toBeLessThanOrEqual(48);
+      expect(c.example.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("never returns an empty eligible set", () => {
+    expect(eligibleCategories("news", {}).length).toBeGreaterThan(0);
+    expect(newsSlugs(standing).length).toBeGreaterThan(0);
+    expect(newsSlugs(longform).length).toBeGreaterThan(0);
+  });
+
+  it("keeps standing-dead and long-form framings apart", () => {
+    expect(newsSlugs(standing)).toContain("unattended-camp");
+    expect(newsSlugs(standing)).not.toContain("two-sets-of-tracks");
+    expect(newsSlugs(longform)).toContain("two-sets-of-tracks");
+    expect(newsSlugs(longform)).not.toContain("unattended-camp");
+  });
+
+  it("gates the veteran and endurance framings on earned facts", () => {
+    expect(newsSlugs({ ...standing, priors: { livesLived: 0, totalKills: 0 } })).not.toContain("the-regular");
+    expect(newsSlugs(standing)).toContain("the-regular");
+    expect(newsSlugs({ ...standing, hitsAbsorbed: 3 })).not.toContain("what-it-took");
+    expect(newsSlugs({ ...standing, hitsAbsorbed: 100 })).toContain("what-it-took");
+  });
+
+  it("shares no framing with the morgue or nursery menus", () => {
+    const others = new Set([...MORGUE_CATEGORIES, ...NURSERY_CATEGORIES].map((c) => c.caption));
+    for (const c of NEWSROOM_CATEGORIES) expect(others.has(c.caption)).toBe(false);
   });
 });

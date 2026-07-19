@@ -3,11 +3,15 @@ import { articles, articleImages } from "@onelife/db";
 import { and, eq, desc, isNull, isNotNull, notInArray, sql } from "drizzle-orm";
 import type { GeneratedImage } from "./openrouter.js";
 import type { RecentCover } from "./image-scene.js";
+import type { ArticleKind } from "./image-categories.js";
 import { pngDimensions } from "./image-png.js";
 
 export interface ImageTarget {
   articleId: number;
-  kind: "obituary" | "birth_notice";
+  // Was its own inline literal union, which the `r.kind as ImageTarget["kind"]` cast below then
+  // contradicted — findImageTargets selects rows whose kind is NOT in that union. ArticleKind
+  // makes the cast honest and lets the value flow into eligibleCategories/buildScenePrompt.
+  kind: ArticleKind;
   slug: string;
   gamertag: string;
   headline: string;

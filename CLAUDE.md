@@ -223,6 +223,30 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `apps/web/src/lib/types.ts` for the DTO. `getObituaryBySlug`/`getBirthNoticeBySlug` select and
   cast `articles.bodyBlocks` (interior only — never on feed `CARD_COLS`), but **no writer populates
   the column yet**, so every live interior still takes the flat fallback.
+  **R5d in flight, PR-C1 (inert engine) shipped.** The news vertical's targeting layer and image
+  prerequisites exist but **nothing calls them** — production output is byte-identical. Two trigger
+  read-models live in `apps/newsdesk/src`, behind one barrel `news-targets.ts`: **Standing Dead**
+  (`standing-dead-targets.ts` — a qualified *open* life whose player has been idle 72h, measured by
+  `MAX(COALESCE(sessions.disconnected_at, sessions.connected_at))` so the crash-and-never-returned
+  case is caught, gated on **earned coverage**: a prior life OR >= 100 absorbed `hit_events`) and
+  **The Long Form** (`long-form-targets.ts` + the pure `long-form-cluster.ts` — a *clique*, never a
+  chain: a death joins only if it is inside both the time window and the radius of **every** current
+  member, with inclusive boundaries; four named exclusions with per-reason counts). Two rails are
+  structural, not stylistic: **`natural_key` is produced only by `toISOString()` in TypeScript** and
+  the article anti-join is a **second TS-side query**, never a SQL-rendered key — a `to_char()` that
+  drifted from JS would make the anti-join a silent no-op and re-publish the same subject forever;
+  and **no coordinate ever crosses the boundary** — `DeathCandidate` carries `x`/`y` internally,
+  `LongFormSubject` and `StandingDeadTarget` do not (spec §11, asserted at runtime). The Long Form
+  candidate query is a raw `db.execute(sql\`…\`)` because `JOIN LATERAL … ON TRUE` cannot be
+  expressed through drizzle's `innerJoin`. Alongside it, `ArticleKind` is now a **three**-member
+  union and the two binary ternaries that keyed off it (`eligibleCategories`, `buildScenePrompt`'s
+  label) are guarded `Record` lookups — the old ternaries gave every non-obituary kind the Nursery
+  menu and the "birth notice" label. `NEWSROOM_CATEGORIES` (13 entries) is the news image menu,
+  weighted to **absence and vacancy** because a Standing Dead subject is **alive and
+  non-consenting** — no framing may imply a death, a fix, a route, or a recognisable locale.
+  Inertness is guaranteed by `findImageTargets`' `notInArray(articles.kind, ["obituary",
+  "birth_notice"])` plus the fact that nothing writes a `kind='news'` row yet — asserted directly
+  in `image-pg-store.test.ts`. PR-C2 (`newsTick`, shipped OFF) and PR-C3 (API + web) follow.
   **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
   for both (reserved for future news); the 165 existing images were deleted (migration 0013). The
   pipeline, article_images table, media route, and ArticleHero are retained.**
