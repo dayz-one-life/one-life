@@ -90,18 +90,18 @@ export async function getPublishedBirthNotices(
 
   return {
     rows: rows.map((raw) => {
-      const r = assertSubjectful(raw, "birth_notice");
+      const r = assertSubjectful(raw, "birth_notice", ["map", "lifeNumber", "bornAt"]);
       const facts = (r.facts ?? {}) as BirthFactsSnapshot;
       return {
         slug: r.slug!,
         gamertag: r.gamertag,
-        map: r.map!,
+        map: r.map,
         mapSlug: r.mapSlug,
-        lifeNumber: r.lifeNumber!,
+        lifeNumber: r.lifeNumber,
         headline: r.headline!,
         lede: r.lede!,
         tags: r.tags ?? [],
-        bornAt: r.bornAt!,
+        bornAt: r.bornAt,
         minutesToQualify: facts.minutesToQualify ?? null,
         priorLives: priorsFrom(facts).livesLived,
       };
@@ -129,19 +129,19 @@ export async function getBirthNoticeBySlug(db: Database, slug: string): Promise<
 
   const raw = rows[0];
   if (!raw) return null;
-  const r = assertSubjectful(raw, "birth_notice");
+  const r = assertSubjectful(raw, "birth_notice", ["map", "lifeNumber", "bornAt"]);
   const facts = (r.facts ?? {}) as BirthFactsSnapshot;
   const priors = priorsFrom(facts);
   return {
     slug: r.slug!,
     gamertag: r.gamertag,
-    map: r.map!,
+    map: r.map,
     mapSlug: r.mapSlug,
-    lifeNumber: r.lifeNumber!,
+    lifeNumber: r.lifeNumber,
     headline: r.headline!,
     lede: r.lede!,
     tags: r.tags ?? [],
-    bornAt: r.bornAt!,
+    bornAt: r.bornAt,
     minutesToQualify: facts.minutesToQualify ?? null,
     priorLives: priors.livesLived,
     body: r.body ?? "",

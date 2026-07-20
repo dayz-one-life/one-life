@@ -18,16 +18,34 @@ export type ArticleBlock =
 /**
  * Migration 0016 made the subject columns nullable for institutional editorial pieces. For an
  * obituary or a birth notice a null subject is DATA CORRUPTION, not a valid state — the article
- * is keyed by that tuple. Throwing is deliberate: rendering an empty gamertag onto a public page
- * is worse than a 500, because it looks like a real article about nobody.
+ * is keyed by that tuple. Throwing is deliberate: rendering an article with a missing subject
+ * onto a public page is worse than a 500, because it looks like a real article about nobody.
+ *
+ * `gamertag` is always required and always checked. Different obituary/birth-notice queries
+ * select different subsets of the other 0016-nullable subject columns (`map`, `lifeNumber`, a
+ * `lifeStartedAt` sometimes aliased to `bornAt`, …) — pass whichever ones THIS row selects as
+ * `otherSubjectColumns` and each is both runtime-checked and narrowed away from `null` in the
+ * return type, so a caller never needs a bare `!` (or an `as` cast) on a subject column again. A
+ * caller that selects none of them (e.g. the Discord notifier's `{id, slug, gamertag}` query) can
+ * omit the argument entirely — the guard never demands a column nobody asked for.
  */
-export function assertSubjectful<T extends { gamertag: string | null; slug: string | null }>(
-  row: T, kind: string,
-): T & { gamertag: string } {
+export function assertSubjectful<
+  T extends { gamertag: string | null; slug: string | null },
+  const K extends keyof T = never,
+>(
+  row: T,
+  kind: string,
+  otherSubjectColumns: readonly K[] = [],
+): T & { gamertag: string } & { [P in K]: NonNullable<T[P]> } {
   if (row.gamertag == null) {
     throw new Error(`${kind} article ${row.slug ?? "(no slug)"} has a null gamertag — corrupt row`);
   }
-  return row as T & { gamertag: string };
+  for (const col of otherSubjectColumns) {
+    if (row[col] == null) {
+      throw new Error(`${kind} article ${row.slug ?? "(no slug)"} has a null ${String(col)} — corrupt row`);
+    }
+  }
+  return row as T & { gamertag: string } & { [P in K]: NonNullable<T[P]> };
 }
 
 export interface ObituaryCard {
@@ -109,12 +127,12 @@ export async function getPublishedObituaries(
 
   return {
     rows: rows.map((raw) => {
-      const r = assertSubjectful(raw, "obituary");
+      const r = assertSubjectful(raw, "obituary", ["map", "lifeNumber"]);
       return {
         ...r,
         slug: r.slug!,
-        map: r.map!,
-        lifeNumber: r.lifeNumber!,
+        map: r.map,
+        lifeNumber: r.lifeNumber,
         headline: r.headline!,
         lede: r.lede!,
         tags: r.tags ?? [],
@@ -144,14 +162,14 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
 
   const raw = rows[0];
   if (!raw) return null;
-  const r = assertSubjectful(raw, "obituary");
+  const r = assertSubjectful(raw, "obituary", ["map", "lifeNumber"]);
   const facts = (r.facts ?? {}) as FactsSnapshot;
   return {
     slug: r.slug!,
     gamertag: r.gamertag,
-    map: r.map!,
+    map: r.map,
     mapSlug: r.mapSlug,
-    lifeNumber: r.lifeNumber!,
+    lifeNumber: r.lifeNumber,
     headline: r.headline!,
     lede: r.lede!,
     tags: r.tags ?? [],
