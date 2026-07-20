@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.26.0] - 2026-07-19
+
+### Added
 - Player notifications: a new `apps/notifier` worker sweeps the event history for nine
   notification kinds — gamertag verified, tokens received/granted, ban applied/lifted, life
   qualified, survival milestone, and obituary/birth-notice published — writes them to a new durable
