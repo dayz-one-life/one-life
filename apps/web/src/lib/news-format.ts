@@ -63,8 +63,12 @@ export function newsDossierFacts(a: NewsArticle): NewsFact[] {
   const out: NewsFact[] = [
     { label: "Played", value: formatDuration(a.timeAliveSeconds), hot: false },
     { label: "Kills", value: String(a.kills), hot: false },
-    { label: "Life", value: `${a.lifeNumber} · ${mapLabel(a.map)}`, hot: false },
   ];
+  // Editorial pieces carry no (life, map) tuple; they also never render a dossier. Guard anyway —
+  // a type-level nullable must not become a rendered "null · Null".
+  if (a.lifeNumber != null && a.map) {
+    out.push({ label: "Life", value: `${a.lifeNumber} · ${mapLabel(a.map)}`, hot: false });
+  }
   if (a.trigger === "standing_dead") {
     if (a.idleSeconds != null) {
       const days = Math.floor(a.idleSeconds / 86_400);

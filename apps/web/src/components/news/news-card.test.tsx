@@ -5,7 +5,8 @@ import type { NewsCard as Card } from "@/lib/types";
 
 const card: Card = {
   slug: "standing-dead-still-standing-somewhere-gabefox101-7-3",
-  trigger: "standing_dead", gamertag: "GabeFox101", map: "chernarusplus", mapSlug: "chernarus",
+  trigger: "standing_dead", format: "standing_dead", editorialFormat: null,
+  gamertag: "GabeFox101", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "Still Standing, Somewhere", lede: "Nobody has had word since Tuesday.",
   tags: ["News", "Chernarus", "The Standing Dead"], subjectCount: 1,
   createdAt: "2026-07-12T00:00:00Z",

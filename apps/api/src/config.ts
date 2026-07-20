@@ -11,6 +11,9 @@ const schema = z.object({
   // the failure it prevents is silent (subscribe() throws, the toggle swallows it, the
   // notifier reports success because it finds zero subscriptions).
   VAPID_PUBLIC_KEY: z.string().default(""),
+  // Empty = preview disabled entirely. Never a default value: a guessable default would publish
+  // every draft to anyone who typed ?preview=preview.
+  NEWS_PREVIEW_TOKEN: z.string().default(""),
 });
 export type Config = {
   databaseUrl: string;
@@ -18,6 +21,7 @@ export type Config = {
   logLevel: string;
   corsOrigins: string[];
   vapidPublicKey: string;
+  newsPreviewToken: string;
 };
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const p = schema.parse(env);
@@ -27,5 +31,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     logLevel: p.LOG_LEVEL,
     corsOrigins: p.AUTH_TRUSTED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
     vapidPublicKey: p.VAPID_PUBLIC_KEY,
+    newsPreviewToken: p.NEWS_PREVIEW_TOKEN,
   };
 }

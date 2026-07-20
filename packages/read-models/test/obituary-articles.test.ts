@@ -81,3 +81,25 @@ describe("getObituaryBySlug", () => {
     expect(a!.bodyBlocks).toBeNull();
   });
 });
+
+// The guard's whole job is to fail loudly on a corrupt row rather than render an article about
+// nobody — exercised here through the real read-model call (not a bare unit call on the guard
+// function), since the point is that corruption can't reach a page. Rows use the same shared
+// serverId as the rest of this file's fixtures, so the file's existing afterAll cleans them up too.
+describe("assertSubjectful guard", () => {
+  it("rejects a published obituary with a null gamertag (corrupt row)", async () => {
+    const slug = `corrupt-gamertag-${svc}`;
+    await db.insert(articles).values(
+      base({ status: "published", slug, gamertag: null, lifeStartedAt: hrs(20), deathAt: hrs(21), headline: "Corrupt", lede: "corrupt-lede", body: "corrupt-body" }),
+    );
+    await expect(getObituaryBySlug(db, slug)).rejects.toThrow(/has a null gamertag/);
+  });
+
+  it("rejects a published obituary with a null map — the OTHER subject column the guard now covers (corrupt row)", async () => {
+    const slug = `corrupt-map-${svc}`;
+    await db.insert(articles).values(
+      base({ status: "published", slug, map: null, lifeStartedAt: hrs(22), deathAt: hrs(23), headline: "Corrupt", lede: "corrupt-lede", body: "corrupt-body" }),
+    );
+    await expect(getObituaryBySlug(db, slug)).rejects.toThrow(/has a null map/);
+  });
+});

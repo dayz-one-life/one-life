@@ -3,16 +3,18 @@ import { notFound } from "next/navigation";
 import { getNewsArticle, getNewsFeed, getPlayerLife } from "@/lib/api";
 import { buildTimeline } from "@/lib/life-timeline";
 import { NewsArticleView, NEWS_TIMELINE_LIMIT, type NewsTimeline } from "@/components/news/news-article";
+import { EditorialArticleView } from "@/components/news/editorial-article";
 import { newsLd, absoluteUrl, ldScript } from "@/lib/seo";
 import { newsArticleHref } from "@/lib/news-format";
 import { playerSlug } from "@/lib/slug";
 import type { NewsArticle, NewsSubjectRef } from "@/lib/types";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ preview?: string }> };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const a = await getNewsArticle(slug).catch(() => null);
+  const { preview } = await searchParams;
+  const a = await getNewsArticle(slug, preview).catch(() => null);
   if (!a) return { title: "News — One Life" };
   const title = `${a.headline} — One Life`;
   const canonical = absoluteUrl(newsArticleHref(slug));
@@ -22,7 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // A RETRACTED feature keeps its URL — a reader who followed a shared link deserves the
     // correction rather than a 404 — but it must leave the index. It is already absent from the
     // feed and from the related rail, both of which read the published-only feed query.
-    ...(a.retracted ? { robots: { index: false, follow: false } } : {}),
+    // A draft is never indexable either — it exists at its real URL only behind the preview token.
+    ...(a.status === "draft" || a.retracted ? { robots: { index: false, follow: false } } : {}),
     alternates: { canonical },
     openGraph: { title, description: a.lede, url: canonical, type: "article" },
     twitter: { card: "summary_large_image", title, description: a.lede },
@@ -41,7 +44,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function loadTimelines(a: NewsArticle, now: Date): Promise<NewsTimeline[]> {
   const refs: NewsSubjectRef[] = a.trigger === "long_form"
     ? a.subjects.slice(0, NEWS_TIMELINE_LIMIT)
-    : [{ gamertag: a.gamertag, mapSlug: a.mapSlug, lifeNumber: a.lifeNumber }];
+    : a.gamertag && a.lifeNumber != null
+      ? [{ gamertag: a.gamertag, mapSlug: a.mapSlug, lifeNumber: a.lifeNumber }]
+      : [];
 
   const loaded = await Promise.all(refs.map(async (r) => {
     if (!r.mapSlug) return null;
@@ -52,21 +57,30 @@ async function loadTimelines(a: NewsArticle, now: Date): Promise<NewsTimeline[]>
   return loaded.filter((t): t is NewsTimeline => t !== null);
 }
 
-export default async function NewsArticlePage({ params }: Props) {
+export default async function NewsArticlePage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const article = await getNewsArticle(slug);
+  const { preview } = await searchParams;
+  const article = await getNewsArticle(slug, preview);
   if (!article) notFound();
   const now = new Date();
 
-  const [timelines, feed] = await Promise.all([
-    loadTimelines(article, now),
-    getNewsFeed(1).catch(() => ({ rows: [], total: 0, page: 1, pageSize: 20 })),
-  ]);
+  const feed = await getNewsFeed(1).catch(() => ({ rows: [], total: 0, page: 1, pageSize: 20 }));
   // The feed is published-only, so a retracted feature can never be recommended here.
   const more = feed.rows.filter((r) => r.slug !== article.slug).slice(0, 4);
 
   const ld = newsLd(article, absoluteUrl(newsArticleHref(slug)));
 
+  if (article.format === "editorial") {
+    return (
+      <>
+        {/* ldScript(), never raw JSON.stringify: an LLM-authored headline can contain </script>. */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldScript(ld) }} />
+        <EditorialArticleView article={article} more={more} now={now} />
+      </>
+    );
+  }
+
+  const timelines = await loadTimelines(article, now);
   return (
     <>
       {/* ldScript(), never raw JSON.stringify: an LLM-authored headline can contain </script>. */}

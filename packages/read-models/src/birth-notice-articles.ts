@@ -2,7 +2,7 @@ import type { Database } from "@onelife/db";
 import { articles } from "@onelife/db";
 import { and, eq, desc, sql } from "drizzle-orm";
 import type { PlayerPriors } from "./player-priors.js";
-import type { ArticleBlock } from "./obituary-articles.js";
+import { assertSubjectful, type ArticleBlock } from "./obituary-articles.js";
 
 export const BIRTH_NOTICES_FEED_PAGE_SIZE = 20;
 
@@ -89,7 +89,8 @@ export async function getPublishedBirthNotices(
     .where(publishedBirthNotice);
 
   return {
-    rows: rows.map((r) => {
+    rows: rows.map((raw) => {
+      const r = assertSubjectful(raw, "birth_notice", ["map", "lifeNumber", "bornAt"]);
       const facts = (r.facts ?? {}) as BirthFactsSnapshot;
       return {
         slug: r.slug!,
@@ -126,8 +127,9 @@ export async function getBirthNoticeBySlug(db: Database, slug: string): Promise<
     .where(and(publishedBirthNotice, eq(articles.slug, slug)))
     .limit(1);
 
-  const r = rows[0];
-  if (!r) return null;
+  const raw = rows[0];
+  if (!raw) return null;
+  const r = assertSubjectful(raw, "birth_notice", ["map", "lifeNumber", "bornAt"]);
   const facts = (r.facts ?? {}) as BirthFactsSnapshot;
   const priors = priorsFrom(facts);
   return {

@@ -52,11 +52,16 @@ export function NewsArticleView({
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-ink pb-5">
         <p className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted">
-          {triggerLabel(article.trigger)} · {newsDateline(article.map, article.createdAt, now)}
+          {triggerLabel(article.trigger)}
+          {article.map && <> · {newsDateline(article.map, article.createdAt, now)}</>}
         </p>
         <h1 className="mt-2 font-display text-5xl font-bold uppercase leading-[.92] text-ink md:text-6xl">{article.headline}</h1>
+        {/* The subject fields are nullable only for the editorial family, which never reaches this
+            view — the page routes format === "editorial" elsewhere. Guards, not assertions. */}
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
-          Filed by The Desk · <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> · {mapLabel(article.map)}
+          Filed by The Desk
+          {article.gamertag && <> · <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /></>}
+          {article.map && <> · {mapLabel(article.map)}</>}
         </p>
       </div>
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, articles, players, lives, sessions, positions } from "@onelife/db";
 import { eq } from "drizzle-orm";
-import { getPublishedNews, getNewsArticleBySlug } from "../src/news-articles.js";
+import { getPublishedNews, getNewsArticleBySlug, newsFormatOf } from "../src/news-articles.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 53e7;
@@ -61,7 +61,7 @@ afterAll(async () => {
   await sql.end();
 });
 
-const mine = <T extends { gamertag: string }>(rows: T[]) => rows.filter((r) => r.gamertag === tag);
+const mine = <T extends { gamertag: string | null }>(rows: T[]) => rows.filter((r) => r.gamertag === tag);
 
 /** Recursively collects every object key at any depth, including inside arrays. Proves the Fog
  *  Rule by SHAPE rather than by pattern-matching a coordinate-looking number — the same walk
@@ -357,5 +357,70 @@ describe("getNewsSubjectStatus (the §4.1.3 live status line)", () => {
       expect(JSON.stringify(out)).not.toContain("812.4");
       expect(JSON.stringify(out)).not.toMatch(/\d{4}\.\d/);   // secondary signal only
     }
+  });
+});
+
+describe("newsFormatOf", () => {
+  // The shipped classifier was binary: standing_dead, else long_form. Its "unreachable" fallback
+  // becomes reachable the day an almanac: row publishes — and would render a census as a Long
+  // Form, complete with a dossier and two timelines it has no subjects for.
+  it("routes editorial prefixes away from the trigger formats", () => {
+    expect(newsFormatOf("almanac:week:2026-W29")).toBe("editorial");
+    expect(newsFormatOf("ledger:transfer:166e8e87-61df-4193-bc84-bd6c2f7c3846")).toBe("editorial");
+    expect(newsFormatOf("editorial:one-off-thing")).toBe("editorial");
+  });
+
+  it("keeps both shipped triggers exactly as they were", () => {
+    expect(newsFormatOf("standing_dead:2:Boots:2026-07-11T16:55:26.000Z")).toBe("standing_dead");
+    expect(newsFormatOf("long_form:1:2026-07-13T18:48:58.000Z:A+B")).toBe("long_form");
+  });
+
+  // The shipped fallback must not change: a null or unrecognised key still reads long_form, which
+  // turns the Standing-Dead-only status line OFF rather than on for a subject with no idle figure.
+  it("leaves the unrecognised-key fallback alone", () => {
+    expect(newsFormatOf(null)).toBe("long_form");
+    expect(newsFormatOf("something_else:1")).toBe("long_form");
+  });
+});
+
+describe("editorial articles", () => {
+  const key = `almanac:week:2026-W29-rm-${Date.now()}`;
+  const slug = `almanac-rm-${Date.now()}`;
+
+  it("serves a subject-less draft only when a draft is explicitly requested", async () => {
+    await db.insert(articles).values({
+      kind: "news", status: "draft", slug, naturalKey: key,
+      headline: "The Coldest Map Keeps Its People Longest",
+      lede: "The registry has finished counting.",
+      body: "Forty-five souls against seventy.",
+      facts: { format: "almanac" },
+    });
+
+    // A draft is invisible by default — that is the entire point of drafting on the live site.
+    expect(await getNewsArticleBySlug(db, slug)).toBeNull();
+
+    const draft = await getNewsArticleBySlug(db, slug, { includeDraft: true });
+    expect(draft).not.toBeNull();
+    expect(draft!.status).toBe("draft");
+    expect(draft!.format).toBe("editorial");
+    expect(draft!.editorialFormat).toBe("almanac");
+    // No invented subject: the fields are null, not "" and not a placeholder gamertag.
+    expect(draft!.gamertag).toBeNull();
+    expect(draft!.map).toBeNull();
+    expect(draft!.subjects).toEqual([]);
+    // A Standing-Dead-only status line must stay off for a piece with no subject.
+    expect(draft!.subjectStatus).toBeNull();
+
+    await db.delete(articles).where(eq(articles.naturalKey, key));
+  });
+
+  it("never lets a draft into the feed", async () => {
+    await db.insert(articles).values({
+      kind: "news", status: "draft", slug: `${slug}-feed`, naturalKey: `${key}-feed`,
+      headline: "Draft", lede: "Draft", facts: { format: "almanac" },
+    });
+    const feed = await getPublishedNews(db, { page: 1 });
+    expect(feed.rows.some((r) => r.slug === `${slug}-feed`)).toBe(false);
+    await db.delete(articles).where(eq(articles.naturalKey, `${key}-feed`));
   });
 });

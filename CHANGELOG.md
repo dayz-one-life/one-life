@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The editorial newsroom** — a human-written editorial desk for the News vertical, replacing
+  `newsTick` operationally while the automated pass stays shipped and disabled
+  (`NEWSDESK_NEWS_ENABLED`/`NEWSDESK_NEWS_SINCE` stay unset).
+  - db: migration `0016` — `articles.server_id`/`gamertag`/`map`/`life_number`/`life_started_at`
+    become nullable, so an institutional piece (a census has no one subject) can exist as a row.
+    **Normal deploy, no `--rebuild`** (`articles` is durable, not a projection).
+  - read-models: `newsFormatOf` routes the `almanac:`/`ledger:`/`editorial:` natural-key prefixes
+    to a third `editorial` format (unrecognised keys still fall back to `long_form`); nullable
+    subject fields on news cards; `getNewsArticleBySlug(db, slug, { includeDraft })`; an
+    `assertSubjectful` guard crashes loudly if a null-subject row ever reaches the two life-keyed
+    article read-models.
+  - api: token-gated draft preview — `GET /news/:slug?preview=<token>` serves a `status='draft'`
+    article when the token matches the new **`NEWS_PREVIEW_TOKEN`** env (constant-time compare;
+    unset token ⇒ preview disabled entirely, fail closed).
+  - web: an editorial interior arm (kicker from `facts.format`, "Filed by The Desk" byline, no
+    dossier/status line/timelines), a DRAFT banner + `noindex` on drafts, and feed/related cards
+    that degrade gracefully for subject-less rows.
+  - newsdesk: the **`newsroom` CLI** (`draft`/`publish`/`unpublish`/`spike`/`list`/`scout`) — the
+    only write path for editorial rows: zod contract with a required `factCheck` provenance
+    table, the vendored §9 Tier-1 voice lint, deterministic slugs, body derived from blocks, and
+    `scout` running the shipped trigger finders as story tips plus a per-map aggregate digest.
+  - skills: `drafting-an-article` — the session ritual (scout → explore → consent → voice →
+    compose → draft → preview → publish), reading the brand bible live.
 
 ### Changed
 

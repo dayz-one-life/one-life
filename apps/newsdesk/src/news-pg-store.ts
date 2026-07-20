@@ -132,7 +132,10 @@ export async function recordNewsFailure(
 export interface ReturnedSubject {
   articleId: number;
   naturalKey: string;
-  gamertag: string;
+  /** Nullable at the column since migration 0016; the finder's `p.gamertag = articles.gamertag`
+   *  predicate can never match a NULL, so in practice a returned subject always carries one.
+   *  Only the retraction log line reads it. */
+  gamertag: string | null;
   slug: string | null;
 }
 

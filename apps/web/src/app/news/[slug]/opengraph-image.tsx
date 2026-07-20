@@ -20,7 +20,8 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
   ]);
 
   const headline = article?.headline ?? "A News Feature";
-  const line = article
+  // An editorial piece has no map — its card files from the desk, same as the missing-article case.
+  const line = article?.map
     ? `${triggerLabel(article.trigger)} · ${newsDateline(article.map, article.createdAt, new Date())}`
     : "ONE LIFE · THE DESK";
   // Text-only in this slice — see the Self-Review's deferral note; the photo panel is out of scope
