@@ -10,6 +10,9 @@ export interface RecentHit {
   attackerType: string;          // "player" | "infected" | "environment"
   attackerLabel: string | null;  // e.g. "Fireplace", "Infected"
   secondsBeforeDeath: number;
+  /** Victim HP AFTER this hit. Optional: pre-stage-2 callers omit it. A hit that took HP to 0
+   *  is the killing blow, which is what lets an unnamed death be attributed to it. */
+  victimHp?: number | null;
 }
 
 export type DeathConfidence = "high" | "low";
@@ -73,6 +76,21 @@ export function classifyDeath(facts: DeathRawFacts, recentHits: RecentHit[]): De
   }
 
   // No explaining mechanism (died/unknown/null): infer the underlying cause.
+
+  // A fall is logged TWICE and inconsistently: as a "hit by FallDamageHealth" line, and as a
+  // death line that — unlike an animal or infected kill — carries no killer clause at all. The
+  // parser's entity dict only reads the killer clause, so a fatal fall arrives here as a bare
+  // `died`. The terminal hit is the evidence: HP 0 by FallDamage IS the killing blow, so this
+  // rung sits ABOVE the condition inferences — a starving man who falls off a roof died of the
+  // fall, and his hunger stays where it belongs, in conditions.
+  const fatalFall = recent.find(
+    (h) => (h.attackerLabel ?? "").startsWith("FallDamage") && h.victimHp != null && h.victimHp <= 0,
+  );
+  if (fatalFall) {
+    return { cause: "fall", confidence: "high", conditions: withHealthy(baseConditions),
+      basis: { ...basis, fallHitSecondsBeforeDeath: fatalFall.secondsBeforeDeath } };
+  }
+
   if (starving) return { cause: "starvation", confidence: recent.length ? "low" : "high", conditions: baseConditions, basis };
   if (dehydrated) return { cause: "dehydration", confidence: recent.length ? "low" : "high", conditions: baseConditions, basis };
   if (facts.bleedSources != null && facts.bleedSources > 0 && recent.length > 0) {
