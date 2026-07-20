@@ -22,10 +22,11 @@ describe("skeletons", () => {
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(5);
   });
 
-  test("ArticleHeroSkeleton renders a pulsing 4:5 max-w-md block", () => {
+  test("ArticleHeroSkeleton renders a pulsing 16:9 full-width block", () => {
     const { container } = render(<ArticleHeroSkeleton />);
     const bar = container.firstElementChild;
-    expect(bar).toHaveClass("animate-pulse", "aspect-[4/5]", "max-w-md");
+    expect(bar).toHaveClass("animate-pulse", "aspect-video", "w-full");
+    expect(bar).not.toHaveClass("max-w-md");
   });
 
   test("ObituariesSkeleton renders a busy main with no thumb boxes", () => {

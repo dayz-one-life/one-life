@@ -16,10 +16,10 @@ export const IMAGE_ANTISLOP =
 
 export type ImageKind = "hero" | "card" | "breaking";
 
-export const IMAGE_ASPECT: Record<ImageKind, string> = { hero: "4:5", card: "1:1", breaking: "16:9" };
+export const IMAGE_ASPECT: Record<ImageKind, string> = { hero: "16:9", card: "1:1", breaking: "16:9" };
 
 /** §10.4 scaffold: [scene] + STYLE + ANTISLOP + pinned aspect. The aspect line is a composition
- *  nudge only — gpt-image models return a square canvas regardless; 4:5 is a render-side crop. */
+ *  nudge only — gpt-image models return a square canvas regardless; 16:9 is a render-side crop. */
 export function buildImagePrompt(scene: string, kind: ImageKind = "hero"): string {
   const ratio = IMAGE_ASPECT[kind];
   if (!ratio) throw new Error(`unknown image kind: ${kind}`);
