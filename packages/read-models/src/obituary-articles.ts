@@ -15,6 +15,21 @@ export type ArticleBlock =
   | { type: "quote"; text: string; attribution: string }
   | { type: "list"; items: string[] };
 
+/**
+ * Migration 0016 made the subject columns nullable for institutional editorial pieces. For an
+ * obituary or a birth notice a null subject is DATA CORRUPTION, not a valid state — the article
+ * is keyed by that tuple. Throwing is deliberate: rendering an empty gamertag onto a public page
+ * is worse than a 500, because it looks like a real article about nobody.
+ */
+export function assertSubjectful<T extends { gamertag: string | null; slug: string | null }>(
+  row: T, kind: string,
+): T & { gamertag: string } {
+  if (row.gamertag == null) {
+    throw new Error(`${kind} article ${row.slug ?? "(no slug)"} has a null gamertag — corrupt row`);
+  }
+  return row as T & { gamertag: string };
+}
+
 export interface ObituaryCard {
   slug: string;
   gamertag: string;
@@ -93,14 +108,19 @@ export async function getPublishedObituaries(
     .where(publishedObituary);
 
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      slug: r.slug!,
-      headline: r.headline!,
-      lede: r.lede!,
-      tags: r.tags ?? [],
-      deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
-    })),
+    rows: rows.map((raw) => {
+      const r = assertSubjectful(raw, "obituary");
+      return {
+        ...r,
+        slug: r.slug!,
+        map: r.map!,
+        lifeNumber: r.lifeNumber!,
+        headline: r.headline!,
+        lede: r.lede!,
+        tags: r.tags ?? [],
+        deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
+      };
+    }),
     total: totalRow[0]?.c ?? 0,
     page,
     pageSize,
@@ -122,15 +142,16 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     .where(and(publishedObituary, eq(articles.slug, slug)))
     .limit(1);
 
-  const r = rows[0];
-  if (!r) return null;
+  const raw = rows[0];
+  if (!raw) return null;
+  const r = assertSubjectful(raw, "obituary");
   const facts = (r.facts ?? {}) as FactsSnapshot;
   return {
     slug: r.slug!,
     gamertag: r.gamertag,
-    map: r.map,
+    map: r.map!,
     mapSlug: r.mapSlug,
-    lifeNumber: r.lifeNumber,
+    lifeNumber: r.lifeNumber!,
     headline: r.headline!,
     lede: r.lede!,
     tags: r.tags ?? [],

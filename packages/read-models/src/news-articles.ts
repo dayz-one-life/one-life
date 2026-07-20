@@ -49,10 +49,16 @@ export function newsFormatOf(naturalKey: string | null): NewsFormat {
 export interface NewsCard {
   slug: string;
   trigger: NewsTrigger;
-  gamertag: string;          // the PRIMARY subject; co-subjects live in the detail's `subjects`
-  map: string;
+  format: NewsFormat;
+  /** `facts.format` for an editorial piece ("almanac" | "ledger" | …) — drives the interior
+   *  kicker. NULL for the two generated triggers, which use `triggerLabel` instead. */
+  editorialFormat: string | null;
+  /** NULL for an institutional editorial piece. A census of three servers has no one subject,
+   *  and inventing one would render, link and index a player who is not in the story. */
+  gamertag: string | null;
+  map: string | null;
   mapSlug: string | null;
-  lifeNumber: number;
+  lifeNumber: number | null;
   headline: string;
   lede: string;
   tags: string[];
@@ -76,6 +82,7 @@ type NewsFactsSnapshot = {
   subjectCount?: number;
   idleSeconds?: number | null;
   spanSeconds?: number | null;
+  format?: string;
   subjects?: { gamertag?: string; mapSlug?: string | null; lifeNumber?: number }[];
 };
 
@@ -98,14 +105,17 @@ const CARD_COLS = {
 const publishedNews = and(eq(articles.kind, "news"), eq(articles.status, "published"));
 
 function cardOf(r: {
-  slug: string | null; naturalKey: string | null; gamertag: string; map: string;
-  mapSlug: string | null; lifeNumber: number; headline: string | null; lede: string | null;
+  slug: string | null; naturalKey: string | null; gamertag: string | null; map: string | null;
+  mapSlug: string | null; lifeNumber: number | null; headline: string | null; lede: string | null;
   tags: string[] | null; facts: unknown; createdAt: Date;
 }): NewsCard {
   const facts = (r.facts ?? {}) as NewsFactsSnapshot;
+  const format = newsFormatOf(r.naturalKey);
   return {
     slug: r.slug!,
     trigger: newsTriggerOf(r.naturalKey),
+    format,
+    editorialFormat: format === "editorial" ? facts.format ?? null : null,
     gamertag: r.gamertag,
     map: r.map,
     mapSlug: r.mapSlug,
@@ -113,7 +123,8 @@ function cardOf(r: {
     headline: r.headline!,
     lede: r.lede!,
     tags: r.tags ?? [],
-    subjectCount: facts.subjectCount ?? 1,
+    // An editorial piece has no subjects unless it names some; default 0, not 1.
+    subjectCount: facts.subjectCount ?? (format === "editorial" ? 0 : 1),
     createdAt: r.createdAt,
   };
 }
@@ -174,6 +185,8 @@ export type NewsSubjectStatus =
   | { kind: "died"; diedAt: Date; obituarySlug: string | null };
 
 export interface NewsArticleDetail extends NewsCard {
+  /** Drafts are served ONLY through the preview gate; the feed never contains one. */
+  status: "published" | "draft" | "retracted";
   body: string;
   /** R5d rich body. News is the FIRST kind whose writer populates articles.body_blocks — every
    *  live interior before this took ArticleBody's flat fallback. Selected AND cast here; a
@@ -194,15 +207,17 @@ export interface NewsArticleDetail extends NewsCard {
   subjectStatus: NewsSubjectStatus | null;
 }
 
-// A news interior resolves for BOTH statuses. `failed` is excluded (its slug is NULL anyway) and
-// so is every other kind — an obituary slug must not resolve through the news route.
-const readableNews = inArray(articles.status, ["published", "retracted"]);
+const READABLE_PUBLIC = ["published", "retracted"] as const;
+const READABLE_PREVIEW = ["published", "retracted", "draft"] as const;
 
-/** A single news feature by slug, or null (unknown slug, failed stub, or another kind). */
+/** A single news feature by slug, or null. `includeDraft` is the preview gate's key — the API
+ *  sets it only for a request carrying a valid NEWS_PREVIEW_TOKEN. */
 export async function getNewsArticleBySlug(
   db: Database,
   slug: string,
+  opts: { includeDraft?: boolean } = {},
 ): Promise<NewsArticleDetail | null> {
+  const readable = inArray(articles.status, [...(opts.includeDraft ? READABLE_PREVIEW : READABLE_PUBLIC)]);
   const rows = await db
     .select({
       ...CARD_COLS,
@@ -219,7 +234,7 @@ export async function getNewsArticleBySlug(
       kills: articles.kills,
     })
     .from(articles)
-    .where(and(eq(articles.kind, "news"), readableNews, eq(articles.slug, slug)))
+    .where(and(eq(articles.kind, "news"), readable, eq(articles.slug, slug)))
     .limit(1);
 
   const r = rows[0];
@@ -237,11 +252,19 @@ export async function getNewsArticleBySlug(
     .map((s) => ({
       gamertag: s.gamertag,
       mapSlug: s.mapSlug ?? null,
-      lifeNumber: s.lifeNumber ?? card.lifeNumber,
+      lifeNumber: s.lifeNumber ?? card.lifeNumber ?? 1,
     }));
+
+  // The self-subject fallback reconstructs a subject from the row's own identity columns — but an
+  // editorial piece HAS no identity columns, and a fabricated subject there would render a
+  // timeline link for a player who is not in the story. Empty is the correct answer.
+  const selfSubject: NewsSubjectRef[] = card.gamertag && card.lifeNumber != null
+    ? [{ gamertag: card.gamertag, mapSlug: card.mapSlug, lifeNumber: card.lifeNumber }]
+    : [];
 
   return {
     ...card,
+    status: r.status as NewsArticleDetail["status"],
     body: r.body ?? "",
     bodyBlocks: (r.bodyBlocks as ArticleBlock[] | null) ?? null,
     pullQuote: r.pullQuoteText
@@ -254,11 +277,9 @@ export async function getNewsArticleBySlug(
     kills: r.kills,
     idleSeconds: facts.idleSeconds ?? null,
     spanSeconds: facts.spanSeconds ?? null,
-    subjects: subjects.length > 0
-      ? subjects
-      : [{ gamertag: card.gamertag, mapSlug: card.mapSlug, lifeNumber: card.lifeNumber }],
-    // A Long Form subject is dead; the question does not arise, and the line stays off.
-    subjectStatus: card.trigger === "standing_dead"
+    subjects: subjects.length > 0 ? subjects : selfSubject,
+    // The status line needs a real (server, gamertag, life) tuple; an editorial piece has none.
+    subjectStatus: card.trigger === "standing_dead" && r.serverId != null && card.gamertag && r.lifeStartedAt
       ? await getNewsSubjectStatus(db, {
           serverId: r.serverId,
           gamertag: card.gamertag,

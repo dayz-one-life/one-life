@@ -61,7 +61,7 @@ afterAll(async () => {
   await sql.end();
 });
 
-const mine = <T extends { gamertag: string }>(rows: T[]) => rows.filter((r) => r.gamertag === tag);
+const mine = <T extends { gamertag: string | null }>(rows: T[]) => rows.filter((r) => r.gamertag === tag);
 
 /** Recursively collects every object key at any depth, including inside arrays. Proves the Fog
  *  Rule by SHAPE rather than by pattern-matching a coordinate-looking number — the same walk
@@ -380,5 +380,47 @@ describe("newsFormatOf", () => {
   it("leaves the unrecognised-key fallback alone", () => {
     expect(newsFormatOf(null)).toBe("long_form");
     expect(newsFormatOf("something_else:1")).toBe("long_form");
+  });
+});
+
+describe("editorial articles", () => {
+  const key = `almanac:week:2026-W29-rm-${Date.now()}`;
+  const slug = `almanac-rm-${Date.now()}`;
+
+  it("serves a subject-less draft only when a draft is explicitly requested", async () => {
+    await db.insert(articles).values({
+      kind: "news", status: "draft", slug, naturalKey: key,
+      headline: "The Coldest Map Keeps Its People Longest",
+      lede: "The registry has finished counting.",
+      body: "Forty-five souls against seventy.",
+      facts: { format: "almanac" },
+    });
+
+    // A draft is invisible by default — that is the entire point of drafting on the live site.
+    expect(await getNewsArticleBySlug(db, slug)).toBeNull();
+
+    const draft = await getNewsArticleBySlug(db, slug, { includeDraft: true });
+    expect(draft).not.toBeNull();
+    expect(draft!.status).toBe("draft");
+    expect(draft!.format).toBe("editorial");
+    expect(draft!.editorialFormat).toBe("almanac");
+    // No invented subject: the fields are null, not "" and not a placeholder gamertag.
+    expect(draft!.gamertag).toBeNull();
+    expect(draft!.map).toBeNull();
+    expect(draft!.subjects).toEqual([]);
+    // A Standing-Dead-only status line must stay off for a piece with no subject.
+    expect(draft!.subjectStatus).toBeNull();
+
+    await db.delete(articles).where(eq(articles.naturalKey, key));
+  });
+
+  it("never lets a draft into the feed", async () => {
+    await db.insert(articles).values({
+      kind: "news", status: "draft", slug: `${slug}-feed`, naturalKey: `${key}-feed`,
+      headline: "Draft", lede: "Draft", facts: { format: "almanac" },
+    });
+    const feed = await getPublishedNews(db, { page: 1 });
+    expect(feed.rows.some((r) => r.slug === `${slug}-feed`)).toBe(false);
+    await db.delete(articles).where(eq(articles.naturalKey, `${key}-feed`));
   });
 });
