@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 function Bar({ className }: { className?: string }) {
-  return <div aria-hidden className={cn("animate-pulse bg-bone", className)} />;
+  return <div aria-hidden className={cn("motion-safe:animate-pulse bg-bone", className)} />;
 }
 
 /** Route-level loading state for the survivors board — mirrors the board's container metrics. */
@@ -25,7 +25,8 @@ export function BoardSkeleton() {
           <Bar className="h-[60px]" />
         </div>
       ))}
-      {Array.from({ length: 7 }, (_, i) => (
+      {/* Known limitation: page 2+ has no hero/podium rows but this skeleton always shows them — loading.tsx cannot read ?page. */}
+      {Array.from({ length: 22 }, (_, i) => (
         <div key={i} className="border-b border-hairline-2 py-3">
           <Bar className="h-6" />
         </div>

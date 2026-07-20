@@ -82,7 +82,7 @@ export function LoginForm({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="YOU@EXAMPLE.COM"
-                className="min-w-0 flex-1 border border-dark-line bg-[#111] px-3 py-2.5 font-mono text-xs text-paper outline-none placeholder:text-cream-muted focus:border-paper"
+                className="min-w-0 flex-1 border border-dark-line bg-dark-well px-3 py-2.5 font-mono text-xs text-paper outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red placeholder:text-cream-muted focus:border-paper"
               />
               <button
                 type="submit"

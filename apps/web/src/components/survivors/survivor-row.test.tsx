@@ -62,4 +62,9 @@ describe("SurvivorRow", () => {
     render(<SurvivorRow rank={3} showMap={false} sort="time" row={base} />);
     expect(screen.getByRole("link", { name: "Chad" })).toHaveAttribute("href", "/players/chad");
   });
+
+  test("gamertags truncate instead of wrapping the row", () => {
+    render(<SurvivorRow rank={1} showMap sort="time" row={base} />);
+    expect(screen.getByRole("link", { name: /.+/ }).className).toContain("truncate");
+  });
 });

@@ -51,7 +51,7 @@ export function ServerCard({
           {countdown && (
             <div className="mt-2.5 flex items-center justify-between border border-hairline-2 bg-paper px-3 py-2">
               <span className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">Ban lifts in</span>
-              <span className="font-display text-lg font-bold text-ink">{countdown}</span>
+              <span className="font-display text-lg font-bold tabular-nums text-ink">{countdown}</span>
             </div>
           )}
           <UnbanView

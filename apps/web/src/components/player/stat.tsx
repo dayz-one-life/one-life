@@ -18,7 +18,7 @@ export function Stat({
     <div>
       <span
         className={cn(
-          "block font-display font-bold leading-none",
+          "block font-display font-bold leading-none tabular-nums",
           size === "lg" ? "text-[32px]" : "text-[21px]",
           hot ? "text-red" : muted ? "text-dash" : "text-ink",
         )}

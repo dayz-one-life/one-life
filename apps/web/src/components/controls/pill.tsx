@@ -80,7 +80,7 @@ export function ControlsPillView({
               />
             ))}
           </span>
-          <span className="flex-none border-l border-dark-line pl-3 font-display text-[15px] font-bold leading-none text-paper">
+          <span className="flex-none border-l border-dark-line pl-3 font-display text-[15px] font-bold leading-none tabular-nums text-paper">
             {balance ?? 0} <span className="text-[10px] tracking-[.06em] text-cream-muted">tok</span>
           </span>
         </>

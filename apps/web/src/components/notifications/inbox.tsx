@@ -18,9 +18,9 @@ export function NotificationsInbox() {
   if (status.kind === "loading" || n.loading) {
     body = (
       <div aria-busy="true" className="flex flex-col gap-2">
-        <div aria-hidden className="h-16 animate-pulse bg-bone" />
-        <div aria-hidden className="h-16 animate-pulse bg-bone" />
-        <div aria-hidden className="h-16 animate-pulse bg-bone" />
+        <div aria-hidden className="h-16 motion-safe:animate-pulse bg-bone" />
+        <div aria-hidden className="h-16 motion-safe:animate-pulse bg-bone" />
+        <div aria-hidden className="h-16 motion-safe:animate-pulse bg-bone" />
       </div>
     );
   } else if (status.kind === "signedOut") {

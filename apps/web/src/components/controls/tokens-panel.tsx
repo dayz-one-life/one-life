@@ -54,7 +54,7 @@ export function TokensPanel({
           fetchSuggestions={searchVerifiedGamertags}
           exclude={myGamertag}
           className="min-w-0 flex-1"
-          inputClassName="w-full border border-dark-line bg-dark-well px-3 py-2 font-mono text-base xl:text-[11.5px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper"
+          inputClassName="w-full border border-dark-line bg-dark-well px-3 py-2 font-mono text-base xl:text-[11.5px] tracking-[.04em] text-paper outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red placeholder:text-cream-muted focus:border-paper"
         />
         <button
           type="submit"
@@ -81,7 +81,7 @@ export function TokensPanel({
               fetchSuggestions={searchVerifiedGamertags}
               exclude={myGamertag}
               className="min-w-0 flex-1"
-              inputClassName="w-full border border-dark-line bg-dark-well px-3 py-2 font-mono text-base xl:text-[11.5px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper"
+              inputClassName="w-full border border-dark-line bg-dark-well px-3 py-2 font-mono text-base xl:text-[11.5px] tracking-[.04em] text-paper outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red placeholder:text-cream-muted focus:border-paper"
             />
             <button
               type="submit"
