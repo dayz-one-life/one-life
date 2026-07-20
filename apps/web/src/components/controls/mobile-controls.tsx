@@ -115,9 +115,9 @@ export function MobileControls() {
             ))}
           </>
         )}
-        <div className="flex justify-between font-mono text-[10px] uppercase tracking-[.06em]">
+        <div className="flex justify-between font-mono text-[11px] uppercase tracking-[.06em]">
           {slug ? (
-            <Link href={`/players/${slug}`} className="text-cream-dim hover:text-paper">
+            <Link href={`/players/${slug}`} className="inline-flex min-h-[44px] items-center text-cream-dim hover:text-paper">
               Your profile →
             </Link>
           ) : (
@@ -126,7 +126,7 @@ export function MobileControls() {
           <button
             type="button"
             onClick={() => void signOutAndTeardownPush()}
-            className="text-cream-muted hover:text-paper"
+            className="inline-flex min-h-[44px] items-center text-cream-muted hover:text-paper"
           >
             Sign out
           </button>

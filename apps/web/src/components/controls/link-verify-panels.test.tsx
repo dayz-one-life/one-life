@@ -38,6 +38,11 @@ describe("LinkTagPanel", () => {
     expect(screen.getByText("That gamertag is already claimed by someone.")).toBeInTheDocument();
   });
 
+  test("claim errors announce via role=alert", () => {
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Tag already claimed");
+  });
+
   test("picking a suggestion does not reopen the dropdown after the debounce window", async () => {
     render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
@@ -97,5 +102,12 @@ describe("ProveItPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start a new challenge →" }));
     expect(onReclaim).toHaveBeenCalled();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  test("cancel claim is a 44pt target below xl and announces nothing by itself", () => {
+    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
+    const btn = screen.getByRole("button", { name: "Cancel claim" });
+    expect(btn.className).toContain("min-h-[44px]");
+    expect(btn.className).toContain("xl:min-h-0");
   });
 });

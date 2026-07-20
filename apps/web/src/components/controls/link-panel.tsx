@@ -37,7 +37,7 @@ export function LinkTagPanel({
           onChange={setTag}
           fetchSuggestions={searchClaimableGamertags}
           placeholder="GAMERTAG…"
-          inputClassName="w-full border border-paper bg-[#111] px-3 py-2.5 font-mono text-[13px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted"
+          inputClassName="w-full border border-paper bg-dark-well px-3 py-2.5 font-mono text-base xl:text-[13px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted"
         />
         <button
           type="submit"
@@ -47,7 +47,7 @@ export function LinkTagPanel({
           {pending ? "Claiming…" : "Claim it"}
         </button>
       </form>
-      {error && <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{error}</p>}
+      {error && <p role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{error}</p>}
       <p className="mt-2.5 font-mono text-[10px] uppercase leading-relaxed tracking-[.04em] text-cream-muted">
         We suggest tags seen on our servers. Verifying earns 1 token.
       </p>
