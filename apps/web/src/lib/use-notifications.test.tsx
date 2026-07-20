@@ -19,8 +19,8 @@ const note = (id: number, readAt: string | null = null): AppNotification => ({
   id, kind: "token_received", title: `T${id}`, body: `B${id}`, href: `/players/x`,
   createdAt: "2026-07-20T10:00:00Z", readAt,
 });
-const feed = (items: AppNotification[], unreadCount: number, page = 1, total = items.length) => ({
-  items, unreadCount, total, page, pageSize: 20,
+const feed = (items: AppNotification[], unreadCount: number, page = 1, total = items.length, pageSize = 20) => ({
+  items, unreadCount, total, page, pageSize,
 });
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -50,7 +50,7 @@ describe("useNotifications", () => {
 
   test("firstPage is page 1 only; items flatten all pages", async () => {
     getNotifications.mockImplementation((page: number) =>
-      Promise.resolve(page === 1 ? feed([note(1)], 0, 1, 2) : feed([note(2)], 0, 2, 2)),
+      Promise.resolve(page === 1 ? feed([note(1)], 0, 1, 2, 1) : feed([note(2)], 0, 2, 2, 1)),
     );
     const { result } = renderHook(() => useNotifications(), { wrapper });
     await waitFor(() => expect(result.current.items).toHaveLength(1));

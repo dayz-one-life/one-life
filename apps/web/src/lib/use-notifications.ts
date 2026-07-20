@@ -32,7 +32,7 @@ export function useNotifications(): Notifications {
     queryKey: ["notifications"],
     queryFn: ({ pageParam }) => getNotifications(pageParam),
     initialPageParam: 1,
-    getNextPageParam: (last) => ((last.page - 1) * last.pageSize + last.items.length < last.total ? last.page + 1 : undefined),
+    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
     enabled: signedIn,
     refetchInterval: 60_000,
   });
