@@ -4,10 +4,10 @@ import { IMAGE_STYLE, IMAGE_ANTISLOP, buildImagePrompt } from "../src/image-prom
 describe("buildImagePrompt", () => {
   it("assembles scene + style + anti-slop + aspect, in order", () => {
     const p = buildImagePrompt("A dropped rifle in wet grass.", "hero");
-    expect(p).toBe(`A dropped rifle in wet grass.\n\n${IMAGE_STYLE}\n\n${IMAGE_ANTISLOP}\n\nAspect ratio 4:5.`);
+    expect(p).toBe(`A dropped rifle in wet grass.\n\n${IMAGE_STYLE}\n\n${IMAGE_ANTISLOP}\n\nAspect ratio 16:9.`);
   });
   it("defaults to hero", () => {
-    expect(buildImagePrompt("x")).toContain("Aspect ratio 4:5.");
+    expect(buildImagePrompt("x")).toContain("Aspect ratio 16:9.");
   });
   it("maps card and breaking ratios", () => {
     expect(buildImagePrompt("x", "card")).toContain("Aspect ratio 1:1.");
