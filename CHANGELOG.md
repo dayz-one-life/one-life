@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- Mobile player controls polish: the bottom sheet now swipe-dismisses from its handle, animates
+  in/out (instant under reduced motion), and closes itself on any navigation; the pill and sheet
+  respect the iOS safe area; inputs are 16px on mobile so iOS Safari stops zooming on focus;
+  quiet actions meet 44pt; the sheet's smallest type rises to a readable floor; form errors
+  announce to screen readers; and the dark surface's hardcoded hexes became named tokens
+  (`dark-well`/`dark-hollow`/`dark-edge`/`dark-edge-bright`).
 
 ### Security
 
