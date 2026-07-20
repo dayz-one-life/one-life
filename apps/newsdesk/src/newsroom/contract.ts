@@ -64,8 +64,12 @@ export function parsePayload(raw: unknown): EditorialPayload {
       `standing_dead:/long_form: belong to the automated triggers.`);
   }
 
-  const prose = [p.headline, p.lede, ...p.blocks.flatMap((b) => b.type === "list" ? b.items : [b.text]),
+  let prose = [p.headline, p.lede, ...p.blocks.flatMap((b) => b.type === "list" ? b.items : [b.text]),
     p.pullQuote?.text ?? ""].join("\n");
+  // A DECLARED subject's gamertag is data, not shouting — mask it (verbatim casing only) before
+  // the lint so an all-caps callsign like RAYGUN doesn't trip the ALL-CAPS rule. Undeclared
+  // all-caps prose still fails: the exemption is scoped to the payload's own subjects list.
+  for (const s of p.subjects) prose = prose.split(s.gamertag).join("Subject");
   const hits = lintProse(prose);
   if (hits.length) throw new ContractError(`brand voice: ${hits.join("; ")}`);
 

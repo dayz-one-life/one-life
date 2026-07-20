@@ -38,8 +38,10 @@ export function registerNewsRoutes(app: FastifyInstance, db: Database, previewTo
     // A RETRACTED article resolves here on purpose and arrives carrying `retracted: true`. The
     // feed drops it and the interior noindexes it; the URL keeps working so a reader who followed
     // a shared link gets the correction instead of a 404.
-    const { preview } = previewQuery.parse(req.query);
-    const includeDraft = previewAllowed(preview, previewToken);
+    // safeParse, matching `params` above: a repeated ?preview= arrives as an array and a throwing
+    // parse would 500 a public URL. Malformed input means "no token" — it can only fail closed.
+    const q = previewQuery.safeParse(req.query);
+    const includeDraft = q.success ? previewAllowed(q.data.preview, previewToken) : false;
     const article = await getNewsArticleBySlug(db, p.data.slug, { includeDraft });
     if (!article) return reply.code(404).send({ error: "not_found" });
     return article;

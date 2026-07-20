@@ -35,6 +35,19 @@ describe("parsePayload", () => {
   it("requires at least one block", () => {
     expect(() => parsePayload({ ...valid, blocks: [] })).toThrow(/blocks/i);
   });
+
+  // An all-caps GAMERTAG is data, not shouting — a Ledger piece about RAYGUN must be writable.
+  // The exemption is scoped to DECLARED subjects: undeclared all-caps prose still fails.
+  it("exempts a named subject's all-caps gamertag from the ALL-CAPS lint", () => {
+    const named = {
+      ...valid,
+      blocks: [{ type: "para", text: "RAYGUN settled the account in full." }],
+      subjects: [{ gamertag: "RAYGUN" }],
+    };
+    expect(parsePayload(named).format).toBe("almanac");
+    const unnamed = { ...valid, blocks: [{ type: "para", text: "RAYGUN settled the account in full." }] };
+    expect(() => parsePayload(unnamed)).toThrow(/all-caps/i);
+  });
 });
 
 describe("editorialSlug", () => {

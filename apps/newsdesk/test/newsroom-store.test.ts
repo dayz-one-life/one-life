@@ -81,6 +81,32 @@ describe("newsroom store", () => {
     await expect(spikeArticle(db, slug)).rejects.toThrow(/cannot be spiked/);
   });
 
+  // The archive promise composes: without a namespace guard, unpublish → spike deletes a
+  // PUBLISHED AUTOMATED article, and its intermediate 'draft' state escapes the trigger
+  // anti-join (published|retracted only), so an enabled newsTick would regenerate the same
+  // subject at a paid model call per tick.
+  it("unpublish refuses an automated (non-editorial) article", async () => {
+    const autoSlug = `standing-dead-test-${run}`;
+    await db.insert(articles).values({
+      kind: "news", status: "published", slug: autoSlug,
+      naturalKey: `almanac:test-${run}:auto-standin`.replace("almanac", "standing_dead"),
+      headline: "H", lede: "L", body: "B", promptVersion: "news-v1", model: "test", attempts: 1,
+    });
+    await expect(unpublishArticle(db, autoSlug)).rejects.toThrow(/editorial/i);
+    await db.delete(articles).where(eq(articles.slug, autoSlug));
+  });
+
+  it("spike refuses an automated (non-editorial) draft", async () => {
+    const autoSlug = `long-form-test-${run}`;
+    await db.insert(articles).values({
+      kind: "news", status: "draft", slug: autoSlug,
+      naturalKey: `long_form:test-${run}:auto-standin`,
+      headline: "H", lede: "L", body: "B", promptVersion: "news-v1", model: "test", attempts: 1,
+    });
+    await expect(spikeArticle(db, autoSlug)).rejects.toThrow(/editorial/i);
+    await db.delete(articles).where(eq(articles.slug, autoSlug));
+  });
+
   it("list --drafts shows only drafts", async () => {
     const slug = await draftArticle(db, payload({ naturalKey: key("w33"), headline: `Week Thirty Three ${run}` }));
     const drafts = await listArticles(db, true);

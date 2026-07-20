@@ -128,4 +128,13 @@ describe("draft preview gate", () => {
     const res = await app.inject({ method: "GET", url: `/news/${draftSlug}?preview=` });
     expect(res.statusCode).toBe(404);
   });
+
+  // Fastify parses a repeated param into an array; a throwing parse would surface as a 500 on a
+  // PUBLIC article URL anyone can append junk to. Malformed input means "no token", nothing more.
+  it("treats a repeated ?preview= param as no token, not a 500", async () => {
+    const junk = await previewApp.inject({ method: "GET", url: `/news/${slug}?preview=a&preview=b` });
+    expect(junk.statusCode).toBe(200);
+    const draft = await previewApp.inject({ method: "GET", url: `/news/${draftSlug}?preview=test-token&preview=test-token` });
+    expect(draft.statusCode).toBe(404);
+  });
 });

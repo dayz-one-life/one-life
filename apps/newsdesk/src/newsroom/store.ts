@@ -1,7 +1,15 @@
 import type { Database } from "@onelife/db";
 import { articles } from "@onelife/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, like, or } from "drizzle-orm";
+import { EDITORIAL_PREFIXES } from "@onelife/read-models";
 import { editorialSlug, flattenBlocks, type EditorialPayload } from "./contract.js";
+
+/** State-transition ops act ONLY inside the editorial namespace. `parsePayload` enforces the
+ *  prefix on the way in; without this predicate on the way out, `unpublish` → `spike` composes
+ *  into deleting a PUBLISHED AUTOMATED article — and the intermediate 'draft' state escapes the
+ *  trigger anti-join (published|retracted only), so an enabled newsTick would regenerate the
+ *  same subject at a paid model call per tick. */
+const editorialOnly = or(...EDITORIAL_PREFIXES.map((p) => like(articles.naturalKey, `${p}%`)));
 
 export async function draftArticle(db: Database, p: EditorialPayload): Promise<string> {
   const slug = p.slug ?? editorialSlug(p.format, p.headline, p.naturalKey);
@@ -49,17 +57,23 @@ export async function publishArticle(db: Database, slug: string): Promise<"publi
  *  correction with a banner and an overprinted OG card, owned by the newsdesk's own sweep. */
 export async function unpublishArticle(db: Database, slug: string): Promise<void> {
   const res = await db.update(articles).set({ status: "draft" })
-    .where(and(eq(articles.kind, "news"), eq(articles.slug, slug), eq(articles.status, "published")))
+    .where(and(eq(articles.kind, "news"), eq(articles.slug, slug), eq(articles.status, "published"), editorialOnly))
     .returning({ slug: articles.slug });
-  if (!res[0]) throw new Error(`no PUBLISHED article with slug "${slug}"`);
+  if (!res[0]) {
+    throw new Error(
+      `no PUBLISHED editorial article with slug "${slug}" (automated standing_dead:/long_form: rows are owned by the newsdesk sweep)`);
+  }
 }
 
 /** Deletes a DRAFT. A published row is never deleted — the archive promise is permanent. */
 export async function spikeArticle(db: Database, slug: string): Promise<void> {
   const res = await db.delete(articles)
-    .where(and(eq(articles.kind, "news"), eq(articles.slug, slug), eq(articles.status, "draft")))
+    .where(and(eq(articles.kind, "news"), eq(articles.slug, slug), eq(articles.status, "draft"), editorialOnly))
     .returning({ slug: articles.slug });
-  if (!res[0]) throw new Error(`no DRAFT with slug "${slug}" (a published article cannot be spiked)`);
+  if (!res[0]) {
+    throw new Error(
+      `no editorial DRAFT with slug "${slug}" (a published article cannot be spiked, and automated rows are never touched)`);
+  }
 }
 
 export async function listArticles(db: Database, draftsOnly = false) {
