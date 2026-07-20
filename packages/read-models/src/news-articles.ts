@@ -22,6 +22,30 @@ export function newsTriggerOf(naturalKey: string | null): NewsTrigger {
   return naturalKey?.startsWith("standing_dead:") ? "standing_dead" : "long_form";
 }
 
+/** Article families the news surface can render. The two triggers are written by `newsTick`
+ *  (shipped, disabled); `editorial` is written by hand through the `newsroom` CLI. */
+export type NewsFormat = "standing_dead" | "long_form" | "editorial";
+
+/** Natural-key prefixes owned by the editorial desk. Disjoint from `standing_dead:`/`long_form:`
+ *  by construction, so a hand-written article can never collide with a generated one. The CLI
+ *  validates every payload's key against this list (apps/newsdesk/src/newsroom/contract.ts). */
+export const EDITORIAL_PREFIXES = ["almanac:", "ledger:", "editorial:"] as const;
+
+/**
+ * Which family a row belongs to, from its natural_key PREFIX — the same rebuild-stable signal
+ * `newsTriggerOf` uses, and the same one the newsdesk's retraction sweep reads
+ * (`starts_with(natural_key, 'standing_dead:')`), so page and sweep agree by construction.
+ *
+ * The unrecognised-key fallback is deliberately still `long_form`, matching `newsTriggerOf`
+ * exactly: a null or malformed key must not newly classify as `editorial` and lose its dossier.
+ * Editorial is a POSITIVE match on an owned prefix, never a default.
+ */
+export function newsFormatOf(naturalKey: string | null): NewsFormat {
+  if (naturalKey?.startsWith("standing_dead:")) return "standing_dead";
+  if (EDITORIAL_PREFIXES.some((p) => naturalKey?.startsWith(p))) return "editorial";
+  return "long_form";
+}
+
 export interface NewsCard {
   slug: string;
   trigger: NewsTrigger;
