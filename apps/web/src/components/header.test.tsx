@@ -5,6 +5,7 @@ import { Masthead } from "./header";
 
 const mockPathname = vi.fn(() => "/survivors");
 vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
+vi.mock("@/components/notifications/bell", () => ({ MastheadBell: () => null }));
 
 describe("Masthead", () => {
   it("renders the wordmark home link and all five nav items", () => {

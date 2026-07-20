@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { MastheadBell } from "@/components/notifications/bell";
 
 function NavLinks({ active, onNavigate, className }: {
   active: string | null; onNavigate?: () => void; className?: string;
@@ -49,6 +50,7 @@ export function Masthead() {
         <Link href="/" aria-label="One Life — home">
           <img src="/brand/wordmark-primary@2x.png" alt="One Life" className="h-auto w-[150px] md:w-[280px]" />
         </Link>
+        <MastheadBell />
       </div>
 
       <nav
