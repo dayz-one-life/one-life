@@ -120,11 +120,11 @@ export function ControlsSheet({
 function SheetUnban({ state, onRedeem }: { state: UnbanState; onRedeem: () => void }) {
   if (state === "hidden") return null;
   if (state === "pending") {
-    return <p className="mt-2 font-mono text-[10px] uppercase tracking-[.05em] text-cream-dim">Unban pending — lifting shortly…</p>;
+    return <p className="mt-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">Unban pending — lifting shortly…</p>;
   }
   if (state === "no-tokens") {
     return (
-      <p className="mt-2 border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[10px] uppercase tracking-[.05em] text-red-soft">
+      <p className="mt-2 border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[11px] uppercase tracking-[.05em] text-red-soft">
         No unban tokens
       </p>
     );
@@ -158,7 +158,7 @@ export function SheetServerRow({
     <section className={cn("border border-dark-line px-3.5 py-3", banned && "border-l-[3px] border-l-red")}>
       <div className="flex items-center gap-2.5">
         <h3 className="flex-none font-display text-sm font-semibold uppercase leading-none text-paper">{mapLabel(card.map)}</h3>
-        <span className="min-w-0 flex-1 truncate font-mono text-[10px] uppercase tracking-[.03em] text-cream-muted">
+        <span className="min-w-0 flex-1 truncate font-mono text-[12px] uppercase tracking-[.03em] text-cream-muted">
           {serverFactLine(card)}
           {banned && ownSlug && (
             <>
@@ -173,7 +173,7 @@ export function SheetServerRow({
         <>
           {countdown && (
             <div className="mt-2 flex items-center justify-between border border-dark-line bg-dark-well px-2.5 py-1.5">
-              <span className="font-mono text-[9.5px] uppercase tracking-[.06em] text-cream-muted">Ban lifts in</span>
+              <span className="font-mono text-[12px] uppercase tracking-[.06em] text-cream-muted">Ban lifts in</span>
               <span className="font-display text-base font-bold text-paper">{countdown}</span>
             </div>
           )}

@@ -64,8 +64,10 @@ export function TokensPanel({
           Send
         </button>
       </form>
-      {send.error && <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{send.error}</p>}
-      <p className="mt-2 font-mono text-[10px] uppercase tracking-[.04em] text-cream-muted">
+      {send.error && (
+        <p role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{send.error}</p>
+      )}
+      <p className="mt-2 font-mono text-[11px] uppercase tracking-[.04em] text-cream-muted xl:text-[10px]">
         +1 every 1st of the month · Transfers are final
       </p>
       {showReferrer && !referrer.ok && (
@@ -84,13 +86,13 @@ export function TokensPanel({
             <button
               type="submit"
               disabled={!ref.trim() || referrer.pending}
-              className="font-mono text-[10.5px] uppercase tracking-[.05em] text-cream-dim underline underline-offset-2 disabled:opacity-50"
+              className="inline-flex min-h-[44px] items-center xl:min-h-0 font-mono text-[10.5px] uppercase tracking-[.05em] text-cream-dim underline underline-offset-2 disabled:opacity-50"
             >
               Set
             </button>
           </form>
           {referrer.error && (
-            <p className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
+            <p role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
           )}
         </>
       )}

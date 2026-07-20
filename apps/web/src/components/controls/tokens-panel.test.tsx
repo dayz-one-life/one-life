@@ -72,6 +72,11 @@ describe("TokensPanel", () => {
     expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
+  test("send errors announce via role=alert", () => {
+    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Not enough tokens");
+  });
+
   test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {
     render(<TokensPanel balance={1} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
     const input = screen.getByLabelText("Send a token to a verified player");

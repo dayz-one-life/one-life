@@ -4,7 +4,7 @@ import { formatExpiry } from "@/lib/format-expiry";
 import { SkewCta } from "@/components/tabloid/skew-cta";
 
 const quietBtn =
-  "font-mono text-[10.5px] uppercase tracking-[.05em] text-cream-muted underline underline-offset-2 hover:text-paper disabled:opacity-50";
+  "inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted underline underline-offset-2 hover:text-paper disabled:opacity-50 xl:min-h-0 xl:text-[10.5px]";
 
 /** Pending rail state (canvas 10d): yellow-bordered dark panel with the emote sequence. */
 export function ProveItPanel({
