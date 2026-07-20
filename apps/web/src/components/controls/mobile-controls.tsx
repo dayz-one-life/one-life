@@ -95,6 +95,7 @@ export function MobileControls() {
         {verified && (
           <>
             <NotificationsPanel
+              onDark
               items={c.notifications}
               unreadCount={c.unreadCount}
               onOpen={(ids) => a.markRead.mutate(ids)}

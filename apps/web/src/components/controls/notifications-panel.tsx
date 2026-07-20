@@ -19,14 +19,15 @@ const BLUE = new Set(["ban_lifted", "life_qualified", "survival_milestone", "bir
 /** Reuses the R5b/R5c convention: red for death and the Morgue, blue for life and the
  *  Nursery, ink for account bookkeeping. An unknown kind falls back to ink rather than
  *  throwing, so a future notification type degrades quietly. */
-export function accentFor(kind: string): string {
+export function accentFor(kind: string, onDark = false): string {
   if (RED.has(kind)) return "border-l-red";
   if (BLUE.has(kind)) return "border-l-blue";
-  return "border-l-ink";
+  // Ink is invisible on the sheet's bg-dark; paper is the same bookkeeping-neutral there.
+  return onDark ? "border-l-paper" : "border-l-ink";
 }
 
 export function NotificationsPanel({
-  items, unreadCount, onOpen, hasMore = false, onLoadMore, loadingMore = false, children,
+  items, unreadCount, onOpen, hasMore = false, onLoadMore, loadingMore = false, onDark = false, children,
 }: {
   items: AppNotification[];
   unreadCount: number;
@@ -38,6 +39,10 @@ export function NotificationsPanel({
   hasMore?: boolean;
   onLoadMore?: () => void;
   loadingMore?: boolean;
+  /** The rail is paper; the mobile sheet is bg-dark. Every text/border/tint token in this
+   *  panel swaps on this flag — mounted bare on the sheet, the panel renders ink-on-dark:
+   *  present in the DOM, invisible on the phone. */
+  onDark?: boolean;
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -72,7 +77,7 @@ export function NotificationsPanel({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink"
+        className={`flex w-full items-center justify-between border-b-[3px] pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] ${onDark ? "border-paper text-paper" : "border-ink text-ink"}`}
       >
         <span>Notifications</span>
         {unreadCount > 0 && (
@@ -88,7 +93,7 @@ export function NotificationsPanel({
       {open && (
         <div className="mt-2 flex flex-col gap-1.5">
           {items.length === 0 ? (
-            <p className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+            <p className={`font-mono text-[11px] uppercase tracking-[.05em] ${onDark ? "text-cream-muted" : "text-ink-muted"}`}>
               Nothing on the wire.
             </p>
           ) : (
@@ -96,13 +101,13 @@ export function NotificationsPanel({
               <Link
                 key={n.id}
                 href={n.href}
-                className={`border-l-[3px] ${accentFor(n.kind)} py-1 pl-2.5 ${n.readAt ? "" : "bg-bone"}`}
+                className={`border-l-[3px] ${accentFor(n.kind, onDark)} py-1 pl-2.5 ${n.readAt ? "" : onDark ? "bg-[#111]" : "bg-bone"}`}
               >
-                <span className="block font-display text-[12px] font-bold uppercase tracking-[.06em] text-ink">
+                <span className={`block font-display text-[12px] font-bold uppercase tracking-[.06em] ${onDark ? "text-paper" : "text-ink"}`}>
                   {n.title}
                 </span>
-                <span className="block text-[13px] text-ink">{n.body}</span>
-                <span className="block font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">
+                <span className={`block text-[13px] ${onDark ? "text-paper" : "text-ink"}`}>{n.body}</span>
+                <span className={`block font-mono text-[10px] uppercase tracking-[.05em] ${onDark ? "text-cream-muted" : "text-ink-muted"}`}>
                   {relativeTime(n.createdAt, now)}
                 </span>
               </Link>
@@ -116,7 +121,7 @@ export function NotificationsPanel({
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore}
-              className="mt-0.5 self-start font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted underline hover:text-ink disabled:no-underline disabled:opacity-60"
+              className={`mt-0.5 self-start font-mono text-[10px] uppercase tracking-[.06em] underline disabled:no-underline disabled:opacity-60 ${onDark ? "text-cream-muted hover:text-paper" : "text-ink-muted hover:text-ink"}`}
             >
               {loadingMore ? "Loading…" : "Load older"}
             </button>

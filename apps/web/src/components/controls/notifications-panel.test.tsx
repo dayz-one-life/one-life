@@ -167,3 +167,30 @@ describe("NotificationsPanel", () => {
     expect(screen.getByText(/nothing/i)).toBeInTheDocument();
   });
 });
+
+// The mobile sheet is bg-dark; every token in this panel's default styling is for the light
+// rail (text-ink / border-ink / bg-bone). Mounted bare in the sheet, the panel rendered
+// ink-on-dark — present in the DOM, invisible on the phone. That is exactly how it shipped.
+describe("NotificationsPanel on a dark surface", () => {
+  it("swaps the light-surface tokens for sheet-legible ones when onDark", () => {
+    render(<NotificationsPanel onDark items={[item()]} unreadCount={1} onOpen={() => {}} />);
+    const toggle = screen.getByRole("button", { name: /notifications/i });
+    expect(toggle.className).toContain("text-paper");
+    expect(toggle.className).not.toContain("text-ink");
+    fireEvent.click(toggle);
+    expect(screen.getByText("You died").className).toContain("text-paper");
+    expect(screen.getByText("24 hours.").className).toContain("text-paper");
+    expect(screen.getByText(/ago|just now/).className).toContain("text-cream-muted");
+  });
+
+  it("keeps the light rail default when onDark is absent", () => {
+    render(<NotificationsPanel items={[item()]} unreadCount={1} onOpen={() => {}} />);
+    expect(screen.getByRole("button", { name: /notifications/i }).className).toContain("text-ink");
+  });
+
+  it("gives the ink accent bucket a paper spine on dark", () => {
+    expect(accentFor("tokens_granted", true)).toContain("paper");
+    expect(accentFor("ban_applied", true)).toContain("red");
+    expect(accentFor("tokens_granted")).toContain("ink");
+  });
+});
