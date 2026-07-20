@@ -173,8 +173,10 @@ export async function recordObituaryFailure(
 
 export interface UnpostedObituary {
   id: number;
-  slug: string;          // filtered NOT NULL below
-  gamertag: string;      // for log context (dry-run / failure lines)
+  slug: string;                // filtered NOT NULL below
+  // Nullable at the column since migration 0016; an obituary is life-keyed so in practice it is
+  // always set. Only log context (dry-run / failure lines) reads it.
+  gamertag: string | null;
 }
 
 /** Published obituaries not yet posted to Discord — oldest death first (backlog replays in order). */

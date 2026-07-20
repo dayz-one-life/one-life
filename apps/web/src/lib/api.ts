@@ -162,5 +162,7 @@ export const getBirthNotice = (slug: string) =>
 
 export const getNewsFeed = (page: number) =>
   apiGet<NewsFeed>(`/api/news?page=${page}`);
-export const getNewsArticle = (slug: string) =>
-  getOrNull<NewsArticle>(`/api/news/${encodeURIComponent(slug)}`);
+export const getNewsArticle = (slug: string, preview?: string) =>
+  getOrNull<NewsArticle>(
+    `/api/news/${encodeURIComponent(slug)}${preview ? `?preview=${encodeURIComponent(preview)}` : ""}`,
+  );

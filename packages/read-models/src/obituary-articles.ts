@@ -15,6 +15,39 @@ export type ArticleBlock =
   | { type: "quote"; text: string; attribution: string }
   | { type: "list"; items: string[] };
 
+/**
+ * Migration 0016 made the subject columns nullable for institutional editorial pieces. For an
+ * obituary or a birth notice a null subject is DATA CORRUPTION, not a valid state — the article
+ * is keyed by that tuple. Throwing is deliberate: rendering an article with a missing subject
+ * onto a public page is worse than a 500, because it looks like a real article about nobody.
+ *
+ * `gamertag` is always required and always checked. Different obituary/birth-notice queries
+ * select different subsets of the other 0016-nullable subject columns (`map`, `lifeNumber`, a
+ * `lifeStartedAt` sometimes aliased to `bornAt`, …) — pass whichever ones THIS row selects as
+ * `otherSubjectColumns` and each is both runtime-checked and narrowed away from `null` in the
+ * return type, so a caller never needs a bare `!` (or an `as` cast) on a subject column again. A
+ * caller that selects none of them (e.g. the Discord notifier's `{id, slug, gamertag}` query) can
+ * omit the argument entirely — the guard never demands a column nobody asked for.
+ */
+export function assertSubjectful<
+  T extends { gamertag: string | null; slug: string | null },
+  const K extends keyof T = never,
+>(
+  row: T,
+  kind: string,
+  otherSubjectColumns: readonly K[] = [],
+): T & { gamertag: string } & { [P in K]: NonNullable<T[P]> } {
+  if (row.gamertag == null) {
+    throw new Error(`${kind} article ${row.slug ?? "(no slug)"} has a null gamertag — corrupt row`);
+  }
+  for (const col of otherSubjectColumns) {
+    if (row[col] == null) {
+      throw new Error(`${kind} article ${row.slug ?? "(no slug)"} has a null ${String(col)} — corrupt row`);
+    }
+  }
+  return row as T & { gamertag: string } & { [P in K]: NonNullable<T[P]> };
+}
+
 export interface ObituaryCard {
   slug: string;
   gamertag: string;
@@ -93,14 +126,19 @@ export async function getPublishedObituaries(
     .where(publishedObituary);
 
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      slug: r.slug!,
-      headline: r.headline!,
-      lede: r.lede!,
-      tags: r.tags ?? [],
-      deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
-    })),
+    rows: rows.map((raw) => {
+      const r = assertSubjectful(raw, "obituary", ["map", "lifeNumber"]);
+      return {
+        ...r,
+        slug: r.slug!,
+        map: r.map,
+        lifeNumber: r.lifeNumber,
+        headline: r.headline!,
+        lede: r.lede!,
+        tags: r.tags ?? [],
+        deathAt: r.deathAt!, // obituaries always carry a non-null death_at (only birth notices go NULL)
+      };
+    }),
     total: totalRow[0]?.c ?? 0,
     page,
     pageSize,
@@ -122,8 +160,9 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     .where(and(publishedObituary, eq(articles.slug, slug)))
     .limit(1);
 
-  const r = rows[0];
-  if (!r) return null;
+  const raw = rows[0];
+  if (!raw) return null;
+  const r = assertSubjectful(raw, "obituary", ["map", "lifeNumber"]);
   const facts = (r.facts ?? {}) as FactsSnapshot;
   return {
     slug: r.slug!,

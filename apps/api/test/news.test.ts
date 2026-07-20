@@ -10,6 +10,7 @@ const svc = Math.floor(Math.random() * 1e8) + 54e7;
 let serverId: number;
 const slug = `news-api-${svc}`;
 const retractedSlug = `news-api-retracted-${svc}`;
+const draftSlug = `news-api-draft-${svc}`;
 const tag = `napi-${svc}`;
 const born = new Date("2026-07-10T00:00:00Z");
 
@@ -37,6 +38,13 @@ beforeAll(async () => {
       naturalKey: `standing_dead:${serverId}:${tag}:2026-07-11T00:00:00.000Z`,
       lifeStartedAt: new Date("2026-07-11T00:00:00Z"),
       createdAt: new Date("2026-07-14T00:00:00Z"),
+      facts: { trigger: "standing_dead", subjectCount: 1 },
+    }),
+    row({
+      status: "draft", slug: draftSlug,
+      naturalKey: `standing_dead:${serverId}:${tag}:2026-07-12T00:00:00.000Z`,
+      lifeStartedAt: new Date("2026-07-12T00:00:00Z"),
+      createdAt: new Date("2026-07-15T00:00:00Z"),
       facts: { trigger: "standing_dead", subjectCount: 1 },
     }),
   ]);
@@ -91,5 +99,42 @@ describe("GET /news/:slug", () => {
   it("unknown slug → 404", async () => {
     const res = await app.inject({ method: "GET", url: "/news/no-such-slug" });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("draft preview gate", () => {
+  // `app` (module scope) is built with NO preview token — that is the unset-token fixture.
+  const previewApp = buildApp(db, undefined, "test-token");
+
+  it("404s a draft with no token", async () => {
+    const res = await previewApp.inject({ method: "GET", url: `/news/${draftSlug}` });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("404s a draft with the wrong token", async () => {
+    const res = await previewApp.inject({ method: "GET", url: `/news/${draftSlug}?preview=nope` });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("serves a draft with the right token, marked as a draft", async () => {
+    const res = await previewApp.inject({ method: "GET", url: `/news/${draftSlug}?preview=test-token` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe("draft");
+  });
+
+  // FAIL CLOSED. An unset token must disable preview entirely, never match an empty ?preview=.
+  // Precedent: MAGIC_LINK_ENABLED — absence of config is not permission.
+  it("disables preview entirely when the token is unset", async () => {
+    const res = await app.inject({ method: "GET", url: `/news/${draftSlug}?preview=` });
+    expect(res.statusCode).toBe(404);
+  });
+
+  // Fastify parses a repeated param into an array; a throwing parse would surface as a 500 on a
+  // PUBLIC article URL anyone can append junk to. Malformed input means "no token", nothing more.
+  it("treats a repeated ?preview= param as no token, not a 500", async () => {
+    const junk = await previewApp.inject({ method: "GET", url: `/news/${slug}?preview=a&preview=b` });
+    expect(junk.statusCode).toBe(200);
+    const draft = await previewApp.inject({ method: "GET", url: `/news/${draftSlug}?preview=test-token&preview=test-token` });
+    expect(draft.statusCode).toBe(404);
   });
 });

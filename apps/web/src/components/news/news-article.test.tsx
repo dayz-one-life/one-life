@@ -13,7 +13,8 @@ const now = new Date("2026-07-14T00:00:00Z");
 
 const article = (over: Partial<NewsArticle> = {}): NewsArticle => ({
   slug: "standing-dead-still-standing-somewhere-gabefox101-7-3",
-  trigger: "standing_dead", gamertag: "GabeFox101", map: "chernarusplus", mapSlug: "chernarus",
+  trigger: "standing_dead", format: "standing_dead", editorialFormat: null, status: "published",
+  gamertag: "GabeFox101", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "Still Standing, Somewhere",
   lede: "Nobody has had word since Tuesday.", tags: ["News", "Chernarus", "The Standing Dead"],
   subjectCount: 1, createdAt: "2026-07-12T00:00:00Z",
@@ -262,7 +263,8 @@ describe("NewsArticleView — the related rail", () => {
       article={article()}
       more={[{
         slug: "long-form-two-fell-together-cupid18-7-5",
-        trigger: "long_form", gamertag: "CUPID18", map: "sakhal", mapSlug: "sakhal",
+        trigger: "long_form", format: "long_form", editorialFormat: null,
+        gamertag: "CUPID18", map: "sakhal", mapSlug: "sakhal",
         lifeNumber: 5, headline: "Two Fell Together", lede: "A shared ending.",
         tags: ["News"], subjectCount: 2, createdAt: "2026-07-10T00:00:00Z",
       }]}

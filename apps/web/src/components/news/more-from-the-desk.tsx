@@ -16,7 +16,10 @@ export function MoreFromTheDesk({ rows }: { rows: NewsCard[] }) {
           <li key={r.slug}>
             <Link href={newsArticleHref(r.slug)} className="group block">
               <span className="font-display text-lg font-bold uppercase leading-tight text-ink group-hover:text-red">{r.headline}</span>
-              <span className="mt-0.5 block font-mono text-[10.5px] uppercase tracking-[.05em] text-ink-muted">{r.gamertag} · {mapLabel(r.map)}</span>
+              {/* Editorial rows carry no subject — the desk line stands in for gamertag · map. */}
+              <span className="mt-0.5 block font-mono text-[10.5px] uppercase tracking-[.05em] text-ink-muted">
+                {r.gamertag && r.map ? `${r.gamertag} · ${mapLabel(r.map)}` : "From the Desk"}
+              </span>
             </Link>
           </li>
         ))}

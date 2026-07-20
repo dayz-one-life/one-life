@@ -21,7 +21,7 @@ if (!cfg.vapidPublicKey) {
 const app = buildApp(db, {
   auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins,
   vapidPublicKey: cfg.vapidPublicKey,
-});
+}, cfg.newsPreviewToken);
 
 app.listen({ port: cfg.port, host: "0.0.0.0" })
   .then((addr) => log.info({ addr }, "api listening"))
