@@ -226,6 +226,29 @@ export type BirthNoticeArticle = BirthNoticeCard & {
   endedAt: string | null;
 };
 
+/** Named AppNotification to avoid shadowing the DOM's global Notification type,
+ *  which the push permission flow depends on. */
+export type AppNotification = {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  href: string;
+  createdAt: string;
+  readAt: string | null;
+};
+
+/** `total` is what makes the backlog reachable: the panel's "Load older" control exists only
+ *  while `page * pageSize < total`. `unreadCount` is the badge and counts the whole inbox,
+ *  not this page. */
+export type NotificationsFeed = {
+  items: AppNotification[];
+  unreadCount: number;
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type NewsTrigger = "standing_dead" | "long_form";
 
 export type NewsSubjectRef = { gamertag: string; mapSlug: string | null; lifeNumber: number };

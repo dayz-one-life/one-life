@@ -420,3 +420,50 @@ export const articleImages = pgTable("article_images", {
   height: integer("height"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate
+// list, so a --rebuild never drops a player's inbox. Dedup is the natural_key unique
+// index — a PLAIN unique index, so onConflictDoNothing against it takes no targetWhere.
+//
+// ⚠️ Latent gotcha: some natural keys embed lives.id (e.g. "life_qualified:<lifeId>",
+// "milestone:<days>d:<lifeId>"), but rebuild.ts truncates `lives` WITH RESTART IDENTITY,
+// so lifeId is reassigned on every projection rebuild — while this table is never
+// truncated. After a future rebuild that shifts numbering, a legitimately-qualifying life
+// could collide with a stale key left by a retired life and silently get no notification
+// (the row already "exists" per the unique index). Zero impact today (table is empty at
+// rebuild time in this release) and partially self-correcting since replay is
+// deterministic, but a real risk once notifications have accumulated across a rebuild.
+// Not fixed here — flagging for whoever changes the key scheme or the rebuild strategy. ──
+
+export const notifications = pgTable("notifications", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  naturalKey: text("natural_key").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  href: text("href").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  pushedAt: timestamp("pushed_at", { withTimezone: true }),
+}, (t) => ({
+  uniqNatural: uniqueIndex("notifications_natural_key_uniq").on(t.naturalKey),
+  byUser: index("notifications_user_created_idx").on(t.userId, t.createdAt),
+  unpushedIdx: index("notifications_unpushed_idx").on(t.createdAt).where(sql`${t.pushedAt} IS NULL`),
+}));
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  failureCount: integer("failure_count").notNull().default(0),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+}, (t) => ({
+  uniqEndpoint: uniqueIndex("push_subscriptions_endpoint_uniq").on(t.endpoint),
+  byUser: index("push_subscriptions_user_idx").on(t.userId),
+}));

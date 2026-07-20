@@ -9,7 +9,19 @@ const log = pino({ level: cfg.logLevel });
 const { db } = getDb(cfg.databaseUrl);
 const authCfg = loadAuthConfig(process.env);
 const auth = createAuth(db, authCfg);
-const app = buildApp(db, { auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins });
+// The onelife-api unit has its own EnvironmentFile (deploy/README.md), so this key going
+// missing here while the notifier has it is a live deployment shape. Every downstream
+// symptom is silent — GET /push/vapid-key serves "", pushManager.subscribe() throws, and
+// the notifier logs a clean sweep because it finds no subscriptions to deliver to. This
+// line is the only place the operator can find out.
+if (!cfg.vapidPublicKey) {
+  log.warn("VAPID_PUBLIC_KEY is unset — push notifications cannot be enabled by any user");
+}
+
+const app = buildApp(db, {
+  auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins,
+  vapidPublicKey: cfg.vapidPublicKey,
+});
 
 app.listen({ port: cfg.port, host: "0.0.0.0" })
   .then((addr) => log.info({ addr }, "api listening"))
