@@ -53,8 +53,16 @@ export function useSheetDrag(
     const settle = (dismiss: boolean) => {
       dragging = false;
       panel.style.transition = "";
-      panel.style.transform = "";
-      if (dismiss) onCloseRef.current();
+      if (dismiss) {
+        onCloseRef.current();
+        // Clear the drag offset only after the closing class has landed, so the sheet
+        // animates from the dragged position to offscreen instead of snapping open first.
+        requestAnimationFrame(() => {
+          panel.style.transform = "";
+        });
+      } else {
+        panel.style.transform = "";
+      }
     };
     const onUp = (e: PointerEvent) => {
       if (!dragging) return;

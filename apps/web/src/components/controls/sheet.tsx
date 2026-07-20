@@ -37,7 +37,7 @@ export function ControlsSheet({
   // motion wants it instant (a 400ms zombie panel is worse than no animation).
   useEffect(() => {
     if (open) {
-      setPhase((p) => (p === "closed" ? "enter" : p));
+      setPhase((p) => (p === "closed" || p === "closing" ? "enter" : p));
       const raf = requestAnimationFrame(() => setPhase((p) => (p === "enter" ? "open" : p)));
       return () => cancelAnimationFrame(raf);
     }

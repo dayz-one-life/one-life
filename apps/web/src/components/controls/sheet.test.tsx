@@ -70,4 +70,13 @@ describe("ControlsSheet", () => {
     expect(dialog.className).toContain("max-h-[85dvh]");
     expect(dialog.innerHTML).toContain("safe-area-inset-bottom");
   });
+
+  test("reopening during the exit resurrects the sheet", () => {
+    vi.useFakeTimers();
+    const { rerender } = render(sheet(true));
+    rerender(sheet(false)); // exit starts
+    rerender(sheet(true)); // …user reopens mid-exit
+    act(() => void vi.advanceTimersByTime(500));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
 });

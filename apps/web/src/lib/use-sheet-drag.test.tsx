@@ -87,4 +87,15 @@ describe("useSheetDrag", () => {
     zone.dispatchEvent(pt("pointerup", 160, 1000)); // …but released after a 940ms hold
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  test("dismiss keeps the dragged offset until the next frame", () => {
+    const { panel, zone, onClose } = setup();
+    zone.dispatchEvent(pt("pointerdown", 100, 0));
+    zone.dispatchEvent(pt("pointermove", 300, 1000));
+    zone.dispatchEvent(pt("pointerup", 300, 1000));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // The inline offset must survive the dismissal tick — clearing it immediately
+    // makes the sheet snap to fully-open for a frame before the exit plays.
+    expect(panel.style.transform).toBe("translateY(200px)");
+  });
 });
