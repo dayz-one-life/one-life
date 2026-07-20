@@ -103,7 +103,7 @@ export function MobileControls() {
               onLoadMore={c.loadMore}
               loadingMore={c.loadingMore}
             >
-              <PushToggle />
+              <PushToggle onDark />
             </NotificationsPanel>
             <TokensPanel
               boxed

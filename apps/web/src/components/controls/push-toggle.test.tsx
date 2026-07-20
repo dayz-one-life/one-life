@@ -166,4 +166,29 @@ describe("PushToggle disable", () => {
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     await waitFor(() => expect(offButton()).toBeInTheDocument());
   });
+
+  // This control lives INSIDE NotificationsPanel, so it inherits whichever surface the panel is
+  // on — and the mobile ControlsSheet is bg-dark. Its ink-muted styling made it invisible there:
+  // the one control that turns push on, unreadable on the device push exists for.
+  describe("on a dark surface", () => {
+    it("uses a sheet-legible token in every state", async () => {
+      const { rerender } = render(<PushToggle onDark />);
+      expect((await screen.findByRole("button", { name: /turn off push alerts/i })).className)
+        .toContain("text-cream-muted");
+
+      unsubscribePush.mockRejectedValueOnce(new Error("500"));
+      fireEvent.click(screen.getByRole("button", { name: /turn off push alerts/i }));
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /try again/i }).className).toContain("text-cream-muted");
+
+      rerender(<PushToggle onDark />);
+      expect(screen.getByRole("button", { name: /try again/i }).className).not.toContain("text-ink-muted");
+    });
+
+    it("keeps the light rail default when onDark is absent", async () => {
+      render(<PushToggle />);
+      expect((await screen.findByRole("button", { name: /turn off push alerts/i })).className)
+        .toContain("text-ink-muted");
+    });
+  });
 });

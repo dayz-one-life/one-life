@@ -449,6 +449,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   renders in every signed-in state** (rail `SignedInFooter` + mobile sheet) — the profile link only
   appears when verified — so an unlinked/pending user can always log out. Presentational
   pieces are props-only + unit-tested; `useControls`/containers are thin (untested, per convention).
+  **⚠️ THE TWO SURFACES HAVE OPPOSITE BACKGROUNDS.** The rail is the light paper surface; the
+  **`ControlsSheet` is `bg-dark`**. Any panel mounted in both MUST carry a surface variant and swap
+  its text/border/tint tokens — `TokensPanel` does this with `boxed`, `NotificationsPanel` with
+  `onDark`. A panel written only in `text-ink`/`border-ink`/`bg-bone` renders **ink-on-dark: present
+  in the DOM, fully functional, invisible on a phone** — which is exactly how the notifications panel
+  shipped in v0.26.0. **RTL asserts the DOM, not contrast, so the whole web suite stays green** on
+  this class of bug; a panel added to the sheet needs a test pinning the token swap itself.
   The web API client **`apiSend` attaches `content-type: application/json` only when a body is present** —
   a bodyless `DELETE` (cancel claim) with the header set is rejected by Fastify as an empty JSON body (400).
   The mobile menu and sheet share **`useModalBehavior`** (`@/lib/use-modal-behavior` — focus trap,
@@ -502,7 +509,19 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   The dormant image gates fire on the new tokens with zero gate changes; `classifyDeath` passes
   them through as stated mechanisms; priors' `usualDeathCause` aggregates over `causeFamily`
   (`@onelife/domain` — wolf/bear/animal → "animal"); `causeLabel` reads `fall` as "Fell" and a
-  bare `died` as "Unknown". **Deploy runbook (stage-2 release):** normal deploy → on the host run
+  bare `died` as "Unknown".
+  **A fatal fall is logged TWICE and inconsistently — the entity dict alone cannot catch it.** DayZ
+  writes the fall on a *hit* line (`hit by FallDamageHealth`, `[HP: 0]`) and then a death line with
+  **no `killed by` clause at all**, unlike an animal or infected kill. `ENTITY_CAUSES` only reads the
+  killer clause, so these deaths land as a bare `died` → `unknown`. `classifyDeath` therefore carries
+  a **fall rung**: a `hit_events` row in the 120s window whose `attackerLabel` starts with
+  `FallDamage` and whose `victimHp <= 0` is the killing blow → `cause: "fall"`, `high` confidence.
+  It sits **above** the starvation/dehydration/bleeding inferences (a starving man who falls died of
+  the fall; hunger stays in `conditions`) and **below** every stated mechanism. A non-terminal fall
+  hit is ignored. This is why `RecentHit`/`DossierRecentHit` carry **`victimHp`** — the read-model
+  already queried it and dropped it in the mapping, which is what made the evidence unreachable.
+  Retroactive (verdicts are lazy, never materialized); frozen `articles.facts` keep their stale tag.
+  **Deploy runbook (stage-2 release):** normal deploy → on the host run
   `apps/projector` `backfill-death-causes` (re-parses `raw_lines`, upgrade-only, prints the
   unmapped-entity survey — feed it back into the dict) → projection rebuild
   (`./deploy/deploy.sh --rebuild`, or `pnpm --filter @onelife/projector run rebuild` directly on

@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   desktop rail keeps the light default. `accentFor()` takes the flag too, since the ink
   bookkeeping spine had the same problem. The regression was invisible to the suite because RTL
   asserts the DOM, not contrast — the new tests pin the token swap itself.
+- web: **the push opt-in toggle had the same defect, one level down.** `PushToggle` renders *inside*
+  `NotificationsPanel` and took no props at all, so on the mobile sheet the one control that turns
+  push alerts on was itself unreadable — on the device push notifications exist for. It gains the
+  same `onDark` prop, applied across every state (idle, working, blocked, and the error retry).
 - domain: **a fatal fall whose death line names no killer now reads as `fall`, not "no cause
   recorded".** DayZ logs a fatal fall twice and inconsistently: a `hit by FallDamageHealth` line
   at HP 0, and a death line that — unlike an animal or infected kill — carries no `killed by`

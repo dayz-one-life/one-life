@@ -17,7 +17,10 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-export function PushToggle() {
+/** `onDark` — this control renders inside NotificationsPanel, which sits on the light rail AND on
+ *  the `bg-dark` mobile sheet. Without the swap its ink-muted styling is invisible on a phone,
+ *  which is the device push notifications exist for. Mirrors NotificationsPanel's own prop. */
+export function PushToggle({ onDark = false }: { onDark?: boolean }) {
   const [state, setState] = useState<State>("working");
   const [error, setError] = useState<string | null>(null);
 
@@ -102,7 +105,7 @@ export function PushToggle() {
     }
   }
 
-  const cls = "mt-1 text-left font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted hover:text-red";
+  const cls = `mt-1 text-left font-mono text-[10px] uppercase tracking-[.05em] hover:text-red ${onDark ? "text-cream-muted" : "text-ink-muted"}`;
   if (state === "unsupported") return null;
   if (state === "denied") {
     return <p className={cls}>Push blocked in your browser settings.</p>;
