@@ -56,10 +56,13 @@ export function useSheetDrag(
       panel.style.transform = "";
       if (dismiss) onCloseRef.current();
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       if (!dragging) return;
       const dy = lastY - startY;
-      settle(dy > panel.offsetHeight * DISMISS_FRACTION || velocity > DISMISS_VELOCITY);
+      // A pause before release means the flick was abandoned — a >100ms-old velocity
+      // sample must not dismiss on its own.
+      const v = e.timeStamp - lastT > 100 ? 0 : velocity;
+      settle(dy > panel.offsetHeight * DISMISS_FRACTION || v > DISMISS_VELOCITY);
     };
     const onCancel = () => {
       if (dragging) settle(false);

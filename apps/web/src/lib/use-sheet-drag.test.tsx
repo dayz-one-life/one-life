@@ -79,4 +79,12 @@ describe("useSheetDrag", () => {
     zone.dispatchEvent(pt("pointerup", 400, 100));
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  test("flick then hold before release does not dismiss", () => {
+    const { zone, onClose } = setup();
+    zone.dispatchEvent(pt("pointerdown", 100, 0));
+    zone.dispatchEvent(pt("pointermove", 160, 60)); // 1.0px/ms flick, only 15% of height
+    zone.dispatchEvent(pt("pointerup", 160, 1000)); // …but released after a 940ms hold
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
