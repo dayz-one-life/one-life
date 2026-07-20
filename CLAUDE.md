@@ -380,7 +380,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `NEWSDESK_IMAGE_MODEL` (default `openai/gpt-5-image-mini`) for the workhorse pass,
   `NEWSDESK_IMAGE_MODEL_FLAGSHIP` (default `openai/gpt-5.4-image-2`) reserved for legends,
   `NEWSDESK_IMAGE_QUALITY` (default `low`, ~$0.003/image measured, ~$0.004/article all-in).
-  **gpt-image models return a square ~1024 canvas — no aspect-ratio parameter exists**; the 4:5
+  **gpt-image models return a square ~1024 canvas — no aspect-ratio parameter exists**; the 16:9
   hero crop and 1:1 feed thumbnails are render-side `object-cover` crops, not model output.
   **Storage is bytes in Postgres**, a new durable `article_images` table (migration `0012`;
   `article_id` PK/FK to `articles.id` ON DELETE CASCADE, `bytea` + `content_type` +
@@ -394,7 +394,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   serving orphan bytes; this finally exercises the long-dangling `/media/:path*` rewrite in
   `apps/web/next.config.ts` and is the **first `next/image` use in the repo** (automatic webp +
   resize; same-origin needs no `remotePatterns` config). **Web:** a shared `ArticleHero`
-  (`apps/web/src/components/shared/article-hero.tsx` — 4:5 crop + mono caption, red for obituaries/
+  (`apps/web/src/components/shared/article-hero.tsx` — since v0.27.x a **16:9 full-column-width**
+  crop (was 4:5 `max-w-md`; `IMAGE_ASPECT.hero` prompt nudge updated to match — stored portrait
+  canvases from the 4:5 era crop to their middle band, no regeneration) + mono caption, red for obituaries/
   blue for birth notices) renders on both `/obituaries/[slug]` and `/fresh-spawns/[slug]`; 1:1
   thumbnails render on the feed cards and the two home content blocks (a text-only article — no
   image yet — renders the prior DOM exactly, unchanged); the OG cards for both kinds gain a 38%

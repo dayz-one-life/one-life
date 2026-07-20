@@ -21,4 +21,10 @@ describe("ArticleHero", () => {
     render(<ArticleHero src="/media/heroes/x.png" caption="A ROOM, RECENTLY LEFT" accent="ink" />);
     expect(screen.getByText("A ROOM, RECENTLY LEFT")).toHaveClass("border-ink");
   });
+  it("frames the photo 16:9 at the full article-column width", () => {
+    render(<ArticleHero src="/media/heroes/x.png" caption={null} accent="ink" />);
+    const frame = document.querySelector("figure > div");
+    expect(frame).toHaveClass("aspect-video", "w-full");
+    expect(frame).not.toHaveClass("max-w-md");
+  });
 });
