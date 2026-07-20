@@ -172,23 +172,22 @@ describe("PushToggle disable", () => {
   // the one control that turns push on, unreadable on the device push exists for.
   describe("on a dark surface", () => {
     it("uses a sheet-legible token in every state", async () => {
-      const { rerender } = render(<PushToggle onDark />);
-      expect((await screen.findByRole("button", { name: /turn off push alerts/i })).className)
-        .toContain("text-cream-muted");
+      render(<PushToggle onDark />);
+      expect(await screen.findByRole("button", { name: /turn off push alerts/i }))
+        .toHaveClass("text-cream-muted");
 
       unsubscribePush.mockRejectedValueOnce(new Error("500"));
       fireEvent.click(screen.getByRole("button", { name: /turn off push alerts/i }));
       expect(await screen.findByRole("alert")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /try again/i }).className).toContain("text-cream-muted");
-
-      rerender(<PushToggle onDark />);
-      expect(screen.getByRole("button", { name: /try again/i }).className).not.toContain("text-ink-muted");
+      const retry = screen.getByRole("button", { name: /try again/i });
+      expect(retry).toHaveClass("text-cream-muted");
+      expect(retry).not.toHaveClass("text-ink-muted");
     });
 
     it("keeps the light rail default when onDark is absent", async () => {
       render(<PushToggle />);
-      expect((await screen.findByRole("button", { name: /turn off push alerts/i })).className)
-        .toContain("text-ink-muted");
+      expect(await screen.findByRole("button", { name: /turn off push alerts/i }))
+        .toHaveClass("text-ink-muted");
     });
   });
 });

@@ -87,7 +87,6 @@ describe("MobileControls", () => {
   test("mounts the notifications panel in its dark variant", () => {
     (useControls as Mock).mockReturnValue(verified);
     openSheet();
-    const toggle = screen.getByRole("button", { name: /notifications/i });
-    expect(toggle.className).toContain("text-paper");
+    expect(screen.getByRole("button", { name: /notifications/i })).toHaveClass("text-paper");
   });
 });

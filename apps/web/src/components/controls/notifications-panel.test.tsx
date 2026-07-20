@@ -172,20 +172,30 @@ describe("NotificationsPanel", () => {
 // rail (text-ink / border-ink / bg-bone). Mounted bare in the sheet, the panel rendered
 // ink-on-dark — present in the DOM, invisible on the phone. That is exactly how it shipped.
 describe("NotificationsPanel on a dark surface", () => {
+  // toHaveClass matches whole class tokens. toContain would pass on a mere substring — and this
+  // file has a real false-pass waiting: "text-cream-muted hover:text-paper" contains "text-paper"
+  // while its base colour is not paper.
   it("swaps the light-surface tokens for sheet-legible ones when onDark", () => {
     render(<NotificationsPanel onDark items={[item()]} unreadCount={1} onOpen={() => {}} />);
     const toggle = screen.getByRole("button", { name: /notifications/i });
-    expect(toggle.className).toContain("text-paper");
-    expect(toggle.className).not.toContain("text-ink");
+    expect(toggle).toHaveClass("text-paper", "border-paper");
+    expect(toggle).not.toHaveClass("text-ink");
     fireEvent.click(toggle);
-    expect(screen.getByText("You died").className).toContain("text-paper");
-    expect(screen.getByText("24 hours.").className).toContain("text-paper");
-    expect(screen.getByText(/ago|just now/).className).toContain("text-cream-muted");
+    expect(screen.getByText("You died")).toHaveClass("text-paper");
+    expect(screen.getByText("24 hours.")).toHaveClass("text-paper");
+    expect(screen.getByText(/ago|just now/)).toHaveClass("text-cream-muted");
+  });
+
+  // An unread row must be visibly distinct on the sheet, not merely differently-classed.
+  it("tints an unread row with the on-dark separator, not a near-invisible grey", () => {
+    render(<NotificationsPanel onDark items={[item()]} unreadCount={1} onOpen={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(screen.getByRole("link", { name: /You died/ })).toHaveClass("bg-dark-line");
   });
 
   it("keeps the light rail default when onDark is absent", () => {
     render(<NotificationsPanel items={[item()]} unreadCount={1} onOpen={() => {}} />);
-    expect(screen.getByRole("button", { name: /notifications/i }).className).toContain("text-ink");
+    expect(screen.getByRole("button", { name: /notifications/i })).toHaveClass("text-ink", "border-ink");
   });
 
   it("gives the ink accent bucket a paper spine on dark", () => {

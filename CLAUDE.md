@@ -520,6 +520,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   the fall; hunger stays in `conditions`) and **below** every stated mechanism. A non-terminal fall
   hit is ignored. This is why `RecentHit`/`DossierRecentHit` carry **`victimHp`** — the read-model
   already queried it and dropped it in the mapping, which is what made the evidence unreachable.
+  **A verdict that names a mechanism must also outrank the raw cause on the web** — `verdictPhrase`
+  (`@/lib/cause-format`) falls back to `causeLabel(cause)` for any verdict with no `VERDICT_NOUN`
+  entry, and for a fall the raw cause is a bare `died` → "Unknown". `ENTITY_VERDICTS` there mirrors
+  `ENTITY_MECHANISMS` in `@onelife/domain` (duplicated deliberately — `apps/web` has no dependency
+  on that package); **add a new mechanism token to both**, or the classifier will be right and the
+  page will still say Unknown.
   Retroactive (verdicts are lazy, never materialized); frozen `articles.facts` keep their stale tag.
   **Deploy runbook (stage-2 release):** normal deploy → on the host run
   `apps/projector` `backfill-death-causes` (re-parses `raw_lines`, upgrade-only, prints the

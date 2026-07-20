@@ -146,6 +146,24 @@ describe("classifyDeath — a fall the death line did not name", () => {
   it("never overrides a stated mechanism", () => {
     expect(classifyDeath({ ...bare, mechanism: "pvp" }, [fell()]).cause).toBe("pvp");
   });
+
+  // Suicide-by-falling is a stated mechanism and returns before the rung is ever reached.
+  it("leaves a suicide by falling as a suicide", () => {
+    expect(classifyDeath({ ...bare, mechanism: "suicide" }, [fell()]).cause).toBe("suicide");
+  });
+
+  // A hit line with no [HP:] token parses to null, and a pre-stage-2 caller omits the field
+  // entirely. Neither is evidence of a terminal fall, so neither may claim one.
+  it("treats a fall hit with unknown HP as no evidence", () => {
+    expect(classifyDeath({ ...bare, energy: 0 }, [fell({ victimHp: null })]).cause).toBe("starvation");
+    const { victimHp: _omitted, ...noHp } = fell();
+    expect(classifyDeath({ ...bare, energy: 0 }, [noHp]).cause).toBe("starvation");
+  });
+
+  // The window is the same 120s every other inference uses.
+  it("ignores a terminal fall hit older than the recent window", () => {
+    expect(classifyDeath(bare, [fell({ secondsBeforeDeath: 121 })]).cause).toBe("unknown");
+  });
 });
 
 describe("causeFamily", () => {

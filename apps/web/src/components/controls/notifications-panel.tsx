@@ -101,7 +101,10 @@ export function NotificationsPanel({
               <Link
                 key={n.id}
                 href={n.href}
-                className={`border-l-[3px] ${accentFor(n.kind, onDark)} py-1 pl-2.5 ${n.readAt ? "" : onDark ? "bg-[#111]" : "bg-bone"}`}
+                // The unread tint must READ as a tint. bg-[#111] against --dark (#0C0C08) is
+                // ~1.03:1 — no visible separation, so read and unread rows looked identical on
+                // the sheet. dark-line (#26261C) is the palette's own on-dark separator.
+                className={`border-l-[3px] ${accentFor(n.kind, onDark)} py-1 pl-2.5 ${n.readAt ? "" : onDark ? "bg-dark-line" : "bg-bone"}`}
               >
                 <span className={`block font-display text-[12px] font-bold uppercase tracking-[.06em] ${onDark ? "text-paper" : "text-ink"}`}>
                   {n.title}
