@@ -15,6 +15,9 @@ let lifeId: number;
 const gt2 = `DossierGap-${svc}`;
 let pid2: number;
 let lifeId2: number;
+const gt3 = `DossierFall-${svc}`;
+let pid3: number;
+let lifeId3: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ld", map: "sakhal", slug: `ld-${svc}`, active: true }).returning();
@@ -64,6 +67,22 @@ beforeAll(async () => {
     { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 55, occurredAt: gapT1 },
     { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 40, occurredAt: gapT2 },
   ]);
+
+  // A third life: the RonaldRaygun552 shape (Sakhal, 2026-07-20). DayZ logged the fall as a hit
+  // line at HP 0 and a death line with NO killer clause, so death_cause is a bare "died". The
+  // verdict must still be "fall" — and it only can be if victimHp survives the row mapping.
+  const [p3] = await db.insert(players).values({ gamertag: gt3, lastSeenAt: mins(400) }).returning();
+  pid3 = p3!.id;
+  const [l3] = await db.insert(lives).values({
+    serverId, playerId: pid3, lifeNumber: 1, startedAt: start, endedAt: mins(360),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 1373.79, waterAtDeath: 672.959, bleedSourcesAtDeath: 0, playtimeSeconds: 21600,
+  }).returning();
+  lifeId3 = l3!.id;
+  await db.insert(hitEvents).values({
+    serverId, victimGamertag: gt3, attackerType: "environment", attackerLabel: "FallDamageHealth",
+    victimHp: 0, occurredAt: mins(360),
+  });
 });
 
 afterAll(async () => {
@@ -71,7 +90,7 @@ afterAll(async () => {
   await db.delete(buildEvents).where(inArray(buildEvents.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
-  await db.delete(players).where(inArray(players.id, [pid, pid2]));
+  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3]));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
@@ -111,5 +130,20 @@ describe("getLifeDossier", () => {
     const d = await getLifeDossier(db, serverId, lifeId2);
     expect(d).not.toBeNull();
     expect(d!.ordeals.infected).toEqual({ encounters: 2, hits: 3, worstEncounterHits: 2 });
+  });
+
+  // This is the ONLY test that fails if `victimHp` is dropped from the row mapping — the domain
+  // tests are pure-function tests and structurally cannot see a field lost in the read-model.
+  // A silently dropped field in a mapping is precisely the defect being fixed here, so it gets
+  // a guard of its own rather than relying on the classifier's own coverage.
+  it("carries victimHp through the mapping so an unnamed fatal fall classifies as a fall", async () => {
+    const d = await getLifeDossier(db, serverId, lifeId3);
+    expect(d).not.toBeNull();
+    expect(d!.death.mechanism).toBe("died"); // the death line named no killer
+    expect(d!.recentHits).toHaveLength(1);
+    expect(d!.recentHits[0]!.victimHp).toBe(0); // the evidence survived the mapping
+    const v = dossierVerdict(d!);
+    expect(v.cause).toBe("fall");
+    expect(v.confidence).toBe("high");
   });
 });

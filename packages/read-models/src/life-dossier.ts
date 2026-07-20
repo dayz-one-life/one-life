@@ -10,7 +10,7 @@ const ENCOUNTER_GAP_S = 120;
 /** One ordeal category, collapsed from raw hit-ticks into distinct encounters. */
 export interface OrdealSummary { encounters: number; hits: number; worstEncounterHits: number }
 
-export interface DossierRecentHit { attackerType: string; attackerLabel: string | null; secondsBeforeDeath: number }
+export interface DossierRecentHit { attackerType: string; attackerLabel: string | null; secondsBeforeDeath: number; victimHp: number | null }
 export interface LifeDossier {
   lifeId: number;
   startedAt: Date;
@@ -79,7 +79,9 @@ export async function dossierForLife(db: Database, gamertag: string, life: Dossi
   const hpLow = hps.length ? Math.min(...hps) : null;
   const endMs = windowEnd.getTime();
   const recentHits: DossierRecentHit[] = hits
-    .map((h) => ({ attackerType: h.attackerType, attackerLabel: h.attackerLabel, secondsBeforeDeath: Math.round((endMs - h.occurredAt.getTime()) / 1000) }))
+    // victimHp is carried through so classifyDeath can spot a terminal hit — a fatal fall names
+    // itself only here, never on the death line. Dropping it is what made those deaths "unknown".
+    .map((h) => ({ attackerType: h.attackerType, attackerLabel: h.attackerLabel, victimHp: h.victimHp, secondsBeforeDeath: Math.round((endMs - h.occurredAt.getTime()) / 1000) }))
     .filter((h) => h.secondsBeforeDeath >= 0 && h.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
 
   return {
