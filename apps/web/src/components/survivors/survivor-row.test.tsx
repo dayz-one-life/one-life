@@ -67,4 +67,23 @@ describe("SurvivorRow", () => {
     render(<SurvivorRow rank={1} showMap sort="time" row={base} />);
     expect(screen.getByRole("link", { name: /.+/ }).className).toContain("truncate");
   });
+
+  // `truncate` (overflow:hidden + text-overflow:ellipsis) is a no-op on the anchor's default
+  // `display:inline` box — it needs a block-level display utility to actually engage.
+  test("hero row gamertag link is block-level so truncate can engage", () => {
+    render(<SurvivorRow rank={1} showMap sort="time" row={base} />);
+    expect(screen.getByRole("link", { name: "Chad" }).className).toContain("block");
+  });
+
+  test("podium row gamertag link is block-level so truncate can engage", () => {
+    render(<SurvivorRow rank={2} showMap sort="time" row={base} />);
+    expect(screen.getByRole("link", { name: "Chad" }).className).toContain("block");
+  });
+
+  test("compact row gamertag link is inline-block with a max width so truncate can engage", () => {
+    render(<SurvivorRow rank={4} showMap sort="time" row={base} />);
+    const link = screen.getByRole("link", { name: "Chad" }).className;
+    expect(link).toContain("inline-block");
+    expect(link).toContain("max-w-full");
+  });
 });

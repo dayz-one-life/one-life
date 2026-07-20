@@ -10,6 +10,11 @@ describe("skeletons", () => {
     expect(container.querySelectorAll('[class*="animate-pulse"]').length).toBeGreaterThan(5);
   });
 
+  test("BoardSkeleton renders 22 compact skeleton rows", () => {
+    const { container } = render(<BoardSkeleton />);
+    expect(container.querySelectorAll("main > div.border-b.border-hairline-2").length).toBe(22);
+  });
+
   test("DossierSkeleton renders a busy main with pulsing blocks", () => {
     const { container } = render(<DossierSkeleton />);
     expect(container.querySelector("main")).toHaveAttribute("aria-busy", "true");
