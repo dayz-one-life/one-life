@@ -41,4 +41,22 @@ describe("verdictPhrase", () => {
     expect(verdictPhrase(v("wolf"), "wolf")).toBe("Wolf");
     expect(verdictPhrase(v("fall"), "fall")).toBe("Fell");
   });
+
+  // THE REGRESSION. Every case above has verdict.cause === raw cause, so the fallback happens to
+  // produce the right word and hides the bug. A fatal fall is the one death where they DISAGREE:
+  // DayZ's death line names no killer, so the raw mechanism is a bare "died" while the verdict
+  // says "fall". Falling back to the raw cause printed "Unknown" on the timeline, the funeral
+  // card and the Rap Sheet — the classifier was right and the screen still said nothing.
+  it("prefers a verdict that names a mechanism over a raw cause that does not", () => {
+    expect(verdictPhrase(v("fall"), "died")).toBe("Fell");
+    expect(verdictPhrase(v("wolf"), "died")).toBe("Wolf");
+    expect(verdictPhrase(v("vehicle"), null)).toBe("Vehicle");
+  });
+
+  // The raw cause still wins when the verdict names nothing — this is what keeps "Drowned"
+  // and "Environment" specific rather than flattening them to "Unknown".
+  it("still defers to the raw cause for a verdict that names no mechanism", () => {
+    expect(verdictPhrase(v("environmental"), "drowned")).toBe("Drowned");
+    expect(verdictPhrase(v("unknown", "low"), "environment")).toBe("Environment");
+  });
 });

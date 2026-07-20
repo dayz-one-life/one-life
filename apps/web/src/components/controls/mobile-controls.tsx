@@ -95,6 +95,7 @@ export function MobileControls() {
         {verified && (
           <>
             <NotificationsPanel
+              onDark
               items={c.notifications}
               unreadCount={c.unreadCount}
               onOpen={(ids) => a.markRead.mutate(ids)}
@@ -102,7 +103,7 @@ export function MobileControls() {
               onLoadMore={c.loadMore}
               loadingMore={c.loadingMore}
             >
-              <PushToggle />
+              <PushToggle onDark />
             </NotificationsPanel>
             <TokensPanel
               boxed

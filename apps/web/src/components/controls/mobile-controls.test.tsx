@@ -80,4 +80,13 @@ describe("MobileControls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
   });
+
+  // The sheet is bg-dark: the panel must mount in its dark variant or it renders ink-on-dark —
+  // present in the DOM, invisible on the phone. RTL cannot see contrast, so this pins the
+  // variant prop by its observable class swap instead.
+  test("mounts the notifications panel in its dark variant", () => {
+    (useControls as Mock).mockReturnValue(verified);
+    openSheet();
+    expect(screen.getByRole("button", { name: /notifications/i })).toHaveClass("text-paper");
+  });
 });
