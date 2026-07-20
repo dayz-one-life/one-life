@@ -21,7 +21,7 @@ function Badge({ count }: { count: number }) {
     <span
       data-testid="bell-badge"
       aria-hidden
-      className="absolute -right-0.5 -top-0.5 min-w-[18px] bg-red px-1 py-px text-center font-mono text-[10px] font-bold leading-[14px] text-paper"
+      className="pointer-events-none absolute -right-0.5 -top-0.5 min-w-[18px] bg-red px-1 py-px text-center font-mono text-[10px] font-bold leading-[14px] text-paper"
     >
       {count > 9 ? "9+" : count}
     </span>
