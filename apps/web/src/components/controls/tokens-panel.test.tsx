@@ -71,4 +71,11 @@ describe("TokensPanel", () => {
     expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
   });
+
+  test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {
+    render(<TokensPanel balance={1} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    const input = screen.getByLabelText("Send a token to a verified player");
+    expect(input.className).toContain("text-base");
+    expect(input.className).toContain("xl:text-[11.5px]");
+  });
 });

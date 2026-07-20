@@ -66,9 +66,15 @@ export function GamertagAutocomplete({
         autoComplete="off"
         placeholder={placeholder}
         className={inputClassName}
+        onFocus={(e) =>
+          e.currentTarget.scrollIntoView?.({
+            block: "center",
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          })
+        }
       />
       {suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-20 border border-t-0 border-dark-line bg-dark-well">
+        <ul className="absolute left-0 right-0 top-full z-20 max-h-[210px] overflow-y-auto border border-t-0 border-dark-line bg-dark-well">
           {suggestions.map((s) => (
             <li key={s}>
               <button

@@ -37,7 +37,7 @@ export function LinkTagPanel({
           onChange={setTag}
           fetchSuggestions={searchClaimableGamertags}
           placeholder="GAMERTAG…"
-          inputClassName="w-full border border-paper bg-dark-well px-3 py-2.5 font-mono text-[13px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted"
+          inputClassName="w-full border border-paper bg-dark-well px-3 py-2.5 font-mono text-base xl:text-[13px] tracking-[.04em] text-paper outline-none placeholder:text-cream-muted"
         />
         <button
           type="submit"
