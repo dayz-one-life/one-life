@@ -50,13 +50,26 @@ export function registerNotificationRoutes(
         .orderBy(desc(notifications.createdAt), desc(notifications.id))
         .limit(FEED_LIMIT)
         .offset((page - 1) * FEED_LIMIT),
+      // Both counts in one pass over the user's rows. `total` is not decoration: it is the
+      // only thing telling a client whether a page 2 exists, and without it the paginated
+      // feed is unreachable from the UI — the badge then pins at (total - FEED_LIMIT)
+      // forever, because page 1 keeps serving the same newest rows once they are read.
       db
-        .select({ n: dsql<number>`count(*)::int` })
+        .select({
+          total: dsql<number>`count(*)::int`,
+          unread: dsql<number>`(count(*) filter (where ${notifications.readAt} is null))::int`,
+        })
         .from(notifications)
-        .where(and(eq(notifications.userId, userId), isNull(notifications.readAt))),
+        .where(eq(notifications.userId, userId)),
     ]);
 
-    return { items, unreadCount: counted?.n ?? 0, page, pageSize: FEED_LIMIT };
+    return {
+      items,
+      unreadCount: counted?.unread ?? 0,
+      total: counted?.total ?? 0,
+      page,
+      pageSize: FEED_LIMIT,
+    };
   });
 
   // Scoped to the ids the client actually rendered: marking the whole inbox read would

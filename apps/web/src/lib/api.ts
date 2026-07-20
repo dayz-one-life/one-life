@@ -117,7 +117,8 @@ export const transferToken = (toGamertag: string) =>
 export const setReferrer = (referrerGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
 
-export const getNotifications = () => apiGet<NotificationsFeed>("/api/me/notifications");
+export const getNotifications = (page = 1) =>
+  apiGet<NotificationsFeed>(`/api/me/notifications?page=${page}`);
 export const markNotificationsRead = (ids: number[]) =>
   apiSend<{ ok: true }>("POST", "/api/me/notifications/read", { ids });
 export const getVapidKey = () => apiGet<{ publicKey: string }>("/api/push/vapid-key");

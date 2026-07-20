@@ -67,7 +67,7 @@ integer primary keys.
 |---|---|---|
 | `ban_applied` | `bans.status = 'applied'` | `ban_applied:<banId>` |
 | `ban_lifted` | `bans.status` ∈ `expired`/`lifted` | `ban_lifted:<banId>` |
-| `life_qualified` | open life with `qualified_at` set inside the window | `life_qualified:<lifeId>` |
+| `life_qualified` | open life whose qualification instant, derived at read time, falls inside the window (§4 correction — not a stored `qualified_at`) | `life_qualified:<lifeId>` |
 | `survival_milestone` | open life where `now - startedAt` crosses 7 / 14 / 30 days | `milestone:<days>d:<lifeId>` |
 
 ### Editorial
@@ -87,6 +87,21 @@ boundary: an unverified claimant must never receive another player's gameplay hi
 
 **`life_qualified` is the only forward-looking notification.** Everything else reports
 something that already happened.
+
+> **CORRECTION (added during review, before this PR merged).** The materialization
+> described in the next two paragraphs **was not built, and `lives.qualified_at` does not
+> exist in the schema.** Do not deploy this release with `--rebuild` on its account; there
+> is no projection reshape. The problem the section identifies is real and the rejection of
+> `lives.startedAt` still stands — but the fix shipped is to derive the qualification instant
+> **at read time**, by calling the existing `lifeQualifiedAt()` per open life in
+> `apps/notifier/src/generators/lives.ts`. Deriving beat materializing on two counts: it
+> keeps ONE source of truth for qualification (shared with the survivors board, the enforcer
+> and the newsdesk) instead of a second, subtly-lagging one, and it is exact for a life that
+> crosses the threshold **mid-session** — the stored-playtime column only advances at session
+> close, so the materialized version would have been blind to exactly that case until the
+> player disconnected. The candidate set is "currently alive verified players", which is
+> small enough to derive per tick. The reasoning below is kept because the trade-off it works
+> through is what led to the shipped design; the instruction it gives is superseded.
 
 Qualification was historically computed lazily and never materialized. That does not
 work here: with no qualification timestamp, the generator would have to window on
@@ -366,6 +381,12 @@ Migration `0015` adds the two new tables **and** a `lives.qualified_at` column p
 by the projector fold. That is a projection reshape, so the release ships with
 `./deploy/deploy.sh --rebuild`. A normal deploy would leave `qualified_at` null on every
 existing life, and `life_qualified` would never fire for anyone.
+
+> **CORRECTION (added during review, before this PR merged).** The two sentences above are
+> superseded — see the correction in §4. `lives.qualified_at` was never built; migration
+> `0015` adds **only** the two new tables, qualification is derived at read time, and there
+> is no projection reshape. **This release deploys normally. Do NOT pass `--rebuild`.**
+> Running it would be a needless full re-fold of the event log, not a correctness fix.
 
 ## 9. Deliberate omissions
 

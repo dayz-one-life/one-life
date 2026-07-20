@@ -265,6 +265,55 @@ describe("notification backlog deeper than one page", () => {
     expect(after.json().unreadCount).toBe(0);
   });
 
+  // THE REGRESSION THIS SUITE EXISTS FOR. Everything above proves the endpoint *can* serve
+  // page 2; this proves a client that only ever reads the response body can find its way
+  // there. The loop below is the exact algorithm the web client now runs (useControls'
+  // useInfiniteQuery + the panel's Load older control): read a page, mark what it rendered,
+  // and decide whether another page exists using ONLY fields the response carries.
+  //
+  // Before this, `total` did not exist and the client sent no `?page=` at all: page 1 always
+  // returned the newest FEED_LIMIT rows regardless of read state, so once those were marked
+  // read the loop stalled with unreadCount pinned at (total - FEED_LIMIT) forever.
+  it("lets a client with a backlog deeper than one page reach zero unread", async () => {
+    // Reset the whole fixture to unread so this test owns its own arithmetic.
+    await db.update(notifications).set({ readAt: null }).where(eq(notifications.userId, userId));
+
+    const before = await app.inject({ method: "GET", url: "/me/notifications", headers: authed() });
+    const startingUnread = before.json().unreadCount;
+    expect(startingUnread).toBeGreaterThan(20); // 27 rows: the bulk 25 + the outer suite's 2
+
+    let page = 1;
+    let guard = 0;
+    for (;;) {
+      expect(++guard).toBeLessThan(20); // a non-advancing loop must fail, not hang
+      const res = await app.inject({ method: "GET", url: `/me/notifications?page=${page}`, headers: authed() });
+      const body = res.json();
+
+      const rendered = body.items.filter((i: { readAt: string | null }) => !i.readAt)
+        .map((i: { id: number }) => i.id);
+      if (rendered.length > 0) {
+        await app.inject({
+          method: "POST", url: "/me/notifications/read", headers: authed(), payload: { ids: rendered },
+        });
+      }
+      // The only signal the client has for "is there more". Drop `total` from the response
+      // and this becomes unreachable again.
+      if (body.page * body.pageSize >= body.total) break;
+      page++;
+    }
+
+    const after = await app.inject({ method: "GET", url: "/me/notifications", headers: authed() });
+    expect(after.json().unreadCount).toBe(0);
+  });
+
+  it("reports the caller's own total, not the whole table's", async () => {
+    const res = await app.inject({ method: "GET", url: "/me/notifications", headers: authed() });
+    const body = res.json();
+    const mine = await db.select({ id: notifications.id })
+      .from(notifications).where(eq(notifications.userId, userId));
+    expect(body.total).toBe(mine.length);
+  });
+
   it("returns an empty page rather than an error when the page is out of range", async () => {
     const res = await app.inject({ method: "GET", url: "/me/notifications?page=99", headers: authed() });
     expect(res.statusCode).toBe(200);

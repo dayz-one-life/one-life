@@ -14,9 +14,9 @@
 - Every `naturalKey` is built **in TypeScript** from an integer primary key. Never render a natural key in SQL.
 - `notifications.natural_key` carries a **plain, full** unique index. `onConflictDoNothing` against it takes **no `targetWhere`** — do not copy that argument from `apps/newsdesk/src/pg-store.ts`.
 - Neither new table may be added to the truncate list in `apps/projector/src/rebuild.ts`. Both **must** be added to `APP_TABLES` in `packages/test-support/src/global-setup.ts`.
-- **This release reshapes the `lives` projection** (new `qualified_at` column, written by the fold). Deploy therefore requires `./deploy/deploy.sh --rebuild`. Migrations live in `packages/db/drizzle/` — the latest is `0014_article_natural_key_and_blocks.sql`, so the new one is `0015_*`.
-- `qualified_at` is **write-once**: never overwrite a non-null value. The fold observes candidates in event order, so write-once yields the earliest, matching `lifeQualifiedAt`'s "earliest candidate wins" semantics.
-- The fold credits playtime only at **session close** (`closeOpen`), so a playtime-qualified life's `qualified_at` is **backdated to the true crossing instant but written late** — at disconnect. Kill and pvp-death qualification are written immediately. `NOTIFIER_LOOKBACK_HOURS` defaults to **48** to absorb that lag.
+- ~~**This release reshapes the `lives` projection** (new `qualified_at` column, written by the fold). Deploy therefore requires `./deploy/deploy.sh --rebuild`.~~ **CORRECTED during review, before this PR merged: `lives.qualified_at` was never built.** Qualification is derived at read time via `lifeQualifiedAt()` in `apps/notifier/src/generators/lives.ts` — one source of truth, and exact for a life crossing the threshold mid-session, which the materialized column could not see until disconnect. There is no projection reshape: **this release deploys normally, WITHOUT `--rebuild`.** Migrations live in `packages/db/drizzle/` — the latest is `0014_article_natural_key_and_blocks.sql`, so the new one is `0015_*` (the two new tables only).
+- ~~`qualified_at` is **write-once**: never overwrite a non-null value.~~ Moot — no such column exists. The "earliest candidate wins" rule it was meant to preserve is `lifeQualifiedAt`'s own, applied directly.
+- ~~The fold credits playtime only at **session close** (`closeOpen`), so a playtime-qualified life's `qualified_at` is **backdated to the true crossing instant but written late** — at disconnect.~~ This lag was the materialized design's residual flaw and is **why it was dropped**: read-time derivation sees the open session and has no such lag. `NOTIFIER_LOOKBACK_HOURS` still defaults to **48**, now as ordinary slack for worker downtime rather than to absorb a write delay.
 - `NOTIFIER_SINCE` unset, empty, or unparseable ⇒ generation produces zero drafts and performs zero writes.
 - `NOTIFIER_DRY_RUN` defaults to `true`.
 - `NOTIFIER_PUSH_ENABLED` defaults to `true` and gates only `pushTick`; a push failure must never stop generation.
@@ -84,7 +84,11 @@
 - Consumes: nothing
 - Produces: `notifications` and `pushSubscriptions` drizzle tables plus a `lives.qualifiedAt` column, all exported from `@onelife/db` via the existing `export * from "./schema.js"` barrel.
 
-- [ ] **Step 0: Add `qualified_at` to the `lives` table**
+- [ ] ~~**Step 0: Add `qualified_at` to the `lives` table**~~ — **NOT SHIPPED. Skip this step.**
+  Reversed during review (see the Global Constraints correction at the top): qualification is
+  derived at read time instead, migration `0015` adds only the two new tables, and there is no
+  `lives.qualified_at` column in the schema. Everything from here to the end of Step 0 is a
+  record of the abandoned approach.
 
 In `packages/db/src/schema.ts`, in the `lives` table definition, add after `playtimeSeconds`:
 
@@ -215,7 +219,12 @@ git commit -m "feat(db): notifications, push_subscriptions, and lives.qualified_
 
 ---
 
-### Task 1B: The fold writes `qualified_at`
+### ~~Task 1B: The fold writes `qualified_at`~~ — **NOT SHIPPED. Skip this entire task.**
+
+> Reversed during review, before this PR merged. There is no `lives.qualified_at` column, so
+> the fold writes nothing of the kind and none of the tests below exist. `apps/notifier/src/
+> generators/lives.ts` derives the qualification instant at read time via `lifeQualifiedAt()`.
+> Kept as a record of the approach and why it lost — see the Global Constraints correction.
 
 **Files:**
 - Modify: `packages/domain/src/index.ts` (or the appropriate barrel — add `QUALIFY_SECONDS`)
@@ -2884,7 +2893,9 @@ and note that `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a `m
 
 Document the staged rollout from spec §8 as a runbook: deploy with `NOTIFIER_DRY_RUN=true` and no `NOTIFIER_SINCE`; then set `NOTIFIER_SINCE`; then `NOTIFIER_DRY_RUN=false` with `NOTIFIER_PUSH_ENABLED=false`; then enable push.
 
-**This release reshapes the `lives` projection** (new `qualified_at` column written by the fold), so it MUST deploy with `./deploy/deploy.sh --rebuild` — a normal deploy would leave `qualified_at` null on every existing life and the `life_qualified` notification would never fire for anyone.
+~~**This release reshapes the `lives` projection** (new `qualified_at` column written by the fold), so it MUST deploy with `./deploy/deploy.sh --rebuild` — a normal deploy would leave `qualified_at` null on every existing life and the `life_qualified` notification would never fire for anyone.~~
+
+**CORRECTED during review, before this PR merged.** The `qualified_at` column was never built (see the Global Constraints correction above), so there is nothing to rebuild. **This release deploys normally — do NOT pass `--rebuild`.** Running it would trigger a needless full re-fold of the event log.
 
 - [ ] **Step 3: Update the changelog**
 
@@ -2921,7 +2932,7 @@ Use the **finishing-a-feature** skill. The PR targets `develop` and requires bot
 
 **Two spec deviations, both deliberate:**
 
-1. **`life_qualified` windows on a new materialized `qualified_at` column** (Tasks 1 and 1B), not on `lives.startedAt` as the spec originally described. The spec's approach would have silently dropped any life that qualified more than a lookback-window after it started. Materializing the instant in the fold is exact, and it also replaces the read-time `lifeQualifiedAt` derivation for future consumers. Cost: this makes the release a projection reshape, so deploy requires `--rebuild`. Residual caveat, documented in Global Constraints: the fold credits playtime at session close, so a playtime-qualified life's `qualified_at` is backdated correctly but written at disconnect — hence the 48h lookback default.
+1. ~~**`life_qualified` windows on a new materialized `qualified_at` column** (Tasks 1 and 1B), not on `lives.startedAt` as the spec originally described.~~ **REVERSED during review, before this PR merged — this deviation was abandoned and the column never shipped.** The reason for rejecting `lives.startedAt` stands (it would silently drop any life qualifying more than a lookback-window after it started), but the fix is read-time derivation via `lifeQualifiedAt()`, not materialization. Two reasons the reversal is an improvement rather than a retreat: (a) it keeps **one** source of truth for qualification, shared with the survivors board, the enforcer and the newsdesk, instead of a second one that could drift; (b) the "residual caveat" the original deviation accepted — the fold credits playtime only at session close — was not residual at all. It meant a life crossing the threshold **mid-session** read as unqualified until the player disconnected, which read-time derivation gets right immediately. The `--rebuild` requirement disappears with the column: **this release deploys normally.**
 2. **`playerSlug` is duplicated** into `apps/notifier/src/generators/account.ts` rather than imported, because the worker must not depend on the web app. The two copies must stay in step or notification links 404. Task 4 carries a comment saying so.
 
 **Open item for the implementer.** Task 14 Step 2 assumes `icon-192.png` and `icon-512.png` exist in `apps/web/public/`. Verify before writing the manifest; if absent, generating them from the vendored brand assets is in scope for that task.

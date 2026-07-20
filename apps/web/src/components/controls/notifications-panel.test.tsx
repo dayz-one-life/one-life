@@ -94,6 +94,73 @@ describe("NotificationsPanel", () => {
     expect(screen.getByRole("link", { name: /You died/ })).toHaveAttribute("href", "/players/x");
   });
 
+  describe("reaching a backlog deeper than one page", () => {
+    it("offers Load older only while older pages remain", () => {
+      const { rerender } = render(
+        <NotificationsPanel items={[item()]} unreadCount={25} onOpen={() => {}} hasMore onLoadMore={() => {}} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+      expect(screen.getByRole("button", { name: "Load older" })).toBeInTheDocument();
+
+      rerender(
+        <NotificationsPanel items={[item()]} unreadCount={0} onOpen={() => {}} hasMore={false} onLoadMore={() => {}} />,
+      );
+      expect(screen.queryByRole("button", { name: "Load older" })).toBeNull();
+    });
+
+    // THE REGRESSION. The panel used to fire onOpen once per mount, so a page fetched after
+    // the panel was already expanded was rendered but never reported as read. A user with
+    // more than one page of unread could therefore never drain the badge: page 1 got marked,
+    // and everything the Load older control revealed stayed unread forever.
+    it("marks a page loaded after expansion read, without re-reporting the first page", () => {
+      const onOpen = vi.fn();
+      const page1 = [item({ id: 1 }), item({ id: 2 })];
+      const { rerender } = render(
+        <NotificationsPanel items={page1} unreadCount={4} onOpen={onOpen} hasMore onLoadMore={() => {}} />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      expect(onOpen).toHaveBeenLastCalledWith([1, 2]);
+
+      // Load older resolved: the parent appends page 2 while the panel stays open. Page 1's
+      // rows have come back read, exactly as the refetch after markRead returns them.
+      rerender(
+        <NotificationsPanel
+          items={[
+            item({ id: 1, readAt: "2026-07-19T11:55:00Z" }),
+            item({ id: 2, readAt: "2026-07-19T11:55:00Z" }),
+            item({ id: 3 }),
+            item({ id: 4 }),
+          ]}
+          unreadCount={2}
+          onOpen={onOpen}
+          hasMore={false}
+          onLoadMore={() => {}}
+        />,
+      );
+
+      expect(onOpen).toHaveBeenCalledTimes(2);
+      expect(onOpen).toHaveBeenLastCalledWith([3, 4]); // only the newly revealed rows
+    });
+
+    it("never reports the same id twice, however often the parent re-renders", () => {
+      const onOpen = vi.fn();
+      const items = [item({ id: 1 })];
+      const { rerender } = render(
+        <NotificationsPanel items={items} unreadCount={1} onOpen={onOpen} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+
+      // A refetch that returns the row still unread (the mutation is in flight) must not
+      // re-send it — the sent-id set, not the response, is the guard.
+      rerender(<NotificationsPanel items={[item({ id: 1 })]} unreadCount={1} onOpen={onOpen} />);
+      rerender(<NotificationsPanel items={[item({ id: 1 })]} unreadCount={1} onOpen={onOpen} />);
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("shows an in-voice empty state", () => {
     render(<NotificationsPanel items={[]} unreadCount={0} onOpen={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));

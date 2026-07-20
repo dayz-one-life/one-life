@@ -9,6 +9,18 @@ export function playerSlug(gamertag: string): string {
   return gamertag.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+/**
+ * Unlike the ban/life/article generators, the `verified` predicate here is NOT the thing
+ * holding the privacy boundary up — and no test can prove it is, which is why there isn't
+ * one. A pending link has `verified_at IS NULL`, and `verified_at >= from` is NULL (never
+ * true) for those rows, so the window clause alone already excludes them; deleting the
+ * status check leaves the whole suite green because it changes no result. It is kept as a
+ * statement of intent, and because it stops the query depending on the NULL semantics of a
+ * column a future migration might backfill.
+ *
+ * The other generators are the opposite: there the predicate is load-bearing and its
+ * removal is caught by a pending-link fixture in each of their test files.
+ */
 export const gamertagVerifiedGenerator: Generator = async (deps) => {
   const from = windowStart(deps);
   const rows = await deps.db

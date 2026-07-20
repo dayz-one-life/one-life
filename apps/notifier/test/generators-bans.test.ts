@@ -8,6 +8,9 @@ const NOW = new Date("2026-07-19T12:00:00Z");
 // lookback 24h beats the go-live cutoff, so the window opens at 2026-07-18T12:00:00Z.
 const deps = { db, now: NOW, since: new Date("2026-07-01T00:00:00Z"), lookbackHours: 24, siteUrl: "https://s" };
 
+/** Ban row ids in fixture order: [A, B, C, D, E, F, G, H]. */
+let banIds: number[] = [];
+
 beforeAll(async () => {
   await db.insert(user).values([
     { id: "bn1", name: "BN1", email: "bn1@x.com" },
@@ -18,12 +21,15 @@ beforeAll(async () => {
     { userId: "bn1", gamertag: "BanOne", status: "verified", verifiedAt: new Date("2026-07-02T00:00:00Z") },
     { userId: "bn2", gamertag: "BanTwo", status: "pending" },
   ]);
-  await db.insert(bans).values([
+  // Captured in insert order so the dry-run assertions can name the exact row that must be
+  // absent. The query windows have a lower bound only (gte createdAt), so "narrow the window
+  // until only the dry-run row is in range" does not work — a later real ban still matches.
+  banIds = (await db.insert(bans).values([
     // (A) IN window for ban_applied: the ban row was written a minute ago, but banned_at is the
     // DEATH time and the projector was three days behind. Windowing on banned_at drops this.
     { serverId: s!.id, gamertag: "banone", lifeStartedAt: new Date("2026-07-15T00:00:00Z"),
       reason: "qualified_death", bannedAt: new Date("2026-07-16T00:00:00Z"),
-      expiresAt: new Date("2026-07-17T00:00:00Z"), status: "pending", dryRun: true,
+      expiresAt: new Date("2026-07-17T00:00:00Z"), status: "pending", dryRun: false,
       createdAt: new Date("2026-07-19T11:00:00Z") },
     // (B) IN window for ban_lifted: enforcer was down for a week and only marked it expired now.
     // expires_at is long outside the window; lifted_at is the instant the player came back in.
@@ -40,14 +46,16 @@ beforeAll(async () => {
       createdAt: new Date("2026-07-16T00:05:00Z"), appliedAt: new Date("2026-07-16T00:05:00Z"),
       liftedAt: new Date("2026-07-16T06:00:00Z") },
     // (D) OUT of window for ban_applied: placed two days ago, already notified.
+    // dry_run=false so the ONLY reason it is excluded is the window — an over-determined
+    // fixture would keep the window test green after the window clause was deleted.
     { serverId: s!.id, gamertag: "BanOne", lifeStartedAt: new Date("2026-07-17T00:00:00Z"),
       reason: "qualified_death", bannedAt: new Date("2026-07-17T00:00:00Z"),
-      expiresAt: new Date("2026-07-18T00:00:00Z"), status: "pending", dryRun: true,
+      expiresAt: new Date("2026-07-18T00:00:00Z"), status: "pending", dryRun: false,
       createdAt: new Date("2026-07-17T00:05:00Z") },
-    // (E) IN window but the gamertag link is only pending — never notifies.
+    // (E) IN window and a real ban, but the gamertag link is only pending — never notifies.
     { serverId: s!.id, gamertag: "BanTwo", lifeStartedAt: new Date("2026-07-18T00:00:00Z"),
       reason: "qualified_death", bannedAt: new Date("2026-07-19T11:00:00Z"),
-      expiresAt: new Date("2026-07-20T11:00:00Z"), status: "pending", dryRun: true,
+      expiresAt: new Date("2026-07-20T11:00:00Z"), status: "pending", dryRun: false,
       createdAt: new Date("2026-07-19T11:02:00Z") },
     // (F) IN window for ban_lifted, via a spent token rather than expiry.
     { serverId: s!.id, gamertag: "BanOne", lifeStartedAt: new Date("2026-07-16T20:00:00Z"),
@@ -55,7 +63,22 @@ beforeAll(async () => {
       expiresAt: new Date("2026-07-18T01:00:00Z"), status: "lifted", dryRun: false,
       createdAt: new Date("2026-07-17T01:05:00Z"), appliedAt: new Date("2026-07-17T01:05:00Z"),
       liftedAt: new Date("2026-07-19T11:45:00Z") },
-  ]);
+    // (G) DRY RUN, otherwise a perfect ban_applied hit: verified owner, created inside the
+    // window. The enforcer wrote this row and then `continue`d — nothing reached Nitrado and
+    // the player was never banned. Announcing it would invite them to spend a token (which
+    // redeem really would burn) lifting a ban that does not exist.
+    { serverId: s!.id, gamertag: "BanOne", lifeStartedAt: new Date("2026-07-18T06:00:00Z"),
+      reason: "qualified_death", bannedAt: new Date("2026-07-19T10:00:00Z"),
+      expiresAt: new Date("2026-07-20T10:00:00Z"), status: "pending", dryRun: true,
+      createdAt: new Date("2026-07-19T10:05:00Z") },
+    // (H) DRY RUN, otherwise a perfect ban_lifted hit: lifted_at sits inside the window.
+    // A lift is only news because the ban it ends was real; "You're back in" for a ban that
+    // never kept anyone out is the same false claim as (G), just cheerful.
+    { serverId: s!.id, gamertag: "BanOne", lifeStartedAt: new Date("2026-07-18T07:00:00Z"),
+      reason: "qualified_death", bannedAt: new Date("2026-07-18T08:00:00Z"),
+      expiresAt: new Date("2026-07-19T08:00:00Z"), status: "lifted", dryRun: true,
+      createdAt: new Date("2026-07-18T08:05:00Z"), liftedAt: new Date("2026-07-19T11:50:00Z") },
+  ]).returning()).map((b) => b.id);
 });
 afterAll(async () => { await sql.end(); });
 
@@ -84,6 +107,20 @@ describe("banAppliedGenerator", () => {
     const narrow = await banAppliedGenerator({ ...deps, now: new Date("2026-07-19T13:00:00Z"), lookbackHours: 1 });
     expect(narrow).toHaveLength(0);
   });
+
+  // ENFORCER_DRY_RUN is the production default: the enforcer writes the ban row and then
+  // `continue`s, so nothing reaches Nitrado and the player is not banned. Notifying anyway
+  // announces a punishment that was never inflicted — and the body tells them to spend an
+  // unban token, which packages/tokens/src/redeem.ts would genuinely consume against a
+  // 'pending' dry-run row.
+  it("never notifies for a dry-run ban, however perfectly it otherwise matches", async () => {
+    const keys = (await banAppliedGenerator(deps)).map((d) => d.naturalKey);
+    // (G) is a verified owner's ban created inside the window — it differs from the real
+    // ban (A) in exactly one column. Naming the row directly, rather than counting drafts,
+    // is what makes this fail when the dry_run filter is deleted.
+    expect(keys).not.toContain(`ban_applied:${banIds[6]}`);
+    expect(keys).toContain(`ban_applied:${banIds[0]}`);
+  });
 });
 
 describe("banLiftedGenerator", () => {
@@ -107,5 +144,18 @@ describe("banLiftedGenerator", () => {
   it("does not emit for a ban that ended before a narrower window opened", async () => {
     const narrow = await banLiftedGenerator({ ...deps, now: new Date("2026-07-19T13:00:00Z"), lookbackHours: 1 });
     expect(narrow).toHaveLength(0);
+  });
+
+  // Deliberately not a copy of the ban_applied case: the reasoning is that a lift is only
+  // news because the ban it ends was real. A dry-run ban never kept the player out, so
+  // there is nothing to be back from.
+  it("never announces the lift of a dry-run ban", async () => {
+    const keys = (await banLiftedGenerator(deps)).map((d) => d.naturalKey);
+    // (H) was lifted at 11:50Z, inside the window, and differs from the real lifted bans
+    // (B) and (F) in exactly one column.
+    expect(keys).not.toContain(`ban_lifted:${banIds[7]}`);
+    expect(keys).toEqual(
+      expect.arrayContaining([`ban_lifted:${banIds[1]}`, `ban_lifted:${banIds[5]}`]),
+    );
   });
 });

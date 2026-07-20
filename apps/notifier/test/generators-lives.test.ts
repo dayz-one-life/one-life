@@ -9,11 +9,22 @@ const deps = { db, now: NOW, since: new Date("2026-06-01T00:00:00Z"), lookbackHo
 // windowStart = max(since, now - 48h) = 2026-07-17T12:00:00Z.
 
 beforeAll(async () => {
-  await db.insert(user).values({ id: "lf1", name: "LF1", email: "lf1@x.com" });
+  await db.insert(user).values([
+    { id: "lf1", name: "LF1", email: "lf1@x.com" },
+    { id: "lf2", name: "LF2", email: "lf2@x.com" },
+  ]);
   const [s] = await db.insert(servers).values({ nitradoServiceId: 992001, name: "lifesrv", slug: "lifesrv" }).returning();
   // lastSeenAt is the heartbeat that caps an OPEN session's contribution.
   const [p] = await db.insert(players).values({ gamertag: "LifeOne", lastSeenAt: NOW }).returning();
-  await db.insert(gamertagLinks).values({ userId: "lf1", gamertag: "LifeOne", status: "verified", verifiedAt: new Date("2026-06-02T00:00:00Z") });
+  // The privacy boundary's negative case: lf2 has CLAIMED LifeTwo but never completed the
+  // emote challenge, so the link sits at 'pending'. Anyone can type a gamertag into the claim
+  // box — without the verified predicate, claiming a stranger's tag would stream that
+  // stranger's life events into your inbox.
+  const [p2] = await db.insert(players).values({ gamertag: "LifeTwo", lastSeenAt: NOW }).returning();
+  await db.insert(gamertagLinks).values([
+    { userId: "lf1", gamertag: "LifeOne", status: "verified", verifiedAt: new Date("2026-06-02T00:00:00Z") },
+    { userId: "lf2", gamertag: "LifeTwo", status: "pending" },
+  ]);
   const inserted = await db.insert(lives).values([
     // 1. Started 8 days ago (-> 7d milestone). Its playtime only crosses 300s during a
     //    session that starts inside the window, so it qualifies inside the window.
@@ -31,8 +42,12 @@ beforeAll(async () => {
     // 5. BOUNDARY: qualifies at exactly windowStart (2026-07-17T12:00:00Z). The window
     //    is inclusive, so it must be emitted. Too young for any milestone.
     { serverId: s!.id, playerId: p!.id, lifeNumber: 5, startedAt: new Date("2026-07-17T11:55:00Z"), playtimeSeconds: 600 },
+    // 6. THE PENDING-LINK CASE, deliberately a carbon copy of life 1 (same age, same session
+    //    shape): qualifies inside the window AND crosses its 7d milestone inside the window,
+    //    so BOTH generators would emit for it if the verified predicate were dropped.
+    { serverId: s!.id, playerId: p2!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"), playtimeSeconds: 200 },
   ]).returning();
-  const [l1, l2, l3, l4, l5] = inserted;
+  const [l1, l2, l3, l4, l5, l6] = inserted;
   await db.insert(sessions).values([
     // life 1: 200s already banked (closed, pre-window), then a session inside the window
     // that carries it past 300s at 2026-07-18T12:01:40Z.
@@ -52,6 +67,12 @@ beforeAll(async () => {
     // life 5: connected 11:55, closed after 600s -> crosses 300s at exactly 12:00:00Z.
     { serverId: s!.id, playerId: p!.id, lifeId: l5!.id, connectedAt: new Date("2026-07-17T11:55:00Z"),
       disconnectedAt: new Date("2026-07-17T12:05:00Z"), durationSeconds: 600 },
+    // life 6 (pending link): identical to life 1's shape, so nothing but the link status
+    // can explain its absence from the drafts.
+    { serverId: s!.id, playerId: p2!.id, lifeId: l6!.id, connectedAt: new Date("2026-07-11T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-11T12:03:20Z"), durationSeconds: 200 },
+    { serverId: s!.id, playerId: p2!.id, lifeId: l6!.id, connectedAt: new Date("2026-07-18T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-18T12:10:00Z"), durationSeconds: 600 },
   ]);
 });
 afterAll(async () => { await sql.end(); });
@@ -83,6 +104,17 @@ describe("lifeQualifiedGenerator", () => {
     const drafts = await lifeQualifiedGenerator(deps);
     expect(drafts.some((d) => d.body.includes("life 5"))).toBe(true);
   });
+
+  // CLAUDE.md: every notification kind is scoped to the user's own VERIFIED links. Claiming a
+  // gamertag is unauthenticated — the emote challenge is what proves ownership — so a merely
+  // 'pending' link must yield nothing. Life 6 is otherwise identical to life 1, which does emit.
+  it("never emits for a life whose gamertag link is only pending", async () => {
+    const drafts = await lifeQualifiedGenerator(deps);
+    expect(drafts.filter((d) => d.userId === "lf2")).toHaveLength(0);
+    // Guards the fixture itself: if life 6 stopped qualifying, this test would pass while
+    // asserting nothing. lf1's identically-shaped life 1 proves the shape still emits.
+    expect(drafts.some((d) => d.userId === "lf1" && d.body.includes("life 1"))).toBe(true);
+  });
 });
 
 describe("survivalMilestoneGenerator", () => {
@@ -113,5 +145,13 @@ describe("survivalMilestoneGenerator", () => {
     expect(drafts).toHaveLength(1);
     expect(drafts[0]!.naturalKey).toMatch(/^milestone:7d:\d+$/);
     expect(drafts[0]!.body).toContain("life 1");
+  });
+
+  // Same boundary as lifeQualifiedGenerator — asserted separately because both generators
+  // route through openQualifiedLives() and a future refactor could give them separate joins.
+  it("never emits a milestone for a life whose gamertag link is only pending", async () => {
+    const drafts = await survivalMilestoneGenerator(deps);
+    expect(drafts.filter((d) => d.userId === "lf2")).toHaveLength(0);
+    expect(drafts.some((d) => d.userId === "lf1")).toBe(true);
   });
 });

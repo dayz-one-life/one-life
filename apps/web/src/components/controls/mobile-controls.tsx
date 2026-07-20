@@ -98,6 +98,9 @@ export function MobileControls() {
               items={c.notifications}
               unreadCount={c.unreadCount}
               onOpen={(ids) => a.markRead.mutate(ids)}
+              hasMore={c.hasMore}
+              onLoadMore={c.loadMore}
+              loadingMore={c.loadingMore}
             >
               <PushToggle />
             </NotificationsPanel>

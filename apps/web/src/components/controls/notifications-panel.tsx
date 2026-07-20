@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AppNotification } from "@/lib/types";
 
 export function relativeTime(iso: string, now: Date): string {
@@ -26,7 +26,7 @@ export function accentFor(kind: string): string {
 }
 
 export function NotificationsPanel({
-  items, unreadCount, onOpen, children,
+  items, unreadCount, onOpen, hasMore = false, onLoadMore, loadingMore = false, children,
 }: {
   items: AppNotification[];
   unreadCount: number;
@@ -34,30 +34,43 @@ export function NotificationsPanel({
    *  Anything deeper in the backlog must stay unread — the feed is paginated and the
    *  user has not seen it. */
   onOpen: (ids: number[]) => void;
+  /** Whether older, unloaded pages remain. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  // Fire onOpen once per mount: marking read is not idempotent-free (it costs a request),
-  // and re-firing on every expand would spam the API.
-  const opened = useRef(false);
+  // The ids already handed to onOpen. This replaces an earlier once-per-mount boolean, which
+  // had the effect of making everything past the first page permanently unreadable: pages
+  // loaded after the panel was expanded were rendered but never reported, so their rows sat
+  // unread forever and the badge could not reach zero. Tracking ids instead of "did we fire"
+  // keeps the guarantee that matters — report each row at most once — while letting rows that
+  // arrive later still count as seen.
+  const sent = useRef<Set<number>>(new Set());
+  // Call sites pass an inline arrow, so onOpen changes identity every render; keep the latest
+  // in a ref so the effect below can depend on the rendered items alone.
+  const onOpenRef = useRef(onOpen);
+  useEffect(() => {
+    onOpenRef.current = onOpen;
+  });
   const now = new Date();
 
-  function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (!next || opened.current) return;
-    const unreadIds = items.filter((n) => !n.readAt).map((n) => n.id);
-    // Nothing to mark means nothing to send: a read-only glance costs no request.
+  // Marking read follows what is on screen, not a single moment in time.
+  useEffect(() => {
+    if (!open) return;
+    const unreadIds = items.filter((n) => !n.readAt && !sent.current.has(n.id)).map((n) => n.id);
+    // Nothing new to mark means nothing to send: a read-only glance costs no request.
     if (unreadIds.length === 0) return;
-    opened.current = true;
-    onOpen(unreadIds);
-  }
+    for (const id of unreadIds) sent.current.add(id);
+    onOpenRef.current(unreadIds);
+  }, [open, items]);
 
   return (
     <section>
       <button
         type="button"
-        onClick={toggle}
+        onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className="flex w-full items-center justify-between border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink"
       >
@@ -94,6 +107,19 @@ export function NotificationsPanel({
                 </span>
               </Link>
             ))
+          )}
+          {hasMore && onLoadMore && (
+            // The whole reason the backlog is reachable. Each press loads the next page,
+            // which the effect above then marks read — so a user with any depth of unread
+            // can drain the badge to zero by pressing until it disappears.
+            <button
+              type="button"
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="mt-0.5 self-start font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted underline hover:text-ink disabled:no-underline disabled:opacity-60"
+            >
+              {loadingMore ? "Loading…" : "Load older"}
+            </button>
           )}
           {children}
         </div>

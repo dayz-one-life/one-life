@@ -238,7 +238,16 @@ export type AppNotification = {
   readAt: string | null;
 };
 
-export type NotificationsFeed = { items: AppNotification[]; unreadCount: number };
+/** `total` is what makes the backlog reachable: the panel's "Load older" control exists only
+ *  while `page * pageSize < total`. `unreadCount` is the badge and counts the whole inbox,
+ *  not this page. */
+export type NotificationsFeed = {
+  items: AppNotification[];
+  unreadCount: number;
+  total: number;
+  page: number;
+  pageSize: number;
+};
 
 export type NewsTrigger = "standing_dead" | "long_form";
 
