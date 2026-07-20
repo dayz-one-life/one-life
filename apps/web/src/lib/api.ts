@@ -4,6 +4,7 @@ import type {
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
   ObituariesFeed, ObituaryArticle,
   BirthNoticesFeed, BirthNoticeArticle,
+  AppNotification, NotificationsFeed,
   NewsFeed, NewsArticle,
 } from "./types";
 
@@ -115,6 +116,21 @@ export const transferToken = (toGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
 export const setReferrer = (referrerGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
+
+export const getNotifications = (page = 1) =>
+  apiGet<NotificationsFeed>(`/api/me/notifications?page=${page}`);
+export const markNotificationsRead = (ids: number[]) =>
+  apiSend<{ ok: true }>("POST", "/api/me/notifications/read", { ids });
+export const getVapidKey = () => apiGet<{ publicKey: string }>("/api/push/vapid-key");
+export const subscribePush = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+  apiSend<{ ok: true }>("POST", "/api/me/push-subscriptions", sub);
+export const unsubscribePush = (endpoint: string) =>
+  apiSend<{ ok: true }>("DELETE", "/api/me/push-subscriptions", { endpoint });
+/** The server's view of this endpoint for the *session user*. The browser's PushSubscription
+ *  survives sign-out, account switches and the notifier retiring the row, so it alone cannot
+ *  tell the toggle whether push will actually arrive. */
+export const getPushStatus = (endpoint: string) =>
+  apiGet<{ active: boolean }>(`/api/me/push-subscriptions?endpoint=${encodeURIComponent(endpoint)}`);
 
 async function getOrNull<T>(path: string): Promise<T | null> {
   try {

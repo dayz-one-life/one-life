@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { signOut } from "@/lib/auth-client";
+import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
 import { useControls, useControlsActions } from "./use-controls";
@@ -12,6 +12,8 @@ import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
+import { NotificationsPanel } from "./notifications-panel";
+import { PushToggle } from "./push-toggle";
 import { ApiError } from "@/lib/api";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
@@ -92,6 +94,16 @@ export function MobileControls() {
         )}
         {verified && (
           <>
+            <NotificationsPanel
+              items={c.notifications}
+              unreadCount={c.unreadCount}
+              onOpen={(ids) => a.markRead.mutate(ids)}
+              hasMore={c.hasMore}
+              onLoadMore={c.loadMore}
+              loadingMore={c.loadingMore}
+            >
+              <PushToggle />
+            </NotificationsPanel>
             <TokensPanel
               boxed
               showReferrer={false}
@@ -125,7 +137,7 @@ export function MobileControls() {
           )}
           <button
             type="button"
-            onClick={() => void signOut().finally(() => { window.location.href = "/"; })}
+            onClick={() => void signOutAndTeardownPush()}
             className="text-cream-muted hover:text-paper"
           >
             Sign out

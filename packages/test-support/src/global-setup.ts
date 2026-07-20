@@ -29,6 +29,8 @@ const APP_TABLES = [
   "characters",
   "articles",
   "article_images",
+  "notifications",
+  "push_subscriptions",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */

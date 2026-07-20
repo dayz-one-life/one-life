@@ -12,6 +12,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.26.0] - 2026-07-19
+
+### Added
+- Player notifications: a new `apps/notifier` worker sweeps the event history for nine
+  notification kinds — gamertag verified, tokens received/granted, ban applied/lifted, life
+  qualified, survival milestone, and obituary/birth-notice published — writes them to a new durable
+  `notifications` table, and delivers unread ones as browser Web Push (`push_subscriptions` table,
+  VAPID-signed, an endpoint retires itself after repeated delivery failures). Generation is gated by
+  a forward-only `NOTIFIER_SINCE` cutoff (unset = OFF) and `NOTIFIER_DRY_RUN` (defaults `true`); push
+  has its own `NOTIFIER_PUSH_ENABLED` kill switch, independent of generation. New API routes —
+  `GET /me/notifications`, `POST /me/notifications/read`, `POST`/`DELETE /me/push-subscriptions`, and
+  the public `GET /push/vapid-key` — back a new notifications panel in the web controls rail (unread
+  badge, a paginated list with a **Load older** control, and a push opt-in toggle), plus a service
+  worker and PWA manifest so push notifications can be received and clicked through to the linked
+  page. Expanding the panel marks read **only the rows it actually put on screen**, never the whole
+  inbox.
+  **`life_qualified` is windowed on the exact qualification instant, derived at read time** by
+  calling the existing `lifeQualifiedAt()` (`@onelife/read-models`) per open life, rather than on
+  `lives.startedAt` — which could miss a life that qualified long after it started. The notifier
+  loads every open life owned by a verified user on a slugged server (a small set — currently-alive
+  verified players) with its sessions and kills, and derives qualification in TypeScript. There is
+  deliberately **no SQL qualification prefilter**: `lives.playtime_seconds` only advances when a
+  session closes, so any stored-playtime filter would be blind to a life crossing the threshold
+  mid-session. Qualification therefore remains **derived, never materialized** — one source of truth,
+  shared with the survivors board, the enforcer and the newsdesk. **This release deploys normally,
+  without `--rebuild`.**
+
+### Changed
+
+### Fixed
+
+> Every entry in this section is a defect found and corrected **inside this same unreleased
+> feature**, during review, before any of it reached a player. The notifier, the push stack and
+> the notifications panel are all new above — no released version of One Life ever exhibited
+> these behaviours, and nobody needs to check whether they were affected. They are recorded
+> because the reasoning is worth keeping, not because anything users had was broken.
+
+- **Ban notifications windowed on columns that don't record the events they stand for.**
+  `ban_applied` looked at `bans.banned_at`, which is the *death* time, not when the ban was placed —
+  if ingest or the projector fall behind by more than `NOTIFIER_LOOKBACK_HOURS`, `banned_at` is
+  already outside the window by the time the ban row lands and the player is never told they were
+  banned. It now windows on `bans.created_at`, the moment the row was written. `ban_lifted` looked
+  at `bans.expires_at`, which is only `banned_at + BAN_DURATION_HOURS`: that both announced "You're
+  back in" at go-live for bans resolved *before* `NOTIFIER_SINCE`, and dropped the notification
+  entirely when the enforcer marked a ban expired late. It now windows on `bans.lifted_at`. In
+  production today only `redeem`'s straight-to-lifted path actually stamps that column: under
+  `ENFORCER_DRY_RUN` the apply loop `continue`s before `markApplied`, so no ban reaches
+  `status='applied'`, `appliedBans()` is always empty and `markExpired` never runs. `ban_applied`
+  deliberately has **no** status/`applied_at` filter, because status tracks *delivery to Nitrado*,
+  which is retried — gating on `applied` would delay or drop the notification for a ban the
+  platform has already decided on and already started the 24h clock for.
+- **Ban notifications fired for bans that were never placed.** Neither ban generator filtered on
+  `bans.dry_run`. Under `ENFORCER_DRY_RUN` — which defaults to `true` and is how production runs —
+  the enforcer writes the ban row and then `continue`s: nothing reaches Nitrado and the player is
+  not banned. They would still have been told "banned for 24 hours, spend an unban token to come
+  back early", and that invitation was not idle, because `redeem` selects on
+  `status IN ('pending','applied')` with no `dry_run` predicate of its own — spending a token
+  against a dry-run ban really does consume it. Both generators now require `dry_run = false`.
+  **Consequence, and it is the intended behaviour rather than a regression: while the enforcer runs
+  in dry-run, ban notifications do not fire at all**, because nobody is actually being banned. They
+  begin firing on their own when `ENFORCER_DRY_RUN=false`. The filter is commented in
+  `apps/notifier/src/generators/bans.ts` so it is not later deleted to "restore" them.
+- **Opening the notifications panel destroyed unread notifications.** The panel POSTed a blanket
+  "mark everything unread as read" while the feed only ever served the newest 20 rows, so any
+  backlog deeper than one page was marked read without ever being shown, and was then unreachable —
+  the feed endpoint took no parameters at all. `POST /me/notifications/read` now takes an explicit
+  `{ ids }` list (capped at 500; empty is a no-op, over-cap is a 400), with the user-ownership
+  predicate still in the WHERE clause so naming another user's id updates zero rows; the panel sends
+  only the ids it actually rendered. `GET /me/notifications` takes `?page=` in house style.
+- **The paginated feed had no client, so the badge could not drain.** Adding `?page=` to the API
+  left no caller that sent it: page 1 always returned the newest 20 rows regardless of read state,
+  so once those were marked read, older unread sat on page 2 with no call path able to reach them —
+  a user with more than 20 unread had a badge pinned at `(total - 20)` for the life of the account.
+  The response now carries `total`, the web client reads the feed through an infinite query, and the
+  panel grew a **Load older** control that appears while `page * pageSize < total`. The panel also
+  stopped tracking "have we marked read yet" as a once-per-mount flag and now tracks the set of ids
+  already reported, so a page loaded *after* the panel was expanded is marked read too — with the
+  flag, everything the new control revealed would have stayed unread forever. Pressing Load older
+  until it disappears now takes any depth of backlog to zero unread, which is asserted end to end
+  by a test that seeds a backlog deeper than one page and drives the exact loop the client runs.
+- **Two startup paths could crash-loop the notifier.** `NOTIFIER_DRY_RUN` and
+  `NOTIFIER_PUSH_ENABLED` used `z.enum(["true","false"])`, whose `.default()` fires only on
+  `undefined` — a blank value (the usual way to "unset" a var in an env file), `FALSE`, or a
+  trailing space threw out of `loadConfig` at module scope with no try/catch. They now use the house
+  idiom from `apps/newsdesk/src/config.ts` (`z.string().optional()` plus `!== "false"`), so
+  unparseable input lands on the safe side instead of killing the unit. Separately,
+  `webpush.setVapidDetails()` throws *synchronously* on a subject missing its `mailto:` prefix or a
+  malformed key, and the sender was built at module top level — a typo'd VAPID subject killed the
+  process before the loop started, so generation never ran either, and `deploy.sh`'s post-start
+  `systemctl is-active` check failed. A guarded `buildSender()` now falls back to `null` (push off,
+  generation continues).
+- **Push notifications survived sign-out on a shared browser.** Nothing tore the subscription down,
+  so after user A signed out and user B signed in, A's notifications — including obituary headlines
+  carrying A's gamertag — kept firing as OS notifications on B's device, and B's "turn off" deleted
+  zero rows because the DELETE is scoped to the session user. Sign-out now runs a shared
+  `signOutAndTeardownPush()` (`apps/web/src/lib/push.ts`, used by both the desktop rail and the
+  mobile sheet, so the two handlers can't drift): it deletes the server row **before** `signOut()`,
+  while the session is still valid, and never throws — a failed teardown must not trap anyone in a
+  session.
+- **The push toggle now reconciles browser state with the server.** It read only
+  `Notification.permission` and the browser's `PushSubscription`, both of which are untouched when
+  the notifier retires an endpoint after repeated delivery failures or when the account on the
+  machine changes — so the rail said "on" in exactly the cases where no push could arrive. New
+  `GET /me/push-subscriptions?endpoint=…` reports whether the **session user** has a live
+  (non-disabled) row; ownership and `disabled_at` are both WHERE-clause predicates, so another
+  user's row reads as inactive rather than leaking. An unreachable server falls back to "off",
+  the self-healing direction: turning it back on upserts by endpoint and repairs the row.
+- **A failed unsubscribe reported "off" while pushes continued.** `disable()` set the state in a
+  `finally`, so a rejected server call skipped `sub.unsubscribe()` and still rendered "off" — the
+  one direction that never self-heals, because a user who believes they turned push off will not
+  touch the control again. It now sets "off" only on success and otherwise shows an error state
+  saying push is still on, with a retry.
+- **An unset `VAPID_PUBLIC_KEY` failed silently forever.** It was read straight off `process.env`
+  outside the API's validated config, and the `onelife-api` unit has its own `EnvironmentFile`
+  (`deploy/README.md`), so this was a live path: the API booted clean, `GET /push/vapid-key` served
+  `""`, `subscribe()` threw, the toggle swallowed it, and the notifier reported success because it
+  found zero subscriptions. It is now in `apps/api/src/config.ts` and logs a loud startup warning
+  when empty — a warning rather than a boot failure, since push is optional and refusing to start
+  would take the whole public site down with it.
+
 ## [0.25.0] - 2026-07-19
 
 ### Added
