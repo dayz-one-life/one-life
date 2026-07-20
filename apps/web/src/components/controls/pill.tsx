@@ -10,7 +10,7 @@ export function SignInPill() {
     <Link
       href="/login"
       aria-label="Sign in"
-      className="fixed inset-x-3.5 bottom-3.5 z-40 flex min-h-[44px] items-center justify-between gap-3 border-2 border-red bg-dark px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,.35)] xl:hidden"
+      className="fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom))] z-40 flex min-h-[44px] items-center justify-between gap-3 border-2 border-red bg-dark px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,.35)] xl:hidden"
     >
       <span className="font-display text-sm font-bold uppercase tracking-[.08em] leading-tight text-paper">
         Get in the paper.
@@ -54,7 +54,7 @@ export function ControlsPillView({
       aria-expanded={open}
       aria-haspopup="dialog"
       aria-controls="controls-sheet"
-      className="fixed inset-x-3.5 bottom-3.5 z-40 flex min-h-[44px] items-center gap-3 border-2 border-red bg-dark px-4 py-2.5 text-left shadow-[0_10px_30px_rgba(0,0,0,.35)] xl:hidden"
+      className="fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom))] z-40 flex min-h-[44px] items-center gap-3 border-2 border-red bg-dark px-4 py-2.5 text-left shadow-[0_10px_30px_rgba(0,0,0,.35)] xl:hidden"
     >
       <AvatarDisc name={name} size={30} />
       <span className="min-w-0 flex-1">

@@ -526,7 +526,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   no dry copy — stays up until the content engine can actually write it; the underlying
   read-models land ahead of the UI (R4) but a teaser doesn't retire until its content-engine slice
   ships. **Obituaries' teaser retired as of R5a; Fresh Spawns' as of R5b; News' as of R5d PR-C3** —
-  all three teasers are now gone.
+  all three teasers are now gone. The mobile-controls polish pass gave the sheet swipe-dismiss
+  (`useSheetDrag`, header-zone only), a two-phase motion-safe enter/exit, and a route-change close;
+  the controls dark surface uses four named tokens — `dark-well`/`dark-hollow`/`dark-edge`/
+  `dark-edge-bright` — no raw hexes (grep-gated).
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict

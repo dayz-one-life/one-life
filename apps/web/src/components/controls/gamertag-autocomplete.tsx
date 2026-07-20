@@ -66,9 +66,15 @@ export function GamertagAutocomplete({
         autoComplete="off"
         placeholder={placeholder}
         className={inputClassName}
+        onFocus={(e) =>
+          e.currentTarget.scrollIntoView?.({
+            block: "center",
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          })
+        }
       />
       {suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-20 border border-t-0 border-dark-line bg-[#111]">
+        <ul className="absolute left-0 right-0 top-full z-20 max-h-[210px] overflow-y-auto border border-t-0 border-dark-line bg-dark-well">
           {suggestions.map((s) => (
             <li key={s}>
               <button
@@ -79,7 +85,7 @@ export function GamertagAutocomplete({
                   onChange(s);
                   setSuggestions([]);
                 }}
-                className="w-full px-3 py-2 text-left font-mono text-xs uppercase text-cream-dim hover:bg-[#1A1A12] hover:text-paper"
+                className="w-full px-3 py-2 text-left font-mono text-xs uppercase text-cream-dim hover:bg-dark-hollow hover:text-paper"
               >
                 {s}
               </button>
