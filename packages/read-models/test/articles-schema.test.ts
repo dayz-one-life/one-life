@@ -92,3 +92,27 @@ describe("R5c image columns", () => {
     }
   });
 });
+
+describe("0016 nullable subject columns", () => {
+  // An institutional editorial piece (an Almanac census) has no subject at all. Before 0016 these
+  // five columns were NOT NULL and a subject-less article could only be stored by inventing a fake
+  // subject — which would then be rendered, linked, and indexed as if it were a real player.
+  it("accepts a news row with no subject columns at all", async () => {
+    const [row] = await db.insert(articles).values({
+      kind: "news",
+      status: "draft",
+      slug: `almanac-schema-${Date.now()}`,
+      naturalKey: `almanac:week:2026-W29-schema-${Date.now()}`,
+      headline: "The Coldest Map Keeps Its People Longest",
+      lede: "The registry has finished counting.",
+    }).returning();
+
+    expect(row!.gamertag).toBeNull();
+    expect(row!.serverId).toBeNull();
+    expect(row!.map).toBeNull();
+    expect(row!.lifeNumber).toBeNull();
+    expect(row!.lifeStartedAt).toBeNull();
+
+    await db.delete(articles).where(eq(articles.id, row!.id));
+  });
+});

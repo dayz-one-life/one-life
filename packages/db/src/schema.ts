@@ -356,12 +356,12 @@ export const articles = pgTable("articles", {
   kind: text("kind").notNull(),                       // 'obituary' | 'birth_notice' | 'news'
   status: text("status").notNull().default("published"),  // published|failed|retracted
   slug: text("slug"),                                                // null on a failed stub
-  serverId: integer("server_id").notNull().references(() => servers.id),
-  gamertag: text("gamertag").notNull(),                              // natural-key: player identity
-  map: text("map").notNull(),                                         // servers.map codename
+  serverId: integer("server_id").references(() => servers.id),
+  gamertag: text("gamertag"),                                        // NULL for an institutional editorial piece
+  map: text("map"),                                                  // servers.map codename; NULL when no single server
   mapSlug: text("map_slug"),                                         // servers.slug (nullable)
-  lifeNumber: integer("life_number").notNull(),
-  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }).notNull(), // natural-key: which life
+  lifeNumber: integer("life_number"),
+  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }), // natural-key: which life
   deathAt: timestamp("death_at", { withTimezone: true }),               // obituaries: lives.ended_at (feed order); birth notices: NULL while alive
   timeAliveSeconds: integer("time_alive_seconds").notNull().default(0),
   kills: integer("kills").notNull().default(0),
