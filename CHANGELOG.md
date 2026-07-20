@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.26.1] - 2026-07-20
+
 ### Fixed
 - web: **the notifications panel was invisible on mobile.** It shipped styled entirely in
   light-rail tokens (`text-ink`, `border-ink`, `bg-bone`, `text-ink-muted`) and was mounted bare
