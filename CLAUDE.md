@@ -389,7 +389,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   separate prompt-version string), `articles.image_model` records which model generated it, and
   `articles.image_attempts`/`image_error` are retry counters **independent of** the text-generation
   attempt counter. **Serving:** API `GET /media/heroes/:file` (`apps/api/src/routes/media.ts`) —
-  a filename allow-list regex doubles as the traversal guard, an immutable long-cache header, and
+  a filename allow-list regex doubles as the traversal guard, an immutable long-cache header
+  (**which is why `getNewsArticleBySlug` serves `imageUrl` versioned as `?v=<article_images.created_at
+  epoch>` — a hero regenerated under the same filename must change URL or next/image, the CDN and the
+  browser keep the stale photo for a year; a missing image row falls back to the bare URL**), and
   the query requires `articles.image_url IS NOT NULL` so a half-written row 404s instead of
   serving orphan bytes; this finally exercises the long-dangling `/media/:path*` rewrite in
   `apps/web/next.config.ts` and is the **first `next/image` use in the repo** (automatic webp +

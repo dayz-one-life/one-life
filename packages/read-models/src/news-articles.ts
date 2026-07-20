@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { articles, lives, players, sessions } from "@onelife/db";
+import { articles, articleImages, lives, players, sessions } from "@onelife/db";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import type { ArticleBlock } from "./obituary-articles.js";
 
@@ -230,10 +230,14 @@ export async function getNewsArticleBySlug(
       pullQuoteAttribution: articles.pullQuoteAttribution,
       imageUrl: articles.imageUrl,
       imageCaption: articles.imageCaption,
+      // The stored image's created_at versions the URL below. Selected via join, never the bytes
+      // column — CARD_COLS' named-columns rule extends here.
+      imageCreatedAt: articleImages.createdAt,
       timeAliveSeconds: articles.timeAliveSeconds,
       kills: articles.kills,
     })
     .from(articles)
+    .leftJoin(articleImages, eq(articleImages.articleId, articles.id))
     .where(and(eq(articles.kind, "news"), readable, eq(articles.slug, slug)))
     .limit(1);
 
@@ -270,7 +274,11 @@ export async function getNewsArticleBySlug(
     pullQuote: r.pullQuoteText
       ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" }
       : null,
-    imageUrl: r.imageUrl,
+    // Cache-busted by the stored image's created_at: the media route serves a year-long immutable
+    // header, so a hero regenerated under the same filename MUST change URL or every cache layer
+    // (next/image, CDN, browser) keeps the old photo until it expires. No image row (half-written
+    // regeneration window) falls back to the bare URL, which the media route 404s anyway.
+    imageUrl: r.imageUrl && r.imageCreatedAt ? `${r.imageUrl}?v=${r.imageCreatedAt.getTime()}` : r.imageUrl,
     imageCaption: r.imageCaption,
     retracted: r.status === "retracted",
     timeAliveSeconds: r.timeAliveSeconds,
