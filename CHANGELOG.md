@@ -9,11 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- Notifications moved to the platform convention: a masthead bell with unread badge on every
-  page (anchored popover on desktop, link on mobile), a permanent `/notifications` inbox
-  ("The Wire") with the push-alerts toggle, and a frozen-tint read model so rows no longer
-  flatten mid-glance. The rail and mobile sheet drop their notifications panel; iOS Safari
-  now explains Add to Home Screen instead of hiding the push toggle.
 
 ### Deprecated
 
@@ -22,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.29.0] - 2026-07-20
+
+### Changed
+- Notifications moved to the platform convention: a masthead bell with unread badge on every
+  page (anchored popover on desktop, link on mobile), a permanent `/notifications` inbox
+  ("The Wire") with the push-alerts toggle, and a frozen-tint read model so rows no longer
+  flatten mid-glance. The rail and mobile sheet drop their notifications panel; iOS Safari
+  now explains Add to Home Screen instead of hiding the push toggle.
 
 ## [0.28.0] - 2026-07-20
 
