@@ -251,15 +251,21 @@ export type NotificationsFeed = {
 
 export type NewsTrigger = "standing_dead" | "long_form";
 
+export type NewsFormat = "standing_dead" | "long_form" | "editorial";
+
 export type NewsSubjectRef = { gamertag: string; mapSlug: string | null; lifeNumber: number };
 
+/** Subject fields are nullable because an editorial piece has no (server, gamertag, life) tuple —
+ *  a card renderer must guard on `gamertag` before drawing any subject chrome. */
 export type NewsCard = {
   slug: string;
   trigger: NewsTrigger;
-  gamertag: string;
-  map: string;
+  format: NewsFormat;
+  editorialFormat: string | null;
+  gamertag: string | null;
+  map: string | null;
   mapSlug: string | null;
-  lifeNumber: number;
+  lifeNumber: number | null;
   headline: string;
   lede: string;
   tags: string[];
@@ -279,6 +285,7 @@ export type NewsSubjectStatus =
   | { kind: "died"; diedAt: string; obituarySlug: string | null };
 
 export type NewsArticle = NewsCard & {
+  status: "published" | "draft" | "retracted";
   body: string;
   bodyBlocks?: ArticleBlock[] | null;
   pullQuote: { text: string; attribution: string } | null;

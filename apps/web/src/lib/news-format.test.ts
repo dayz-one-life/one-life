@@ -7,7 +7,8 @@ import type { NewsArticle } from "./types";
 
 const article = (over: Partial<NewsArticle> = {}): NewsArticle => ({
   slug: "standing-dead-still-standing-somewhere-gabefox101-7-3",
-  trigger: "standing_dead", gamertag: "GabeFox101", map: "chernarusplus", mapSlug: "chernarus",
+  trigger: "standing_dead", format: "standing_dead", editorialFormat: null, status: "published",
+  gamertag: "GabeFox101", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "Still Standing, Somewhere", lede: "L", tags: ["News"],
   subjectCount: 1, createdAt: "2026-07-14T00:00:00Z", body: "B", bodyBlocks: null,
   pullQuote: null, imageUrl: null, imageCaption: null, retracted: false,
