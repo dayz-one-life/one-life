@@ -35,7 +35,7 @@ export function ControlsSheet({
         tabIndex={-1}
         className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto border-t-[3px] border-red bg-dark shadow-[0_-18px_40px_rgba(0,0,0,.45)]"
       >
-        <div aria-hidden className="mx-auto mt-2.5 h-1 w-11 rounded-sm bg-[#4A4838]" />
+        <div aria-hidden className="mx-auto mt-2.5 h-1 w-11 rounded-sm bg-dark-edge" />
         <div className="flex items-center gap-3 border-b border-dark-line px-[18px] py-3">
           <div className="min-w-0 flex-1">{header}</div>
           <button
@@ -60,7 +60,7 @@ function SheetUnban({ state, onRedeem }: { state: UnbanState; onRedeem: () => vo
   }
   if (state === "no-tokens") {
     return (
-      <p className="mt-2 border border-dashed border-[#4A4838] px-2.5 py-1.5 text-center font-mono text-[10px] uppercase tracking-[.05em] text-red-soft">
+      <p className="mt-2 border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[10px] uppercase tracking-[.05em] text-red-soft">
         No unban tokens
       </p>
     );
@@ -108,7 +108,7 @@ export function SheetServerRow({
       {banned && (
         <>
           {countdown && (
-            <div className="mt-2 flex items-center justify-between border border-dark-line bg-[#111] px-2.5 py-1.5">
+            <div className="mt-2 flex items-center justify-between border border-dark-line bg-dark-well px-2.5 py-1.5">
               <span className="font-mono text-[9.5px] uppercase tracking-[.06em] text-cream-muted">Ban lifts in</span>
               <span className="font-display text-base font-bold text-paper">{countdown}</span>
             </div>

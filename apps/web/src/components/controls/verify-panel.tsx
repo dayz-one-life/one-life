@@ -62,7 +62,7 @@ export function ProveItPanel({
               className={cn(
                 "flex-1 px-2 py-3 text-center uppercase",
                 done && "bg-paper font-bold text-ink",
-                current && "border border-dashed border-[#6A6852] bg-[#1A1A12] text-yellow",
+                current && "border border-dashed border-dark-edge-bright bg-dark-hollow text-yellow",
                 !done && !current && "border border-dashed border-dark-line text-cream-muted",
               )}
             >

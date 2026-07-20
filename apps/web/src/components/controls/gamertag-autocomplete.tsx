@@ -68,7 +68,7 @@ export function GamertagAutocomplete({
         className={inputClassName}
       />
       {suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-20 border border-t-0 border-dark-line bg-[#111]">
+        <ul className="absolute left-0 right-0 top-full z-20 border border-t-0 border-dark-line bg-dark-well">
           {suggestions.map((s) => (
             <li key={s}>
               <button
@@ -79,7 +79,7 @@ export function GamertagAutocomplete({
                   onChange(s);
                   setSuggestions([]);
                 }}
-                className="w-full px-3 py-2 text-left font-mono text-xs uppercase text-cream-dim hover:bg-[#1A1A12] hover:text-paper"
+                className="w-full px-3 py-2 text-left font-mono text-xs uppercase text-cream-dim hover:bg-dark-hollow hover:text-paper"
               >
                 {s}
               </button>

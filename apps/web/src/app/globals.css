@@ -17,6 +17,10 @@
   --hairline-2: 228 226 212; /* #E4E2D4 lighter rules */
   --archive: 244 242 230;    /* #F4F2E6 past-life card bg */
   --dark-line: 38 38 28;     /* #26261C hairline on dark */
+  --dark-well: 17 17 17;          /* #111111 — inset field/box background on dark */
+  --dark-hollow: 26 26 18;        /* #1A1A12 — current-emote cell background */
+  --dark-edge: 74 72 56;          /* #4A4838 — on-dark hardware borders (grabber, dashed boxes) */
+  --dark-edge-bright: 106 104 82; /* #6A6852 — bright dashed border (current emote) */
   --dash: 185 183 168;       /* #B9B7A8 dashed borders / pagination ("dash", not "dashed" — avoids colliding with Tailwind's border-dashed style utility) */
   --red-deep: 196 18 8;      /* #C41208 — small-text error red (5.8:1 on paper) */
   --ink-soft: 51 51 51;      /* #333 body-on-paper */
