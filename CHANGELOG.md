@@ -9,11 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- web: **the article hero photo is now a 16:9 crop at the full article-column width** (was a 4:5
-  crop capped at `max-w-md`); the news-interior loading skeleton mirrors it. The newsdesk's
-  `IMAGE_ASPECT.hero` prompt nudge follows to 16:9 so future canvases are framed landscape;
-  already-stored portrait heroes crop to their middle band via `object-cover` — no regeneration
-  needed.
 
 ### Deprecated
 
@@ -22,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.27.1] - 2026-07-20
+
+### Changed
+- web: **the article hero photo is now a 16:9 crop at the full article-column width** (was a 4:5
+  crop capped at `max-w-md`); the news-interior loading skeleton mirrors it. The newsdesk's
+  `IMAGE_ASPECT.hero` prompt nudge follows to 16:9 so future canvases are framed landscape;
+  already-stored portrait heroes crop to their middle band via `object-cover` — no regeneration
+  needed.
 
 ## [0.27.0] - 2026-07-20
 
