@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getPushStatus, getVapidKey, subscribePush, unsubscribePush } from "@/lib/api";
 import { currentPushSubscription } from "@/lib/push";
 
-type State = "unsupported" | "denied" | "off" | "on" | "working" | "error";
+type State = "unsupported" | "ios" | "denied" | "off" | "on" | "working" | "error";
 
 const ENABLE_FAILED = "Couldn't turn push alerts on. Try again.";
 const DISABLE_FAILED = "Push alerts are STILL ON — we couldn't turn them off. Try again.";
@@ -17,10 +17,10 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-/** `onDark` — this control renders inside NotificationsPanel, which sits on the light rail AND on
- *  the `bg-dark` mobile sheet. Without the swap its ink-muted styling is invisible on a phone,
- *  which is the device push notifications exist for. Mirrors NotificationsPanel's own prop. */
-export function PushToggle({ onDark = false }: { onDark?: boolean }) {
+/** Renders only on the light `/notifications` page, so there is no dark-surface variant to
+ *  account for here — unlike its previous home inside NotificationsPanel, which had to swap
+ *  tokens for the `bg-dark` mobile sheet. */
+export function PushToggle() {
   const [state, setState] = useState<State>("working");
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +33,11 @@ export function PushToggle({ onDark = false }: { onDark?: boolean }) {
     setState("working");
     setError(null);
     if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setState("unsupported");
+      const nav = navigator as Navigator & { standalone?: boolean };
+      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      // iOS Safari has push — but only for installed PWAs. Silence here was the old bug:
+      // the platform our players actually carry saw no toggle and no reason why.
+      setState(ios && nav.standalone !== true ? "ios" : "unsupported");
       return;
     }
     if (Notification.permission === "denied") {
@@ -105,8 +109,15 @@ export function PushToggle({ onDark = false }: { onDark?: boolean }) {
     }
   }
 
-  const cls = `mt-1 text-left font-mono text-[10px] uppercase tracking-[.05em] hover:text-red ${onDark ? "text-cream-muted" : "text-ink-muted"}`;
-  if (state === "unsupported") return null;
+  const cls = "mt-1 text-left font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted hover:text-red";
+  if (state === "unsupported") return <p className={cls}>Push isn&apos;t supported in this browser.</p>;
+  if (state === "ios") {
+    return (
+      <p className={cls}>
+        Push needs One Life on your home screen — Share → Add to Home Screen, then come back here.
+      </p>
+    );
+  }
   if (state === "denied") {
     return <p className={cls}>Push blocked in your browser settings.</p>;
   }
@@ -124,7 +135,11 @@ export function PushToggle({ onDark = false }: { onDark?: boolean }) {
     );
   }
   return (
-    <button type="button" onClick={() => void (state === "on" ? disable() : enable())} className={cls}>
+    <button
+      type="button"
+      onClick={() => void (state === "on" ? disable() : enable())}
+      className={cls + " flex min-h-[44px] items-center"}
+    >
       {state === "on" ? "Turn off push alerts" : "Turn on push alerts"}
     </button>
   );

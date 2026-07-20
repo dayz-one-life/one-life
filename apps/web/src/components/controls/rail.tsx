@@ -13,8 +13,6 @@ import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { ServerCard } from "./server-cards";
-import { NotificationsPanel } from "./notifications-panel";
-import { PushToggle } from "./push-toggle";
 
 function RailSkeleton() {
   return (
@@ -102,16 +100,6 @@ export function ControlsRail() {
     body = (
       <>
         <IdentityRow name={gamertag} provider={c.provider} verified />
-        <NotificationsPanel
-          items={c.notifications}
-          unreadCount={c.unreadCount}
-          onOpen={(ids) => a.markRead.mutate(ids)}
-          hasMore={c.hasMore}
-          onLoadMore={c.loadMore}
-          loadingMore={c.loadingMore}
-        >
-          <PushToggle />
-        </NotificationsPanel>
         <TokensPanel
           balance={c.balance ?? 0}
           send={mutView(a.send)}
