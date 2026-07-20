@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const getVapidKey = vi.fn();
@@ -56,6 +56,10 @@ beforeEach(() => {
   stubBrowser();
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("PushToggle mount reconciliation", () => {
   it("offers to turn push on when nothing is subscribed", async () => {
     render(<PushToggle />);
@@ -87,12 +91,12 @@ describe("PushToggle mount reconciliation", () => {
     expect(await screen.findByRole("button", { name: /turn on push alerts/i })).toBeInTheDocument();
   });
 
-  it("renders nothing when the browser cannot do push", async () => {
+  it("explains that push isn't supported when the browser cannot do push", async () => {
     // Absent, not undefined: the support check is `"serviceWorker" in navigator`, which a
     // defined-but-undefined property still satisfies.
     Reflect.deleteProperty(navigator, "serviceWorker");
-    const { container } = render(<PushToggle />);
-    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    render(<PushToggle />);
+    expect(await screen.findByText("Push isn't supported in this browser.")).toBeInTheDocument();
   });
 
   it("explains a browser-level block instead of offering a dead button", async () => {
@@ -166,28 +170,24 @@ describe("PushToggle disable", () => {
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     await waitFor(() => expect(offButton()).toBeInTheDocument());
   });
+});
 
-  // This control lives INSIDE NotificationsPanel, so it inherits whichever surface the panel is
-  // on — and the mobile ControlsSheet is bg-dark. Its ink-muted styling made it invisible there:
-  // the one control that turns push on, unreadable on the device push exists for.
-  describe("on a dark surface", () => {
-    it("uses a sheet-legible token in every state", async () => {
-      render(<PushToggle onDark />);
-      expect(await screen.findByRole("button", { name: /turn off push alerts/i }))
-        .toHaveClass("text-cream-muted");
+describe("PushToggle unsupported platforms", () => {
+  // The default beforeEach stubs a PushManager global for the "supported" tests above; these
+  // scenarios are about its absence, so drop that stub before replacing navigator.
+  beforeEach(() => { vi.unstubAllGlobals(); });
 
-      unsubscribePush.mockRejectedValueOnce(new Error("500"));
-      fireEvent.click(screen.getByRole("button", { name: /turn off push alerts/i }));
-      expect(await screen.findByRole("alert")).toBeInTheDocument();
-      const retry = screen.getByRole("button", { name: /try again/i });
-      expect(retry).toHaveClass("text-cream-muted");
-      expect(retry).not.toHaveClass("text-ink-muted");
-    });
+  test("iOS Safari outside the installed app explains Add to Home Screen", async () => {
+    vi.stubGlobal("navigator", { userAgent: "iPhone Safari", serviceWorker: undefined });
+    render(<PushToggle />);
+    expect(
+      await screen.findByText(/push needs one life on your home screen/i),
+    ).toBeInTheDocument();
+  });
 
-    it("keeps the light rail default when onDark is absent", async () => {
-      render(<PushToggle />);
-      expect(await screen.findByRole("button", { name: /turn off push alerts/i }))
-        .toHaveClass("text-ink-muted");
-    });
+  test("genuinely unsupported browsers say so instead of rendering nothing", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 OldBrowser", serviceWorker: undefined });
+    render(<PushToggle />);
+    expect(await screen.findByText("Push isn't supported in this browser.")).toBeInTheDocument();
   });
 });

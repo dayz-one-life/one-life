@@ -23,7 +23,6 @@ vi.mock("@/lib/auth-client", () => ({ signOut: () => bareSignOut() }));
 const mut = () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false, error: null });
 const base = {
   name: "Boots", provider: "discord", balance: 3, servers: [], standing: [],
-  notifications: [], unreadCount: 0, hasMore: false, loadMore: vi.fn(), loadingMore: false,
 };
 const verified = {
   ...base,
@@ -36,7 +35,7 @@ const verified = {
 beforeEach(() => {
   vi.clearAllMocks();
   (useControlsActions as Mock).mockReturnValue({
-    claim: mut(), cancel: mut(), send: mut(), refer: mut(), redeem: mut(), markRead: mut(),
+    claim: mut(), cancel: mut(), send: mut(), refer: mut(), redeem: mut(),
   });
 });
 
@@ -79,14 +78,5 @@ describe("MobileControls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
-  });
-
-  // The sheet is bg-dark: the panel must mount in its dark variant or it renders ink-on-dark —
-  // present in the DOM, invisible on the phone. RTL cannot see contrast, so this pins the
-  // variant prop by its observable class swap instead.
-  test("mounts the notifications panel in its dark variant", () => {
-    (useControls as Mock).mockReturnValue(verified);
-    openSheet();
-    expect(screen.getByRole("button", { name: /notifications/i })).toHaveClass("text-paper");
   });
 });
