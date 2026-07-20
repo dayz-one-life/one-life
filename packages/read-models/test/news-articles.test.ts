@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, articles, players, lives, sessions, positions } from "@onelife/db";
+import { servers, articles, articleImages, players, lives, sessions, positions } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getPublishedNews, getNewsArticleBySlug, newsFormatOf } from "../src/news-articles.js";
 
@@ -169,6 +169,13 @@ describe("getNewsArticleBySlug", () => {
         facts: { trigger: "standing_dead", subjectCount: 1 },
       }),
     ]);
+    // The stored bytes for the detail article — its created_at is the imageUrl cache-bust version.
+    const [detailRow] = await db.select({ id: articles.id }).from(articles)
+      .where(eq(articles.slug, `detail-${svc}`));
+    await db.insert(articleImages).values({
+      articleId: detailRow!.id, bytes: Buffer.from([0x89]), contentType: "image/png",
+      width: 1536, height: 1024, createdAt: hrs(22),
+    });
   });
 
   it("returns the full article with the rich body blocks", async () => {
@@ -182,9 +189,16 @@ describe("getNewsArticleBySlug", () => {
       { type: "para", text: "Para two." },
     ]);
     expect(a!.pullQuote).toEqual({ text: "He was here on Tuesday.", attribution: "a quartermaster" });
-    expect(a!.imageUrl).toBe("/media/heroes/detail.png");
+    // Versioned by the stored image's created_at: a regenerated hero under the same filename gets
+    // a NEW URL, so the year-long immutable cache header can never pin a stale photo.
+    expect(a!.imageUrl).toBe(`/media/heroes/detail.png?v=${hrs(22).getTime()}`);
     expect(a!.imageCaption).toBe("A ROOM, RECENTLY LEFT");
     expect(a!.retracted).toBe(false);
+  });
+
+  it("keeps the bare imageUrl when no stored image row exists (half-written state)", async () => {
+    const a = await getNewsArticleBySlug(db, `detail-retracted-${svc}`);
+    expect(a!.imageUrl).toBe("/media/heroes/detail-retracted.png");
   });
 
   it("returns null bodyBlocks when the column is unset", async () => {
