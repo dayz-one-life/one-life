@@ -11,6 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- web: **the notifications panel was invisible on mobile.** It shipped styled entirely in
+  light-rail tokens (`text-ink`, `border-ink`, `bg-bone`, `text-ink-muted`) and was mounted bare
+  into the mobile `ControlsSheet`, which is `bg-dark` — so on a phone every element rendered
+  ink-on-dark: present in the DOM, readable by the tests, unreadable by a human. The panel gains
+  an `onDark` variant (the `TokensPanel boxed` precedent); the sheet mount passes it and the
+  desktop rail keeps the light default. `accentFor()` takes the flag too, since the ink
+  bookkeeping spine had the same problem. The regression was invisible to the suite because RTL
+  asserts the DOM, not contrast — the new tests pin the token swap itself.
+- domain: **a fatal fall whose death line names no killer now reads as `fall`, not "no cause
+  recorded".** DayZ logs a fatal fall twice and inconsistently: a `hit by FallDamageHealth` line
+  at HP 0, and a death line that — unlike an animal or infected kill — carries no `killed by`
+  clause at all. The stage-2 entity dict only reads the killer clause, so these deaths arrived as
+  a bare `died`, categorised `unknown`, and the paper reported no cause for a man who fell to his
+  death in plain sight of the log. `classifyDeath` gains a fall rung above the condition
+  inferences: a recent hit labelled `FallDamage*` that took the victim to 0 HP is the killing
+  blow. A starving man who falls died of the fall — his hunger stays in `conditions`. A
+  non-terminal fall hit is ignored, and a stated mechanism still wins. `RecentHit.victimHp` was
+  already queried by the dossier and dropped in the mapping; threading it through is what makes
+  the evidence reachable. **Retroactive** — verdicts are computed lazily, never materialized, so
+  affected lives, timelines and player pages correct themselves with no migration and no
+  rebuild. Two lives in the current corpus are rescued. Already-published obituaries keep their
+  frozen `Unknown` tag (`articles.facts` is forward-only).
 
 ## [0.26.0] - 2026-07-19
 
