@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.28.0] - 2026-07-20
+
+### Added
+- web: **the news-led front page** (the R5d §15 follow-up). When the desk has published, the home
+  page leads with the newest feature — full-width 16:9 hero photo, kicker/dateline, display
+  headline, lede — with the next two features in a two-column rank below (`NewsLead`,
+  `@/components/front-page/news-lead`). The manifesto hero + top-5 "Still breathing" board remain
+  as the empty-newsroom fallback and render byte-identically when no news exists. News feed cards
+  (`getPublishedNews`) now carry a cache-versioned `imageUrl` to power the lead; the `/news`
+  section feed page itself stays text-only.
+
 ## [0.27.2] - 2026-07-20
 
 ### Fixed

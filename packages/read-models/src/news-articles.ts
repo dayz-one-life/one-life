@@ -64,6 +64,10 @@ export interface NewsCard {
   tags: string[];
   subjectCount: number;
   createdAt: Date;
+  /** Cache-versioned (`?v=<article_images.created_at epoch>`) when a stored hero exists; the bare
+   *  URL when the row is half-written; null with no image. Cards carry it for the home lead —
+   *  the /news feed page stays text-only by choice. */
+  imageUrl: string | null;
 }
 
 export interface NewsFeed {
@@ -91,6 +95,10 @@ type NewsFactsSnapshot = {
 const CARD_COLS = {
   slug: articles.slug,
   naturalKey: articles.naturalKey,
+  imageUrl: articles.imageUrl,
+  // The stored image's created_at versions imageUrl (v0.27.2's cache-bust rule). Never the bytes
+  // column — the named-columns rule below holds for the join too.
+  imageCreatedAt: articleImages.createdAt,
   gamertag: articles.gamertag,
   map: articles.map,
   mapSlug: articles.mapSlug,
@@ -108,6 +116,7 @@ function cardOf(r: {
   slug: string | null; naturalKey: string | null; gamertag: string | null; map: string | null;
   mapSlug: string | null; lifeNumber: number | null; headline: string | null; lede: string | null;
   tags: string[] | null; facts: unknown; createdAt: Date;
+  imageUrl: string | null; imageCreatedAt: Date | null;
 }): NewsCard {
   const facts = (r.facts ?? {}) as NewsFactsSnapshot;
   const format = newsFormatOf(r.naturalKey);
@@ -126,6 +135,9 @@ function cardOf(r: {
     // An editorial piece has no subjects unless it names some; default 0, not 1.
     subjectCount: facts.subjectCount ?? (format === "editorial" ? 0 : 1),
     createdAt: r.createdAt,
+    imageUrl: r.imageUrl && r.imageCreatedAt
+      ? `${r.imageUrl}?v=${r.imageCreatedAt.getTime()}`
+      : r.imageUrl,
   };
 }
 
@@ -148,6 +160,7 @@ export async function getPublishedNews(
   const rows = await db
     .select(CARD_COLS)
     .from(articles)
+    .leftJoin(articleImages, eq(articleImages.articleId, articles.id))
     .where(publishedNews)
     .orderBy(desc(articles.createdAt))
     .limit(pageSize)
@@ -228,11 +241,7 @@ export async function getNewsArticleBySlug(
       bodyBlocks: articles.bodyBlocks,
       pullQuoteText: articles.pullQuoteText,
       pullQuoteAttribution: articles.pullQuoteAttribution,
-      imageUrl: articles.imageUrl,
       imageCaption: articles.imageCaption,
-      // The stored image's created_at versions the URL below. Selected via join, never the bytes
-      // column — CARD_COLS' named-columns rule extends here.
-      imageCreatedAt: articleImages.createdAt,
       timeAliveSeconds: articles.timeAliveSeconds,
       kills: articles.kills,
     })
@@ -274,11 +283,7 @@ export async function getNewsArticleBySlug(
     pullQuote: r.pullQuoteText
       ? { text: r.pullQuoteText, attribution: r.pullQuoteAttribution ?? "" }
       : null,
-    // Cache-busted by the stored image's created_at: the media route serves a year-long immutable
-    // header, so a hero regenerated under the same filename MUST change URL or every cache layer
-    // (next/image, CDN, browser) keeps the old photo until it expires. No image row (half-written
-    // regeneration window) falls back to the bare URL, which the media route 404s anyway.
-    imageUrl: r.imageUrl && r.imageCreatedAt ? `${r.imageUrl}?v=${r.imageCreatedAt.getTime()}` : r.imageUrl,
+    // imageUrl rides in from cardOf, already cache-versioned (v0.27.2 rule, now in CARD_COLS).
     imageCaption: r.imageCaption,
     retracted: r.status === "retracted",
     timeAliveSeconds: r.timeAliveSeconds,

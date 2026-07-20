@@ -29,6 +29,7 @@ beforeAll(async () => {
   serverId = s!.id;
 
   await db.insert(articles).values([
+
     base({
       status: "published", slug: `sd-old-${svc}`, naturalKey: `standing_dead:${serverId}:${tag}:${hrs(0).toISOString()}`,
       headline: "The Man Who Did Not Come Back", lede: "sd-lede", tags: ["News", "Chernarus", "The Standing Dead"],
@@ -38,6 +39,7 @@ beforeAll(async () => {
       status: "published", slug: `lf-new-${svc}`, naturalKey: `long_form:${serverId}:${hrs(3).toISOString()}:Ay+Zed`,
       headline: "Two Went Out Together", lede: "lf-lede", tags: ["News", "Chernarus", "The Long Form"],
       createdAt: hrs(4), deathAt: hrs(3), facts: { trigger: "long_form", subjectCount: 2 },
+      imageUrl: `/media/heroes/lf-new-${svc}.png`, imageCaption: "TWO TRACKS",
     }),
     base({
       status: "retracted", slug: `sd-retracted-${svc}`, naturalKey: `standing_dead:${serverId}:${tag}:${hrs(6).toISOString()}`,
@@ -53,6 +55,13 @@ beforeAll(async () => {
       createdAt: hrs(-1), facts: { trigger: "standing_dead" },
     }),
   ]);
+  // Stored bytes for lf-new: its created_at versions the feed card's imageUrl (the home lead).
+  const [lfRow] = await db.select({ id: articles.id }).from(articles)
+    .where(eq(articles.slug, `lf-new-${svc}`));
+  await db.insert(articleImages).values({
+    articleId: lfRow!.id, bytes: Buffer.from([0x89]), contentType: "image/png",
+    width: 1536, height: 1024, createdAt: hrs(5),
+  });
 });
 
 afterAll(async () => {
@@ -109,6 +118,14 @@ describe("getPublishedNews", () => {
     expect(byHead.get("Two Went Out Together")!.subjectCount).toBe(2);
     expect(byHead.get("The Man Who Did Not Come Back")!.subjectCount).toBe(1);
     expect(byHead.get("No Subject Count Recorded")!.subjectCount).toBe(1);
+  });
+
+  it("carries a cache-versioned imageUrl on cards that have a stored hero, null otherwise", async () => {
+    const res = await getPublishedNews(db, { page: 1, pageSize: 100 });
+    const byHead = new Map(mine(res.rows).map((r) => [r.headline, r]));
+    expect(byHead.get("Two Went Out Together")!.imageUrl)
+      .toBe(`/media/heroes/lf-new-${svc}.png?v=${hrs(5).getTime()}`);
+    expect(byHead.get("The Man Who Did Not Come Back")!.imageUrl).toBeNull();
   });
 
   it("paginates", async () => {
