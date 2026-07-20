@@ -13,7 +13,8 @@ export interface ImageTarget {
   // makes the cast honest and lets the value flow into eligibleCategories/buildScenePrompt.
   kind: ArticleKind;
   slug: string;
-  gamertag: string;
+  /** NULL for an institutional editorial piece (migration 0016) — nothing downstream reads it. */
+  gamertag: string | null;
   headline: string;
   lede: string | null;
   facts: Record<string, unknown>;

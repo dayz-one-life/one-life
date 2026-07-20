@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "newsroom": "tsx src/newsroom/main.ts"
   },
   "dependencies": {
     "@onelife/db": "workspace:*",
