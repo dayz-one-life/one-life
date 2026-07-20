@@ -206,8 +206,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `docs/superpowers/specs/2026-07-17-r5b-birth-notices-fresh-spawns-design.md`), **R5c** article
   images, and **R5d** (the News vertical) ✅ —
   spec `docs/superpowers/specs/2026-07-18-r5d-news-vertical-design.md`, shipped in three PRs.
-  The news-led home page was cut from the slice and is a §15 follow-up; `/news` is a section, not
-  the front page.
+  The §15 news-led home page follow-up has since **shipped** (post-v0.27.2): when the desk has
+  published, the front page leads with the newest feature (full-width 16:9 hero photo, kicker,
+  display headline, lede) and the next two in a two-column rank (`NewsLead`,
+  `@/components/front-page/news-lead`); the manifesto hero + top-5 board are the empty-newsroom
+  fallback, byte-identical when no news exists. `getPublishedNews` cards carry a cache-versioned
+  `imageUrl` for this; the `/news` section feed page itself stays text-only by choice.
   **PR-A shipped (v0.21.2): prose fixes.** **PR-B is the plumbing**, no new vertical yet:
   migration `0014` (`natural_key`, `body_blocks`, the `(kind, status, created_at)` feed index, and
   the life natural-key unique index narrowed to `kind IN ('obituary','birth_notice')` — see the

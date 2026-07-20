@@ -263,7 +263,7 @@ describe("NewsArticleView — the related rail", () => {
       article={article()}
       more={[{
         slug: "long-form-two-fell-together-cupid18-7-5",
-        trigger: "long_form", format: "long_form", editorialFormat: null,
+        trigger: "long_form", format: "long_form", editorialFormat: null, imageUrl: null,
         gamertag: "CUPID18", map: "sakhal", mapSlug: "sakhal",
         lifeNumber: 5, headline: "Two Fell Together", lede: "A shared ending.",
         tags: ["News"], subjectCount: 2, createdAt: "2026-07-10T00:00:00Z",

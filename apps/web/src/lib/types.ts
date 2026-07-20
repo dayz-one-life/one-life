@@ -271,6 +271,9 @@ export type NewsCard = {
   tags: string[];
   subjectCount: number;
   createdAt: string;
+  /** Cache-versioned when a stored hero exists; null with no image. The home news lead renders
+   *  it; the /news feed page stays text-only by choice. */
+  imageUrl: string | null;
 };
 export type NewsFeed = { rows: NewsCard[]; total: number; page: number; pageSize: number };
 
