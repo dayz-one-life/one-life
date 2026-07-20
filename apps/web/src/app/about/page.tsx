@@ -107,7 +107,7 @@ export default async function AboutPage() {
         <dl>
           {RULES.map((r) => (
             <div key={r.term} className="grid gap-2 border-b border-hairline py-4 md:grid-cols-[190px_1fr] md:gap-6">
-              <dt className="font-mono text-xs font-bold uppercase tracking-[.06em] text-red">{r.term}</dt>
+              <dt className="font-mono text-xs font-bold uppercase tracking-[.06em] text-red-deep">{r.term}</dt>
               <dd className="m-0 font-sans text-[15px] leading-relaxed text-ink-soft">{r.def}</dd>
             </div>
           ))}

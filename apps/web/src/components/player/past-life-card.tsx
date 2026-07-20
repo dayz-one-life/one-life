@@ -17,10 +17,10 @@ export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Dat
       </div>
 
       {death?.cause && (
-        <p className="mt-2 font-mono text-xs font-bold uppercase tracking-[.04em] text-red">
+        <p className="mt-2 font-mono text-xs font-bold uppercase tracking-[.04em] text-red-deep">
           <span aria-hidden>✝ </span>
           {death.cause === "pvp" ? (
-            <>Killed by {death.byGamertag ? <GamertagLink gamertag={death.byGamertag} className="text-red underline" /> : "unknown"}</>
+            <>Killed by {death.byGamertag ? <GamertagLink gamertag={death.byGamertag} className="text-red-deep underline" /> : "unknown"}</>
           ) : (
             <>Died — {verdictPhrase(death.verdict, death.cause)}</>
           )}

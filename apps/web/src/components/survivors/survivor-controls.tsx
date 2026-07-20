@@ -48,7 +48,7 @@ export function SurvivorControls({
               href={boardHref(slug, chip.sort, 1)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                active ? "border-b-2 border-red pb-0.5 font-bold text-red" : "text-ink-muted hover:text-ink"
+                active ? "border-b-2 border-red pb-0.5 font-bold text-red-deep" : "text-ink-muted hover:text-ink"
               )}
             >
               {chip.label}

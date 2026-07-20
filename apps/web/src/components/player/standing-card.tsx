@@ -57,7 +57,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
             />
           </div>
           <div className="mt-3 border-t border-hairline-2 pt-2.5">
-            <p className="font-display text-xs font-bold uppercase tracking-[.12em] text-red">Kills this life</p>
+            <p className="font-display text-xs font-bold uppercase tracking-[.12em] text-red-deep">Kills this life</p>
             <KillList kills={standing.alive.killList} limit={10} />
           </div>
         </>

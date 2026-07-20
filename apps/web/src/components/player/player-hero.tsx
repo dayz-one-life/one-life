@@ -22,7 +22,7 @@ export function PlayerHero({ page }: { page: PlayerPage }) {
           </span>
         )}
         {page.verified && (
-          <span className="-rotate-6 border-2 border-red px-2.5 pb-0.5 pt-1 font-display text-xs font-bold uppercase tracking-[.12em] text-red">
+          <span className="-rotate-6 border-2 border-red px-2.5 pb-0.5 pt-1 font-display text-xs font-bold uppercase tracking-[.12em] text-red-deep">
             Verified
           </span>
         )}

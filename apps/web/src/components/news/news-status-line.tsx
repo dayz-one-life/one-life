@@ -29,7 +29,7 @@ export function NewsStatusLine({ status }: { status: NewsSubjectStatus }) {
   }
 
   return (
-    <p className="mt-5 border-l-[3px] border-red pl-3 font-mono text-[11px] uppercase tracking-[.06em] text-red">
+    <p className="mt-5 border-l-[3px] border-red pl-3 font-mono text-[11px] uppercase tracking-[.06em] text-red-deep">
       Update: subject has since died, {newsUpdateDate(status.diedAt)}.
       {status.obituarySlug ? (
         <>

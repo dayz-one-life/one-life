@@ -37,7 +37,7 @@ export function EditorialArticleView({
         </p>
       )}
       {article.retracted && (
-        <p className="mb-5 border-[3px] border-red px-3 py-1.5 text-center font-display text-[13px] font-bold uppercase tracking-[.14em] text-red">
+        <p className="mb-5 border-[3px] border-red px-3 py-1.5 text-center font-display text-[13px] font-bold uppercase tracking-[.14em] text-red-deep">
           Retracted
         </p>
       )}
