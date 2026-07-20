@@ -530,6 +530,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (`useSheetDrag`, header-zone only), a two-phase motion-safe enter/exit, and a route-change close;
   the controls dark surface uses four named tokens — `dark-well`/`dark-hollow`/`dark-edge`/
   `dark-edge-bright` — no raw hexes (grep-gated).
+  **Contrast & type floors (UX review sub-project 1) shipped:** plain `--red` (3.7:1 on paper)
+  is now display-only — reserved for ≥19px-bold text, borders, tints, and stamps — with every
+  smaller red text run moved to `--red-deep` (5.8:1), per the RED POLICY comment at the tokens
+  in `globals.css`. A three-tier type floor is likewise documented there (TYPE FLOORS comment):
+  reading prose sits at a 16px floor (`text-base`) with a 68ch measure, functional content at
+  an 11px floor, and decorative overlines/chrome may drop to 10px only when the same
+  information also exists elsewhere — enforced by the `src/type-floor-guard.test.ts` tripwire.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
