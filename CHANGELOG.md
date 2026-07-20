@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.27.0] - 2026-07-20
+
+### Added
 - **The editorial newsroom** — a human-written editorial desk for the News vertical, replacing
   `newsTick` operationally while the automated pass stays shipped and disabled
   (`NEWSDESK_NEWS_ENABLED`/`NEWSDESK_NEWS_SINCE` stay unset).
@@ -30,16 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `scout` running the shipped trigger finders as story tips plus a per-map aggregate digest.
   - skills: `drafting-an-article` — the session ritual (scout → explore → consent → voice →
     compose → draft → preview → publish), reading the brand bible live.
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.26.1] - 2026-07-20
 
