@@ -478,11 +478,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   pieces are props-only + unit-tested; `useControls`/containers are thin (untested, per convention).
   **⚠️ THE TWO SURFACES HAVE OPPOSITE BACKGROUNDS.** The rail is the light paper surface; the
   **`ControlsSheet` is `bg-dark`**. Any panel mounted in both MUST carry a surface variant and swap
-  its text/border/tint tokens — `TokensPanel` does this with `boxed`, `NotificationsPanel` with
-  `onDark`. A panel written only in `text-ink`/`border-ink`/`bg-bone` renders **ink-on-dark: present
-  in the DOM, fully functional, invisible on a phone** — which is exactly how the notifications panel
-  shipped in v0.26.0. **RTL asserts the DOM, not contrast, so the whole web suite stays green** on
-  this class of bug; a panel added to the sheet needs a test pinning the token swap itself.
+  its text/border/tint tokens — `TokensPanel` does this with `boxed`. A panel written only in
+  `text-ink`/`border-ink`/`bg-bone` renders **ink-on-dark: present in the DOM, fully functional,
+  invisible on a phone** — which is exactly how the notifications panel shipped in v0.26.0. **RTL
+  asserts the DOM, not contrast, so the whole web suite stays green** on this class of bug; a panel
+  added to the sheet needs a test pinning the token swap itself.
+  **The notifications restructure removed the notifications panel from both the rail and the mobile
+  sheet** (`controls/notifications-panel.tsx` deleted; `useControls` dropped its notification fields
+  + `markRead`) — notifications moved to a masthead bell + the permanent `/notifications` inbox
+  (see the Player notifications sub-project entry). The ⚠️ two-surface token rule above now applies
+  to `NotificationRow`/`NotificationList` instead: the bell's popover is dark, the inbox page is
+  light, and each needs its own token variant for exactly the reason the old panel did.
   The web API client **`apiSend` attaches `content-type: application/json` only when a body is present** —
   a bodyless `DELETE` (cancel claim) with the header set is rejected by Fastify as an empty JSON body (400).
   The mobile menu and sheet share **`useModalBehavior`** (`@/lib/use-modal-behavior` — focus trap,
@@ -580,10 +586,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   already enforces for self-unban and tokens. Rows land in a new durable `notifications` table (fed
   by seven generator functions across `apps/notifier/src/generators/` producing the nine kinds —
   the two ban kinds and the two life kinds each pair up in one file — deduped by a unique
-  `natural_key` per notification instance) and are delivered two ways: an in-app feed (bell icon +
-  unread badge in the R3 controls rail, `GET /me/notifications` + `POST /me/notifications/read`) and
-  opt-in browser Web Push (`push_subscriptions` table, VAPID-signed via `web-push`, a service worker
-  + PWA manifest, `POST`/`DELETE /me/push-subscriptions`, public `GET /push/vapid-key`). The worker
+  `natural_key` per notification instance) and are delivered two ways: an in-app feed — a masthead
+  **`MastheadBell`** (all widths, signed-in only, an anchored popover at `md+`, a link to
+  `/notifications` below `md`; badge caps at `9+` with the real count in `aria-label`) and a
+  permanent **`/notifications`** inbox page ("The Wire", also carrying the `PushToggle` on its
+  single light surface, no `onDark`), both reading a **frozen-tint** model — `useNotifications` /
+  `useNotificationSeen` (`@/lib/use-notifications`): mark-read stamps the query cache via
+  `setQueryData` (never invalidates, so a read row doesn't flatten mid-glance) and a 60s
+  `refetchInterval` reconciles in the background (`GET /me/notifications` +
+  `POST /me/notifications/read`) — and opt-in browser Web Push (`push_subscriptions` table,
+  VAPID-signed via `web-push`, a service worker + PWA manifest, `POST`/`DELETE
+  /me/push-subscriptions`, public `GET /push/vapid-key`). The worker
   runs two independently-gated passes per tick: **generate** (forward-only `NOTIFIER_SINCE` cutoff —
   unset means OFF, never a silent epoch default that would flood every player with their whole
   history — plus `NOTIFIER_DRY_RUN`, defaults `true`) and **push** (its own `NOTIFIER_PUSH_ENABLED`
@@ -624,7 +637,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      Invalid VAPID ⇒ `null` ⇒ push off, generation continues.
   6. **`POST /me/notifications/read` marks only the ids the client rendered.** A blanket
      mark-all-unread against a feed that serves one page silently destroys any deeper backlog. The
-     feed is paginated (`?page=`) and the ownership predicate stays in the WHERE clause.
+     feed is paginated (`?page=`) and the ownership predicate stays in the WHERE clause. This still
+     holds after the move to the masthead bell + `/notifications` inbox: the popover reports only
+     its page-1 rows, and the inbox page reports each page as it loads — never a mark-all.
   7. **Sign-out deletes the push subscription row *before* `signOut()`**
      (`signOutAndTeardownPush`, `apps/web/src/lib/push.ts`, shared by the rail and the mobile
      sheet). After sign-out the DELETE is scoped to a dead session and matches zero rows, leaving a
