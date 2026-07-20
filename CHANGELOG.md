@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+- read-models: **a regenerated hero photo now busts every cache layer.** The media route serves a
+  year-long immutable cache header while regeneration reuses the same filename, so a replaced
+  image stayed stale in next/image, the CDN, and the browser until manually purged.
+  `getNewsArticleBySlug` now versions `imageUrl` with the stored image's `created_at`
+  (`?v=<epoch>`), giving every regeneration a fresh cache key; articles with no stored image row
+  keep the bare URL.
 
 ### Security
 
