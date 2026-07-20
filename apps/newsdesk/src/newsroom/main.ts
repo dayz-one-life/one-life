@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { getDb } from "@onelife/db";
 import { parsePayload, ContractError } from "./contract.js";
 import { draftArticle, publishArticle, unpublishArticle, spikeArticle, listArticles } from "./store.js";
+import { scout } from "./scout.js";
 
 /**
  * The newsroom CLI — THE ONLY WRITE PATH for editorial articles. It exists so a hand-written
@@ -17,7 +18,8 @@ const USAGE = `usage: newsroom <command>
   publish <slug>      draft -> published (prints the live URL)
   unpublish <slug>    published -> draft (the mistake hatch; never writes 'retracted')
   spike <slug>        delete a DRAFT (a published article is never deleted)
-  list [--drafts]     list editorial+news articles, newest first`;
+  list [--drafts]     list editorial+news articles, newest first
+  scout               story tips: the shipped trigger finders + the per-map aggregate digest`;
 
 function die(message: string): never {
   console.error(message);
@@ -80,6 +82,32 @@ async function main(): Promise<void> {
         for (const r of rows) {
           const format = (r.facts as { format?: string } | null)?.format ?? "-";
           console.log(`${(r.status ?? "-").padEnd(10)} ${format.padEnd(10)} ${r.slug}  ${r.headline ?? ""}`);
+        }
+        break;
+      }
+      case "scout": {
+        // Same suppression the shipped exclusions use — the desk honours identical opt-outs.
+        const suppressed = (process.env.NEWSDESK_NEWS_SUPPRESSED_GAMERTAGS ?? "")
+          .split(",").map((s) => s.trim()).filter(Boolean);
+        const report = await scout(db, new Date(), { suppressedGamertags: suppressed });
+
+        console.log("THE STANDING DEAD — open qualified lives gone quiet");
+        if (!report.standingDead.length) console.log("  (no tips)");
+        for (const t of report.standingDead) {
+          console.log(`  ${t.gamertag}  ·  ${t.map}  ·  idle ${t.idleDays}d`);
+        }
+
+        console.log("\nTHE LONG FORM — deaths that converged");
+        if (!report.longForm.length) console.log("  (no tips)");
+        for (const c of report.longForm) {
+          console.log(`  ${c.map}  ·  ${c.subjectCount} subjects  ·  ${c.earliestDeathAt.toISOString()}`);
+        }
+
+        console.log("\nTHE DIGEST — last 14 days, per map (medians can be moved by one player; state n when small)");
+        for (const a of report.aggregates) {
+          const median = a.medianLifeMinutes == null ? "-" : `${a.medianLifeMinutes.toFixed(1)}m median life`;
+          const single = a.singleSessionPct == null ? "-" : `${a.singleSessionPct.toFixed(0)}% single-session`;
+          console.log(`  ${a.map}  ·  ${a.players} players  ·  ${median}  ·  ${single}`);
         }
         break;
       }
