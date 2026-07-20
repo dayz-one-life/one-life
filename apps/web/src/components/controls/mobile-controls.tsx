@@ -12,8 +12,6 @@ import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
-import { NotificationsPanel } from "./notifications-panel";
-import { PushToggle } from "./push-toggle";
 import { ApiError } from "@/lib/api";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
@@ -94,17 +92,6 @@ export function MobileControls() {
         )}
         {verified && (
           <>
-            <NotificationsPanel
-              onDark
-              items={c.notifications}
-              unreadCount={c.unreadCount}
-              onOpen={(ids) => a.markRead.mutate(ids)}
-              hasMore={c.hasMore}
-              onLoadMore={c.loadMore}
-              loadingMore={c.loadingMore}
-            >
-              <PushToggle onDark />
-            </NotificationsPanel>
             <TokensPanel
               boxed
               showReferrer={false}
