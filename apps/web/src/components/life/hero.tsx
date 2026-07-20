@@ -10,7 +10,7 @@ function Stat({ value, label, blue = false }: { value: string; label: string; bl
   return (
     <div>
       <div className={`font-display text-[28px] font-bold leading-none ${blue ? "text-blue" : "text-ink"}`}>{value}</div>
-      <div className="mt-[3px] font-mono text-[10px] uppercase tracking-[.07em] text-ink-muted">{label}</div>
+      <div className="mt-[3px] font-mono text-[11px] uppercase tracking-[.07em] text-ink-muted">{label}</div>
     </div>
   );
 }
@@ -30,7 +30,7 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
       <div className="mt-3 flex flex-col gap-5 border-b-[3px] border-ink pb-5 sm:flex-row sm:gap-6">
         <div className="w-[132px] flex-none">
           <CharacterImage character={{ name: data.character?.name ?? null }} size={132} dim={!view.alive} />
-          <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">Snapshot · this life</p>
+          <p className="mt-2 text-center font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">Snapshot · this life</p>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">

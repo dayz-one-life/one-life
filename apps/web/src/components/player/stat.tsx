@@ -28,7 +28,7 @@ export function Stat({
       <span
         className={cn(
           "block font-mono uppercase text-ink-muted",
-          size === "lg" ? "mt-1 text-[10px] tracking-[.08em]" : "mt-0.5 text-[9.5px] tracking-[.07em]",
+          size === "lg" ? "mt-1 text-[11px] tracking-[.08em]" : "mt-0.5 text-[11px] tracking-[.07em]",
         )}
       >
         {label}

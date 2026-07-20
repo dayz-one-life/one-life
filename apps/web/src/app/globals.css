@@ -9,6 +9,9 @@
   /* RED POLICY: plain --red (3.7:1 on paper) is display-only — ≥19px-bold text, borders,
      tints, stamps. ALL smaller red text uses --red-deep (5.8:1). A new small text-red is
      a contrast bug. */
+  /* TYPE FLOORS: reading prose ≥16px (text-base); functional content ≥11px; decorative
+     overlines/chrome may sit at 10px only when the information also exists elsewhere.
+     Guard test: src/type-floor-guard.test.ts. */
   --red: 255 30 18;          /* #FF1E12 — death / breaking */
   --yellow: 255 227 0;       /* #FFE300 — drama / pending; ink text only */
   --blue: 21 82 216;         /* #1552D8 — birth / alive */

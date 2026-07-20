@@ -16,7 +16,7 @@ export function ArticleBody({
   fallback: string;
   className?: string;
 }) {
-  const wrapper = cn("space-y-4 font-mono text-[14px] leading-relaxed text-ink-soft", className);
+  const wrapper = cn("max-w-[68ch] space-y-4 font-mono text-base leading-relaxed text-ink-soft", className);
 
   if (!Array.isArray(blocks) || blocks.length === 0) {
     return (

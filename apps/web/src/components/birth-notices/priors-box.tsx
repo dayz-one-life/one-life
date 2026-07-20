@@ -16,7 +16,7 @@ export function PriorsBox({ article }: { article: BirthNoticeArticle }) {
           {facts.map((f) => (
             <div key={f.label}>
               <dd className={cn("font-display text-[26px] font-bold leading-none", f.hot ? "text-red" : "text-ink")}>{f.value}</dd>
-              <dt className="mt-1 font-mono text-[10px] uppercase tracking-[.07em] text-ink-muted">{f.label}</dt>
+              <dt className="mt-1 font-mono text-[11px] uppercase tracking-[.07em] text-ink-muted">{f.label}</dt>
             </div>
           ))}
         </dl>
