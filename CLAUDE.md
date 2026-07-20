@@ -329,6 +329,31 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **`newsShowingLine` follows the BIRTH argument order `(page, total, pageSize)`**, pinned by a
   test: `obituaryShowingLine` is `(page, pageSize, total)` and all three parameters are `number`,
   so a swap is entirely type-silent.
+  **Editorial newsroom** ✅ (spec `docs/superpowers/specs/2026-07-20-editorial-newsroom-design.md`):
+  a human-written editorial desk for the News vertical. **It replaces `newsTick` operationally but
+  not in code** — the automated pass, prompts and stores stay shipped and disabled
+  (`NEWSDESK_NEWS_ENABLED`/`NEWSDESK_NEWS_SINCE` stay unset) as the fallback if volume outgrows the
+  desk. An editorial piece is `articles.kind='news'` with `facts.format` (`almanac` | `ledger` | …)
+  for flavour; migration `0016` made the five subject columns
+  (`server_id`/`gamertag`/`map`/`life_number`/`life_started_at`) nullable because an institutional
+  piece has no one subject (normal deploy, no `--rebuild`). Identity is the natural-key namespace:
+  **`EDITORIAL_PREFIXES` (`almanac:`/`ledger:`/`editorial:`, `@onelife/read-models`) is the routing
+  signal** — `newsFormatOf` classifies a row `editorial` only on a positive prefix match, and its
+  unrecognised/null-key fallback **must stay `long_form`** (matching `newsTriggerOf`; a malformed
+  key must not newly classify as editorial and lose its dossier). The retraction sweep and the
+  editorial rows are mutually inert by prefix scoping. **The `newsroom` CLI
+  (`pnpm --filter @onelife/newsdesk run newsroom <cmd>`, `apps/newsdesk/src/newsroom/`) is the ONLY
+  write path** — sessions never hand-INSERT; the contract enforces the prefix registry, the
+  vendored brand-bible §9 Tier-1 voice lint (Tier 2 is deliberately human), and a **required
+  `factCheck` claim→source table** (publish-time truth frozen, the automated desks' `facts`
+  parity). `draft` prints a preview URL served by the API's token-gated
+  `GET /news/:slug?preview=<token>` (`NEWS_PREVIEW_TOKEN`; empty ⇒ preview off, **fail closed** —
+  checked before `timingSafeEqual`, which returns true on two empty buffers). **`unpublish` returns
+  a row to `draft` and never writes `retracted`** — retraction is a public correction owned by the
+  sweep. `newsroom scout` runs the shipped trigger finders as story tips (same suppression list,
+  same anti-join) plus a per-map aggregate digest; the session ritual is the
+  `drafting-an-article` repo skill, and **voice comes from `/var/www/brand/brand-bible.md` §6/§9
+  read live**, never from memory.
   **Update (v0.21.0): images retired for obituaries + birth notices — the image pass is kind-gated off
   for both (reserved for future news); the 165 existing images were deleted (migration 0013). The
   pipeline, article_images table, media route, and ArticleHero are retained.**
