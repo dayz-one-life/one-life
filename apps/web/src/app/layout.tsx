@@ -4,7 +4,6 @@ import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { QueryProvider } from "@/components/query-provider";
 import { ControlsRail } from "@/components/controls/rail";
-import { MobileControls } from "@/components/controls/mobile-controls";
 import { display, mono } from "./fonts";
 import { SITE_URL } from "@/lib/seo";
 
@@ -31,13 +30,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <div
               id="main-content"
               tabIndex={-1}
-              className="min-w-0 pb-24 xl:border-r xl:border-ink xl:pb-0 xl:pr-8"
+              className="min-w-0 xl:border-r xl:border-ink xl:pr-8"
             >
               {children}
             </div>
             <ControlsRail />
           </div>
-          <MobileControls />
           <Footer />
         </QueryProvider>
       </body>

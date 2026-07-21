@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.29.5] - 2026-07-21
+
+### Changed
+
+- Pill re-homing (UX review sub-project 4): the mobile account control moved from a floating
+  pill fixed to the bottom of every page into the masthead next to the notification bell —
+  a tappable avatar that opens the controls sheet (a "Sign in" chip when signed out). The
+  floating pills are retired and the reserved bottom gutter is gone, so pages use the full
+  height on mobile. The controls sheet and everything in it are unchanged.
+
 ## [0.29.4] - 2026-07-21
 
 ### Fixed
