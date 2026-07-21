@@ -19,6 +19,12 @@ const bannedStanding: any = {
   ban: { banId: 5, bannedAt: now.toISOString(), expiresAt: "2026-07-14T14:00:00Z", liftPending: false, triggeringLifeNumber: 1 },
 };
 
+const expiredBannedStanding: any = {
+  ...base,
+  state: "banned",
+  ban: { banId: 5, bannedAt: now.toISOString(), expiresAt: "2026-07-14T10:00:00Z", liftPending: false, triggeringLifeNumber: 1 },
+};
+
 describe("StandingCard", () => {
   it("alive card: blue chip, 3-stat row, red kills label", () => {
     wrap(<StandingCard standing={aliveStanding} now={now} pageGamertag="YrJustBad" />);
@@ -37,6 +43,13 @@ describe("StandingCard", () => {
     expect(screen.getByText("Ban lifts in")).toBeInTheDocument();
     expect(screen.getByText(/2h 0m/)).toBeInTheDocument();
     expect(screen.getByText(/Died — awaiting respawn/)).toBeInTheDocument();
+  });
+
+  it("banned card past expiry: terminal Lifting state, no dead 0h 0m timer", () => {
+    wrap(<StandingCard standing={expiredBannedStanding} now={now} pageGamertag="YrJustBad" />);
+    expect(screen.getByText("Lifting…")).toBeInTheDocument();
+    expect(screen.queryByText(/0h 0m/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Ban lifts in")).not.toBeInTheDocument();
   });
 
   it("null longest kill renders a muted dash", () => {

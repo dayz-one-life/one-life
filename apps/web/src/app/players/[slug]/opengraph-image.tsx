@@ -32,7 +32,7 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
           <div style={{ fontSize: gtSize, fontWeight: 700, lineHeight: 1, letterSpacing: -1, color: "#FBFAF2" }}>{gamertag}</div>
           {since && (
             <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 22, color: "#8A8878", marginTop: 26 }}>
-              Surviving since&nbsp;<span style={{ fontWeight: 700, color: "#FBFAF2", textTransform: "uppercase" }}>{since}</span>
+              First seen&nbsp;<span style={{ fontWeight: 700, color: "#FBFAF2", textTransform: "uppercase" }}>{since}</span>
             </div>
           )}
         </div>

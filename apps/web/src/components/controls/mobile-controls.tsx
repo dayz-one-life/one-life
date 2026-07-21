@@ -34,14 +34,17 @@ export function MobileControls() {
   if (c.status.kind === "signedOut") return <SignInPill />;
 
   const now = new Date();
-  const cards = serverCards(c.servers, c.standing);
+  // Standing unresolved (loading/errored) — don't fabricate "idle" cards/dots from an unknown
+  // state; the empty list here degrades to no dots on the pill and a loading row in the sheet
+  // (spec: live-data honesty §5).
+  const cards = c.standingLoading ? [] : serverCards(c.servers, c.standing);
   const verified = c.status.kind === "verified";
   const pendingLink = c.status.kind === "pending" ? c.status.link : null;
   const gamertag =
     c.status.kind === "verified" || c.status.kind === "pending" ? c.status.link.gamertag : null;
   const name = gamertag ?? c.name ?? "You";
   const slug = verified && gamertag ? playerSlug(gamertag) : null;
-  const line = pillStatus(c.status, cards, now);
+  const line = pillStatus(c.status, cards, now, c.standingLoading);
 
   const header = (
     <div className="flex items-center gap-3">
@@ -78,6 +81,7 @@ export function MobileControls() {
         line={line}
         dots={cards.map((x) => x.state)}
         balance={c.balance}
+        balanceLoading={c.balanceLoading}
         verified={verified}
         open={open}
         onOpen={() => setOpen(true)}
@@ -107,23 +111,32 @@ export function MobileControls() {
               boxed
               showReferrer={false}
               balance={c.balance ?? 0}
+              balanceLoading={c.balanceLoading}
               send={mutView(a.send)}
               referrer={mutView(a.refer)}
               onSend={(gt) => a.send.mutate(gt)}
               onSetReferrer={() => {}}
               myGamertag={gamertag ?? undefined}
             />
-            {cards.map((card) => (
-              <SheetServerRow
-                key={card.slug}
-                card={card}
-                ownSlug={slug}
-                balance={c.balance ?? 0}
-                now={now}
-                onRedeem={(banId) => a.redeem.mutate(banId)}
-                redeeming={a.redeem.isPending}
-              />
-            ))}
+            {c.standingLoading ? (
+              <div aria-busy="true" className="flex flex-col gap-2">
+                <div aria-hidden className="h-16 motion-safe:animate-pulse bg-dark-well" />
+                <div aria-hidden className="h-16 motion-safe:animate-pulse bg-dark-well" />
+              </div>
+            ) : (
+              cards.map((card) => (
+                <SheetServerRow
+                  key={card.slug}
+                  card={card}
+                  ownSlug={slug}
+                  balance={c.balance ?? 0}
+                  balanceLoading={c.balanceLoading}
+                  now={now}
+                  onRedeem={(banId) => a.redeem.mutate(banId)}
+                  redeeming={a.redeem.isPending}
+                />
+              ))
+            )}
           </>
         )}
         <div className="flex justify-between font-mono text-[11px] uppercase tracking-[.06em]">

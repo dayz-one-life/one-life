@@ -11,6 +11,7 @@ import { Stat } from "./stat";
 export function StandingCard({ standing, now, pageGamertag }: { standing: ServerStanding; now: Date; pageGamertag: string }) {
   const alive = standing.state === "alive";
   const banned = standing.state === "banned";
+  const countdown = banned && standing.ban ? banCountdown(standing.ban.expiresAt, now) : null;
   const sub =
     alive && standing.alive ? `Alive ${formatDuration(standing.alive.timeAliveSeconds)}`
     : banned ? "Died — awaiting respawn"
@@ -65,11 +66,17 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
 
       {banned && standing.ban && (
         <div className="mt-4">
-          {banCountdown(standing.ban.expiresAt, now) && (
-            <div className="flex items-center justify-between border border-hairline-2 bg-paper px-3 py-2">
-              <span className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">Ban lifts in</span>
-              <span className="font-display text-lg font-bold tabular-nums text-ink">{banCountdown(standing.ban.expiresAt, now)}</span>
-            </div>
+          {standing.ban.expiresAt && (
+            countdown ? (
+              <div className="flex items-center justify-between border border-hairline-2 bg-paper px-3 py-2">
+                <span className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">Ban lifts in</span>
+                <span className="font-display text-lg font-bold tabular-nums text-ink">{countdown}</span>
+              </div>
+            ) : (
+              <div className="border border-hairline-2 bg-paper px-3 py-2 text-center">
+                <span className="font-display text-sm font-bold uppercase tracking-[.06em] text-ink-muted">Lifting…</span>
+              </div>
+            )
           )}
           <SelfUnbanButton banId={standing.ban.banId} pageGamertag={pageGamertag} liftPending={standing.ban.liftPending} />
         </div>

@@ -10,6 +10,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     gamertag: "YrJustBad",
     map: "sakhal",
     slug: "sakhal",
+    lastSeenAt: null,
     life: {
       id: 1, serverId: 1, playerId: 1, lifeNumber: 4,
       startedAt: start, endedAt: null,
@@ -102,6 +103,58 @@ describe("buildTimeline", () => {
     const v = buildTimeline(data({ qualifiedAt: { at: at(120), by: "kill" } }), now);
     const q = v.events.find((e) => e.kind === "qualified");
     expect(q && "line" in q ? q.line : "").toMatch(/first blood/i);
+  });
+
+  test("caps live time-alive at lastSeenAt for a crashed/ghosted session — not request-time now", () => {
+    // Life started 9h before `now`; last heartbeat was 4h before `now` (5h after life start).
+    const now = new Date(Date.parse(start) + 540 * 60_000); // +9h
+    const lastSeenAt = at(300); // +5h from start = 4h before now
+    const d = data({
+      sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
+      kills: [],
+      qualifiedAt: { at: at(5), by: "playtime" },
+      lastSeenAt,
+    });
+    const v = buildTimeline(d, now);
+    // Capped at lastSeenAt (5h), NOT at now (9h).
+    expect(v.hero.timeAliveSeconds).toBe(5 * 3600);
+    const nowRow = v.events.find((e) => e.kind === "now");
+    expect(nowRow).toBeTruthy();
+    const line = nowRow && "line" in nowRow ? nowRow.line : "";
+    expect(line).toBe("5h 0m");
+    expect(line).not.toMatch(/and counting/i);
+  });
+
+  test("still-online control: lastSeenAt ≈ now yields the full elapsed time, unchanged", () => {
+    const now = new Date(Date.parse(start) + 540 * 60_000); // +9h
+    const d = data({
+      sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
+      kills: [],
+      qualifiedAt: { at: at(5), by: "playtime" },
+      lastSeenAt: now.toISOString(),
+    });
+    const v = buildTimeline(d, now);
+    expect(v.hero.timeAliveSeconds).toBe(9 * 3600);
+    const nowRow = v.events.find((e) => e.kind === "now");
+    const line = nowRow && "line" in nowRow ? nowRow.line : "";
+    expect(line).toBe("9h 0m");
+  });
+
+  test("clock skew: lastSeenAt a few seconds AFTER now is not clamped — matches survivors.ts (lastSeenAt, no clamp to now)", () => {
+    // A still-online player whose heartbeat is a few seconds ahead of request-time `now`
+    // (game-server-vs-app clock skew). survivors.ts's `upTo = lastSeenAt ?? connectedAt ?? now`
+    // has no clamp, so it would accrue straight through to lastSeenAt; this page must match.
+    const now = new Date(Date.parse(start) + 540 * 60_000); // +9h
+    const lastSeenAt = new Date(now.getTime() + 5_000).toISOString(); // 5s AFTER now
+    const d = data({
+      sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
+      kills: [],
+      qualifiedAt: { at: at(5), by: "playtime" },
+      lastSeenAt,
+    });
+    const v = buildTimeline(d, now);
+    // Not clamped to `now` (9h = 32400s) — accrues through to lastSeenAt (9h + 5s = 32405s).
+    expect(v.hero.timeAliveSeconds).toBe(9 * 3600 + 5);
   });
 
   test("threads the verdict onto the death event", () => {

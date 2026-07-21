@@ -110,7 +110,15 @@ export async function saveArticleImage(
       })
       .onConflictDoUpdate({
         target: [articleImages.articleId],
-        set: { bytes: input.image.bytes, contentType, width: dims?.width ?? null, height: dims?.height ?? null },
+        // createdAt MUST be bumped on regenerate: the news read-model versions imageUrl as
+        // `?v=<article_images.created_at epoch>` (CLAUDE.md's cache-bust rule), and a regenerated
+        // hero under the same filename that doesn't change this value keeps serving the stale
+        // bytes for the year-long immutable cache lifetime.
+        set: {
+          bytes: input.image.bytes, contentType,
+          width: dims?.width ?? null, height: dims?.height ?? null,
+          createdAt: input.now,
+        },
       });
     await tx
       .update(articles)

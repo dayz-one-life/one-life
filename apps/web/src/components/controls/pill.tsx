@@ -35,6 +35,7 @@ export function ControlsPillView({
   line,
   dots,
   balance,
+  balanceLoading = false,
   verified,
   open,
   onOpen,
@@ -43,6 +44,10 @@ export function ControlsPillView({
   line: PillLine;
   dots: ServerCardData["state"][];
   balance: number | null;
+  /** True while the balance behind `balance` is unresolved (loading/errored) — mirrors
+   *  `TokensPanel`'s `balanceLoading`; the chip must not assert a fabricated numeral (e.g. "0")
+   *  in that state (live-data honesty §5). */
+  balanceLoading?: boolean;
   verified: boolean;
   open: boolean;
   onOpen: () => void;
@@ -81,7 +86,15 @@ export function ControlsPillView({
             ))}
           </span>
           <span className="flex-none border-l border-dark-line pl-3 font-display text-[15px] font-bold leading-none tabular-nums text-paper">
-            {balance ?? 0} <span className="text-[10px] tracking-[.06em] text-cream-muted">tok</span>
+            {balanceLoading ? (
+              <span aria-busy="true" className="inline-block h-[13px] w-7 align-middle motion-safe:animate-pulse bg-dark-well">
+                <span className="sr-only">Checking your tokens…</span>
+              </span>
+            ) : (
+              <>
+                {balance ?? 0} <span className="text-[10px] tracking-[.06em] text-cream-muted">tok</span>
+              </>
+            )}
           </span>
         </>
       )}
