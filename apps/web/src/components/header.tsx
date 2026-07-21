@@ -6,6 +6,7 @@ import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { MastheadBell } from "@/components/notifications/bell";
+import { MobileAccount } from "@/components/controls/mobile-account";
 
 function NavLinks({ active, onNavigate, className }: {
   active: string | null; onNavigate?: () => void; className?: string;
@@ -56,7 +57,14 @@ export function Masthead() {
             className="h-auto w-[150px] md:w-[280px]"
           />
         </Link>
-        <MastheadBell />
+        {/* The bell and the account trigger share one right-cluster wrapper — each used to
+         *  self-position `absolute right-4`, which made them collide. Only this wrapper
+         *  positions itself now; both children render as plain inline controls (see
+         *  bell.tsx / mobile-account.tsx). */}
+        <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1 md:top-auto md:translate-y-0">
+          <MastheadBell />
+          <MobileAccount />
+        </div>
       </div>
 
       <nav

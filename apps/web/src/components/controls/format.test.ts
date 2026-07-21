@@ -1,11 +1,8 @@
 import { describe, expect, test } from "vitest";
-import type { AccountStatus } from "@/lib/account-status";
 import type { Server, ServerStanding } from "@/lib/types";
 import {
-  diedAtLabel, initialOf, pillStatus, serverCards, serverFactLine, transferErrorLabel,
+  diedAtLabel, initialOf, serverCards, serverFactLine, transferErrorLabel,
 } from "./format";
-
-const NOW = new Date("2026-07-16T12:00:00Z");
 
 const server = (over: Partial<Server>): Server => ({
   id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus",
@@ -28,8 +25,6 @@ const bannedStanding = (slug: string, map: string, expiresAt: string | null): Se
     slug, map, state: "banned",
     ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt, liftPending: false, triggeringLifeNumber: 1 },
   });
-
-const VERIFIED: AccountStatus = { kind: "verified", link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null } };
 
 describe("initialOf", () => {
   test("uppercases the first character", () => expect(initialOf("boots")).toBe("B"));
@@ -80,72 +75,5 @@ describe("transferErrorLabel", () => {
     expect(transferErrorLabel("self_transfer")).toBe("That's you");
     expect(transferErrorLabel("already_set")).toBe("Already set");
     expect(transferErrorLabel("boom")).toBe("Something went wrong");
-  });
-});
-
-describe("pillStatus", () => {
-  test("banned beats everything; soonest lift wins; tone red", () => {
-    const cards = serverCards(
-      [server({ id: 1, slug: "chernarus", map: "chernarusplus" }), server({ id: 2, slug: "sakhal", map: "sakhal" })],
-      [bannedStanding("sakhal", "sakhal", "2026-07-17T01:58:00Z"), aliveStanding("chernarus", "chernarusplus", 100)],
-    );
-    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal ban lifts in 13h 58m", tone: "red" });
-  });
-  test("pending shows emote progress in yellow", () => {
-    const st: AccountStatus = { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 1, expiresAt: "2026-07-17T00:00:00Z", expired: false } } };
-    expect(pillStatus(st, [], NOW)).toEqual({ text: "Verify: 1/3 done", tone: "yellow" });
-  });
-  test("expired pending says so", () => {
-    const st: AccountStatus = { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm"], progressIndex: 0, expiresAt: "2026-07-15T00:00:00Z", expired: true } } };
-    expect(pillStatus(st, [], NOW)).toEqual({ text: "Verification expired", tone: "yellow" });
-  });
-  test("unlinked invites the link", () => {
-    expect(pillStatus({ kind: "unlinked" }, [], NOW)).toEqual({ text: "Link your gamertag →", tone: "dim" });
-  });
-  test("alive shows the longest-lived life in dim", () => {
-    const cards = serverCards(
-      [server({ id: 1, slug: "chernarus", map: "chernarusplus" }), server({ id: 2, slug: "sakhal", map: "sakhal" })],
-      [aliveStanding("chernarus", "chernarusplus", 100), aliveStanding("sakhal", "sakhal", 22920)],
-    );
-    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal · 6h 22m this life", tone: "dim" });
-  });
-  test("verified with nothing going on: no active life, muted", () => {
-    const cards = serverCards([server({})], []);
-    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "No active life", tone: "muted" });
-  });
-  test("banned with no expiry (lift pending) falls back to the plain banned line", () => {
-    const cards = serverCards([server({ id: 2, slug: "sakhal", map: "sakhal" })], [bannedStanding("sakhal", "sakhal", null)]);
-    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal banned", tone: "red" });
-  });
-  test("banned with expiry already passed falls back to the plain banned line, not a dead 0h 0m countdown", () => {
-    const cards = serverCards([server({ id: 2, slug: "sakhal", map: "sakhal" })], [bannedStanding("sakhal", "sakhal", "2026-07-16T10:00:00Z")]);
-    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal banned", tone: "red" });
-  });
-
-  // live-data honesty §5 fix round 1: `cards` is empty both while standing is genuinely
-  // resolved-empty AND while it's still loading — "No active life" is a factual claim that must
-  // not be asserted in the loading case.
-  test("standingLoading: neutral checking status, not the 'No active life' factual claim", () => {
-    const cards = serverCards([server({})], []);
-    expect(pillStatus(VERIFIED, cards, NOW, true)).toEqual({ text: "Checking your servers…", tone: "muted" });
-  });
-
-  test("standingLoading resolves to false (default/omitted): unaffected, still 'No active life'", () => {
-    const cards = serverCards([server({})], []);
-    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "No active life", tone: "muted" });
-    expect(pillStatus(VERIFIED, cards, NOW, false)).toEqual({ text: "No active life", tone: "muted" });
-  });
-
-  test("standingLoading does not override banned/pending/unlinked, which don't derive from cards", () => {
-    const bannedCards = serverCards(
-      [server({ id: 2, slug: "sakhal", map: "sakhal" })],
-      [bannedStanding("sakhal", "sakhal", "2026-07-17T01:58:00Z")],
-    );
-    expect(pillStatus(VERIFIED, bannedCards, NOW, true)).toEqual({ text: "Sakhal ban lifts in 13h 58m", tone: "red" });
-
-    const pendingStatus: AccountStatus = { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 1, expiresAt: "2026-07-17T00:00:00Z", expired: false } } };
-    expect(pillStatus(pendingStatus, [], NOW, true)).toEqual({ text: "Verify: 1/3 done", tone: "yellow" });
-
-    expect(pillStatus({ kind: "unlinked" }, [], NOW, true)).toEqual({ text: "Link your gamertag →", tone: "dim" });
   });
 });
