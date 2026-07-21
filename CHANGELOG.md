@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Gamertags named in an article now link to that player's dossier — in obituaries, birth notices,
+  news features, and the desk's editorial pieces, throughout the back catalogue as well as new
+  writing.
+
 ### Changed
 
 ### Deprecated
