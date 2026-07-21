@@ -79,18 +79,22 @@ describe("transferErrorLabel", () => {
 });
 
 // Test helpers for serverCards lifeNumber tests
-const serverForLifeNumber = (slug: string): Server => ({ id: 1, name: "S", map: "sakhal", slug } as Server);
+const serverForLifeNumber = (slug: string): Server => server({ slug, map: "sakhal" });
 
-const aliveStandingForLifeNumber = (slug: string): ServerStanding => ({
-  serverId: 1, map: "sakhal", slug, state: "alive", character: null,
+const aliveStandingForLifeNumber = (slug: string): ServerStanding => standing({
+  map: "sakhal", slug, state: "alive",
   alive: { lifeId: 9, lifeNumber: 4, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 100, kills: 0, longestKillMeters: null, killList: [] },
-  ban: null,
-} as unknown as ServerStanding);
+});
 
-const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number | null): ServerStanding => ({
-  serverId: 1, map: "sakhal", slug, state: "banned", character: null, alive: null,
+const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number | null): ServerStanding => standing({
+  map: "sakhal", slug, state: "banned",
   ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber },
-} as unknown as ServerStanding);
+  lastLifeNumber: triggeringLifeNumber,
+});
+
+const idleStandingForLifeNumber = (slug: string, lastLifeNumber: number | null): ServerStanding => standing({
+  map: "sakhal", slug, state: "idle", lastLifeNumber,
+});
 
 describe("serverCards lifeNumber", () => {
   test("carries the open life's number on an alive card", () => {
@@ -102,7 +106,8 @@ describe("serverCards lifeNumber", () => {
   });
 
   test("is null when a banned card's triggering life could not be identified", () => {
-    // Nullable upstream. Must not become 0 or undefined — a link would 404.
+    // Nullable upstream (read model no longer falls back to the most recent life). Must not
+    // become 0 or undefined — a link would 404, and a fallback would point at the wrong life.
     expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", null)])[0]!.lifeNumber).toBeNull();
   });
 
@@ -111,12 +116,12 @@ describe("serverCards lifeNumber", () => {
   });
 
   test("falls back to the last life on an idle card", () => {
-    const idle = { serverId: 1, map: "sakhal", slug: "sakhal", state: "idle", character: null, alive: null, ban: null, lastLifeNumber: 3 } as unknown as ServerStanding;
+    const idle = idleStandingForLifeNumber("sakhal", 3);
     expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBe(3);
   });
 
   test("stays null on an idle card for a player who has never had a life there", () => {
-    const idle = { serverId: 1, map: "sakhal", slug: "sakhal", state: "idle", character: null, alive: null, ban: null, lastLifeNumber: null } as unknown as ServerStanding;
+    const idle = idleStandingForLifeNumber("sakhal", null);
     expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBeNull();
   });
 });

@@ -167,6 +167,39 @@ describe("getPlayerPage phantom dry-run bans", () => {
   });
 });
 
+describe("getPlayerPage banned card with unidentified triggering life", () => {
+  const svcU = Math.floor(Math.random() * 1e8) + 54e7;
+  let unmatchedServer: number;
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcU, name: "pp-unmatched", map: "chernarusplus", slug: `unmatched-${svcU}`, active: true }).returning();
+    unmatchedServer = s!.id;
+    const [pl] = await db.insert(players).values({ gamertag: "Ghost", firstSeenAt: hoursAgo(200), lastSeenAt: now }).returning();
+    // One ended life on this server so the card isn't skipped entirely (livesRows.length !== 0),
+    // but its startedAt does NOT match the ban's lifeStartedAt below — this is the case where
+    // `trig` resolves null. Per the project owner's decision: an unidentified triggering life
+    // must render NO link, never fall back to the player's most recent life.
+    await db
+      .insert(lives)
+      .values({ serverId: unmatchedServer, playerId: pl!.id, lifeNumber: 1, startedAt: hoursAgo(40), endedAt: hoursAgo(20), playtimeSeconds: 600, deathCause: "pvp" });
+    await db.insert(bans).values({ serverId: unmatchedServer, gamertag: "Ghost", lifeStartedAt: hoursAgo(999), reason: "qualified_death", qualifiedBy: "pvp-death", bannedAt: hoursAgo(20), expiresAt: hoursAgo(-4), status: "pending", dryRun: false });
+  });
+  afterAll(async () => {
+    await db.delete(bans).where(eq(bans.serverId, unmatchedServer));
+    await db.delete(lives).where(eq(lives.serverId, unmatchedServer));
+    await db.delete(players).where(eq(players.gamertag, "Ghost"));
+    await db.delete(servers).where(eq(servers.id, unmatchedServer));
+  });
+
+  it("is banned with lastLifeNumber null, not the most recent life", async () => {
+    const pg = (await getPlayerPage(db, "Ghost", now))!;
+    const card = pg.standing.find((s) => s.serverId === unmatchedServer)!;
+    expect(card).toBeDefined();
+    expect(card.state).toBe("banned");
+    expect(card.ban!.triggeringLifeNumber).toBeNull();
+    expect(card.lastLifeNumber).toBeNull();
+  });
+});
+
 describe("getPlayerPage pagination", () => {
   const svcP = Math.floor(Math.random() * 1e8) + 49e7;
   let srv: number;
