@@ -38,4 +38,29 @@ describe("ObituaryArticleView", () => {
     render(<ObituaryArticleView article={article} more={[]} finalReload={null} now={new Date("2026-07-12T00:00:00Z")} />);
     expect(screen.getByText("He left 212 kills behind.").parentElement).toHaveClass("mt-5");
   });
+
+  test("links the life number to that life's timeline", () => {
+    render(
+      <ObituaryArticleView
+        article={{ ...article, gamertag: "Dead Eye Jim", mapSlug: "sakhal", lifeNumber: 4 }}
+        more={[]}
+        finalReload={null}
+        now={new Date("2026-07-12T00:00:00Z")}
+      />,
+    );
+    expect(screen.getByRole("link", { name: /life 4/i })).toHaveAttribute("href", "/players/dead-eye-jim/sakhal/lives/4");
+  });
+
+  test("renders the life number as plain text when the server has no slug", () => {
+    render(
+      <ObituaryArticleView
+        article={{ ...article, mapSlug: null, lifeNumber: 4 }}
+        more={[]}
+        finalReload={null}
+        now={new Date("2026-07-12T00:00:00Z")}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: /life 4/i })).toBeNull();
+    expect(screen.getByText(/life 4/i)).toBeInTheDocument();
+  });
 });

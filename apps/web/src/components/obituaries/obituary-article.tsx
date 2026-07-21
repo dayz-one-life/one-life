@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { GamertagLink } from "@/components/gamertag-link";
 import { RapSheet } from "./rap-sheet";
 import { PullQuote } from "@/components/shared/pull-quote";
@@ -9,6 +10,7 @@ import type { ObituaryArticle, ObituaryCard } from "@/lib/types";
 import type { LifeTimelineView } from "@/lib/life-timeline";
 import { dateline } from "@/lib/obituary-format";
 import { mapLabel } from "@/components/player/format";
+import { lifeHref } from "@/lib/life-href";
 
 export function ObituaryArticleView({
   article,
@@ -27,7 +29,15 @@ export function ObituaryArticleView({
         <p className="font-mono text-[11px] uppercase tracking-[.06em] text-red-deep">Obituary · {dateline(article.map, article.deathAt, now)}</p>
         <h1 className="mt-2 font-display text-5xl font-bold uppercase leading-[.92] text-ink md:text-6xl">{article.headline}</h1>
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
-          Filed by The Desk · A life of <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> · Life {article.lifeNumber} · {mapLabel(article.map)}
+          Filed by The Desk · A life of <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> ·{" "}
+          {article.mapSlug ? (
+            <Link href={lifeHref(article.gamertag, article.mapSlug, article.lifeNumber)} className="font-bold text-ink underline">
+              Life {article.lifeNumber}
+            </Link>
+          ) : (
+            <>Life {article.lifeNumber}</>
+          )}{" "}
+          · {mapLabel(article.map)}
         </p>
       </div>
 

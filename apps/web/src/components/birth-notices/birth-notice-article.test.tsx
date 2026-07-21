@@ -63,4 +63,21 @@ describe("BirthNoticeArticleView", () => {
     render(<BirthNoticeArticleView article={article} more={[]} now={now} />);
     expect(screen.getByText("The tide does not care who it drops on the sand.").parentElement).toHaveClass("mt-6");
   });
+
+  test("links the life number to that life's timeline", () => {
+    render(
+      <BirthNoticeArticleView
+        article={{ ...article, gamertag: "Dead Eye Jim", mapSlug: "sakhal", lifeNumber: 4 }}
+        more={[]}
+        now={now}
+      />,
+    );
+    expect(screen.getByRole("link", { name: /life 4/i })).toHaveAttribute("href", "/players/dead-eye-jim/sakhal/lives/4");
+  });
+
+  test("renders the life number as plain text when the server has no slug", () => {
+    render(<BirthNoticeArticleView article={{ ...article, mapSlug: null, lifeNumber: 4 }} more={[]} now={now} />);
+    expect(screen.queryByRole("link", { name: /life 4/i })).toBeNull();
+    expect(screen.getByText(/life 4/i)).toBeInTheDocument();
+  });
 });
