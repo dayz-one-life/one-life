@@ -695,6 +695,11 @@ export async function getLifeTrack(
     const m = markerAt(thinned, "kill", k.occurredAt, k.victimGamertag);
     if (m) markers.push(m);
   }
+  // The `now` marker IS the last fix, so its sampleAgeSeconds is legitimately 0 — the
+  // fix is the event. Its real staleness ("last fix 4m ago", spec §4.5) is how old that
+  // fix is *right now*, which only the client can know; it is computed there from
+  // `sampleAt` so it keeps ticking between the 60s polls. Deliberately no request-time
+  // `now` on this read model — see the presence-cap note above.
   const terminal = row.endedAt
     ? markerAt(thinned, "death", row.endedAt, null)
     : thinned.length > 0
@@ -1127,23 +1132,48 @@ pnpm --filter @onelife/web add -D @types/leaflet@^1.9.12
 
 ```tsx
 // apps/web/src/components/life/track-map.test.tsx
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import TrackMap from "./track-map";
 import type { LifeTrack } from "@/lib/types";
 
-// jsdom has no layout, so Leaflet itself cannot initialise meaningfully. We assert the
-// container contract, which is what actually regresses — not Leaflet's own behaviour.
-vi.mock("leaflet", () => ({ default: { map: () => ({ setView: () => {}, remove: () => {} }) } }));
+// jsdom has no layout, so real Leaflet cannot initialise. The mock must cover EVERY
+// symbol the component touches — a partial mock throws inside the effect's promise as an
+// unhandled rejection, which can leave the test green while exercising nothing.
+const addTo = vi.fn();
+const polyline = vi.fn(() => ({ addTo }));
+const circleMarker = vi.fn(() => ({ addTo, bindPopup: vi.fn() }));
+const tileLayer = vi.fn(() => ({ addTo }));
+const fitBounds = vi.fn();
+const setView = vi.fn();
+const unproject = vi.fn((p: [number, number]) => ({ lat: p[1], lng: p[0] }));
+
+vi.mock("leaflet", () => ({
+  default: {
+    CRS: { Simple: "SIMPLE" },
+    map: () => ({ unproject, fitBounds, setView, remove: vi.fn() }),
+    tileLayer: (...a: unknown[]) => tileLayer(...a),
+    polyline: (...a: unknown[]) => polyline(...a),
+    circleMarker: (...a: unknown[]) => circleMarker(...a),
+    latLngBounds: (v: unknown) => v,
+  },
+}));
 
 const track: LifeTrack = {
   mapCodename: "chernarusplus",
-  segments: [{ sessionId: 1, points: [{ x: 1000, y: 1000, at: "2026-07-14T00:05:00Z" }] }],
-  markers: [],
-  sampleCount: 1,
+  segments: [
+    { sessionId: 1, points: [{ x: 1000, y: 1000, at: "2026-07-14T00:05:00Z" }, { x: 2000, y: 2000, at: "2026-07-14T00:25:00Z" }] },
+    { sessionId: 2, points: [{ x: 5000, y: 5000, at: "2026-07-14T01:05:00Z" }, { x: 6000, y: 6000, at: "2026-07-14T01:59:00Z" }] },
+  ],
+  markers: [
+    { kind: "death", at: "2026-07-14T02:00:00Z", x: 6000, y: 6000, sampleAt: "2026-07-14T01:59:00Z", sampleAgeSeconds: 60, label: null },
+  ],
+  sampleCount: 4,
   truncated: false,
   alive: false,
 };
+
+beforeEach(() => { vi.clearAllMocks(); });
 
 describe("TrackMap", () => {
   it("cages Leaflet in its own stacking context", () => {
@@ -1154,9 +1184,35 @@ describe("TrackMap", () => {
     expect(container.querySelector(".isolate")).not.toBeNull();
   });
 
+  it("draws ONE polyline per session — never one line joining them", async () => {
+    // A single polyline across both sessions would draw a straight line over a
+    // logout/login the player never walked. Spec §4.1.
+    render(<TrackMap track={track} />);
+    await waitFor(() => expect(polyline).toHaveBeenCalledTimes(2));
+  });
+
+  it("draws one circleMarker per marker", async () => {
+    render(<TrackMap track={track} />);
+    await waitFor(() => expect(circleMarker).toHaveBeenCalledTimes(1));
+  });
+
+  it("requests tiles from the mirrored DZMap layout for this map", async () => {
+    render(<TrackMap track={track} />);
+    await waitFor(() => expect(tileLayer).toHaveBeenCalled());
+    expect(tileLayer.mock.calls[0]![0]).toBe("/tiles/chernarusplus/terrain/{z}/{x}/{y}.webp");
+  });
+
+  it("keeps a single-point session from becoming a zero-length polyline", async () => {
+    const one = { ...track, segments: [{ sessionId: 1, points: [{ x: 1, y: 1, at: "2026-07-14T00:05:00Z" }] }], markers: [] };
+    render(<TrackMap track={one} />);
+    await waitFor(() => expect(unproject).toHaveBeenCalled());
+    expect(polyline).not.toHaveBeenCalled();
+  });
+
   it("renders an explicit notice for a map codename we have no world size for", () => {
     render(<TrackMap track={{ ...track, mapCodename: "banov" }} />);
     expect(screen.getByText(/unmapped terrain/i)).toBeInTheDocument();
+    expect(tileLayer).not.toHaveBeenCalled();
   });
 });
 ```
@@ -1257,7 +1313,7 @@ export default function TrackMap({ track }: { track: LifeTrack }) {
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm --filter @onelife/web exec vitest run src/components/life/track-map.test.tsx`
-Expected: PASS, 2 tests.
+Expected: PASS, 6 tests, with **no unhandled-rejection warnings** in the output. A warning there means the Leaflet mock is missing a symbol the component calls, and the assertions are not exercising what they claim.
 
 - [ ] **Step 6: Commit**
 
@@ -1312,6 +1368,19 @@ describe("TrackMarkerList", () => {
     expect(screen.getByText(/1m before/i)).toBeInTheDocument();
   });
 
+  it("ages a `now` marker against the CLOCK, not its own zero sampleAgeSeconds", () => {
+    // A now-marker's fix IS the event, so sampleAgeSeconds is 0 by construction. Reading
+    // that as "0s" would tell an alive player their position is current when it may be
+    // minutes old. Spec §4.5.
+    const nowMarker = {
+      kind: "now" as const, at: "2026-07-14T03:00:00Z", x: 7000, y: 7000,
+      sampleAt: "2026-07-14T03:00:00Z", sampleAgeSeconds: 0, label: null,
+    };
+    render(<TrackMarkerList markers={[nowMarker]} now={Date.parse("2026-07-14T03:04:00Z")} />);
+    expect(screen.getByText(/last fix 4m ago/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0s/)).toBeNull();
+  });
+
   it("names the victim on a kill", () => {
     render(<TrackMarkerList markers={markers} />);
     expect(screen.getByText(/Victim1/)).toBeInTheDocument();
@@ -1341,14 +1410,28 @@ const KIND_LABEL: Record<TrackMarkerDto["kind"], string> = {
   now: "Last known position",
 };
 
-function ago(seconds: number): string {
-  if (seconds < 60) return `${seconds}s before`;
-  return `${Math.round(seconds / 60)}m before`;
+function span(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
+
+/**
+ * The staleness clause.
+ *
+ * For a kill or a death, the honest statement is how long BEFORE the event the fix was
+ * taken. For `now` the fix *is* the event (sampleAgeSeconds is 0 by construction), so
+ * the honest statement is how old that fix is at read time — computed here, from the
+ * browser clock, so it keeps ticking between the hook's 60s polls. Spec §4.5.
+ */
+function staleness(m: TrackMarkerDto, now: number): string {
+  if (m.kind !== "now") return `approximate, from a fix ${span(m.sampleAgeSeconds)} before`;
+  const age = Math.max(0, Math.round((now - new Date(m.sampleAt).getTime()) / 1000));
+  return `last fix ${span(age)} ago`;
 }
 
 /** The text equivalent of the map. A map is unusable to a screen reader, so the same
  *  information exists here as real DOM — not as alt text on an image. */
-export function TrackMarkerList({ markers }: { markers: TrackMarkerDto[] }) {
+export function TrackMarkerList({ markers, now = Date.now() }: { markers: TrackMarkerDto[]; now?: number }) {
   if (markers.length === 0) return null;
   return (
     <ul role="list" className="mt-3 space-y-1">
@@ -1356,8 +1439,8 @@ export function TrackMarkerList({ markers }: { markers: TrackMarkerDto[] }) {
         <li key={`${m.kind}-${m.at}-${i}`} className="font-mono text-[11px] leading-relaxed text-ink-soft">
           <span className="font-bold text-ink">{KIND_LABEL[m.kind]}</span>
           {m.label ? ` — ${m.label}` : ""}
-          {" · approximate, from a fix "}
-          {ago(m.sampleAgeSeconds)}
+          {" · "}
+          {staleness(m, now)}
         </li>
       ))}
     </ul>
