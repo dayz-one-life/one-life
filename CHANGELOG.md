@@ -15,14 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.29.2] - 2026-07-21
+
+### Fixed
 - Contrast & type floors (UX review sub-project 1): all small red text moved to `red-deep`
   (4.5:1+), article prose is now 16px with a 68ch measure, content labels rise to an 11px
   floor (guard-tested), the masthead wordmark declares intrinsic dimensions (no more load
   shift), the survivors skeleton matches a full page, stat/countdown digits are tabular,
   skeleton pulses respect reduced motion, long gamertags truncate, and form inputs carry an
   explicit focus-visible outline. Both policies are documented at the tokens in `globals.css`.
-
-### Security
 
 ## [0.29.1] - 2026-07-20
 
