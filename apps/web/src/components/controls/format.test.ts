@@ -124,4 +124,21 @@ describe("serverCards lifeNumber", () => {
     const idle = idleStandingForLifeNumber("sakhal", null);
     expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBeNull();
   });
+
+  // Discriminating test for the fallback chain's defence-in-depth: today `lastLifeNumber` is only
+  // ever populated in lockstep with `triggeringLifeNumber` on a banned standing
+  // (`bannedStandingForLifeNumber` sets `lastLifeNumber: triggeringLifeNumber`), so the `??
+  // st?.lastLifeNumber` term is never exercised with a CONFLICTING value in practice. This test
+  // constructs that conflict directly — a banned standing whose triggering life is unidentified
+  // BUT whose `lastLifeNumber` holds a different, real life number — to prove the chain does not
+  // fall through to the wrong life. `serverCards` must branch on `state` for the banned case
+  // rather than rely on nullish-coalescing order alone.
+  test("a banned card never falls through to lastLifeNumber even when it conflicts with a null trigger", () => {
+    const conflicting: ServerStanding = standing({
+      map: "sakhal", slug: "sakhal", state: "banned",
+      ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber: null },
+      lastLifeNumber: 9,
+    });
+    expect(serverCards([serverForLifeNumber("sakhal")], [conflicting])[0]!.lifeNumber).toBeNull();
+  });
 });

@@ -33,7 +33,14 @@ export function serverCards(servers: Server[], standing: ServerStanding[]): Serv
         slug: s.slug,
         map: s.map,
         state: st?.state ?? "idle",
-        lifeNumber: st?.alive?.lifeNumber ?? st?.ban?.triggeringLifeNumber ?? st?.lastLifeNumber ?? null,
+        // Branch on `state`, not nullish-coalescing order: a banned card must NEVER fall through
+        // to `lastLifeNumber` even if some future read-model change populates it independently of
+        // `ban.triggeringLifeNumber` — see the semantics comment on `ServerStanding` in
+        // `packages/read-models/src/player-page.ts`.
+        lifeNumber:
+          st?.state === "alive" ? (st.alive?.lifeNumber ?? null)
+          : st?.state === "banned" ? (st.ban?.triggeringLifeNumber ?? null)
+          : (st?.lastLifeNumber ?? null),
         alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills } : null,
         ban: st?.ban
           ? { banId: st.ban.banId, bannedAt: st.ban.bannedAt, expiresAt: st.ban.expiresAt, liftPending: st.ban.liftPending }

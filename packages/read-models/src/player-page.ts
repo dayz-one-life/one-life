@@ -11,6 +11,21 @@ import { rosterByClass } from "@onelife/domain";
 export interface PlayerCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface AliveStanding { lifeId: number; lifeNumber: number; startedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; }
 export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null; }
+/**
+ * `lastLifeNumber` is NOT "the player's most recent life" despite its name — its meaning is
+ * per-`state`:
+ *   - `alive`:  the OPEN life's number (same value as `alive.lifeNumber`).
+ *   - `banned`: the ban's TRIGGERING life's number, and it is deliberately `null` when that life
+ *     could not be identified — it must NEVER fall back to the player's actual most recent life,
+ *     or a banned card would link to the wrong life (this is what an earlier fix on this branch
+ *     exists to prevent). See `bannedStandingForLifeNumber` in
+ *     `apps/web/src/components/controls/format.test.ts` and the `serverCards` fallback chain in
+ *     `apps/web/src/components/controls/format.ts`, which must branch on `state` rather than rely
+ *     on nullish-coalescing order to preserve this.
+ *   - `idle`:   the most recent life's number — here, and only here, does the name match its value.
+ * Do not "fix" the banned branch to return the last life just because the field's name suggests
+ * it should — that is the exact regression this comment exists to head off.
+ */
 export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; }
 export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
 export interface PlayerPage {

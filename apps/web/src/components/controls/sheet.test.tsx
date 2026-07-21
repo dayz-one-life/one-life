@@ -196,4 +196,21 @@ describe("SheetServerRow", () => {
     expect(link.className).toContain("red-soft");
     expect(link.className).not.toContain("red-deep");
   });
+
+  // Structural pin for the phone-clipping fix: jsdom has no layout engine, so it cannot measure
+  // that a `truncate` span (overflow:hidden + ellipsis + nowrap) clips its last child off-screen
+  // on a narrow viewport. What we CAN pin is the DOM structure that causes/prevents it: the
+  // `Timeline →` link must not be a descendant of any ancestor carrying the `truncate` class,
+  // between it and the row root. If a future change moves the link back inside the fact span,
+  // this test fails even though jsdom itself never renders anything visibly wrong.
+  test("the Timeline link is not nested inside the truncating fact span", () => {
+    const card: ServerCardData = { ...bannedCard, lifeNumber: 7 };
+    render(<SheetServerRow card={card} ownSlug="dead-eye-jim" balance={0} now={new Date("2026-07-16T09:00:00Z")} onRedeem={() => {}} redeeming={false} />);
+    const link = screen.getByRole("link", { name: /timeline/i });
+    let node: HTMLElement | null = link.parentElement;
+    while (node) {
+      expect(node.className).not.toContain("truncate");
+      node = node.parentElement;
+    }
+  });
 });
