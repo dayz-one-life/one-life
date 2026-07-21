@@ -10,6 +10,7 @@ import { unbanStateOf, type UnbanState } from "@/components/player/self-unban-bu
 import { SkewCta } from "@/components/tabloid/skew-cta";
 import { serverFactLine, type ServerCardData } from "./format";
 import { StateChip } from "./server-cards";
+import { SrStatus } from "@/components/shared/sr-status";
 
 type Phase = "closed" | "enter" | "open" | "closing";
 
@@ -119,20 +120,26 @@ export function ControlsSheet({
 
 function SheetUnban({ state, onRedeem }: { state: UnbanState; onRedeem: () => void }) {
   if (state === "hidden") return null;
-  if (state === "pending") {
-    return <p className="mt-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">Unban pending — lifting shortly…</p>;
-  }
-  if (state === "no-tokens") {
-    return (
-      <p className="mt-2 border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[11px] uppercase tracking-[.05em] text-red-soft">
-        No unban tokens
-      </p>
-    );
-  }
+  // Always-mount the announcer (mirrors UnbanView) so it pre-exists the ready -> pending
+  // transition instead of being born together with its first message. The visible pending
+  // copy is unchanged — same text and classes, just no longer double-announcing itself.
   return (
-    <div className="mt-2">
-      <SkewCta onClick={onRedeem}>Spend 1 token — skip the wait</SkewCta>
-    </div>
+    <>
+      <SrStatus>{state === "pending" ? "Unban pending — lifting shortly…" : ""}</SrStatus>
+      {state === "pending" ? (
+        <p className="mt-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">
+          Unban pending — lifting shortly…
+        </p>
+      ) : state === "no-tokens" ? (
+        <p className="mt-2 border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[11px] uppercase tracking-[.05em] text-red-soft">
+          No unban tokens
+        </p>
+      ) : (
+        <div className="mt-2">
+          <SkewCta onClick={onRedeem}>Spend 1 token — skip the wait</SkewCta>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -22,10 +22,10 @@ describe("LinkTagPanel", () => {
   test("suggests tags and picking one fills the input", async () => {
     render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
-    const suggestion = await screen.findByRole("button", { name: "BOOTSCOLDWATER" });
+    const suggestion = await screen.findByRole("option", { name: "BOOTSCOLDWATER" });
     fireEvent.click(suggestion);
     expect((screen.getByLabelText("Gamertag") as HTMLInputElement).value).toBe("BOOTSCOLDWATER");
-    await waitFor(() => expect(screen.queryByRole("button", { name: "BOOTSNCATS99" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("option", { name: "BOOTSNCATS99" })).not.toBeInTheDocument());
   });
 
   test("submits the claim and shows an error", () => {
@@ -43,13 +43,45 @@ describe("LinkTagPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Tag already claimed");
   });
 
+  test("claim error ties to the gamertag input via aria-describedby and aria-invalid", () => {
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />);
+    const input = screen.getByLabelText("Gamertag");
+    expect(input).toHaveAccessibleDescription("Tag already claimed");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("no error means no aria-invalid on the gamertag input", () => {
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
+    expect(screen.getByLabelText("Gamertag")).not.toHaveAttribute("aria-invalid");
+  });
+
   test("picking a suggestion does not reopen the dropdown after the debounce window", async () => {
     render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
-    const suggestion = await screen.findByRole("button", { name: "BOOTSCOLDWATER" });
+    const suggestion = await screen.findByRole("option", { name: "BOOTSCOLDWATER" });
     fireEvent.click(suggestion);
     await new Promise((r) => setTimeout(r, 250));
-    expect(screen.queryByRole("button", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+  });
+
+  // LinkTagPanel mounts simultaneously on the rail and in the mobile sheet (both live in the
+  // root layout at once, one hidden by CSS per breakpoint) — a fixed input/error id would
+  // duplicate in the DOM and aria-describedby could resolve to the wrong instance.
+  test("two mounted instances get distinct ids for input and error", () => {
+    render(
+      <>
+        <LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />
+        <LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />
+      </>,
+    );
+    const inputs = screen.getAllByLabelText("Gamertag");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]!.id).not.toBe(inputs[1]!.id);
+    const errors = screen.getAllByRole("alert");
+    expect(errors).toHaveLength(2);
+    expect(errors[0]!.id).not.toBe(errors[1]!.id);
+    expect(inputs[0]).toHaveAttribute("aria-describedby", errors[0]!.id);
+    expect(inputs[1]).toHaveAttribute("aria-describedby", errors[1]!.id);
   });
 
   test("a stale slow response cannot overwrite newer results", async () => {
@@ -61,11 +93,11 @@ describe("LinkTagPanel", () => {
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
     await new Promise((r) => setTimeout(r, 250)); // first (hanging) request issued
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "BootsN" } });
-    await screen.findByRole("button", { name: "BOOTSNCATS99" }); // second resolves
+    await screen.findByRole("option", { name: "BOOTSNCATS99" }); // second resolves
     resolveFirst(["BOOTSCOLDWATER"]); // stale response lands late
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole("button", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "BOOTSNCATS99" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "BOOTSNCATS99" })).toBeInTheDocument();
   });
 });
 
@@ -109,5 +141,24 @@ describe("ProveItPanel", () => {
     const btn = screen.getByRole("button", { name: "Cancel claim" });
     expect(btn.className).toContain("min-h-[44px]");
     expect(btn.className).toContain("xl:min-h-0");
+  });
+
+  test("progress is announced via a role=status region keyed to progressIndex", () => {
+    const { rerender } = render(
+      <ProveItPanel gamertag="Boots" challenge={challenge({ progressIndex: 1 })} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 3 confirmed");
+    rerender(
+      <ProveItPanel gamertag="Boots" challenge={challenge({ progressIndex: 2 })} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Step 2 of 3 confirmed");
+  });
+
+  test("the status region is a separate node from the progress list", () => {
+    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
+    const status = screen.getByRole("status");
+    expect(status.tagName).not.toBe("OL");
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 });

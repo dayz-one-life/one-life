@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { useState } from "react";
 import { GamertagAutocomplete } from "./gamertag-autocomplete";
@@ -27,7 +27,7 @@ describe("GamertagAutocomplete", () => {
     const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
     render(<Harness fetchSuggestions={fetchSuggestions} />);
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
-    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
     expect(fetchSuggestions).toHaveBeenCalledTimes(1);
     expect(fetchSuggestions).toHaveBeenCalledWith("Ot");
   });
@@ -38,25 +38,25 @@ describe("GamertagAutocomplete", () => {
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "O" } });
     await new Promise((r) => setTimeout(r, 250));
     expect(fetchSuggestions).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "OtherGuy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "OtherGuy" })).not.toBeInTheDocument();
   });
 
   test("excludes the current player case-insensitively", async () => {
     const fetchSuggestions = vi.fn(async () => ["MeGamer", "OtherGuy"]);
     render(<Harness fetchSuggestions={fetchSuggestions} exclude="megamer" />);
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ga" } });
-    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
   test("picking a suggestion fills the value and does not reopen the dropdown", async () => {
     const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
     render(<Harness fetchSuggestions={fetchSuggestions} />);
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
-    fireEvent.click(await screen.findByRole("button", { name: "OtherGuy" }));
+    fireEvent.click(await screen.findByRole("option", { name: "OtherGuy" }));
     expect((screen.getByLabelText("Field") as HTMLInputElement).value).toBe("OtherGuy");
     await new Promise((r) => setTimeout(r, 250));
-    expect(screen.queryByRole("button", { name: "OtherGuy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "OtherGuy" })).not.toBeInTheDocument();
   });
 
   test("a stale slow response cannot overwrite newer results", async () => {
@@ -68,10 +68,147 @@ describe("GamertagAutocomplete", () => {
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ab" } });
     await new Promise((r) => setTimeout(r, 250)); // first (hanging) request issued
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Abc" } });
-    await screen.findByRole("button", { name: "SecondResult" });
+    await screen.findByRole("option", { name: "SecondResult" });
     resolveFirst(["FirstResult"]); // stale response lands late
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole("button", { name: "FirstResult" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "SecondResult" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "FirstResult" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "SecondResult" })).toBeInTheDocument();
+  });
+
+  test("input is a combobox wired to the listbox, collapsed until results arrive", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" });
+    expect(input).toHaveAttribute("aria-autocomplete", "list");
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input).not.toHaveAttribute("aria-controls", "");
+    fireEvent.change(input, { target: { value: "Ot" } });
+    const listbox = await screen.findByRole("listbox");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-controls", listbox.id);
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]).toHaveAttribute("aria-selected", "false");
+    expect(options[1]).toHaveAttribute("aria-selected", "false");
+  });
+
+  test("ArrowDown/ArrowUp move the highlight and set aria-activedescendant", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" });
+    fireEvent.change(input, { target: { value: "Ot" } });
+    const options = await screen.findAllByRole("option");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[0]!.id);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[1]!.id);
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[0]!.id);
+  });
+
+  test("Enter selects the highlighted option", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByLabelText("Field") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Ot" } });
+    await screen.findAllByRole("option");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("OtherGuy");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  test("Escape closes the listbox without clearing the query", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" }) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Ot" } });
+    await screen.findByRole("listbox");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input.value).toBe("Ot");
+  });
+
+  test("the result live region is present but empty before any search", () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    expect(screen.getByRole("status")).toHaveTextContent("");
+  });
+
+  test("a completed search announces the result count via a polite live region", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("2 matches"));
+  });
+
+  test("a search with no results announces 'No matches'", async () => {
+    const fetchSuggestions = vi.fn(async () => [] as string[]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Zz" } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No matches"));
+  });
+
+  test("the live region survives a pick — announced again, not torn down and remounted", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const statusNode = screen.getByRole("status"); // present from the very first render
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
+    await waitFor(() => expect(statusNode).toHaveTextContent("2 matches"));
+    fireEvent.click(await screen.findByRole("option", { name: "OtherGuy" }));
+    // Picking clears the announcement, but the region itself is the SAME node — never
+    // unmounted/remounted around the mutation.
+    expect(screen.getByRole("status")).toBe(statusNode);
+    expect(statusNode).toHaveTextContent("");
+  });
+
+  test("aria-controls never dangles: the listbox stays in the DOM, hidden, while collapsed", () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" });
+    // Not exposed to AT while collapsed — the default role query correctly finds nothing...
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    // ...but `{ hidden: true }` opts back into elements hidden from the a11y tree, proving the
+    // node `aria-controls` points at still exists rather than dangling.
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(listbox).toHaveAttribute("hidden");
+    expect(listbox.id).toBe(input.getAttribute("aria-controls"));
+  });
+
+  test("ArrowDown past the last option wraps to the first", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" });
+    fireEvent.change(input, { target: { value: "Ot" } });
+    const options = await screen.findAllByRole("option");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[0]!.id);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[1]!.id);
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // past the end
+    expect(input).toHaveAttribute("aria-activedescendant", options[0]!.id);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveAttribute("aria-selected", "false");
+  });
+
+  test("Enter with nothing highlighted does not pick a suggestion", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByLabelText("Field") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Ot" } });
+    await screen.findAllByRole("option");
+    const event = fireEvent.keyDown(input, { key: "Enter" });
+    // Nothing highlighted (highlightedIndex is -1) — the component does not intercept the
+    // key, so preventDefault is never called and the value is untouched.
+    expect(event).toBe(true);
+    expect(input.value).toBe("Ot");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 });

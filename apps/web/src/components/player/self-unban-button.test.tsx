@@ -14,7 +14,7 @@ describe("UnbanView", () => {
   });
   it("shows pending state", () => {
     render(<UnbanView state="pending" balance={2} onRedeem={() => {}} />);
-    expect(screen.getByText(/unban pending/i)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/unban pending/i);
   });
   it("renders nothing in the hidden state", () => {
     const { container } = render(<UnbanView state="hidden" balance={0} onRedeem={() => {}} />);
@@ -34,9 +34,20 @@ describe("UnbanView", () => {
     expect(screen.getByText("Earn tokens monthly, by referral, or on verification")).toBeInTheDocument();
   });
 
-  test("pending state renders the mono notice", () => {
+  test("pending state renders the mono notice as a role=status announcement", () => {
     render(<UnbanView state="pending" balance={0} onRedeem={() => {}} />);
-    expect(screen.getByText("Unban pending — lifting shortly…")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Unban pending — lifting shortly…");
+  });
+
+  test("the status region pre-exists the ready state and announces on the ready -> pending transition", () => {
+    const { rerender } = render(<UnbanView state="ready" balance={3} onRedeem={() => {}} />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("");
+    rerender(<UnbanView state="pending" balance={3} onRedeem={() => {}} />);
+    // Same node — the live region was already in the DOM before its text changed, not born
+    // together with the pending message.
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Unban pending — lifting shortly…");
   });
 
   test("unbanStateOf: pending wins, then balance decides", () => {

@@ -12,6 +12,7 @@ import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
+import { VerificationAnnouncer } from "./verification-announcer";
 import { ApiError } from "@/lib/api";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
@@ -62,6 +63,16 @@ export function MobileControls() {
 
   return (
     <>
+      {/* Mounted unconditionally (not inside ControlsSheet, which unmounts entirely while
+       *  closed) so it survives both the pending -> verified swap and the sheet's own
+       *  open/close cycle. Wrapped `xl:hidden`: sr-only is clip-based, not display:none, so
+       *  the <p> stays in the a11y tree at every breakpoint unless we gate it ourselves. The
+       *  rail already carries this announcer at `xl` (`hidden xl:block`), so leaving this copy
+       *  unguarded would put two live announcers in the tree at `xl` and double-announce
+       *  "Verification complete" to desktop screen readers. */}
+      <div className="xl:hidden">
+        <VerificationAnnouncer kind={c.status.kind} />
+      </div>
       <ControlsPillView
         name={name}
         line={line}
