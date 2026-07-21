@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.29.4] - 2026-07-21
+
+### Fixed
+
 - Live-data honesty (UX review sub-project 3): dry-run bans (never placed on the game server)
   no longer render as a real ban or accept a token spend; the life-timeline "time alive" caps at
   last-seen like the board and dossier (no more "9h and counting" for a player who logged off
@@ -24,8 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   desk"; the Fresh Spawns status recomputes at request time so a since-died subject reads as dead;
   the share card says "first seen" rather than "surviving since"; and a regenerated article image
   busts its own cache.
-
-### Security
 
 ## [0.29.3] - 2026-07-21
 
