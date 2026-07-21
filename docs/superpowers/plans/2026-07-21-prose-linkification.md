@@ -47,7 +47,7 @@ Spec: `docs/superpowers/specs/2026-07-21-prose-linkification-design.md`
 - Test: `apps/web/src/lib/linkify-gamertags.test.tsx`
 
 **Interfaces:**
-- Consumes: `GamertagLink` from `@/components/shared/gamertag-link` (existing, takes `{gamertag, className?}` and renders the gamertag text linked to `/players/{playerSlug(gamertag)}`).
+- Consumes: `GamertagLink` from `@/components/gamertag-link` (existing, takes `{gamertag, className?}` and renders the gamertag text linked to `/players/{playerSlug(gamertag)}`).
 - Produces: `linkifyGamertags(text: string, roster: string[]): ReactNode[]` and the exported constant `PROSE_LINK_CLASS: string`.
 
 **Note on casing:** the matched text is passed as `GamertagLink`'s `gamertag` prop. Matching is case-insensitive *only*, so the matched text and the roster entry differ at most in case, and `playerSlug` lowercases — the href is identical either way. No change to `GamertagLink` is needed.
@@ -138,7 +138,7 @@ Expected: FAIL — `Failed to resolve import "./linkify-gamertags"`.
 ```tsx
 // apps/web/src/lib/linkify-gamertags.tsx
 import type { ReactNode } from "react";
-import { GamertagLink } from "@/components/shared/gamertag-link";
+import { GamertagLink } from "@/components/gamertag-link";
 
 /** In-prose links need a non-hover affordance — colour alone fails WCAG 1.4.1. `red-deep` is the
  *  light-surface red; every article interior is paper, and it must never be used on a dark one. */
