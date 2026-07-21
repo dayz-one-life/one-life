@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.30.0] - 2026-07-21
+
+### Added
+
+- Cross-links between players, lives, and articles. The server cards in your account controls now
+  open the life they describe — whether you're alive there, banned, or just idle. An obituary or
+  birth notice links from its byline to that life's full event timeline, and a life timeline links
+  back to its obituary once the paper has published one.
+
 ## [0.29.6] - 2026-07-21
 
 ### Fixed

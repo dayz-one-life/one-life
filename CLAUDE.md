@@ -627,6 +627,34 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   removing it breaks the popover. jsdom cannot observe paint order, so `header.test.tsx` pins
   the altitude numerically (`0 < z < 50`) and the real ordering was verified with
   `elementFromPoint` in a browser.
+- **Cross-linking, PR-1** ✅: links between players, lives, and articles that need no schema change.
+  Controls-rail + mobile-sheet server cards link to the life they describe; an obituary/birth-notice
+  byline links to that life's timeline; a life timeline links back to its published obituary.
+  Spec `docs/superpowers/specs/2026-07-21-cross-linking-design.md` (§4 = this PR; §5/§6 are the
+  unbuilt PR-2 `article_subjects` + In The Paper and PR-3 prose linkification).
+  **Two href builders, and picking the wrong one is silent:** `lifeHref(gamertag, mapSlug, n)`
+  slugifies for you; **`lifeHrefBySlug(playerSlug, mapSlug, n)`** takes an ALREADY-slugified
+  callsign and is what the rail/sheet use (they hold `ownSlug`). Passing a slug to `lifeHref`
+  double-slugifies; passing a gamertag to `lifeHrefBySlug` leaves it unslugified.
+  **⚠️ The map segment of a life URL is a `servers.slug`, NEVER `servers.map`.** The route resolves
+  it with `resolveServerBySlug` (404s on a miss — see the comment at
+  `apps/api/src/routes/player-aggregate.ts`). On an article DTO that means **`mapSlug`** (nullable)
+  and never `map` (the non-nullable mission codename `chernarusplus`/`enoch`, which is display-only,
+  via `mapLabel`). Building an href from `map` yields a 404 on every article.
+  **⚠️ An article is matched to a life by the rebuild-stable tuple `(server_id, gamertag,
+  life_started_at)`** — the key behind `articles_kind_server_gamertag_life_uniq`, and the same
+  convention `bans` uses. **Never key on `articles.life_number`**: it is nullable, carries no
+  uniqueness constraint, and is a count derived during fold, so every later life renumbers if the
+  fold changes and the link silently lands on the wrong life. `getLifeTimeline`'s `obituarySlug`
+  lookup is pinned by a regression test that fails against the `life_number` predicate.
+  **A life link renders only when its life number is known.** `ban.triggeringLifeNumber` and
+  `ServerStanding.lastLifeNumber` are both nullable; a null renders NO link, never `/lives/0` or
+  `/lives/undefined`. Specifically, when a ban cannot be matched to its triggering life the banned
+  card shows no link — it deliberately does **not** fall back to the most recent life, because a
+  banned card's whole claim is "this ban came from this life." `lastLifeNumber` on an **idle** card
+  does resolve to the most recent life; that fallback is correct there and only there.
+  Only `status='published'` articles are ever linked — a retracted article is a public correction,
+  not the life's obituary.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict

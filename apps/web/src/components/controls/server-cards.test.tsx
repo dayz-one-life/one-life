@@ -7,16 +7,16 @@ import { diedAtLabel } from "./format";
 const NOW = new Date("2026-07-16T12:00:00Z");
 
 const alive: ServerCardData = {
-  slug: "chernarus", map: "chernarusplus", state: "alive",
+  slug: "chernarus", map: "chernarusplus", state: "alive", lifeNumber: 5,
   alive: { timeAliveSeconds: 22920, kills: 0 }, ban: null,
 };
-const idle: ServerCardData = { slug: "livonia", map: "enoch", state: "idle", alive: null, ban: null };
+const idle: ServerCardData = { slug: "livonia", map: "enoch", state: "idle", lifeNumber: null, alive: null, ban: null };
 const banned: ServerCardData = {
-  slug: "sakhal", map: "sakhal", state: "banned", alive: null,
+  slug: "sakhal", map: "sakhal", state: "banned", lifeNumber: 3, alive: null,
   ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: "2026-07-17T01:58:00Z", liftPending: false },
 };
 const expiredBanned: ServerCardData = {
-  slug: "sakhal", map: "sakhal", state: "banned", alive: null,
+  slug: "sakhal", map: "sakhal", state: "banned", lifeNumber: 3, alive: null,
   ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: "2026-07-16T10:00:00Z", liftPending: false },
 };
 
@@ -24,9 +24,13 @@ const base = { ownSlug: "bootscoldwater", balance: 3, now: NOW, onRedeem: () => 
 
 describe("ServerCard", () => {
   test("alive: blue chip and fact line", () => {
-    render(<ServerCard card={alive} {...base} />);
+    const { container } = render(<ServerCard card={alive} {...base} />);
     expect(screen.getByText("Alive")).toBeInTheDocument();
-    expect(screen.getByText("Qualified · 6h 22m this life · 0 kills")).toBeInTheDocument();
+    // The alive fixture also carries a lifeNumber, so the fact line now shares its <p> with a
+    // Timeline link (rendered for any card with a known lifeNumber, not just banned ones) — assert
+    // the full exact text including the new suffix.
+    const factParagraph = container.querySelector("p");
+    expect(factParagraph?.textContent).toBe("Qualified · 6h 22m this life · 0 kills · Timeline →");
   });
 
   test("idle: dashed chip and the grace invitation", () => {
@@ -92,5 +96,31 @@ describe("ServerCard", () => {
     expect(screen.queryByText(/checking your tokens/i)).not.toBeInTheDocument();
     const notices = screen.getAllByText("Unban pending — lifting shortly…");
     expect(notices.find((el) => !el.className.includes("sr-only"))).toBeInTheDocument();
+  });
+
+  test("links an alive card to the life timeline", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    expect(screen.getByRole("link", { name: /timeline/i })).toHaveAttribute("href", "/players/dead-eye-jim/chernarus/lives/4");
+  });
+
+  test("renders no timeline link when the life number is unknown", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: null }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    expect(screen.queryByRole("link", { name: /timeline/i })).toBeNull();
+  });
+
+  test("renders no timeline link when the viewer has no slug", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug={null} balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    expect(screen.queryByRole("link", { name: /timeline/i })).toBeNull();
+  });
+
+  test("links to the life timeline with LIGHT-SURFACE tokens, not the dark-surface red", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    const link = screen.getByRole("link", { name: /timeline/i });
+    expect(link).toHaveAttribute("href", "/players/dead-eye-jim/chernarus/lives/4");
+    // ⚠️ --red-deep is a light-surface-only token: on bg-dark it fails AA. RTL asserts the DOM,
+    // not contrast, so this token assertion is the only thing standing between us and an
+    // invisible-but-present control on dark surfaces. The rail is the light surface.
+    expect(link.className).toContain("red-deep");
+    expect(link.className).not.toContain("red-soft");
   });
 });

@@ -14,6 +14,7 @@ const standing = (serverId: number, state: ServerStanding["state"] = "alive"): S
       ? { lifeId: serverId, lifeNumber: 1, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 3600, kills: 0, longestKillMeters: null, killList: [] }
       : null,
   ban: null,
+  lastLifeNumber: null,
 });
 
 const pastLife = (lifeId: number): PastLife => ({

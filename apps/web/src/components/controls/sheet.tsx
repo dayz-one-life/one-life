@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { lifeHrefBySlug } from "@/lib/life-href";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { useSheetDrag } from "@/lib/use-sheet-drag";
 import { banCountdown, mapLabel } from "@/components/player/format";
@@ -182,15 +183,26 @@ export function SheetServerRow({
         <h3 className="flex-none font-display text-sm font-semibold uppercase leading-none text-paper">{mapLabel(card.map)}</h3>
         <span className="min-w-0 flex-1 truncate font-mono text-[12px] uppercase tracking-[.03em] text-cream-muted">
           {serverFactLine(card)}
-          {banned && ownSlug && (
-            <>
-              {" · "}
-              <Link href={`/players/${ownSlug}`} className="text-red-soft">Obit →</Link>
-            </>
-          )}
         </span>
         <StateChip state={card.state} small />
       </div>
+      {/* Links render on their own line, OUTSIDE the truncating fact span above — that span is
+       *  `truncate` (overflow:hidden + ellipsis + nowrap), and a link appended inside it can be
+       *  clipped off-screen (present in the DOM, focusable, but invisible) on a narrow phone
+       *  viewport. jsdom has no layout engine so no render-based test can catch that; see this
+       *  file's structural test in sheet.test.tsx for how it's pinned instead. */}
+      {((banned && ownSlug) || (card.lifeNumber !== null && ownSlug)) && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] uppercase tracking-[.03em]">
+          {banned && ownSlug && (
+            <Link href={`/players/${ownSlug}`} className="text-red-soft">Obit →</Link>
+          )}
+          {card.lifeNumber !== null && ownSlug && (
+            <Link href={lifeHrefBySlug(ownSlug, card.slug, card.lifeNumber)} className="text-red-soft">
+              Timeline →
+            </Link>
+          )}
+        </div>
+      )}
       {banned && (
         <>
           {card.ban!.expiresAt && (
