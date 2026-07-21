@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { lifeHrefBySlug } from "@/lib/life-href";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { useSheetDrag } from "@/lib/use-sheet-drag";
 import { banCountdown, mapLabel } from "@/components/player/format";
@@ -186,6 +187,14 @@ export function SheetServerRow({
             <>
               {" · "}
               <Link href={`/players/${ownSlug}`} className="text-red-soft">Obit →</Link>
+            </>
+          )}
+          {card.lifeNumber !== null && ownSlug && (
+            <>
+              {" · "}
+              <Link href={lifeHrefBySlug(ownSlug, card.slug, card.lifeNumber)} className="text-red-soft">
+                Timeline →
+              </Link>
             </>
           )}
         </span>

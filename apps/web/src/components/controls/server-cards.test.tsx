@@ -26,7 +26,10 @@ describe("ServerCard", () => {
   test("alive: blue chip and fact line", () => {
     render(<ServerCard card={alive} {...base} />);
     expect(screen.getByText("Alive")).toBeInTheDocument();
-    expect(screen.getByText("Qualified · 6h 22m this life · 0 kills")).toBeInTheDocument();
+    // The alive fixture also carries a lifeNumber, so the fact line now shares its <p> with a
+    // Timeline link (rendered for any card with a known lifeNumber, not just banned ones) — match
+    // the fact-line substring rather than the whole (now longer) element text.
+    expect(screen.getByText(/Qualified · 6h 22m this life · 0 kills/)).toBeInTheDocument();
   });
 
   test("idle: dashed chip and the grace invitation", () => {
@@ -92,5 +95,20 @@ describe("ServerCard", () => {
     expect(screen.queryByText(/checking your tokens/i)).not.toBeInTheDocument();
     const notices = screen.getAllByText("Unban pending — lifting shortly…");
     expect(notices.find((el) => !el.className.includes("sr-only"))).toBeInTheDocument();
+  });
+
+  test("links an alive card to the life timeline", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    expect(screen.getByRole("link", { name: /timeline/i })).toHaveAttribute("href", "/players/dead-eye-jim/chernarus/lives/4");
+  });
+
+  test("renders no timeline link when the life number is unknown", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: null }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    expect(screen.queryByRole("link", { name: /timeline/i })).toBeNull();
+  });
+
+  test("renders no timeline link when the viewer has no slug", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug={null} balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    expect(screen.queryByRole("link", { name: /timeline/i })).toBeNull();
   });
 });

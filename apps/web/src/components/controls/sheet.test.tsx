@@ -184,4 +184,16 @@ describe("SheetServerRow", () => {
     expect(screen.queryByText(/checking your tokens/i)).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Unban pending — lifting shortly…");
   });
+
+  test("links to the life timeline with ON-DARK tokens, not the light-surface red", () => {
+    const card: ServerCardData = { ...bannedCard, lifeNumber: 7 };
+    render(<SheetServerRow card={card} ownSlug="dead-eye-jim" balance={0} now={new Date("2026-07-16T09:00:00Z")} onRedeem={() => {}} redeeming={false} />);
+    const link = screen.getByRole("link", { name: /timeline/i });
+    expect(link).toHaveAttribute("href", "/players/dead-eye-jim/chernarus/lives/7");
+    // ⚠️ --red-deep is a light-surface-only token: on bg-dark it fails AA. RTL asserts the DOM,
+    // not contrast, so this token assertion is the only thing standing between us and an
+    // invisible-but-present control on a phone.
+    expect(link.className).toContain("red-soft");
+    expect(link.className).not.toContain("red-deep");
+  });
 });
