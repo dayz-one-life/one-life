@@ -161,6 +161,8 @@ export type LifeTimelineData = {
   // Player heartbeat — caps live "time alive" accrual for an open life so it agrees with the
   // survivor board + dossier standing card (both stop at last-seen, not request-time `now`).
   lastSeenAt: string | null;
+  // Slug of this life's published obituary, or null. Published only — see the read-model.
+  obituarySlug: string | null;
 };
 
 /**

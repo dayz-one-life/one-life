@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, hitEvents } from "@onelife/db";
-import { inArray } from "drizzle-orm";
+import { servers, players, lives, sessions, kills, hitEvents, articles } from "@onelife/db";
+import { inArray, eq } from "drizzle-orm";
 import { getLifeTimeline } from "../src/life-timeline.js";
 
 const { db, sql } = getTestDb();
@@ -49,6 +49,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.delete(articles).where(inArray(articles.slug, [`lt-obit-${svc}`]));
   await db.delete(hitEvents).where(inArray(hitEvents.serverId, [serverId]));
   await db.delete(kills).where(inArray(kills.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
@@ -99,5 +100,30 @@ describe("getLifeTimeline", () => {
     expect(t!.verdict).toBeNull();
     expect(t!.ordeals).toBeNull();
     expect(t!.hpLow).toBeNull();
+  });
+});
+
+describe("obituarySlug", () => {
+  it("is null when the paper has not written about this life", async () => {
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBeNull();
+  });
+
+  it("finds a published obituary for this exact life", async () => {
+    await db.insert(articles).values({
+      kind: "obituary", status: "published", slug: `lt-obit-${svc}`,
+      serverId, gamertag: `LtHero-${svc}`, lifeNumber: 1, lifeStartedAt: start,
+      headline: "Last Light On The Ridge", body: "x", deathAt: mins(360),
+    });
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBe(`lt-obit-${svc}`);
+  });
+
+  it("ignores a retracted article for the same life", async () => {
+    // A retraction is a public correction, not the life's obituary. Linking it would present a
+    // withdrawn story as the record of this death.
+    await db.update(articles).set({ status: "retracted" }).where(eq(articles.slug, `lt-obit-${svc}`));
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBeNull();
   });
 });

@@ -7,7 +7,7 @@ import type { LifeTimelineData } from "@/lib/types";
 const start = "2026-07-14T00:00:00Z";
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
-    gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null,
+    gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null, obituarySlug: null,
     life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [], qualifiedAt: { at: start, by: "playtime" },
@@ -69,5 +69,22 @@ describe("LifeHero", () => {
     const d = data({ character: null });
     const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
     expect(container.querySelector("img")).toBeNull(); // silhouette svg, not an img
+  });
+
+  test("links to the obituary when one is published", () => {
+    const now = new Date(Date.parse(start) + 100 * 60_000);
+    const d = data({ obituarySlug: "last-light-on-the-ridge" });
+    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    expect(screen.getByRole("link", { name: /obituary/i })).toHaveAttribute(
+      "href",
+      "/obituaries/last-light-on-the-ridge",
+    );
+  });
+
+  test("renders no obituary link when there is none", () => {
+    const now = new Date(Date.parse(start) + 100 * 60_000);
+    const d = data({ obituarySlug: null });
+    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    expect(screen.queryByRole("link", { name: /obituary/i })).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { players } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { players, articles } from "@onelife/db";
+import { and, eq, sql } from "drizzle-orm";
 import { getLifeDetail } from "./queries.js";
 import { getLifeCharacter, type LifeCharacter } from "./character.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
@@ -20,6 +20,9 @@ export interface LifeTimeline {
   // survivors.ts + the dossier's cap in queries.ts), so a crashed/ghosted player doesn't keep
   // climbing on this page while the board and dossier stop at last-seen.
   lastSeenAt: Date | null;
+  /** Slug of this life's published obituary, or null. Published only — a retracted article is a
+   *  correction, not the life's obituary, and must never be linked as one. */
+  obituarySlug: string | null;
 }
 
 /** Full per-life timeline data: the life row, ordered sessions, resolved character,
@@ -33,11 +36,24 @@ export async function getLifeTimeline(
   const detail = await getLifeDetail(db, serverId, lifeId);
   if (!detail) return null;
   const { life, sessions } = detail;
-  const [character, kills, playerRow, dossier] = await Promise.all([
+  const [character, kills, playerRow, dossier, obituaryRows] = await Promise.all([
     getLifeCharacter(db, serverId, gamertag, life.startedAt, life.endedAt),
     getLifeKills(db, serverId, gamertag, life.startedAt, life.endedAt),
     db.select({ lastSeenAt: players.lastSeenAt }).from(players).where(eq(players.gamertag, gamertag)),
     life.endedAt ? dossierForLife(db, gamertag, life) : Promise.resolve(null),
+    db
+      .select({ slug: articles.slug })
+      .from(articles)
+      .where(
+        and(
+          eq(articles.kind, "obituary"),
+          eq(articles.status, "published"),
+          eq(articles.serverId, serverId),
+          sql`lower(${articles.gamertag}) = lower(${gamertag})`,
+          eq(articles.lifeNumber, life.lifeNumber),
+        ),
+      )
+      .limit(1),
   ]);
   const qualifiedAt = lifeQualifiedAt({
     deathCause: life.deathCause,
@@ -57,5 +73,6 @@ export async function getLifeTimeline(
     ordeals: dossier?.ordeals ?? null,
     hpLow: dossier?.hpLow ?? null,
     lastSeenAt: playerRow[0]?.lastSeenAt ?? null,
+    obituarySlug: obituaryRows[0]?.slug ?? null,
   };
 }
