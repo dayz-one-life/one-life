@@ -35,7 +35,19 @@ export function Masthead() {
   const panelRef = useModalBehavior(open, () => setOpen(false));
 
   return (
-    <header className="bg-dark">
+    // ⚠️ LAYER LEGEND — the app has exactly three altitudes, and they must stay in this order:
+    //   z-auto  page content — incl. the `xl:sticky` ControlsRail (`controls/rail.tsx`) and the
+    //           `relative` article-hero image wrappers. NOTE: `sticky` opens a stacking context
+    //           regardless of z-index, and z-auto contexts still paint in tree order, so any of
+    //           these positioned LATER in the DOM paints over an unlayered masthead.
+    //   z-40    this masthead — load-bearing, not decoration. The bell popover's own `z-50` only
+    //           ranks it INSIDE the right cluster, whose `-translate-y-1/2` opens a stacking
+    //           context; without a layer here the popover paints behind page content.
+    //   z-50    full-screen overlays that must cover the masthead: the skip-to-content link
+    //           (`app/layout.tsx`, and it renders BEFORE the header, so it would lose a z-50 tie)
+    //           and the `ControlsSheet` (`controls/sheet.tsx`).
+    // Keep the masthead strictly BELOW 50 — an equal value leaves those two decided by DOM order.
+    <header className="relative z-40 bg-dark">
       <div className="relative flex items-center justify-center px-4 pt-5 md:pt-7">
         <button
           type="button"
