@@ -69,7 +69,7 @@ export async function getPlayerArticles(
       ) both_arms
       ORDER BY slug, (role = 'subject') DESC
     ) deduped
-    ORDER BY created_at DESC
+    ORDER BY created_at DESC, slug
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
   `);
 

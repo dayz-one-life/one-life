@@ -8,6 +8,11 @@ const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 61e7;
 const start = new Date("2026-07-15T00:00:00Z");
 const mins = (m: number) => new Date(start.getTime() + m * 60_000);
+// Postgres's bounded top-N heapsort for ORDER BY + LIMIT is not stable across ties, and which
+// rows survive (and in what order) can differ depending on the LIMIT/OFFSET requested. A handful
+// of tied rows isn't enough to observe it reliably; ~10 is (verified empirically against this
+// database before writing the test).
+const TIE_COUNT = 10;
 
 const slugs = [
   `pa-obit-${svc}`,
@@ -18,6 +23,12 @@ const slugs = [
   `pa-multi-2-${svc}`,
   `pa-multi-3-${svc}`,
   `pa-self-${svc}`,
+  ...Array.from({ length: TIE_COUNT }, (_, i) => `pa-tie-${i + 1}-${svc}`),
+  `pa-mix-s1-${svc}`,
+  `pa-mix-k1-${svc}`,
+  `pa-mix-s2-${svc}`,
+  `pa-mix-k2-${svc}`,
+  `pa-mix-s3-${svc}`,
 ];
 
 beforeAll(async () => {
@@ -96,6 +107,62 @@ beforeAll(async () => {
       facts: { killerGamertag: `Selfkill-${svc}` },
       createdAt: mins(80),
     },
+    ...Array.from({ length: TIE_COUNT }, (_, i) => ({
+      kind: "obituary" as const,
+      status: "published" as const,
+      slug: `pa-tie-${i + 1}-${svc}`,
+      gamertag: `Tiebreak-${svc}`,
+      headline: `Tie ${i + 1}`,
+      body: "x",
+      createdAt: mins(90),
+    })),
+    {
+      kind: "obituary",
+      status: "published",
+      slug: `pa-mix-s1-${svc}`,
+      gamertag: `Mixed-${svc}`,
+      headline: "Mixed Subject One",
+      body: "x",
+      createdAt: mins(100),
+    },
+    {
+      kind: "obituary",
+      status: "published",
+      slug: `pa-mix-k1-${svc}`,
+      gamertag: `SomeoneElse-${svc}`,
+      headline: "Mixed Killer One",
+      body: "x",
+      facts: { killerGamertag: `Mixed-${svc}` },
+      createdAt: mins(110),
+    },
+    {
+      kind: "obituary",
+      status: "published",
+      slug: `pa-mix-s2-${svc}`,
+      gamertag: `Mixed-${svc}`,
+      headline: "Mixed Subject Two",
+      body: "x",
+      createdAt: mins(120),
+    },
+    {
+      kind: "obituary",
+      status: "published",
+      slug: `pa-mix-k2-${svc}`,
+      gamertag: `SomeoneElse-${svc}`,
+      headline: "Mixed Killer Two",
+      body: "x",
+      facts: { killerGamertag: `Mixed-${svc}` },
+      createdAt: mins(130),
+    },
+    {
+      kind: "obituary",
+      status: "published",
+      slug: `pa-mix-s3-${svc}`,
+      gamertag: `Mixed-${svc}`,
+      headline: "Mixed Subject Three",
+      body: "x",
+      createdAt: mins(140),
+    },
   ]);
 });
 
@@ -160,5 +227,51 @@ describe("getPlayerArticles", () => {
     const forArticle = feed.rows.filter((r) => r.slug === `pa-self-${svc}`);
     expect(forArticle).toHaveLength(1);
     expect(forArticle[0]!.role).toBe("subject");
+  });
+
+  it("does not repeat or drop a row across pages when many articles share one created_at", async () => {
+    // TIE_COUNT articles for the same player, identical created_at. Postgres's bounded top-N
+    // heapsort for ORDER BY + LIMIT is not stable across ties — without a tiebreak in the ORDER
+    // BY, which rows survive into a given LIMIT/OFFSET window (and in what order) can differ
+    // between windows, so a row can land on two pages, or on none. Walk every page and check the
+    // union is exactly the full set, with no duplicates.
+    const tieSlugs = Array.from({ length: TIE_COUNT }, (_, i) => `pa-tie-${i + 1}-${svc}`);
+    const pageSize = 2;
+    const pages = Math.ceil(TIE_COUNT / pageSize);
+    const seen: string[] = [];
+    for (let page = 1; page <= pages; page++) {
+      const feed = await getPlayerArticles(db, `Tiebreak-${svc}`, { page, pageSize });
+      seen.push(...feed.rows.map((r) => r.slug));
+    }
+    expect(new Set(seen).size).toBe(tieSlugs.length);
+    expect(seen.sort()).toEqual([...tieSlugs].sort());
+  });
+
+  it("interleaves subject and killer roles in one newest-first sequence across pages", async () => {
+    // 3 subject articles + 2 killer articles for the same player, with created_at values that
+    // alternate between the two roles. If pagination were applied per-arm before the UNION
+    // (rather than once on the combined, ordered set), this would either drop rows or fail to
+    // interleave the roles by time.
+    const feed1 = await getPlayerArticles(db, `Mixed-${svc}`, { page: 1, pageSize: 2 });
+    const feed2 = await getPlayerArticles(db, `Mixed-${svc}`, { page: 2, pageSize: 2 });
+    const feed3 = await getPlayerArticles(db, `Mixed-${svc}`, { page: 3, pageSize: 2 });
+
+    expect(feed1.total).toBe(5);
+    const combined = [...feed1.rows, ...feed2.rows, ...feed3.rows];
+    expect(combined).toHaveLength(5);
+    expect(new Set(combined.map((r) => r.slug)).size).toBe(5);
+
+    // Newest first across the whole combined sequence.
+    const times = combined.map((r) => r.createdAt.getTime());
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+
+    // The roles must interleave (proves ordering happens after the union, not per-arm).
+    expect(combined.map((r) => [r.slug, r.role])).toEqual([
+      [`pa-mix-s3-${svc}`, "subject"],
+      [`pa-mix-k2-${svc}`, "killer"],
+      [`pa-mix-s2-${svc}`, "subject"],
+      [`pa-mix-k1-${svc}`, "killer"],
+      [`pa-mix-s1-${svc}`, "subject"],
+    ]);
   });
 });
