@@ -612,6 +612,21 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `document.activeElement` on open), the `VerificationAnnouncer`, and every panel inside the sheet
   (identity, link/verify, tokens, server cards, self-unban, the SP2 live regions, the SP3 loading
   affordances) are unchanged.
+  **⚠️ THE APP HAS EXACTLY THREE Z-ALTITUDES — the LAYER LEGEND at the `<header>` in
+  `header.tsx` is the source of truth.** `z-auto` page content → **`z-40` masthead** → **`z-50`
+  full-screen overlays** (the skip-to-content link in `app/layout.tsx`, `ControlsSheet` in
+  `controls/sheet.tsx`). The masthead **must** be a positioned layer: the bell popover's own
+  `z-50` only ranks it *inside* the right cluster, whose `-translate-y-1/2` opens a stacking
+  context — so without a layer on the header, any later-in-DOM positioned-at-`z-auto` element
+  paints over the popover (the `xl:sticky` `ControlsRail` — **`sticky` opens a stacking context
+  regardless of z-index** — and the `relative` image wrappers in `shared/article-hero.tsx` /
+  `front-page/news-lead.tsx`). That was the v0.29.6 bug: notifications rendered *behind* the
+  page. The masthead must equally stay **strictly below 50** — the skip link renders *before*
+  the header, so an equal value is decided by DOM order and silently buries the only control
+  keyboard users have. Both halves are one-directional: raising the masthead breaks a11y,
+  removing it breaks the popover. jsdom cannot observe paint order, so `header.test.tsx` pins
+  the altitude numerically (`0 < z < 50`) and the real ordering was verified with
+  `elementFromPoint` in a browser.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
