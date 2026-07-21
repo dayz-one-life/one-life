@@ -11,7 +11,7 @@ const server = (over: Partial<Server>): Server => ({
 
 const standing = (over: Partial<ServerStanding>): ServerStanding => ({
   serverId: 1, map: "chernarusplus", slug: "chernarus", state: "idle",
-  character: null, alive: null, ban: null, ...over,
+  character: null, alive: null, ban: null, lastLifeNumber: null, ...over,
 });
 
 const aliveStanding = (slug: string, map: string, secs: number, kills = 0): ServerStanding =>
@@ -108,5 +108,15 @@ describe("serverCards lifeNumber", () => {
 
   test("is null on a card with no standing at all", () => {
     expect(serverCards([serverForLifeNumber("sakhal")], [])[0]!.lifeNumber).toBeNull();
+  });
+
+  test("falls back to the last life on an idle card", () => {
+    const idle = { serverId: 1, map: "sakhal", slug: "sakhal", state: "idle", character: null, alive: null, ban: null, lastLifeNumber: 3 } as unknown as ServerStanding;
+    expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBe(3);
+  });
+
+  test("stays null on an idle card for a player who has never had a life there", () => {
+    const idle = { serverId: 1, map: "sakhal", slug: "sakhal", state: "idle", character: null, alive: null, ban: null, lastLifeNumber: null } as unknown as ServerStanding;
+    expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBeNull();
   });
 });

@@ -33,7 +33,7 @@ export function serverCards(servers: Server[], standing: ServerStanding[]): Serv
         slug: s.slug,
         map: s.map,
         state: st?.state ?? "idle",
-        lifeNumber: st?.alive?.lifeNumber ?? st?.ban?.triggeringLifeNumber ?? null,
+        lifeNumber: st?.alive?.lifeNumber ?? st?.ban?.triggeringLifeNumber ?? st?.lastLifeNumber ?? null,
         alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills } : null,
         ban: st?.ban
           ? { banId: st.ban.banId, bannedAt: st.ban.bannedAt, expiresAt: st.ban.expiresAt, liftPending: st.ban.liftPending }
