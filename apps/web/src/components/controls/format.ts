@@ -60,8 +60,16 @@ export function transferErrorLabel(code: string): string {
   return "Something went wrong";
 }
 
-/** The pill's one status line, most urgent first: banned > pending > unlinked > alive > idle. */
-export function pillStatus(status: AccountStatus, cards: ServerCardData[], now: Date): PillLine {
+/**
+ * The pill's one status line, most urgent first: banned > pending > unlinked > alive > idle.
+ *
+ * `standingLoading` (live-data honesty §5): `cards` is `[]` both while standing is genuinely
+ * resolved-empty AND while the player-page query behind it hasn't settled yet — "No active
+ * life" is a factual claim, and it must not be asserted in the loading case. Checked after the
+ * banned/pending/unlinked branches (none of which derive from `cards`, so they stay accurate
+ * even mid-load) but before the alive/idle fallback that does.
+ */
+export function pillStatus(status: AccountStatus, cards: ServerCardData[], now: Date, standingLoading = false): PillLine {
   const banned = cards.filter((c) => c.state === "banned" && c.ban);
   if (banned.length > 0) {
     const soonest = banned
@@ -76,6 +84,7 @@ export function pillStatus(status: AccountStatus, cards: ServerCardData[], now: 
     return { text: "Verification expired", tone: "yellow" };
   }
   if (status.kind === "unlinked") return { text: "Link your gamertag →", tone: "dim" };
+  if (standingLoading) return { text: "Checking your servers…", tone: "muted" };
   const alive = cards.filter((c) => c.state === "alive" && c.alive);
   if (alive.length > 0) {
     const longest = alive.slice().sort((a, b) => b.alive!.timeAliveSeconds - a.alive!.timeAliveSeconds)[0]!;

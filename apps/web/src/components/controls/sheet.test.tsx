@@ -124,4 +124,32 @@ describe("SheetServerRow", () => {
     expect(screen.getByRole("status")).toBe(status);
     expect(status).toHaveTextContent("Unban pending — lifting shortly…");
   });
+
+  // live-data honesty §5 fix round 1: mirrors the ServerCard (light-surface) fix — the dark
+  // sheet's row must not assert "No unban tokens" before the tokens query settles.
+  test("balance unresolved: checking placeholder, never a fabricated no-tokens CTA", () => {
+    const readyCard: ServerCardData = { ...bannedCard, ban: { ...bannedCard.ban!, liftPending: false } };
+    render(
+      <SheetServerRow card={readyCard} ownSlug={null} balance={0} balanceLoading now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /spend 1 token/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument();
+  });
+
+  test("balance resolved to a real zero: still shows the no-tokens notice", () => {
+    const readyCard: ServerCardData = { ...bannedCard, ban: { ...bannedCard.ban!, liftPending: false } };
+    render(
+      <SheetServerRow card={readyCard} ownSlug={null} balance={0} balanceLoading={false} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    expect(screen.getByText("No unban tokens")).toBeInTheDocument();
+  });
+
+  test("lift-already-pending wins even while the balance is unresolved", () => {
+    render(
+      <SheetServerRow card={bannedCard} ownSlug={null} balance={0} balanceLoading now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    expect(screen.queryByText(/checking your tokens/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Unban pending — lifting shortly…");
+  });
 });

@@ -140,4 +140,26 @@ describe("TokensPanel", () => {
     expect(input.className).toContain("text-base");
     expect(input.className).toContain("xl:text-[11.5px]");
   });
+
+  // live-data honesty §5 fix round 1: `balance` is `tokens.data?.balance ?? null → ?? 0` off an
+  // unresolved query. TokensPanel is the MOST prominent balance readout (26px number) — it must
+  // not assert a fabricated "0" while the tokens query is loading/errored.
+  describe("balanceLoading: does not fabricate the balance readout", () => {
+    test("does not render the numeral while unresolved, shows a checking affordance instead", () => {
+      render(<TokensPanel balance={0} balanceLoading send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      expect(screen.queryByText("0")).not.toBeInTheDocument();
+      expect(screen.getByText(/checking your balance/i)).toBeInTheDocument();
+    });
+
+    test("a genuinely-resolved zero balance still renders as the numeral 0", () => {
+      render(<TokensPanel balance={0} balanceLoading={false} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      expect(screen.getByText("0")).toBeInTheDocument();
+      expect(screen.queryByText(/checking your balance/i)).not.toBeInTheDocument();
+    });
+
+    test("a genuinely-resolved positive balance is unaffected (default balanceLoading is false)", () => {
+      render(<TokensPanel balance={3} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      expect(screen.getByText("3")).toBeInTheDocument();
+    });
+  });
 });

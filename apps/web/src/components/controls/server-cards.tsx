@@ -16,6 +16,7 @@ export function ServerCard({
   card,
   ownSlug,
   balance,
+  balanceLoading = false,
   now,
   onRedeem,
   redeeming,
@@ -23,6 +24,9 @@ export function ServerCard({
   card: ServerCardData;
   ownSlug: string | null;
   balance: number;
+  /** True while `balance` is unresolved (loading/errored) — must not assert "no tokens"
+   *  (or render the spend CTA) before the tokens query settles (live-data honesty §5). */
+  balanceLoading?: boolean;
   now: Date;
   onRedeem: (banId: number) => void;
   redeeming: boolean;
@@ -61,7 +65,7 @@ export function ServerCard({
             )
           )}
           <UnbanView
-            state={unbanStateOf(card.ban!.liftPending || redeeming, balance)}
+            state={unbanStateOf(card.ban!.liftPending || redeeming, balance, !balanceLoading)}
             balance={balance}
             onRedeem={() => onRedeem(card.ban!.banId)}
           />

@@ -71,3 +71,42 @@ describe("useControls: standing loading honesty", () => {
     expect(result.current.standing).toEqual(standing);
   });
 });
+
+// Fix round 1 (§5 coherence gap): `balance` is `tokens.data?.balance ?? null` off the same
+// `["tokens"]` query — every consumer does `c.balance ?? 0`, fabricating a "0" while unresolved.
+// `balanceLoading` mirrors `standingLoading` exactly, but gates on the tokens query's own
+// `enabled` predicate (`signedIn`), not `gamertag !== null` (tokens is fetched for
+// unlinked/pending too, standing is verified-only).
+describe("useControls: balance loading honesty", () => {
+  test("tokens query unresolved: balanceLoading is true (does not fabricate a resolved balance)", async () => {
+    getTokens.mockReturnValue(new Promise(() => {})); // never resolves in this test
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(getTokens).toHaveBeenCalled());
+    expect(result.current.balanceLoading).toBe(true);
+    expect(result.current.balance).toBeNull();
+  });
+
+  test("tokens query errored: balanceLoading is true", async () => {
+    getTokens.mockRejectedValue(new Error("network down"));
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(result.current.balanceLoading).toBe(true));
+  });
+
+  test("tokens query genuinely resolved to zero: balanceLoading is false and balance is a real 0", async () => {
+    getTokens.mockResolvedValue({ balance: 0 });
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(result.current.balanceLoading).toBe(false));
+    expect(result.current.balance).toBe(0);
+  });
+
+  test("tokens query resolved with a positive balance: balanceLoading is false and balance passes through", async () => {
+    getTokens.mockResolvedValue({ balance: 4 });
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(result.current.balanceLoading).toBe(false));
+    expect(result.current.balance).toBe(4);
+  });
+});

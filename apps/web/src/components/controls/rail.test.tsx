@@ -83,6 +83,23 @@ describe("ControlsRail", () => {
     expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
   });
 
+  // live-data honesty §5 fix round 1: the balance readout and any banned-server CTA must not
+  // assert a fabricated "0"/"No unban tokens" while the tokens query is unresolved.
+  test("verified: balance unresolved shows a checking affordance, not a fabricated 0 balance or no-tokens CTA", () => {
+    (useControls as Mock).mockReturnValue({
+      ...base,
+      balance: null,
+      balanceLoading: true,
+      status: { kind: "verified", link: { id: 1, gamertag: "BootsColdwater", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null } },
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standing: [{ serverId: 1, map: "chernarusplus", slug: "chernarus", state: "banned", character: null, alive: null, ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: null, liftPending: false, triggeringLifeNumber: 1 } }],
+    });
+    render(<ControlsRail />);
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+    expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/checking your (balance|tokens)/i).length).toBeGreaterThan(0);
+  });
+
   test("loading: skeleton, nothing interactive", () => {
     (useControls as Mock).mockReturnValue({ ...base, status: { kind: "loading" } });
     const { container } = render(<ControlsRail />);

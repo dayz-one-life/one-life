@@ -130,6 +130,15 @@ function SheetUnban({ state, onRedeem }: { state: UnbanState; onRedeem: () => vo
         <p className="mt-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">
           Unban pending — lifting shortly…
         </p>
+      ) : state === "loading" ? (
+        // The tokens query hasn't resolved (or failed) — mirrors UnbanView's own "loading"
+        // branch (same copy), on the sheet's dark tokens (live-data honesty §5).
+        <p
+          aria-busy="true"
+          className="mt-2 motion-safe:animate-pulse border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted"
+        >
+          Checking your tokens…
+        </p>
       ) : state === "no-tokens" ? (
         <p className="mt-2 border border-dashed border-dark-edge px-2.5 py-1.5 text-center font-mono text-[11px] uppercase tracking-[.05em] text-red-soft">
           No unban tokens
@@ -148,6 +157,7 @@ export function SheetServerRow({
   card,
   ownSlug,
   balance,
+  balanceLoading = false,
   now,
   onRedeem,
   redeeming,
@@ -155,6 +165,9 @@ export function SheetServerRow({
   card: ServerCardData;
   ownSlug: string | null;
   balance: number;
+  /** True while `balance` is unresolved (loading/errored) — must not assert "no tokens"
+   *  (or render the spend CTA) before the tokens query settles (live-data honesty §5). */
+  balanceLoading?: boolean;
   now: Date;
   onRedeem: (banId: number) => void;
   redeeming: boolean;
@@ -190,7 +203,7 @@ export function SheetServerRow({
               </div>
             )
           )}
-          <SheetUnban state={unbanStateOf(card.ban!.liftPending || redeeming, balance)} onRedeem={() => onRedeem(card.ban!.banId)} />
+          <SheetUnban state={unbanStateOf(card.ban!.liftPending || redeeming, balance, !balanceLoading)} onRedeem={() => onRedeem(card.ban!.banId)} />
         </>
       )}
     </section>

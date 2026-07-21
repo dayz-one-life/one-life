@@ -121,4 +121,31 @@ describe("pillStatus", () => {
     const cards = serverCards([server({ id: 2, slug: "sakhal", map: "sakhal" })], [bannedStanding("sakhal", "sakhal", "2026-07-16T10:00:00Z")]);
     expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal banned", tone: "red" });
   });
+
+  // live-data honesty §5 fix round 1: `cards` is empty both while standing is genuinely
+  // resolved-empty AND while it's still loading — "No active life" is a factual claim that must
+  // not be asserted in the loading case.
+  test("standingLoading: neutral checking status, not the 'No active life' factual claim", () => {
+    const cards = serverCards([server({})], []);
+    expect(pillStatus(VERIFIED, cards, NOW, true)).toEqual({ text: "Checking your servers…", tone: "muted" });
+  });
+
+  test("standingLoading resolves to false (default/omitted): unaffected, still 'No active life'", () => {
+    const cards = serverCards([server({})], []);
+    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "No active life", tone: "muted" });
+    expect(pillStatus(VERIFIED, cards, NOW, false)).toEqual({ text: "No active life", tone: "muted" });
+  });
+
+  test("standingLoading does not override banned/pending/unlinked, which don't derive from cards", () => {
+    const bannedCards = serverCards(
+      [server({ id: 2, slug: "sakhal", map: "sakhal" })],
+      [bannedStanding("sakhal", "sakhal", "2026-07-17T01:58:00Z")],
+    );
+    expect(pillStatus(VERIFIED, bannedCards, NOW, true)).toEqual({ text: "Sakhal ban lifts in 13h 58m", tone: "red" });
+
+    const pendingStatus: AccountStatus = { kind: "pending", link: { id: 1, gamertag: "Boots", status: "pending", verifiedAt: null, challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 1, expiresAt: "2026-07-17T00:00:00Z", expired: false } } };
+    expect(pillStatus(pendingStatus, [], NOW, true)).toEqual({ text: "Verify: 1/3 done", tone: "yellow" });
+
+    expect(pillStatus({ kind: "unlinked" }, [], NOW, true)).toEqual({ text: "Link your gamertag →", tone: "dim" });
+  });
 });

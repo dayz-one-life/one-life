@@ -114,6 +114,7 @@ export function ControlsRail() {
         <IdentityRow name={gamertag} provider={c.provider} verified />
         <TokensPanel
           balance={c.balance ?? 0}
+          balanceLoading={c.balanceLoading}
           send={mutView(a.send)}
           referrer={mutView(a.refer)}
           onSend={(gt) => a.send.mutate(gt)}
@@ -132,6 +133,7 @@ export function ControlsRail() {
               card={card}
               ownSlug={slug}
               balance={c.balance ?? 0}
+              balanceLoading={c.balanceLoading}
               now={now}
               onRedeem={(banId) => a.redeem.mutate(banId)}
               redeeming={a.redeem.isPending}

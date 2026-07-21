@@ -70,4 +70,27 @@ describe("ServerCard", () => {
     const visible = notices.find((el) => !el.className.includes("sr-only"));
     expect(visible).toBeInTheDocument();
   });
+
+  // live-data honesty §5 fix round 1: `balance` can be unresolved independently of `card`'s own
+  // state. A banned card must not assert "No unban tokens" (or render the spend CTA) before the
+  // tokens query settles — that's the exact bug self-unban-button.tsx was already fixed to avoid.
+  test("banned with balance unresolved: checking placeholder, never a fabricated no-tokens CTA", () => {
+    render(<ServerCard card={banned} {...base} balance={0} balanceLoading />);
+    expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /spend 1 token/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument();
+  });
+
+  test("banned with balance resolved to a real zero: still shows the no-tokens notice", () => {
+    render(<ServerCard card={banned} {...base} balance={0} balanceLoading={false} />);
+    expect(screen.getByText("No unban tokens")).toBeInTheDocument();
+  });
+
+  test("lift-already-pending wins even while the balance is unresolved", () => {
+    const card = { ...banned, ban: { ...banned.ban!, liftPending: true } };
+    render(<ServerCard card={card} {...base} balanceLoading />);
+    expect(screen.queryByText(/checking your tokens/i)).not.toBeInTheDocument();
+    const notices = screen.getAllByText("Unban pending — lifting shortly…");
+    expect(notices.find((el) => !el.className.includes("sr-only"))).toBeInTheDocument();
+  });
 });

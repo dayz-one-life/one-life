@@ -92,4 +92,39 @@ describe("MobileControls", () => {
     expect(screen.queryByText("No life")).not.toBeInTheDocument();
     expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
+
+  // live-data honesty §5 fix round 1: the pill's status line must not assert "No active life"
+  // (a factual claim) while standing is still unresolved — it falls through pillStatus's cards
+  // empty-shape branch exactly like a genuinely-resolved empty board does.
+  test("verified: standing unresolved shows the pill's neutral checking line, not 'No active life'", () => {
+    (useControls as Mock).mockReturnValue({ ...verified, standingLoading: true });
+    render(<MobileControls />);
+    expect(screen.getByText("Checking your servers…")).toBeInTheDocument();
+    expect(screen.queryByText("No active life")).not.toBeInTheDocument();
+  });
+
+  test("verified: standing genuinely resolved empty still shows 'No active life' on the pill", () => {
+    (useControls as Mock).mockReturnValue({ ...verified, standingLoading: false });
+    render(<MobileControls />);
+    expect(screen.getByText("No active life")).toBeInTheDocument();
+  });
+
+  // live-data honesty §5 fix round 1: mirrors the rail — the sheet's tokens panel and any
+  // banned-server CTA must not fabricate a "0" balance / "No unban tokens" while unresolved.
+  test("verified: balance unresolved shows a checking affordance, not a fabricated 0 balance or no-tokens CTA", () => {
+    (useControls as Mock).mockReturnValue({
+      ...verified,
+      balance: null,
+      balanceLoading: true,
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standing: [{ serverId: 1, map: "chernarusplus", slug: "chernarus", state: "banned", character: null, alive: null, ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: null, liftPending: false, triggeringLifeNumber: 1 } }],
+    });
+    openSheet();
+    // Note: the pill's own small "N tok" chip (`pill.tsx`) does its own `balance ?? 0` and is
+    // out of this fix's scope, so it isn't asserted against here — the assertions below cover
+    // the two surfaces this fix actually touches (TokensPanel's 26px readout, the sheet row's
+    // unban CTA).
+    expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/checking your (balance|tokens)/i).length).toBeGreaterThan(0);
+  });
 });

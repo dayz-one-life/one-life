@@ -7,6 +7,21 @@ import { LatestObituaries } from "@/components/front-page/latest-obituaries";
 import { LatestFreshSpawns } from "@/components/front-page/latest-fresh-spawns";
 import { SignInCta } from "@/components/front-page/signin-cta";
 
+/** The same honest-fallback banner `news.failed` already used — reused verbatim (not a new
+ *  error UI) for the other three home feeds below (live-data honesty §5, fix round 1). A
+ *  REJECTED fetch degrades to the same fallback copy as a genuinely-empty one, but this banner
+ *  makes the two distinguishable instead of collapsing "we don't know" into "nothing happened." */
+function FeedFailedBanner({ children }: { children: string }) {
+  return (
+    <p
+      role="status"
+      className="border-b border-hairline bg-bone px-4 py-2 text-center font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted"
+    >
+      {children}
+    </p>
+  );
+}
+
 export default async function Home() {
   // `settleFeed` distinguishes "resolved" (even to a genuinely empty feed) from "the request
   // itself failed" — the old `.catch(() => null)` collapsed both into the same `[]` shape, so
@@ -27,26 +42,38 @@ export default async function Home() {
           A FAILED news fetch gets the same visual fallback (never a broken page) but is
           flagged, so an outage doesn't read as editorial silence. */}
       {news.failed && (
-        <p
-          role="status"
-          className="border-b border-hairline bg-bone px-4 py-2 text-center font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted"
-        >
+        <FeedFailedBanner>
           The news desk is temporarily unreachable — showing the standing board instead.
-        </p>
+        </FeedFailedBanner>
       )}
       {/* News leads when the desk has printed; an empty newsroom falls back to the manifesto
-          hero + the top-5 board rather than an empty box (voice-first: no fake fronts). */}
+          hero + the top-5 board rather than an empty box (voice-first: no fake fronts). Same
+          honesty rule as news: survivors.failed gets a banner, the quiet-coast copy underneath
+          renders unchanged either way. */}
       {lead ? (
         <NewsLead lead={lead} secondary={secondary} now={new Date()} />
       ) : (
         <>
           <Hero />
+          {survivors.failed && (
+            <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
+          )}
           <TopSurvivors rows={survivors.data?.rows.slice(0, 5) ?? []} />
         </>
       )}
       <div className="grid lg:grid-cols-2 lg:divide-x lg:divide-hairline">
-        <LatestObituaries rows={obituaries.data?.rows.slice(0, 3) ?? []} />
-        <LatestFreshSpawns rows={freshSpawns.data?.rows.slice(0, 3) ?? []} />
+        <div>
+          {obituaries.failed && (
+            <FeedFailedBanner>The morgue desk is temporarily unreachable.</FeedFailedBanner>
+          )}
+          <LatestObituaries rows={obituaries.data?.rows.slice(0, 3) ?? []} />
+        </div>
+        <div>
+          {freshSpawns.failed && (
+            <FeedFailedBanner>The nursery feed is temporarily unreachable.</FeedFailedBanner>
+          )}
+          <LatestFreshSpawns rows={freshSpawns.data?.rows.slice(0, 3) ?? []} />
+        </div>
       </div>
       <SignInCta />
     </main>

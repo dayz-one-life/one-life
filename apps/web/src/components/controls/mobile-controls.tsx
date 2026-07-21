@@ -44,7 +44,7 @@ export function MobileControls() {
     c.status.kind === "verified" || c.status.kind === "pending" ? c.status.link.gamertag : null;
   const name = gamertag ?? c.name ?? "You";
   const slug = verified && gamertag ? playerSlug(gamertag) : null;
-  const line = pillStatus(c.status, cards, now);
+  const line = pillStatus(c.status, cards, now, c.standingLoading);
 
   const header = (
     <div className="flex items-center gap-3">
@@ -110,6 +110,7 @@ export function MobileControls() {
               boxed
               showReferrer={false}
               balance={c.balance ?? 0}
+              balanceLoading={c.balanceLoading}
               send={mutView(a.send)}
               referrer={mutView(a.refer)}
               onSend={(gt) => a.send.mutate(gt)}
@@ -128,6 +129,7 @@ export function MobileControls() {
                   card={card}
                   ownSlug={slug}
                   balance={c.balance ?? 0}
+                  balanceLoading={c.balanceLoading}
                   now={now}
                   onRedeem={(banId) => a.redeem.mutate(banId)}
                   redeeming={a.redeem.isPending}
