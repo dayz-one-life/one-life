@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPlayerPage } from "@/lib/api";
+import { getPlayerPage, getPlayerArticles } from "@/lib/api";
+import { settleFeed } from "@/lib/settle-feed";
 import { absoluteUrl } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { PlayerProfile } from "@/components/player/player-profile";
 import { formatDuration } from "@/components/player/format";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string; ap?: string }> };
 
 function parsePage(raw?: string): number {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
+}
+
+// A second, independent page parser for the In The Paper section's own `?ap=` param — it must
+// never share `page`, or clicking either section's pagination would silently move both.
+function parseAp(raw?: string): number {
+  return parsePage(raw);
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -32,8 +39,21 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
 export default async function PlayerPageRoute({ params, searchParams }: Props) {
   const { slug } = await params;
-  const pageNum = parsePage((await searchParams).page);
-  const page = await getPlayerPage(slug, pageNum);
+  const sp = await searchParams;
+  const pageNum = parsePage(sp.page);
+  const apNum = parseAp(sp.ap);
+  const [page, articles] = await Promise.all([
+    getPlayerPage(slug, pageNum),
+    settleFeed(getPlayerArticles(slug, apNum)),
+  ]);
   if (!page) notFound();
-  return <PlayerProfile page={page} now={new Date()} />;
+  return (
+    <PlayerProfile
+      page={page}
+      now={new Date()}
+      articles={articles.data}
+      articlesFailed={articles.failed}
+      articlesPage={apNum}
+    />
+  );
 }

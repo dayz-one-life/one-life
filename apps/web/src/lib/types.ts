@@ -139,6 +139,19 @@ export type ServerStanding = { serverId: number; map: string; slug: string; stat
 export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
 export type PlayerPage = { gamertag: string; verified: boolean; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number };
 
+/** Every published article that names this player — either as its subject or as the killer
+ *  named in someone else's obituary (`role`). `createdAt` arrives as an ISO string over HTTP
+ *  even though the server holds a `Date`. */
+export type PlayerArticleRow = {
+  kind: string;
+  slug: string;
+  headline: string;
+  createdAt: string;
+  role: "subject" | "killer";
+  mapSlug: string | null;
+};
+export type PlayerArticlesFeed = { rows: PlayerArticleRow[]; total: number; page: number; pageSize: number };
+
 export type SurvivorSort = "kills" | "time" | "longest";
 export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
