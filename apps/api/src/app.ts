@@ -19,6 +19,7 @@ import { registerNewsRoutes } from "./routes/news.js";
 import { registerFreshSpawnsRoutes } from "./routes/fresh-spawns.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
+import { registerSitemapRoutes } from "./routes/sitemap.js";
 
 export interface AuthOptions {
   auth: Auth;
@@ -55,5 +56,6 @@ export function buildApp(db: Database, opts?: AuthOptions, newsPreviewToken = ""
   registerNewsRoutes(app, db, newsPreviewToken);
   registerFreshSpawnsRoutes(app, db);
   registerMediaRoutes(app, db);
+  registerSitemapRoutes(app, db);
   return app;
 }
