@@ -86,99 +86,95 @@ on `article_subjects`.
 
 Only `status = 'published'` qualifies. A retracted or failed-stub article must not be linked.
 
-## 5. PR-2 — `article_subjects` and In The Paper
+## 5. PR-2 — In The Paper
 
-### 5.1 The table
+**Revised 2026-07-21, after research. The `article_subjects` table is NOT built.** The original design
+normalised article↔player links into a child table. Two findings retired that:
 
-Migration `0017`:
+1. **`articles.gamertag` already covers every subject.** All 168 published rows have it, and it agrees
+   with `facts.gamertag` on every row (zero mismatches). The table would have been a copy of a column
+   that already exists.
+2. **Writing it at publish time is invasive.** None of the four publish sites
+   (`pg-store.ts`, `birth-pg-store.ts`, `news-pg-store.ts`, `newsroom/store.ts`) runs in a transaction
+   or returns `articles.id` — they are bare `onConflictDoUpdate` calls. Populating a child table
+   atomically means adding `.returning()` and a transaction to all four, two of which run live in
+   production on every newsdesk tick.
 
+And the reason the table looked mandatory was wrong: PR-3's prose roster is **per-article** (which
+names may be linked inside *this* article), and both values already sit on the article row. PR-3 does
+not need a cross-article index either.
+
+So PR-2 ships the same user-visible feature against `articles` directly.
+
+### 5.1 Indexes (migration `0017`)
+
+Two partial expression indexes on `articles`, no new table:
+
+```sql
+CREATE INDEX articles_subject_idx ON articles (lower(gamertag), created_at DESC)
+  WHERE status = 'published';
+CREATE INDEX articles_killer_idx  ON articles (lower(facts->>'killerGamertag'), created_at DESC)
+  WHERE status = 'published' AND facts->>'killerGamertag' IS NOT NULL;
 ```
-article_subjects
-  article_id  integer NOT NULL REFERENCES articles(id) ON DELETE CASCADE
-  gamertag    text    NOT NULL
-  role        text    NOT NULL          -- 'subject' | 'killer'
-  PRIMARY KEY (article_id, gamertag, role)
-  INDEX (gamertag)
-```
 
-**⚠️ `gamertag` is text with no foreign key to `players`, deliberately.** `apps/projector/src/rebuild.ts:8`
-truncates `players … RESTART IDENTITY CASCADE` on every projection rebuild. A FK to `players` would
-make each rebuild cascade-delete the entire mention index. `articles` already keys subjects by
-gamertag text for this reason; `article_subjects` follows it.
+**⚠️ The migration must be hand-written, and `meta/_journal.json` hand-appended.** The drizzle
+snapshot chain is already broken — `meta/` stops at `0014_snapshot.json` while `0015` and `0016`
+exist as `.sql` + journal entries with no snapshot. Running `drizzle-kit generate` would diff against
+a stale snapshot and emit wrong SQL. This gap is pre-existing; migration `0017` must follow the same
+hand-written practice as `0015`/`0016` rather than fix it, and the plan should not attempt a snapshot
+backfill as a side quest.
 
-The table is **durable**: absent from `rebuild.ts`'s truncate list, present in `APP_TABLES`
-(`packages/test-support/src/global-setup.ts:30-33`). It ships with a plain `./deploy/deploy.sh` —
-no `--rebuild`, since it touches no projection table.
+No projection table changes, so this deploys with a plain `./deploy/deploy.sh` — no `--rebuild`. No
+backfill script is needed at all: the data is already in the columns being indexed.
 
-The composite PK makes every write idempotent under `onConflictDoNothing`. Including `role` in the
-key means one player can hold two roles on one article (subject of a piece that also records them as
-a killer) without collision.
+### 5.2 Read model
 
-### 5.2 Writers
+`getPlayerArticles(db, gamertag, { page, pageSize })` in `packages/read-models/src/player-articles.ts`.
+Two arms unioned, each `status = 'published'`, ordered `created_at DESC`, paginated with a separate
+count query — mirroring `getPublishedObituaries` (`obituary-articles.ts`), which is the pattern to copy:
 
-Rows are written alongside each article upsert, in the same transaction:
+- **subject** — `lower(articles.gamertag) = lower($1)`
+- **killer** — `lower(articles.facts->>'killerGamertag') = lower($1)`
 
-- `apps/newsdesk/src/pg-store.ts` — obituary publish (`subject` = `facts.gamertag`, `killer` =
-  `facts.killerGamertag` when non-null)
-- `apps/newsdesk/src/birth-pg-store.ts` — birth notice publish (`subject` only)
-- the news publish path — one `subject` row per entry in `facts.subjects[]`
-- the `newsroom` CLI publish path — editorial pieces, which may legitimately have **zero** subjects
+Returns `{ rows: PlayerArticleRow[], total, page, pageSize }` where a row carries
+`{ kind, slug, headline, createdAt, role, mapSlug }`.
 
-Failure stubs (`status='failed'`) write no subject rows: they have no confirmed facts.
+**If a player is both subject and killer of the same article, it appears once, as `subject`.** That
+combination does not occur today (no published obituary has a self-kill) but the query must not emit
+the same article twice.
 
-### 5.3 Backfill
+### 5.3 API
 
-A re-runnable `backfill-article-subjects` script in `apps/newsdesk`, following the
-`backfill-death-causes` precedent (`apps/projector`): surveys first, prints what it found and what
-it could not interpret, writes only additions, and is safe to run twice.
+`GET /players/:gamertag/articles?page=` — a separate route, not folded into `GET /players/:gamertag`,
+because the player-page payload is already heavy and this section paginates independently.
+`?page=` uses `z.coerce.number().int().positive().catch(1)`, matching the obituaries route.
 
-**Resolved 2026-07-21 — the corpus has now been inspected.** A production dump is present locally as
-the `onelife_prod` database. Read-only survey of all published rows:
+### 5.4 The section
 
-| | count |
-|---|---|
-| Published articles | 168 — 123 `birth_notice` + 45 `obituary` |
-| `gamertag` non-null | 168 / 168 → **168 `subject` rows** |
-| `facts.killerGamertag` non-null | **6** / 45 obituaries → **6 `killer` rows** |
-| rows carrying `facts.subjects` | **0** / 168 |
+**In The Paper**, between current standing and the funeral cards: a count in the heading, then
+reverse-chron rows of `KIND · DATE · ROLE` over the headline, each linking to the article interior.
 
-**The backfill's acceptance number is exactly 174 rows.** It is a verifiable assertion, not a
-judgement call: if the script produces any other total, it is wrong.
+**⚠️ It must use its own query parameter — not `page`.** The player page's existing past-lives
+pagination is wired end-to-end on the bare `page` param (`parsePage` in the route, and the href
+builder in `player-pagination.tsx`). A second section on `page` would make both paginations move
+together. Use `ap` (articles page).
 
-Two consequences the original design did not anticipate:
+A player with no articles renders no section. A **failed fetch** must not render as an empty section —
+use `settleFeed` and an honest failure line, per the live-data-honesty invariant. Note
+`FeedFailedBanner` is currently a private local function in `apps/web/src/app/page.tsx`, not exported;
+reusing it means extracting it to a shared component.
 
-1. **The `facts.subjects[]` branch has no historical data at all.** No news or Long Form article has
-   ever been published — that pass is off in production — so the multi-subject path is forward-only.
-   The backfill only needs to read `facts.gamertag` and `facts.killerGamertag`, which makes it
-   markedly simpler than §5.2's writer set implies.
-2. **Only 6 articles record a PvP killer.** The "appearances as killer" cross-link — argued during
-   design to be the most interesting link on the site — will be nearly empty at launch. This is a
-   fact about the corpus (most deaths are not PvP), not a defect. It should inform how much UI the
-   `role='killer'` case earns; see §9.4.
+### 5.5 What this defers
 
-The script must still report per-kind counts and an unrecognised-shape list, because it will run
-again after the news vertical is enabled and the shape will change then.
+If the news vertical is ever enabled and publishes a multi-subject Long Form piece, its co-subjects
+(in `facts.subjects[]`) will NOT appear on their profiles — only the primary, via `articles.gamertag`.
+Today that is zero articles. When it stops being zero, revisit the child table; `news-facts.ts`'s
+`NewsSubject` is already shaped for it.
 
-### 5.4 Read model, API, and the section
-
-`getPlayerArticles(db, gamertag, { page, pageSize })` in
-`packages/read-models/src/player-articles.ts`. Joins `article_subjects` to `articles`, filters
-`status = 'published'`, orders `created_at DESC`, returns `{ kind, slug, headline, createdAt, role,
-mapSlug }` plus a total. Gamertag matching is case-insensitive, consistent with the rest of the
-codebase.
-
-Served at a new `GET /players/:gamertag/articles?page=` rather than folded into
-`GET /players/:gamertag`. The player-page payload is already heavy, and a separate route lets this
-section paginate independently.
-
-The **In The Paper** section renders between current standing and the funeral cards: a count in the
-heading, then reverse-chron rows of `KIND · DATE · ROLE` over the headline, linking to the article
-interior. It needs its own page parameter — `?page=` already belongs to past lives.
-
-A player with no articles renders no section at all. A *failed fetch* must not render as an empty
-section: this is the live-data-honesty invariant already established in the codebase (loading and
-error are never rendered as an authoritative zero), and the home page's `settleFeed` +
-`FeedFailedBanner` is the pattern to follow.
+Corpus **as of the local `onelife_prod` dump, whose newest article is 2026-07-18 and which predates
+migration `0015` — i.e. ~3 days stale, so live production will have somewhat more**: **6** published obituaries name a killer, across just **two** distinct
+players (`YrJustBad` ×3, `TidierCart8730` ×3), both real player rows. So the `killer` role is real but
+tiny — render it as a role tag, do not build dedicated UI around it.
 
 ## 6. PR-3 — Gamertags in prose
 

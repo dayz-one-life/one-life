@@ -31,4 +31,9 @@ describe("PlayerPagination", () => {
     const { container } = render(<PlayerPagination slug="x" page={1} total={5} pageSize={10} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("preserves the current In The Paper page (ap) when changing page", () => {
+    render(<PlayerPagination slug="legend" page={1} total={25} pageSize={10} ap={2} />);
+    expect(screen.getByRole("link", { name: /older/i })).toHaveAttribute("href", "/players/legend?page=2&ap=2");
+  });
 });

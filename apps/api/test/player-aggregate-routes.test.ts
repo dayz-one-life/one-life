@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives } from "@onelife/db";
+import { servers, players, lives, articles } from "@onelife/db";
+import { eq } from "drizzle-orm";
 import { buildApp } from "../src/app.js";
 
 const { db } = getTestDb();
@@ -75,5 +76,101 @@ describe("GET /players/:gamertag/:map/lives/:n", () => {
     expect(Array.isArray(body.kills)).toBe(true);
     expect(body).toHaveProperty("qualifiedAt");
     expect(Array.isArray(body.sessions)).toBe(true);
+  });
+});
+
+describe("GET /players/:gamertag/articles", () => {
+  beforeAll(async () => {
+    const [p] = await db.insert(players).values({ gamertag: "InkStainedWretch" }).returning();
+    // Every published `kind: "obituary"` row is visible to the shared GET /obituaries feed too
+    // (obituaries.test.ts), which asserts a non-null map/lifeNumber/deathAt on every row it reads
+    // (assertSubjectful) — so these fixtures must be well-formed obituaries, not just minimal rows.
+    await db.insert(articles).values([
+      {
+        kind: "obituary", status: "published", slug: "ink-stained-wretch-dies",
+        gamertag: p!.gamertag, mapSlug: "pa-chernarus", map: "chernarusplus", lifeNumber: 1,
+        headline: "Ink Stained Wretch Dies", lede: "L", deathAt: new Date("2026-07-10T12:00:00Z"),
+        createdAt: new Date("2026-07-10T12:00:00Z"),
+      },
+      {
+        kind: "obituary", status: "published", slug: "ink-stained-wretch-dies-again",
+        gamertag: p!.gamertag, mapSlug: "pa-chernarus", map: "chernarusplus", lifeNumber: 2,
+        headline: "Ink Stained Wretch Dies Again", lede: "L", deathAt: new Date("2026-07-11T12:00:00Z"),
+        createdAt: new Date("2026-07-11T12:00:00Z"),
+      },
+      // Unpublished — must never appear.
+      {
+        kind: "obituary", status: "failed", slug: "ink-stained-wretch-draft",
+        gamertag: p!.gamertag, mapSlug: "pa-chernarus", map: "chernarusplus", lifeNumber: 3,
+        headline: "Draft", lede: "L", deathAt: new Date("2026-07-12T12:00:00Z"),
+        createdAt: new Date("2026-07-12T12:00:00Z"),
+      },
+    ]);
+
+    // Seed a multi-word gamertag to test slug normalization (spaces → dashes)
+    const [p2] = await db.insert(players).values({ gamertag: "Dead Eye Jim" }).returning();
+    await db.insert(articles).values([
+      {
+        kind: "obituary", status: "published", slug: "dead-eye-jim-perishes",
+        gamertag: p2!.gamertag, mapSlug: "pa-chernarus", map: "chernarusplus", lifeNumber: 1,
+        headline: "Dead Eye Jim Perishes", lede: "L", deathAt: new Date("2026-07-13T12:00:00Z"),
+        createdAt: new Date("2026-07-13T12:00:00Z"),
+      },
+    ]);
+  });
+  afterAll(async () => {
+    await db.delete(articles).where(eq(articles.gamertag, "InkStainedWretch"));
+    await db.delete(players).where(eq(players.gamertag, "InkStainedWretch"));
+    await db.delete(articles).where(eq(articles.gamertag, "Dead Eye Jim"));
+    await db.delete(players).where(eq(players.gamertag, "Dead Eye Jim"));
+  });
+
+  it("returns a known player's published articles", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/InkStainedWretch/articles" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(2);
+    expect(body.rows).toHaveLength(2);
+    expect(body.rows[0].slug).toBe("ink-stained-wretch-dies-again");
+    expect(body.rows[0].role).toBe("subject");
+  });
+
+  it("resolves a lowercase slug URL to the real stored casing' gamertag", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/inkstainedwretch/articles" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().total).toBe(2);
+  });
+
+  it("honours ?page=", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/InkStainedWretch/articles?page=1&pageSize=1" });
+    expect(res.statusCode).toBe(200);
+    // pageSize isn't a supported param per the brief — this just exercises page=1 explicitly.
+    const res2 = await app.inject({ method: "GET", url: "/players/InkStainedWretch/articles?page=2" });
+    expect(res2.statusCode).toBe(200);
+    expect(res2.json().page).toBe(2);
+  });
+
+  it("garbage ?page= falls back to page 1 rather than erroring", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/InkStainedWretch/articles?page=abc" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().page).toBe(1);
+  });
+
+  it("unknown gamertag returns an empty feed, not a 404", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/nobody-writes-about-me/articles" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(0);
+    expect(body.rows).toEqual([]);
+  });
+
+  it("resolves a slug with dashes (spaces normalized) to the real gamertag", async () => {
+    // This tests actual slug normalization: "Dead Eye Jim" → "dead-eye-jim"
+    const res = await app.inject({ method: "GET", url: "/players/dead-eye-jim/articles" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].slug).toBe("dead-eye-jim-perishes");
   });
 });

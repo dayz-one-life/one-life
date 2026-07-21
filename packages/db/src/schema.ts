@@ -408,6 +408,15 @@ export const articles = pgTable("articles", {
   createdIdx: index("articles_kind_status_created_idx").on(t.kind, t.status, t.createdAt),
   discordUnpostedIdx: index("articles_discord_unposted_idx").on(t.deathAt).where(sql`${t.kind} = 'obituary' AND ${t.status} = 'published' AND ${t.discordPostedAt} IS NULL`),
   imageMissingIdx: index("articles_image_missing_idx").on(t.createdAt).where(sql`${t.status} = 'published' AND ${t.imageUrl} IS NULL`),
+  // In The Paper (player profile): "which published articles name this player".
+  // Expression indexes because both comparisons are case-insensitive; partial because nothing
+  // but a published article is ever surfaced.
+  subjectIdx: index("articles_subject_idx")
+    .on(sql`lower(${t.gamertag})`, t.createdAt.desc())
+    .where(sql`${t.status} = 'published'`),
+  killerIdx: index("articles_killer_idx")
+    .on(sql`lower(${t.facts}->>'killerGamertag')`, t.createdAt.desc())
+    .where(sql`${t.status} = 'published' AND ${t.facts}->>'killerGamertag' IS NOT NULL`),
 }));
 
 // One generated photo per article. Durable like `articles` (never truncated on rebuild); bytes

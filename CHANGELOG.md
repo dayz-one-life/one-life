@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.31.0] - 2026-07-21
+
+### Added
+
+- **In The Paper** — a player's profile now lists every article the paper has published about them,
+  newest first, alongside their standing and their past lives. That includes obituaries where they
+  were the one holding the rifle, not the one being buried.
+
 ## [0.30.0] - 2026-07-21
 
 ### Added

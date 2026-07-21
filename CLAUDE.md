@@ -627,6 +627,38 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   removing it breaks the popover. jsdom cannot observe paint order, so `header.test.tsx` pins
   the altitude numerically (`0 < z < 50`) and the real ordering was verified with
   `elementFromPoint` in a browser.
+- **Cross-linking, PR-2 — "In The Paper"** ✅: the player profile lists every **published** article
+  naming that player, between current standing and the funeral cards. Two ways a player is named, both
+  already on the `articles` row: **subject** (`articles.gamertag`) and **killer**
+  (`facts->>'killerGamertag'`, obituaries only). Backed by `getPlayerArticles`
+  (`packages/read-models/src/player-articles.ts`) and public `GET /players/:gamertag/articles?page=`
+  (accepts the same **slug** the profile page uses, resolving via `resolveGamertagBySlug`; an unknown
+  player is an empty feed, **never a 404**).
+  **⚠️ There is deliberately NO `article_subjects` table.** The design called for one; research killed
+  it. `articles.gamertag` already covered 168/168 published subjects, all four publish sites
+  (`pg-store`, `birth-pg-store`, `news-pg-store`, `newsroom/store`) are **non-transactional with no
+  `.returning()`**, so a child table would have meant new plumbing in two paths that run live every
+  newsdesk tick — and PR-3's prose roster is **per-article**, so it never needed the table either.
+  If the news vertical ever publishes a multi-subject Long Form piece, its **co-subjects will not
+  appear** (only the primary, via `articles.gamertag`); `news-facts.ts`'s `NewsSubject` is already
+  shaped for the table if that day comes. Spec §5 records the whole decision.
+  **The read model is one raw `UNION ALL`** (drizzle can't express the shape), deduped by
+  `DISTINCT ON (slug)` preferring `subject`, with the count query wrapping the **same** union so
+  `total` and the rows describe one set. **`ORDER BY created_at DESC, slug` — the `slug` tiebreak is
+  load-bearing**: the newsdesk publishes in batches within a tick, so timestamps tie, and without it a
+  row appears on two pages (pinned by a test proven red). Comparisons are `lower(col) = lower($1)` to
+  stay on the two partial expression indexes from migration `0017`
+  (`articles_subject_idx`/`articles_killer_idx`) — an `ILIKE`/`upper()` "tidy-up" silently drops both.
+  **⚠️ Migration `0017` was hand-written and `meta/_journal.json` hand-appended, deliberately.** The
+  drizzle snapshot chain is broken — `meta/` stops at `0014_snapshot.json` while `0015`/`0016` exist as
+  hand-written SQL with no snapshots — so `drizzle-kit generate` diffs against a stale snapshot and
+  emits wrong SQL. Follow the hand-written practice for `0018+` until someone repairs the chain.
+  **⚠️ The profile page now has TWO independent paginations.** Past lives own `page`; In The Paper owns
+  **`ap`**. One pure `playerPageHref` (`@/lib/player-page-href`) builds both and **preserves the other
+  param**, omitting either when it is 1. `PlayerPagination` had to be taught about `ap` — a control
+  that knows only its own param silently resets the other section.
+  A failed fetch renders an explicit `role="status"` line, never an empty section: "no articles" and
+  "couldn't load" are different statements (the live-data-honesty invariant).
 - **Cross-linking, PR-1** ✅: links between players, lives, and articles that need no schema change.
   Controls-rail + mobile-sheet server cards link to the life they describe; an obituary/birth-notice
   byline links to that life's timeline; a life timeline links back to its published obituary.
