@@ -19,6 +19,12 @@
 - Presentational components stay props-only and unit-tested; hooks/containers stay thin and untested, per existing convention.
 - Run the whole web suite before each commit: `cd apps/web && pnpm vitest run`.
 - Do not run `git add -A` at the repo root; stage explicit paths.
+- **Use the vitest entry point the target file already imports.** Web component/lib test files import
+  `{ describe, expect, test }` — use `test(`, not `it(`. Vitest's runtime globals make `it(` pass at
+  runtime while `tsc` fails it with TS2582, so the suite goes green on code that does not typecheck.
+  The `packages/read-models/test/*` files import `it` and use `it(`. Match the file you are editing.
+- **`pnpm tsc --noEmit` is a required gate, not a formality.** A green vitest run does not imply a
+  clean typecheck (see above). Reviewers: run the gate, do not infer it from the diff.
 
 ---
 
@@ -452,12 +458,12 @@ git commit -m "feat: link idle server cards to the player's most recent life"
 For each of the two article components, add a test asserting that the byline's `Life {n}` text is a link to `lifeHref(article.gamertag, article.map, article.lifeNumber)`, and a second test asserting that when `map` is null **no link renders and the page does not throw** — `mapSlug` is nullable and the news interior already degrades this way.
 
 ```tsx
-it("links the life number to that life's timeline", () => {
+test("links the life number to that life's timeline", () => {
   render(<ObituaryArticle article={{ ...articleFixture, gamertag: "Dead Eye Jim", map: "sakhal", lifeNumber: 4 }} />);
   expect(screen.getByRole("link", { name: /life 4/i })).toHaveAttribute("href", "/players/dead-eye-jim/sakhal/lives/4");
 });
 
-it("renders the life number as plain text when the server has no slug", () => {
+test("renders the life number as plain text when the server has no slug", () => {
   render(<ObituaryArticle article={{ ...articleFixture, map: null, lifeNumber: 4 }} />);
   expect(screen.queryByRole("link", { name: /life 4/i })).toBeNull();
   expect(screen.getByText(/life 4/i)).toBeInTheDocument();
@@ -609,12 +615,12 @@ In `apps/web/src/components/life/hero.tsx`, render a link when `obituarySlug` is
 - [ ] **Step 6: Write and run the hero test**
 
 ```tsx
-it("links to the obituary when one is published", () => {
+test("links to the obituary when one is published", () => {
   render(<LifeHero {...heroProps} obituarySlug="last-light-on-the-ridge" />);
   expect(screen.getByRole("link", { name: /obituary/i })).toHaveAttribute("href", "/obituaries/last-light-on-the-ridge");
 });
 
-it("renders no obituary link when there is none", () => {
+test("renders no obituary link when there is none", () => {
   render(<LifeHero {...heroProps} obituarySlug={null} />);
   expect(screen.queryByRole("link", { name: /obituary/i })).toBeNull();
 });
