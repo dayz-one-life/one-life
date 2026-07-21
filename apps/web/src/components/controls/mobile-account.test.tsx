@@ -4,6 +4,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
 import { MobileAccount } from "./mobile-account";
 import { useControls, useControlsActions } from "./use-controls";
+import { signOutAndTeardownPush } from "@/lib/push";
 
 vi.mock("./use-controls", () => ({ useControls: vi.fn(), useControlsActions: vi.fn() }));
 vi.mock("@/lib/push", () => ({ signOutAndTeardownPush: vi.fn(async () => {}) }));
@@ -19,6 +20,16 @@ const verified = {
   status: {
     kind: "verified",
     link: { id: 1, gamertag: "BootsColdwater", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+  },
+};
+const pending = {
+  ...base,
+  status: {
+    kind: "pending",
+    link: {
+      id: 1, gamertag: "BootsColdwater", status: "pending", verifiedAt: null,
+      challenge: { sequence: ["facepalm", "salute", "clap"], progressIndex: 1, expiresAt: "2026-07-17T00:00:00Z", expired: false },
+    },
   },
 };
 
@@ -64,13 +75,16 @@ describe("MobileAccount", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  test("no ControlsPillView/SignInPill markup renders in any state", () => {
-    (useControls as Mock).mockReturnValue(verified);
-    render(<MobileAccount />);
-    // The old pill rendered a visible "Player controls" text label inside the button; the new
-    // trigger is icon-only (accessible name only), so that visible text must not appear.
-    expect(screen.queryByText("Player controls")).not.toBeInTheDocument();
-    expect(document.querySelector(".fixed.inset-x-3\\.5")).toBeNull();
+  test("no ControlsPillView/SignInPill markup renders in signed-out or signed-in state", () => {
+    for (const status of [verified, { ...base, status: { kind: "signedOut" } }]) {
+      (useControls as Mock).mockReturnValue(status);
+      const { unmount } = render(<MobileAccount />);
+      // The old pill rendered a visible "Player controls" text label inside the button; the new
+      // trigger is icon-only (accessible name only), so that visible text must not appear.
+      expect(screen.queryByText("Player controls")).not.toBeInTheDocument();
+      expect(document.querySelector(".fixed.inset-x-3\\.5")).toBeNull();
+      unmount();
+    }
   });
 
   test("mounts the VerificationAnnouncer live region, wrapped xl:hidden, unconditionally for a signed-in user", () => {
@@ -78,6 +92,98 @@ describe("MobileAccount", () => {
     render(<MobileAccount />);
     const status = screen.getByRole("status");
     expect(status.closest(".xl\\:hidden")).not.toBeNull();
+  });
+
+  // Carryover pin (SP2), moved from the retired mobile-controls.test.tsx: `VerificationAnnouncer`
+  // must survive the pending -> verified swap through the NEW trigger's tree (ProveItPanel/
+  // TokensPanel unmount each other across that transition) and announce exactly once, never
+  // re-firing on a later render while still verified.
+  test("VerificationAnnouncer fires once on pending -> verified and does not double-announce", () => {
+    (useControls as Mock).mockReturnValue(pending);
+    const { rerender } = render(<MobileAccount />);
+    expect(screen.getByRole("status")).toHaveTextContent("");
+
+    (useControls as Mock).mockReturnValue(verified);
+    rerender(<MobileAccount />);
+    expect(screen.getByRole("status")).toHaveTextContent("Verification complete");
+
+    // A later render while still verified must not re-announce or duplicate the live region.
+    rerender(<MobileAccount />);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Verification complete");
+  });
+
+  // Carryover pin (SP2 invariant #7), moved from the retired mobile-controls.test.tsx: the
+  // sheet's sign-out control must go through `signOutAndTeardownPush` (deletes the push
+  // subscription row before ending the session), never a bare `signOut()` — otherwise a shared
+  // device keeps delivering the previous user's push notifications after sign-out.
+  test("sign-out control in the sheet calls signOutAndTeardownPush before ending the session", async () => {
+    const user = userEvent.setup();
+    (useControls as Mock).mockReturnValue(verified);
+    render(<MobileAccount />);
+
+    await user.click(screen.getByRole("button", { name: "Player controls" }));
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
+  });
+
+  // Carryover pin (SP3 live-data honesty), moved from the retired mobile-controls.test.tsx: the
+  // sheet's standing-loading skeleton must not fabricate idle server rows, and must carry the
+  // sheet's dark-surface tokens (two-surface rule, CLAUDE.md) — never a light `bg-bone`/`bg-paper`
+  // token that would render present-in-the-DOM but invisible on the dark sheet.
+  test("sheet: standing-unresolved shows a dark-token loading placeholder, not fabricated idle rows", async () => {
+    const user = userEvent.setup();
+    (useControls as Mock).mockReturnValue({
+      ...verified,
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standingLoading: true,
+    });
+    render(<MobileAccount />);
+    await user.click(screen.getByRole("button", { name: "Player controls" }));
+
+    const dialog = screen.getByRole("dialog");
+    const skeleton = dialog.querySelector('[aria-busy="true"]');
+    expect(skeleton).toBeInTheDocument();
+    const rows = skeleton!.querySelectorAll('[aria-hidden]');
+    expect(rows.length).toBeGreaterThan(0);
+    rows.forEach((row) => {
+      expect(row.className).toContain("bg-dark-well");
+      expect(row.className).not.toContain("bg-bone");
+      expect(row.className).not.toContain("bg-paper");
+    });
+  });
+
+  // Carryover pin (SP3 live-data honesty), moved from the retired mobile-controls.test.tsx: with
+  // the tokens balance unresolved, TokensPanel's balance readout AND a banned server's SheetUnban
+  // CTA must both show a dark-token "checking" affordance rather than a fabricated 0 balance or
+  // a false "No unban tokens" claim.
+  test("sheet: balance-unresolved shows dark-token TokensPanel/SheetUnban loading affordances, never a fabricated balance", async () => {
+    const user = userEvent.setup();
+    (useControls as Mock).mockReturnValue({
+      ...verified,
+      servers: [{ id: 2, nitradoServiceId: 2, name: "s", map: "sakhal", slug: "sakhal", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standing: [{
+        serverId: 2, map: "sakhal", slug: "sakhal", state: "banned", character: null, alive: null,
+        ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: null, liftPending: false, triggeringLifeNumber: 1 },
+      }],
+      standingLoading: false,
+      balance: null,
+      balanceLoading: true,
+    });
+    render(<MobileAccount />);
+    await user.click(screen.getByRole("button", { name: "Player controls" }));
+
+    // TokensPanel: a dark-token loading chip, not a fabricated "0".
+    const balanceChip = document.querySelector('[aria-busy="true"].bg-dark-well');
+    expect(balanceChip).toBeInTheDocument();
+    expect(screen.getByText(/checking your balance/i)).toBeInTheDocument();
+
+    // SheetUnban: balance unresolved on a banned server -> the dark-token "checking" line, never
+    // the false "No unban tokens" claim.
+    expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
+    const tokensLoading = screen.getByText(/checking your tokens/i);
+    expect(tokensLoading.className).toContain("border-dark-edge");
   });
 
   // Spec §4: "Focus restore moves from the pill to the masthead trigger" — `useModalBehavior`

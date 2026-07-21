@@ -1,9 +1,5 @@
-import type { AccountStatus } from "@/lib/account-status";
 import type { Server, ServerStanding } from "@/lib/types";
-import { banCountdown, formatDuration, mapLabel } from "@/components/player/format";
-
-export type PillTone = "red" | "yellow" | "dim" | "muted";
-export type PillLine = { text: string; tone: PillTone };
+import { formatDuration } from "@/components/player/format";
 
 /** First letter of a display name for the avatar disc. */
 export function initialOf(name: string): string {
@@ -58,37 +54,4 @@ export function transferErrorLabel(code: string): string {
   if (code === "self_transfer") return "That's you";
   if (code === "already_set") return "Already set";
   return "Something went wrong";
-}
-
-/**
- * The pill's one status line, most urgent first: banned > pending > unlinked > alive > idle.
- *
- * `standingLoading` (live-data honesty §5): `cards` is `[]` both while standing is genuinely
- * resolved-empty AND while the player-page query behind it hasn't settled yet — "No active
- * life" is a factual claim, and it must not be asserted in the loading case. Checked after the
- * banned/pending/unlinked branches (none of which derive from `cards`, so they stay accurate
- * even mid-load) but before the alive/idle fallback that does.
- */
-export function pillStatus(status: AccountStatus, cards: ServerCardData[], now: Date, standingLoading = false): PillLine {
-  const banned = cards.filter((c) => c.state === "banned" && c.ban);
-  if (banned.length > 0) {
-    const soonest = banned
-      .slice()
-      .sort((a, b) => new Date(a.ban!.expiresAt ?? 0).getTime() - new Date(b.ban!.expiresAt ?? 0).getTime())[0]!;
-    const cd = banCountdown(soonest.ban!.expiresAt, now);
-    return { text: cd ? `${mapLabel(soonest.map)} ban lifts in ${cd}` : `${mapLabel(soonest.map)} banned`, tone: "red" };
-  }
-  if (status.kind === "pending") {
-    const ch = status.link.challenge;
-    if (ch && !ch.expired) return { text: `Verify: ${ch.progressIndex}/${ch.sequence.length} done`, tone: "yellow" };
-    return { text: "Verification expired", tone: "yellow" };
-  }
-  if (status.kind === "unlinked") return { text: "Link your gamertag →", tone: "dim" };
-  if (standingLoading) return { text: "Checking your servers…", tone: "muted" };
-  const alive = cards.filter((c) => c.state === "alive" && c.alive);
-  if (alive.length > 0) {
-    const longest = alive.slice().sort((a, b) => b.alive!.timeAliveSeconds - a.alive!.timeAliveSeconds)[0]!;
-    return { text: `${mapLabel(longest.map)} · ${formatDuration(longest.alive!.timeAliveSeconds)} this life`, tone: "dim" };
-  }
-  return { text: "No active life", tone: "muted" };
 }
