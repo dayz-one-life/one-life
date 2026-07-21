@@ -10,11 +10,12 @@ const CONTENT_FILES = [
   "components/player/stat.tsx",
   "components/life/hero.tsx",
   "components/notifications/row.tsx",
+  "components/notifications/push-toggle.tsx",
 ];
 
 describe("type floor", () => {
   test.each(CONTENT_FILES)("%s has no sub-11px text utility", (file) => {
     const src = readFileSync(join(__dirname, file), "utf8");
-    expect(src).not.toMatch(/text-\[(9|10)(\.\d+)?px\]/);
+    expect(src).not.toMatch(/text-\[(\d|10)(\.\d+)?px\]/);
   });
 });

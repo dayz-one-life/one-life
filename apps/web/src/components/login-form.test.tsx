@@ -39,4 +39,9 @@ describe("LoginForm", () => {
     render(<LoginForm providers={[]} magicLink={false} onMagicLink={async () => {}} onSocial={() => {}} />);
     expect(screen.getByText("No sign-in methods are currently available.")).toBeInTheDocument();
   });
+
+  test("email input carries a visible focus ring on the dark surface", () => {
+    render(<LoginForm providers={[]} magicLink onMagicLink={async () => {}} onSocial={() => {}} />);
+    expect(screen.getByLabelText("Email").className).toContain("focus-visible:outline-red");
+  });
 });

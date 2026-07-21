@@ -8,7 +8,9 @@
   --ink: 17 17 17;           /* #111111 */
   /* RED POLICY: plain --red (3.7:1 on paper) is display-only — ≥19px-bold text, borders,
      tints, stamps. ALL smaller red text uses --red-deep (5.8:1). A new small text-red is
-     a contrast bug. */
+     a contrast bug. On DARK surfaces the ratios invert: plain red (~5.1:1) passes AA and
+     red-deep (~3.2:1) fails — red-deep is a light-surface (paper/bone) token only; dark
+     surfaces keep red/red-soft. */
   /* TYPE FLOORS: reading prose ≥16px (text-base); functional content ≥11px; decorative
      overlines/chrome may sit at 10px only when the information also exists elsewhere.
      Guard test: src/type-floor-guard.test.ts. */

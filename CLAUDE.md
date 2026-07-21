@@ -537,6 +537,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   reading prose sits at a 16px floor (`text-base`) with a 68ch measure, functional content at
   an 11px floor, and decorative overlines/chrome may drop to 10px only when the same
   information also exists elsewhere — enforced by the `src/type-floor-guard.test.ts` tripwire.
+  **`--red-deep` is a light-surface (paper/bone) token only** — on DARK surfaces the ratios
+  invert (plain red ~5.1:1 passes AA, red-deep ~3.2:1 fails), so dark surfaces keep `red`/
+  `red-soft`, never `red-deep`.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict

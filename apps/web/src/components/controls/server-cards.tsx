@@ -40,7 +40,7 @@ export function ServerCard({
         {banned && ownSlug && (
           <>
             {" · "}
-            <Link href={`/players/${ownSlug}`} className="font-bold text-red">
+            <Link href={`/players/${ownSlug}`} className="font-bold text-red-deep">
               Obituary →
             </Link>
           </>

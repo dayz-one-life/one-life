@@ -27,7 +27,7 @@ export function NotificationsInbox() {
     body = (
       <p className="font-mono text-[12px] uppercase tracking-[.05em] text-ink-muted">
         Sign in to read your wire.{" "}
-        <Link href="/login" className="font-bold text-red underline">
+        <Link href="/login" className="font-bold text-red-deep underline">
           Sign in →
         </Link>
       </p>

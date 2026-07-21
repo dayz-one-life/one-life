@@ -33,7 +33,7 @@ export function IdentityRow({
         {sub && <p className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</p>}
       </div>
       {verified && (
-        <span className="ml-auto -rotate-6 border-2 border-red px-2.5 pb-0.5 pt-1 font-display text-xs font-bold uppercase tracking-[.12em] text-red">
+        <span className="ml-auto -rotate-6 border-2 border-red px-2.5 pb-0.5 pt-1 font-display text-xs font-bold uppercase tracking-[.12em] text-red-deep">
           Verified
         </span>
       )}

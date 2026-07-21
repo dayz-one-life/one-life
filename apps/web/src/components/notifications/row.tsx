@@ -52,7 +52,7 @@ export function NotificationRow({
       <span className={`block text-[13px] ${onDark ? "text-paper" : "text-ink"}`}>{n.body}</span>
       <span className={`flex items-center gap-2 font-mono text-[11px] uppercase tracking-[.05em] ${onDark ? "text-cream-muted" : "text-ink-muted"}`}>
         {relativeTime(n.createdAt, now)}
-        {unread && <span className={`font-bold ${onDark ? "text-red-soft" : "text-red"}`}>NEW</span>}
+        {unread && <span className={`font-bold ${onDark ? "text-red-soft" : "text-red-deep"}`}>NEW</span>}
       </span>
     </Link>
   );
