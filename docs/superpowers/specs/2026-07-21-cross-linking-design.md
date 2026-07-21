@@ -132,12 +132,32 @@ A re-runnable `backfill-article-subjects` script in `apps/newsdesk`, following t
 `backfill-death-causes` precedent (`apps/projector`): surveys first, prints what it found and what
 it could not interpret, writes only additions, and is safe to run twice.
 
-**This is the least verified part of the design.** The `facts` jsonb shape varies by article kind and
-by when the row was written, and the local development database predates the `articles` table
-entirely, so the shape across the ~168 published rows was not inspected during design. The script
-must report per-kind counts and an unrecognised-shape list, and should be run against a production
-dump before it is trusted. Treat a low subject count as a bug in the script, not as a fact about the
-corpus.
+**Resolved 2026-07-21 — the corpus has now been inspected.** A production dump is present locally as
+the `onelife_prod` database. Read-only survey of all published rows:
+
+| | count |
+|---|---|
+| Published articles | 168 — 123 `birth_notice` + 45 `obituary` |
+| `gamertag` non-null | 168 / 168 → **168 `subject` rows** |
+| `facts.killerGamertag` non-null | **6** / 45 obituaries → **6 `killer` rows** |
+| rows carrying `facts.subjects` | **0** / 168 |
+
+**The backfill's acceptance number is exactly 174 rows.** It is a verifiable assertion, not a
+judgement call: if the script produces any other total, it is wrong.
+
+Two consequences the original design did not anticipate:
+
+1. **The `facts.subjects[]` branch has no historical data at all.** No news or Long Form article has
+   ever been published — that pass is off in production — so the multi-subject path is forward-only.
+   The backfill only needs to read `facts.gamertag` and `facts.killerGamertag`, which makes it
+   markedly simpler than §5.2's writer set implies.
+2. **Only 6 articles record a PvP killer.** The "appearances as killer" cross-link — argued during
+   design to be the most interesting link on the site — will be nearly empty at launch. This is a
+   fact about the corpus (most deaths are not PvP), not a defect. It should inform how much UI the
+   `role='killer'` case earns; see §9.4.
+
+The script must still report per-kind counts and an unrecognised-shape list, because it will run
+again after the news vertical is enabled and the shape will change then.
 
 ### 5.4 Read model, API, and the section
 
@@ -209,10 +229,16 @@ PR-1: plain deploy. PR-2: plain deploy, then run `backfill-article-subjects` on 
 
 ## 9. Known risks
 
-1. **Backfill fidelity is unverified** (§5.3). The one item that should be checked against real data
-   before implementation is trusted.
+1. ~~**Backfill fidelity is unverified**~~ — **retired 2026-07-21.** The corpus was surveyed against
+   the local `onelife_prod` dump; §5.3 now carries exact counts and a hard acceptance number (174
+   rows). The remaining residual is that the survey reflects a corpus with the news vertical still
+   off; the shape will change when it is enabled.
 2. **Idle-card links are a judgement call.** A player idle on a map may have last died months ago,
    making the link noise. Cheap to build and cheap to remove if it reads badly.
 3. **Roster-only linkification under-links by design.** An article that names a player who is
    neither a subject nor the killer leaves that name plain. Widening this later means widening the
    table's role vocabulary and re-running the backfill, not changing the renderer.
+4. **`role='killer'` earns little UI at launch.** Six articles corpus-wide carry a killer (§5.3).
+   The In The Paper section should render the role tag generically rather than building a dedicated
+   "Appearances" treatment around a case that is currently six rows. This is a reason to prefer the
+   single-section design already chosen in §5.4, not a reason to change it.
