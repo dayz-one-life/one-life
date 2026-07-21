@@ -15,6 +15,10 @@ const banned: ServerCardData = {
   slug: "sakhal", map: "sakhal", state: "banned", alive: null,
   ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: "2026-07-17T01:58:00Z", liftPending: false },
 };
+const expiredBanned: ServerCardData = {
+  slug: "sakhal", map: "sakhal", state: "banned", alive: null,
+  ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: "2026-07-16T10:00:00Z", liftPending: false },
+};
 
 const base = { ownSlug: "bootscoldwater", balance: 3, now: NOW, onRedeem: () => {}, redeeming: false };
 
@@ -41,6 +45,13 @@ describe("ServerCard", () => {
     expect(screen.getByText("13h 58m")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Spend 1 token — skip the wait" }));
     expect(onRedeem).toHaveBeenCalledWith(9);
+  });
+
+  test("banned past expiry: terminal Lifting state, no dead 0h 0m timer", () => {
+    render(<ServerCard card={expiredBanned} {...base} />);
+    expect(screen.getByText("Lifting…")).toBeInTheDocument();
+    expect(screen.queryByText(/0h 0m/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Ban lifts in")).not.toBeInTheDocument();
   });
 
   test("banned with no tokens: notice instead of CTA", () => {

@@ -117,4 +117,8 @@ describe("pillStatus", () => {
     const cards = serverCards([server({ id: 2, slug: "sakhal", map: "sakhal" })], [bannedStanding("sakhal", "sakhal", null)]);
     expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal banned", tone: "red" });
   });
+  test("banned with expiry already passed falls back to the plain banned line, not a dead 0h 0m countdown", () => {
+    const cards = serverCards([server({ id: 2, slug: "sakhal", map: "sakhal" })], [bannedStanding("sakhal", "sakhal", "2026-07-16T10:00:00Z")]);
+    expect(pillStatus(VERIFIED, cards, NOW)).toEqual({ text: "Sakhal banned", tone: "red" });
+  });
 });

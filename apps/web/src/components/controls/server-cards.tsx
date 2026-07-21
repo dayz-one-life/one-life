@@ -48,11 +48,17 @@ export function ServerCard({
       </p>
       {banned && (
         <>
-          {countdown && (
-            <div className="mt-2.5 flex items-center justify-between border border-hairline-2 bg-paper px-3 py-2">
-              <span className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">Ban lifts in</span>
-              <span className="font-display text-lg font-bold tabular-nums text-ink">{countdown}</span>
-            </div>
+          {card.ban!.expiresAt && (
+            countdown ? (
+              <div className="mt-2.5 flex items-center justify-between border border-hairline-2 bg-paper px-3 py-2">
+                <span className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">Ban lifts in</span>
+                <span className="font-display text-lg font-bold tabular-nums text-ink">{countdown}</span>
+              </div>
+            ) : (
+              <div className="mt-2.5 border border-hairline-2 bg-paper px-3 py-2 text-center">
+                <span className="font-display text-sm font-bold uppercase tracking-[.06em] text-ink-muted">Lifting…</span>
+              </div>
+            )
           )}
           <UnbanView
             state={unbanStateOf(card.ban!.liftPending || redeeming, balance)}

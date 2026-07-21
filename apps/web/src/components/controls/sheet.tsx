@@ -178,11 +178,17 @@ export function SheetServerRow({
       </div>
       {banned && (
         <>
-          {countdown && (
-            <div className="mt-2 flex items-center justify-between border border-dark-line bg-dark-well px-2.5 py-1.5">
-              <span className="font-mono text-[12px] uppercase tracking-[.06em] text-cream-muted">Ban lifts in</span>
-              <span className="font-display text-base font-bold tabular-nums text-paper">{countdown}</span>
-            </div>
+          {card.ban!.expiresAt && (
+            countdown ? (
+              <div className="mt-2 flex items-center justify-between border border-dark-line bg-dark-well px-2.5 py-1.5">
+                <span className="font-mono text-[12px] uppercase tracking-[.06em] text-cream-muted">Ban lifts in</span>
+                <span className="font-display text-base font-bold tabular-nums text-paper">{countdown}</span>
+              </div>
+            ) : (
+              <div className="mt-2 border border-dark-line bg-dark-well px-2.5 py-1.5 text-center">
+                <span className="font-display text-sm font-bold uppercase tracking-[.06em] text-cream-muted">Lifting…</span>
+              </div>
+            )
           )}
           <SheetUnban state={unbanStateOf(card.ban!.liftPending || redeeming, balance)} onRedeem={() => onRedeem(card.ban!.banId)} />
         </>

@@ -91,6 +91,18 @@ const bannedCard: ServerCardData = {
 };
 
 describe("SheetServerRow", () => {
+  test("past expiry: terminal Lifting state on dark tokens, no dead 0h 0m timer", () => {
+    const expiredCard: ServerCardData = { ...bannedCard, ban: { ...bannedCard.ban!, expiresAt: "2026-07-16T10:00:00Z", liftPending: false } };
+    render(
+      <SheetServerRow card={expiredCard} ownSlug={null} balance={1} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    const lifting = screen.getByText("Lifting…");
+    expect(lifting).toBeInTheDocument();
+    expect(lifting.className).toContain("text-cream-muted");
+    expect(screen.queryByText(/0h 0m/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Ban lifts in")).not.toBeInTheDocument();
+  });
+
   test("a pending self-unban is announced via a role=status region (the sheet's own copy)", () => {
     render(
       <SheetServerRow card={bannedCard} ownSlug={null} balance={1} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,

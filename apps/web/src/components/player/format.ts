@@ -7,7 +7,9 @@ export function formatDuration(seconds: number): string {
 
 export function banCountdown(expiresAt: string | null, now: Date): string | null {
   if (!expiresAt) return null;
-  return formatDuration((new Date(expiresAt).getTime() - now.getTime()) / 1000);
+  const remainingSeconds = (new Date(expiresAt).getTime() - now.getTime()) / 1000;
+  if (remainingSeconds <= 0) return null; // expiry has passed — enforcer hasn't caught up yet
+  return formatDuration(remainingSeconds);
 }
 
 const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
