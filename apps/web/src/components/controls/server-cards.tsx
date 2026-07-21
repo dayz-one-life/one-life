@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { lifeHrefBySlug } from "@/lib/life-href";
 import { banCountdown, mapLabel } from "@/components/player/format";
 import { UnbanView, unbanStateOf } from "@/components/player/self-unban-button";
 import { serverFactLine, type ServerCardData } from "./format";
@@ -46,6 +47,14 @@ export function ServerCard({
             {" · "}
             <Link href={`/players/${ownSlug}`} className="font-bold text-red-deep">
               Obituary →
+            </Link>
+          </>
+        )}
+        {card.lifeNumber !== null && ownSlug && (
+          <>
+            {" · "}
+            <Link href={lifeHrefBySlug(ownSlug, card.slug, card.lifeNumber)} className="font-bold text-red-deep">
+              Timeline →
             </Link>
           </>
         )}

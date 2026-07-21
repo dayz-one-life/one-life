@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { GamertagLink } from "@/components/gamertag-link";
 import { PullQuote } from "@/components/shared/pull-quote";
 import { ArticleBody } from "@/components/shared/article-body";
@@ -8,6 +9,7 @@ import type { BirthNoticeArticle, BirthNoticeCard } from "@/lib/types";
 import { birthDateline } from "@/lib/birth-format";
 import { cn } from "@/lib/utils";
 import { mapLabel } from "@/components/player/format";
+import { lifeHref } from "@/lib/life-href";
 
 export function BirthNoticeArticleView({
   article,
@@ -29,7 +31,15 @@ export function BirthNoticeArticleView({
         <p className="font-mono text-[11px] uppercase tracking-[.06em] text-blue">Birth Notice · {birthDateline(article.map, article.bornAt, now)}</p>
         <h1 className="mt-2 font-display text-5xl font-bold uppercase leading-[.92] text-ink md:text-6xl">{article.headline}</h1>
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
-          Filed by The Desk · <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> · Life {article.lifeNumber} · {mapLabel(article.map)}
+          Filed by The Desk · <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> ·{" "}
+          {article.mapSlug ? (
+            <Link href={lifeHref(article.gamertag, article.mapSlug, article.lifeNumber)} className="font-bold text-ink underline">
+              Life {article.lifeNumber}
+            </Link>
+          ) : (
+            <>Life {article.lifeNumber}</>
+          )}{" "}
+          · {mapLabel(article.map)}
         </p>
       </div>
 

@@ -11,7 +11,22 @@ import { rosterByClass } from "@onelife/domain";
 export interface PlayerCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface AliveStanding { lifeId: number; lifeNumber: number; startedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; }
 export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null; }
-export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; }
+/**
+ * `lastLifeNumber` is NOT "the player's most recent life" despite its name — its meaning is
+ * per-`state`:
+ *   - `alive`:  the OPEN life's number (same value as `alive.lifeNumber`).
+ *   - `banned`: the ban's TRIGGERING life's number, and it is deliberately `null` when that life
+ *     could not be identified — it must NEVER fall back to the player's actual most recent life,
+ *     or a banned card would link to the wrong life (this is what an earlier fix on this branch
+ *     exists to prevent). See `bannedStandingForLifeNumber` in
+ *     `apps/web/src/components/controls/format.test.ts` and the `serverCards` fallback chain in
+ *     `apps/web/src/components/controls/format.ts`, which must branch on `state` rather than rely
+ *     on nullish-coalescing order to preserve this.
+ *   - `idle`:   the most recent life's number — here, and only here, does the name match its value.
+ * Do not "fix" the banned branch to return the last life just because the field's name suggests
+ * it should — that is the exact regression this comment exists to head off.
+ */
+export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; }
 export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
 export interface PlayerPage {
   gamertag: string; verified: boolean; firstSeenAt: Date | null; aliveAnywhere: boolean;
@@ -80,13 +95,13 @@ export async function getPlayerPage(
     let card: ServerStanding;
     if (openLife && profile?.alive) {
       const killList = await getLifeKills(db, s.id, gamertag, openLife.startedAt, null);
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, openLife.startedAt, null), alive: { lifeId: openLife.id, lifeNumber: openLife.lifeNumber, startedAt: openLife.startedAt, timeAliveSeconds: profile.currentLifeSeconds, kills: killList.length, longestKillMeters: longest(killList), killList }, ban: null };
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, openLife.startedAt, null), alive: { lifeId: openLife.id, lifeNumber: openLife.lifeNumber, startedAt: openLife.startedAt, timeAliveSeconds: profile.currentLifeSeconds, kills: killList.length, longestKillMeters: longest(killList), killList }, ban: null, lastLifeNumber: openLife.lifeNumber };
     } else if (serverBan) {
       const trig = livesRows.find((l) => l.startedAt.getTime() === serverBan.lifeStartedAt.getTime()) ?? null;
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", character: trig ? await charShape(db, s.id, gamertag, trig.startedAt, trig.endedAt) : null, alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null } };
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", character: trig ? await charShape(db, s.id, gamertag, trig.startedAt, trig.endedAt) : null, alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null }, lastLifeNumber: trig?.lifeNumber ?? null };
     } else {
       const recent = livesRows[0] ?? null;
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "idle", character: recent ? await charShape(db, s.id, gamertag, recent.startedAt, recent.endedAt) : null, alive: null, ban: null };
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "idle", character: recent ? await charShape(db, s.id, gamertag, recent.startedAt, recent.endedAt) : null, alive: null, ban: null, lastLifeNumber: recent?.lifeNumber ?? null };
     }
     standing.push(card);
 

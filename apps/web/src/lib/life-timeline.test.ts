@@ -11,6 +11,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     map: "sakhal",
     slug: "sakhal",
     lastSeenAt: null,
+    obituarySlug: null,
     life: {
       id: 1, serverId: 1, playerId: 1, lifeNumber: 4,
       startedAt: start, endedAt: null,

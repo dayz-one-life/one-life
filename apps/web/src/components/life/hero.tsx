@@ -70,6 +70,14 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
               srLabel={h.qualified ? "Qualified" : "Not qualified"}
             />
           </div>
+          {data.obituarySlug && (
+            <Link
+              href={`/obituaries/${data.obituarySlug}`}
+              className="mt-4 inline-block font-mono text-[11px] font-bold uppercase tracking-[.06em] text-red-deep underline"
+            >
+              Read the obituary →
+            </Link>
+          )}
         </div>
       </div>
     </div>

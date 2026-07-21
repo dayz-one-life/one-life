@@ -11,7 +11,7 @@ const server = (over: Partial<Server>): Server => ({
 
 const standing = (over: Partial<ServerStanding>): ServerStanding => ({
   serverId: 1, map: "chernarusplus", slug: "chernarus", state: "idle",
-  character: null, alive: null, ban: null, ...over,
+  character: null, alive: null, ban: null, lastLifeNumber: null, ...over,
 });
 
 const aliveStanding = (slug: string, map: string, secs: number, kills = 0): ServerStanding =>
@@ -75,5 +75,70 @@ describe("transferErrorLabel", () => {
     expect(transferErrorLabel("self_transfer")).toBe("That's you");
     expect(transferErrorLabel("already_set")).toBe("Already set");
     expect(transferErrorLabel("boom")).toBe("Something went wrong");
+  });
+});
+
+// Test helpers for serverCards lifeNumber tests
+const serverForLifeNumber = (slug: string): Server => server({ slug, map: "sakhal" });
+
+const aliveStandingForLifeNumber = (slug: string): ServerStanding => standing({
+  map: "sakhal", slug, state: "alive",
+  alive: { lifeId: 9, lifeNumber: 4, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 100, kills: 0, longestKillMeters: null, killList: [] },
+});
+
+const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number | null): ServerStanding => standing({
+  map: "sakhal", slug, state: "banned",
+  ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber },
+  lastLifeNumber: triggeringLifeNumber,
+});
+
+const idleStandingForLifeNumber = (slug: string, lastLifeNumber: number | null): ServerStanding => standing({
+  map: "sakhal", slug, state: "idle", lastLifeNumber,
+});
+
+describe("serverCards lifeNumber", () => {
+  test("carries the open life's number on an alive card", () => {
+    expect(serverCards([serverForLifeNumber("sakhal")], [aliveStandingForLifeNumber("sakhal")])[0]!.lifeNumber).toBe(4);
+  });
+
+  test("carries the triggering life's number on a banned card", () => {
+    expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", 7)])[0]!.lifeNumber).toBe(7);
+  });
+
+  test("is null when a banned card's triggering life could not be identified", () => {
+    // Nullable upstream (read model no longer falls back to the most recent life). Must not
+    // become 0 or undefined — a link would 404, and a fallback would point at the wrong life.
+    expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", null)])[0]!.lifeNumber).toBeNull();
+  });
+
+  test("is null on a card with no standing at all", () => {
+    expect(serverCards([serverForLifeNumber("sakhal")], [])[0]!.lifeNumber).toBeNull();
+  });
+
+  test("falls back to the last life on an idle card", () => {
+    const idle = idleStandingForLifeNumber("sakhal", 3);
+    expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBe(3);
+  });
+
+  test("stays null on an idle card for a player who has never had a life there", () => {
+    const idle = idleStandingForLifeNumber("sakhal", null);
+    expect(serverCards([server({ slug: "sakhal", map: "sakhal" })], [idle])[0]!.lifeNumber).toBeNull();
+  });
+
+  // Discriminating test for the fallback chain's defence-in-depth: today `lastLifeNumber` is only
+  // ever populated in lockstep with `triggeringLifeNumber` on a banned standing
+  // (`bannedStandingForLifeNumber` sets `lastLifeNumber: triggeringLifeNumber`), so the `??
+  // st?.lastLifeNumber` term is never exercised with a CONFLICTING value in practice. This test
+  // constructs that conflict directly — a banned standing whose triggering life is unidentified
+  // BUT whose `lastLifeNumber` holds a different, real life number — to prove the chain does not
+  // fall through to the wrong life. `serverCards` must branch on `state` for the banned case
+  // rather than rely on nullish-coalescing order alone.
+  test("a banned card never falls through to lastLifeNumber even when it conflicts with a null trigger", () => {
+    const conflicting: ServerStanding = standing({
+      map: "sakhal", slug: "sakhal", state: "banned",
+      ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber: null },
+      lastLifeNumber: 9,
+    });
+    expect(serverCards([serverForLifeNumber("sakhal")], [conflicting])[0]!.lifeNumber).toBeNull();
   });
 });
