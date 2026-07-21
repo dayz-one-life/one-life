@@ -43,6 +43,18 @@ describe("LinkTagPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Tag already claimed");
   });
 
+  test("claim error ties to the gamertag input via aria-describedby and aria-invalid", () => {
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />);
+    const input = screen.getByLabelText("Gamertag");
+    expect(input).toHaveAccessibleDescription("Tag already claimed");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("no error means no aria-invalid on the gamertag input", () => {
+    render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
+    expect(screen.getByLabelText("Gamertag")).not.toHaveAttribute("aria-invalid");
+  });
+
   test("picking a suggestion does not reopen the dropdown after the debounce window", async () => {
     render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
@@ -109,5 +121,24 @@ describe("ProveItPanel", () => {
     const btn = screen.getByRole("button", { name: "Cancel claim" });
     expect(btn.className).toContain("min-h-[44px]");
     expect(btn.className).toContain("xl:min-h-0");
+  });
+
+  test("progress is announced via a role=status region keyed to progressIndex", () => {
+    const { rerender } = render(
+      <ProveItPanel gamertag="Boots" challenge={challenge({ progressIndex: 1 })} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 3 confirmed");
+    rerender(
+      <ProveItPanel gamertag="Boots" challenge={challenge({ progressIndex: 2 })} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Step 2 of 3 confirmed");
+  });
+
+  test("the status region is a separate node from the progress list", () => {
+    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
+    const status = screen.getByRole("status");
+    expect(status.tagName).not.toBe("OL");
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 });

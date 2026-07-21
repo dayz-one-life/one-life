@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { GamertagAutocomplete } from "./gamertag-autocomplete";
 import { searchVerifiedGamertags } from "@/lib/api";
+import { SrStatus } from "@/components/shared/sr-status";
 
 export type MutationView = { pending: boolean; error: string | null; ok: boolean };
 
@@ -39,6 +40,11 @@ export function TokensPanel({
     if (ref.trim()) onSetReferrer(ref.trim());
   };
 
+  // A single always-present announcer: content changes on send.ok/referrer.ok. It must live
+  // outside the `!referrer.ok` block below, which unmounts the referrer form (and would take
+  // an announcer down with it) the instant referrer.ok flips true.
+  const statusMessage = send.ok ? `Token sent — balance ${balance}` : referrer.ok ? "Referrer set" : "";
+
   return (
     <section className={boxed ? "border border-dark-line p-4" : "bg-dark p-5"}>
       <div className="flex items-center justify-between">
@@ -48,6 +54,8 @@ export function TokensPanel({
       <form onSubmit={submitSend} className="mt-3 flex gap-2 border-t border-dark-line pt-3">
         <GamertagAutocomplete
           aria-label="Send a token to a verified player"
+          aria-describedby={send.error ? "send-token-error" : undefined}
+          aria-invalid={send.error ? true : undefined}
           placeholder="SEND TO VERIFIED PLAYER…"
           value={to}
           onChange={setTo}
@@ -65,7 +73,7 @@ export function TokensPanel({
         </button>
       </form>
       {send.error && (
-        <p role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{send.error}</p>
+        <p id="send-token-error" role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{send.error}</p>
       )}
       <p className="mt-2 font-mono text-[11px] uppercase tracking-[.04em] text-cream-muted xl:text-[10px]">
         +1 every 1st of the month · Transfers are final
@@ -75,6 +83,8 @@ export function TokensPanel({
           <form onSubmit={submitRef} className="mt-3 flex items-center gap-2 border-t border-dark-line pt-3">
             <GamertagAutocomplete
               aria-label="Referred by"
+              aria-describedby={referrer.error ? "referrer-error" : undefined}
+              aria-invalid={referrer.error ? true : undefined}
               placeholder="REFERRED BY…"
               value={ref}
               onChange={setRef}
@@ -92,10 +102,11 @@ export function TokensPanel({
             </button>
           </form>
           {referrer.error && (
-            <p role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
+            <p id="referrer-error" role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
           )}
         </>
       )}
+      <SrStatus>{statusMessage}</SrStatus>
     </section>
   );
 }

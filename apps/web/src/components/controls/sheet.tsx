@@ -120,7 +120,11 @@ export function ControlsSheet({
 function SheetUnban({ state, onRedeem }: { state: UnbanState; onRedeem: () => void }) {
   if (state === "hidden") return null;
   if (state === "pending") {
-    return <p className="mt-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">Unban pending — lifting shortly…</p>;
+    return (
+      <p role="status" aria-live="polite" className="mt-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">
+        Unban pending — lifting shortly…
+      </p>
+    );
   }
   if (state === "no-tokens") {
     return (

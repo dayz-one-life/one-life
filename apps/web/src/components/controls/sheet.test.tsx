@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import { ControlsSheet } from "./sheet";
+import { ControlsSheet, SheetServerRow } from "./sheet";
+import type { ServerCardData } from "./format";
 
 const mockPathname = vi.fn(() => "/");
 vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
@@ -78,5 +79,22 @@ describe("ControlsSheet", () => {
     rerender(sheet(true)); // …user reopens mid-exit
     act(() => void vi.advanceTimersByTime(500));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+const bannedCard: ServerCardData = {
+  slug: "chernarus",
+  map: "chernarusplus",
+  state: "banned",
+  alive: null,
+  ban: { banId: 1, bannedAt: "2026-07-16T10:00:00Z", expiresAt: "2026-07-17T10:00:00Z", liftPending: true },
+};
+
+describe("SheetServerRow", () => {
+  test("a pending self-unban is announced via a role=status region (the sheet's own copy)", () => {
+    render(
+      <SheetServerRow card={bannedCard} ownSlug={null} balance={1} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Unban pending — lifting shortly…");
   });
 });

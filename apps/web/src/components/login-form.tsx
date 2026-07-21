@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const PROVIDERS = ["discord", "google", "github"] as const;
@@ -18,6 +18,13 @@ export function LoginForm({
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sentRef = useRef<HTMLParagraphElement>(null);
+
+  // The submit button unmounts the instant `sent` flips true, orphaning focus — move it to
+  // the confirmation itself so a screen-reader user isn't dropped back at the document root.
+  useEffect(() => {
+    if (sent) sentRef.current?.focus();
+  }, [sent]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,7 +73,13 @@ export function LoginForm({
       )}
       {magicLink &&
         (sent ? (
-          <p className="border border-dark-line px-4 py-3 font-mono text-xs uppercase leading-relaxed tracking-[.04em] text-cream-dim">
+          <p
+            ref={sentRef}
+            role="status"
+            aria-live="polite"
+            tabIndex={-1}
+            className="border border-dark-line px-4 py-3 font-mono text-xs uppercase leading-relaxed tracking-[.04em] text-cream-dim"
+          >
             Check your email for a sign-in link.
           </p>
         ) : (
@@ -82,6 +95,8 @@ export function LoginForm({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="YOU@EXAMPLE.COM"
+                aria-describedby={error ? "email-error" : undefined}
+                aria-invalid={error ? true : undefined}
                 className="min-w-0 flex-1 border border-dark-line bg-dark-well px-3 py-2.5 font-mono text-xs text-paper outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red placeholder:text-cream-muted focus:border-paper"
               />
               <button
@@ -92,7 +107,7 @@ export function LoginForm({
               </button>
             </div>
             {error && (
-              <p role="alert" className="font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">
+              <p id="email-error" role="alert" className="font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">
                 {error}
               </p>
             )}

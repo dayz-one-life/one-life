@@ -77,6 +77,33 @@ describe("TokensPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Not enough tokens");
   });
 
+  test("send error ties to its input via aria-describedby and aria-invalid", () => {
+    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    const input = screen.getByLabelText("Send a token to a verified player");
+    expect(input).toHaveAccessibleDescription("Not enough tokens");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("referrer error ties to its input via aria-describedby and aria-invalid", () => {
+    render(<TokensPanel balance={1} send={idle} referrer={{ pending: false, ok: false, error: "Not a verified player" }} onSend={() => {}} onSetReferrer={() => {}} />);
+    const input = screen.getByLabelText("Referred by");
+    expect(input).toHaveAccessibleDescription("Not a verified player");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("send success is announced via a role=status region", () => {
+    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    rerender(<TokensPanel balance={5} send={{ ...idle, ok: true }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Token sent — balance 5");
+  });
+
+  test("referrer success is announced via role=status and survives the form unmounting", () => {
+    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    rerender(<TokensPanel balance={2} send={idle} referrer={{ ...idle, ok: true }} onSend={() => {}} onSetReferrer={() => {}} />);
+    expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/referrer set/i);
+  });
+
   test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {
     render(<TokensPanel balance={1} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
     const input = screen.getByLabelText("Send a token to a verified player");

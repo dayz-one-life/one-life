@@ -21,7 +21,7 @@ export function UnbanView({
   if (state === "hidden") return null;
   if (state === "pending") {
     return (
-      <p className="mt-3 bg-bone px-3 py-2 text-center font-mono text-xs uppercase tracking-[.05em] text-ink-soft">
+      <p role="status" aria-live="polite" className="mt-3 bg-bone px-3 py-2 text-center font-mono text-xs uppercase tracking-[.05em] text-ink-soft">
         Unban pending — lifting shortly…
       </p>
     );

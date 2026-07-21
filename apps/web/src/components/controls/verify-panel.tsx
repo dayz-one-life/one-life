@@ -2,6 +2,7 @@ import type { Challenge } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatExpiry } from "@/lib/format-expiry";
 import { SkewCta } from "@/components/tabloid/skew-cta";
+import { SrStatus } from "@/components/shared/sr-status";
 
 const quietBtn =
   "inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted underline underline-offset-2 hover:text-paper disabled:opacity-50 xl:min-h-0 xl:text-[10.5px]";
@@ -51,6 +52,10 @@ export function ProveItPanel({
         <span className="font-mono text-[11px] font-bold uppercase text-yellow">{formatExpiry(challenge.expiresAt, now)}</span>
       </div>
       <p className="mt-2 font-display text-2xl font-bold uppercase leading-none text-paper">{gamertag} — perform, in order:</p>
+      {/* Separate node from the <ol> below — putting role="status" on the list itself would
+       *  strip its list semantics. Scoped to progress only, so the expiry countdown ticking
+       *  above does not re-announce every second. */}
+      <SrStatus>{`Step ${challenge.progressIndex} of ${challenge.sequence.length} confirmed`}</SrStatus>
       <ol className="mt-3.5 flex gap-2 font-mono text-[12px] tracking-[.03em]">
         {challenge.sequence.map((emote, i) => {
           const done = i < challenge.progressIndex;

@@ -12,6 +12,8 @@ export function GamertagAutocomplete({
   placeholder,
   id,
   "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   className,
   inputClassName,
 }: {
@@ -22,6 +24,8 @@ export function GamertagAutocomplete({
   placeholder?: string;
   id?: string;
   "aria-label"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
   className?: string;
   inputClassName?: string;
 }) {
@@ -61,6 +65,8 @@ export function GamertagAutocomplete({
       <input
         id={id}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete="off"
