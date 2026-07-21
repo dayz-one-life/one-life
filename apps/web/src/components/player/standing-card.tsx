@@ -22,7 +22,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
       <div className="flex items-center gap-3">
         <PlayerAvatar character={standing.character} size={48} dim={!alive} />
         <div className="min-w-0 flex-1">
-          <p className="font-display text-[19px] font-bold uppercase leading-none text-ink">{mapLabel(standing.map)}</p>
+          <h3 className="font-display text-[19px] font-bold uppercase leading-none text-ink">{mapLabel(standing.map)}</h3>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">
             {sub}
             {timelineLifeNumber != null && (

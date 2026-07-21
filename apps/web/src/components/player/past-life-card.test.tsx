@@ -77,6 +77,11 @@ describe("PastLifeCard", () => {
     expect(screen.getByText("1 kill")).toBeInTheDocument();
   });
 
+  test("renders the map name as an h3 (player-profile.tsx nests cards under an h2 section)", () => {
+    render(<PastLifeCard life={life()} now={now} gamertag="YrJustBad" />);
+    expect(screen.getByRole("heading", { level: 3, name: "Sakhal" })).toBeInTheDocument();
+  });
+
   test("links to the life timeline", () => {
     render(<PastLifeCard life={life()} now={now} gamertag="YrJustBad" />);
     expect(screen.getByRole("link", { name: /timeline/i })).toHaveAttribute("href", "/players/yrjustbad/sakhal/lives/2");

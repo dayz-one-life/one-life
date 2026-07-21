@@ -24,7 +24,29 @@ describe("LifeHero", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Life 4 · Sakhal");
     expect(screen.getByText("Alive")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "YrJustBad" })).toHaveAttribute("href", "/players/yrjustbad");
-    expect(screen.getByText("Qualified")).toBeInTheDocument();
+    expect(screen.getAllByText("Qualified").length).toBeGreaterThan(0);
+  });
+
+  test("Qualified stat: glyph is decorative, value has an sr-only text equivalent", () => {
+    const now = new Date(Date.parse(start) + 100 * 60_000);
+    const { container } = render(<LifeHero data={data()} view={buildTimeline(data(), now)} />);
+    const glyph = screen.getByText("✓");
+    expect(glyph).toHaveAttribute("aria-hidden", "true");
+    // The value node (glyph + sr-only text) exposes "Qualified" as its accessible name.
+    const srText = container.querySelector(".sr-only");
+    expect(srText).toHaveTextContent("Qualified");
+    expect(srText!.parentElement).toHaveAccessibleName("Qualified");
+  });
+
+  test("Qualified stat: unqualified life reads 'Not qualified' for AT, dash is decorative", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const d = data({ qualifiedAt: null });
+    const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    const glyph = screen.getByText("—", { selector: "[aria-hidden]" });
+    expect(glyph).toHaveAttribute("aria-hidden", "true");
+    const srText = container.querySelector(".sr-only");
+    expect(srText).toHaveTextContent("Not qualified");
+    expect(srText!.parentElement).toHaveAccessibleName("Not qualified");
   });
 
   test("dead: Died chip instead of Alive", () => {

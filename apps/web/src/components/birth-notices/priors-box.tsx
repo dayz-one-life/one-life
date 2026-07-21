@@ -14,9 +14,9 @@ export function PriorsBox({ article }: { article: BirthNoticeArticle }) {
       ) : (
         <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
           {facts.map((f) => (
-            <div key={f.label}>
-              <dd className={cn("font-display text-[26px] font-bold leading-none", f.hot ? "text-red" : "text-ink")}>{f.value}</dd>
+            <div key={f.label} className="flex flex-col-reverse">
               <dt className="mt-1 font-mono text-[11px] uppercase tracking-[.07em] text-ink-muted">{f.label}</dt>
+              <dd className={cn("font-display text-[26px] font-bold leading-none", f.hot ? "text-red" : "text-ink")}>{f.value}</dd>
             </div>
           ))}
         </dl>
