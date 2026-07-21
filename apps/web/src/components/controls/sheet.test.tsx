@@ -86,6 +86,7 @@ const bannedCard: ServerCardData = {
   slug: "chernarus",
   map: "chernarusplus",
   state: "banned",
+  lifeNumber: 7,
   alive: null,
   ban: { banId: 1, bannedAt: "2026-07-16T10:00:00Z", expiresAt: "2026-07-17T10:00:00Z", liftPending: true },
 };

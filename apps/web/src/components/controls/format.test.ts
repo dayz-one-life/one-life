@@ -77,3 +77,36 @@ describe("transferErrorLabel", () => {
     expect(transferErrorLabel("boom")).toBe("Something went wrong");
   });
 });
+
+// Test helpers for serverCards lifeNumber tests
+const serverForLifeNumber = (slug: string): Server => ({ id: 1, name: "S", map: "sakhal", slug } as Server);
+
+const aliveStandingForLifeNumber = (slug: string): ServerStanding => ({
+  serverId: 1, map: "sakhal", slug, state: "alive", character: null,
+  alive: { lifeId: 9, lifeNumber: 4, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 100, kills: 0, longestKillMeters: null, killList: [] },
+  ban: null,
+} as unknown as ServerStanding);
+
+const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number | null): ServerStanding => ({
+  serverId: 1, map: "sakhal", slug, state: "banned", character: null, alive: null,
+  ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber },
+} as unknown as ServerStanding);
+
+describe("serverCards lifeNumber", () => {
+  it("carries the open life's number on an alive card", () => {
+    expect(serverCards([serverForLifeNumber("sakhal")], [aliveStandingForLifeNumber("sakhal")])[0]!.lifeNumber).toBe(4);
+  });
+
+  it("carries the triggering life's number on a banned card", () => {
+    expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", 7)])[0]!.lifeNumber).toBe(7);
+  });
+
+  it("is null when a banned card's triggering life could not be identified", () => {
+    // Nullable upstream. Must not become 0 or undefined — a link would 404.
+    expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", null)])[0]!.lifeNumber).toBeNull();
+  });
+
+  it("is null on a card with no standing at all", () => {
+    expect(serverCards([serverForLifeNumber("sakhal")], [])[0]!.lifeNumber).toBeNull();
+  });
+});

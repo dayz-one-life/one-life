@@ -17,6 +17,9 @@ export type ServerCardData = {
   slug: string;
   map: string;
   state: "alive" | "banned" | "idle";
+  /** The life this card should link to: the open life when alive, the ban's triggering life when
+   *  banned. Null when there is no identifiable life — render no link rather than a broken one. */
+  lifeNumber: number | null;
   alive: { timeAliveSeconds: number; kills: number } | null;
   ban: { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean } | null;
 };
@@ -30,6 +33,7 @@ export function serverCards(servers: Server[], standing: ServerStanding[]): Serv
         slug: s.slug,
         map: s.map,
         state: st?.state ?? "idle",
+        lifeNumber: st?.alive?.lifeNumber ?? st?.ban?.triggeringLifeNumber ?? null,
         alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills } : null,
         ban: st?.ban
           ? { banId: st.ban.banId, bannedAt: st.ban.bannedAt, expiresAt: st.ban.expiresAt, liftPending: st.ban.liftPending }

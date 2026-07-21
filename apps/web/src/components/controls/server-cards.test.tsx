@@ -7,16 +7,16 @@ import { diedAtLabel } from "./format";
 const NOW = new Date("2026-07-16T12:00:00Z");
 
 const alive: ServerCardData = {
-  slug: "chernarus", map: "chernarusplus", state: "alive",
+  slug: "chernarus", map: "chernarusplus", state: "alive", lifeNumber: 5,
   alive: { timeAliveSeconds: 22920, kills: 0 }, ban: null,
 };
-const idle: ServerCardData = { slug: "livonia", map: "enoch", state: "idle", alive: null, ban: null };
+const idle: ServerCardData = { slug: "livonia", map: "enoch", state: "idle", lifeNumber: null, alive: null, ban: null };
 const banned: ServerCardData = {
-  slug: "sakhal", map: "sakhal", state: "banned", alive: null,
+  slug: "sakhal", map: "sakhal", state: "banned", lifeNumber: 3, alive: null,
   ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: "2026-07-17T01:58:00Z", liftPending: false },
 };
 const expiredBanned: ServerCardData = {
-  slug: "sakhal", map: "sakhal", state: "banned", alive: null,
+  slug: "sakhal", map: "sakhal", state: "banned", lifeNumber: 3, alive: null,
   ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: "2026-07-16T10:00:00Z", liftPending: false },
 };
 
