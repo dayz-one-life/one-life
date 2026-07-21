@@ -69,7 +69,7 @@ as "Banned" and only real bans can be lifted with a token.
   `lastSeenAt ?? connectedAt ?? now` — matching `livePlaytime` in `survivors.ts` and the dossier's
   cap in `player-page`/`queries.ts` EXACTLY, with **no clamp to `now`** (a clamp would diverge from
   those two under clock skew, when `lastSeenAt` lands a few seconds ahead of `now`). `LifeHero`
-  (`life/hero.tsx`) and the timeline NOW row inherit the uncapped value.
+  (`life/hero.tsx`) and the timeline NOW row inherit the capped value.
 - The "and counting" phrasing on the NOW row is a **server-baked snapshot that never ticks** — soften
   it (e.g. "Still drawing breath — Xh Ym" without "and counting", or "as of last seen"), so the page
   doesn't claim a live counter it doesn't have.
