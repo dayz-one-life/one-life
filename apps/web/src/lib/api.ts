@@ -68,6 +68,37 @@ export async function apiGet<T>(path: string): Promise<T> {
   return parse<T>(await fetch(url(path), init));
 }
 
+/**
+ * Cacheable server-side GET for routes that must NOT depend on the request (e.g. `sitemap.ts`,
+ * which needs `revalidate` to actually mean something). `apiGet`/`buildInit` await `cookies()`
+ * and set `cache: "no-store"`, which opts the whole route out of static generation — that's
+ * correct for authenticated RSC fetches but defeats ISR here. This variant never touches
+ * `cookies()` and uses `next: { revalidate }` instead, so Next can cache and re-serve the
+ * response. It also never forwards a cookie header to the API — pointless for an anonymous
+ * enumeration endpoint, and a cache-poisoning vector once the response IS shared across
+ * requests. Client-side callers don't need this: browser fetches already only cache what the
+ * browser/CDN choose to, and don't run through `buildInit`'s server branch at all.
+ */
+// Next attempts to actually populate this route at BUILD time (a static/ISR route is prerendered
+// during `next build`, per `deploy.sh`'s Phase 3 comment: "runs while the OLD fleet is still
+// serving" — the API is expected to be reachable then). Plain `fetch` has no default timeout, so
+// an API that's merely slow (not cleanly refusing) at that moment hangs the promise indefinitely;
+// Next's own build-worker budget (60s x3 retries) eventually kills it and fails the WHOLE build,
+// which `sitemap.ts`'s try/catch can never see because the promise never settles in time to be
+// caught. An explicit timeout makes a slow/unreachable API reject quickly instead, so the
+// existing try/catch degrades to a partial sitemap the same way it does for a clean HTTP error.
+const CACHED_FETCH_TIMEOUT_MS = 10_000;
+
+export async function apiGetCached<T>(path: string, revalidateSeconds: number): Promise<T> {
+  const url = `${API_ORIGIN}${toBackendPath(path)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    next: { revalidate: revalidateSeconds },
+    signal: AbortSignal.timeout(CACHED_FETCH_TIMEOUT_MS),
+  });
+  return parse<T>(res);
+}
+
 export async function apiSend<T>(method: "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
   // Only send a content-type when there's actually a body. A bodyless request that still
   // declares `application/json` makes Fastify reject it with 400 (FST_ERR_CTP_EMPTY_JSON_BODY),
@@ -173,4 +204,10 @@ export const getNewsArticle = (slug: string, preview?: string) =>
     `/api/news/${encodeURIComponent(slug)}${preview ? `?preview=${encodeURIComponent(preview)}` : ""}`,
   );
 
-export const getSitemapData = () => apiGet<SitemapData>("/api/sitemap");
+/** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
+ *  3600) so the fetch cache and the route's own ISR window agree. */
+const SITEMAP_REVALIDATE_SECONDS = 3600;
+export const getSitemapData = () => apiGetCached<SitemapData>("/api/sitemap", SITEMAP_REVALIDATE_SECONDS);
+/** Sitemap-only variant of `getServers()` — same endpoint, but cacheable/cookie-free. Do NOT
+ *  point the regular `getServers()` (used by authenticated RSC pages) at this. */
+export const getServersCached = () => apiGetCached<Server[]>("/api/servers", SITEMAP_REVALIDATE_SECONDS);

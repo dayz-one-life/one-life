@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/api", () => ({
   getSitemapData: vi.fn(),
-  getServers: vi.fn(),
+  getServersCached: vi.fn(),
 }));
 
-import { getSitemapData, getServers } from "@/lib/api";
+import { getSitemapData, getServersCached } from "@/lib/api";
 import sitemap from "./sitemap";
 
 const SERVERS = [
@@ -20,7 +20,7 @@ const DATA = {
 };
 
 beforeEach(() => {
-  vi.mocked(getServers).mockResolvedValue(SERVERS as never);
+  vi.mocked(getServersCached).mockResolvedValue(SERVERS as never);
   vi.mocked(getSitemapData).mockResolvedValue(DATA as never);
 });
 
@@ -80,7 +80,7 @@ describe("sitemap", () => {
   });
 
   it("still returns the static pages when even the servers call fails", async () => {
-    vi.mocked(getServers).mockRejectedValue(new Error("api down"));
+    vi.mocked(getServersCached).mockRejectedValue(new Error("api down"));
     vi.mocked(getSitemapData).mockRejectedValue(new Error("api down"));
     expect(await urls()).toContain("https://dayzonelife.com/about");
   });
@@ -89,11 +89,26 @@ describe("sitemap", () => {
   // other direction — losing the board list must not cost us the ~470 content URLs, which are the
   // whole point of the sitemap. One shared try/catch would pass that test and fail this one.
   it("still returns player, life and article URLs when the servers call fails", async () => {
-    vi.mocked(getServers).mockRejectedValue(new Error("api down"));
+    vi.mocked(getServersCached).mockRejectedValue(new Error("api down"));
     const u = await urls();
     expect(u).toContain("https://dayzonelife.com/players/xsgt-hartman");
     expect(u).toContain("https://dayzonelife.com/players/xsgt-hartman/livonia/lives/2");
     expect(u).toContain("https://dayzonelife.com/obituaries/hartman-falls");
     expect(u.some((x) => x.startsWith("https://dayzonelife.com/survivors"))).toBe(false);
+  });
+
+  // Next's sitemap serializer calls `.toISOString()` on `lastModified`; an Invalid Date throws
+  // a RangeError there, which would 500 the whole route from one malformed timestamp. The URL
+  // must still appear, just without a `lastModified`.
+  it("keeps the URL but omits lastModified when the API sends a malformed timestamp", async () => {
+    vi.mocked(getSitemapData).mockResolvedValue({
+      players: [{ gamertag: "xSgt Hartman", lastmod: "not-a-date" }],
+      lives: [],
+      articles: [],
+    } as never);
+    const entries = await sitemap();
+    const entry = entries.find((e) => e.url === "https://dayzonelife.com/players/xsgt-hartman");
+    expect(entry).toBeDefined();
+    expect(entry?.lastModified).toBeUndefined();
   });
 });
