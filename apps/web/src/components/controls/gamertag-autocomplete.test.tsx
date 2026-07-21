@@ -135,10 +135,15 @@ describe("GamertagAutocomplete", () => {
     expect(input.value).toBe("Ot");
   });
 
+  test("the result live region is present but empty before any search", () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    expect(screen.getByRole("status")).toHaveTextContent("");
+  });
+
   test("a completed search announces the result count via a polite live region", async () => {
     const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
     render(<Harness fetchSuggestions={fetchSuggestions} />);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("2 matches"));
   });
@@ -148,5 +153,62 @@ describe("GamertagAutocomplete", () => {
     render(<Harness fetchSuggestions={fetchSuggestions} />);
     fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Zz" } });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No matches"));
+  });
+
+  test("the live region survives a pick — announced again, not torn down and remounted", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const statusNode = screen.getByRole("status"); // present from the very first render
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
+    await waitFor(() => expect(statusNode).toHaveTextContent("2 matches"));
+    fireEvent.click(await screen.findByRole("option", { name: "OtherGuy" }));
+    // Picking clears the announcement, but the region itself is the SAME node — never
+    // unmounted/remounted around the mutation.
+    expect(screen.getByRole("status")).toBe(statusNode);
+    expect(statusNode).toHaveTextContent("");
+  });
+
+  test("aria-controls never dangles: the listbox stays in the DOM, hidden, while collapsed", () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" });
+    // Not exposed to AT while collapsed — the default role query correctly finds nothing...
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    // ...but `{ hidden: true }` opts back into elements hidden from the a11y tree, proving the
+    // node `aria-controls` points at still exists rather than dangling.
+    const listbox = screen.getByRole("listbox", { hidden: true });
+    expect(listbox).toHaveAttribute("hidden");
+    expect(listbox.id).toBe(input.getAttribute("aria-controls"));
+  });
+
+  test("ArrowDown past the last option wraps to the first", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByRole("combobox", { name: "Field" });
+    fireEvent.change(input, { target: { value: "Ot" } });
+    const options = await screen.findAllByRole("option");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[0]!.id);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", options[1]!.id);
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // past the end
+    expect(input).toHaveAttribute("aria-activedescendant", options[0]!.id);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveAttribute("aria-selected", "false");
+  });
+
+  test("Enter with nothing highlighted does not pick a suggestion", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy", "OtherGal"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} />);
+    const input = screen.getByLabelText("Field") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Ot" } });
+    await screen.findAllByRole("option");
+    const event = fireEvent.keyDown(input, { key: "Enter" });
+    // Nothing highlighted (highlightedIndex is -1) — the component does not intercept the
+    // key, so preventDefault is never called and the value is untouched.
+    expect(event).toBe(true);
+    expect(input.value).toBe("Ot");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 });

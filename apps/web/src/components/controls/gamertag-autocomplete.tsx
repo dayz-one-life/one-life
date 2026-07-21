@@ -40,8 +40,9 @@ export function GamertagAutocomplete({
   // reopen it). `highlightedIndex` is the virtual-focus index (-1 = nothing highlighted).
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  // Only true once a real search has completed (or failed) — gates the result-count live
-  // region so it never announces on the initial/below-threshold/just-picked state.
+  // Only true once a real search has completed (or failed) — while false, the result-count
+  // live region renders empty (present, not absent — see the SrStatus render below) rather
+  // than announcing on the initial/below-threshold/just-picked state.
   const [searched, setSearched] = useState(false);
 
   const listId = useId();
@@ -121,10 +122,14 @@ export function GamertagAutocomplete({
     }
   }
 
+  const expanded = open && suggestions.length > 0;
   const activeOptionId =
     open && highlightedIndex >= 0 ? `${listId}-opt-${highlightedIndex}` : undefined;
-  const matchText =
-    suggestions.length === 0 ? "No matches" : `${suggestions.length} match${suggestions.length === 1 ? "" : "es"}`;
+  const matchText = !searched
+    ? ""
+    : suggestions.length === 0
+      ? "No matches"
+      : `${suggestions.length} match${suggestions.length === 1 ? "" : "es"}`;
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -132,7 +137,7 @@ export function GamertagAutocomplete({
         id={id}
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={open}
+        aria-expanded={expanded}
         aria-controls={listId}
         aria-activedescendant={activeOptionId}
         aria-label={ariaLabel}
@@ -151,13 +156,18 @@ export function GamertagAutocomplete({
           })
         }
       />
-      {open && suggestions.length > 0 && (
-        <ul
-          role="listbox"
-          id={listId}
-          className="absolute left-0 right-0 top-full z-20 max-h-[210px] overflow-y-auto border border-t-0 border-dark-line bg-dark-well"
-        >
-          {suggestions.map((s, index) => (
+      {/* Always mounted so `aria-controls={listId}` on the input never dangles (WAI-ARIA APG
+       *  combobox pattern). `hidden` (display:none) removes it from the a11y tree when there's
+       *  nothing to show, and it renders no <li> children then either — an empty listbox is
+       *  never exposed to AT. */}
+      <ul
+        role="listbox"
+        id={listId}
+        hidden={!expanded}
+        className="absolute left-0 right-0 top-full z-20 max-h-[210px] overflow-y-auto border border-t-0 border-dark-line bg-dark-well"
+      >
+        {expanded &&
+          suggestions.map((s, index) => (
             <li
               key={s}
               id={`${listId}-opt-${index}`}
@@ -169,9 +179,11 @@ export function GamertagAutocomplete({
               {s}
             </li>
           ))}
-        </ul>
-      )}
-      {searched && <SrStatus>{matchText}</SrStatus>}
+      </ul>
+      {/* Always mounted (never gated on `searched`) — some screen readers only announce
+       *  mutations to a region that existed at the time of the change; empty before any
+       *  search/after a pick, filled with the match count once a search completes. */}
+      <SrStatus>{matchText}</SrStatus>
     </div>
   );
 }

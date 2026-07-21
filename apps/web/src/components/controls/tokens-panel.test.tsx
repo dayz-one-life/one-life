@@ -91,17 +91,27 @@ describe("TokensPanel", () => {
     expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
+  // TokensPanel mounts its own always-present SrStatus PLUS one inside each
+  // GamertagAutocomplete (send + referrer, when rendered) — all always-mounted per Finding 1.
+  // Disambiguate by picking the one node that actually carries text; the autocompletes' own
+  // status regions stay empty in these tests since no search is performed.
+  function nonEmptyStatus() {
+    const nonEmpty = screen.getAllByRole("status").filter((el) => el.textContent !== "");
+    expect(nonEmpty).toHaveLength(1);
+    return nonEmpty[0]!;
+  }
+
   test("send success is announced via a role=status region", () => {
     const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
     rerender(<TokensPanel balance={5} send={{ ...idle, ok: true }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
-    expect(screen.getByRole("status")).toHaveTextContent("Token sent — balance 5");
+    expect(nonEmptyStatus()).toHaveTextContent("Token sent — balance 5");
   });
 
   test("referrer success is announced via role=status and survives the form unmounting", () => {
     const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
     rerender(<TokensPanel balance={2} send={idle} referrer={{ ...idle, ok: true }} onSend={() => {}} onSetReferrer={() => {}} />);
     expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/referrer set/i);
+    expect(nonEmptyStatus()).toHaveTextContent(/referrer set/i);
   });
 
   test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {
