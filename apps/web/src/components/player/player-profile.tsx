@@ -32,11 +32,13 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
       {aliveOrBanned.length > 0 && (
         <section className="mt-7">
           <SectionHeading>Current standing</SectionHeading>
-          <div className="mt-3 grid gap-5 md:grid-cols-2">
+          <ul role="list" className="m-0 mt-3 grid list-none gap-5 p-0 md:grid-cols-2">
             {aliveOrBanned.map((s) => (
-              <StandingCard key={s.serverId} standing={s} now={now} pageGamertag={page.gamertag} />
+              <li key={s.serverId}>
+                <StandingCard standing={s} now={now} pageGamertag={page.gamertag} />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
 
@@ -45,11 +47,13 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
           <SectionHeading>
             Past lives <span className="font-mono text-xs font-normal tracking-[.06em] text-ink-muted">· {funerals}</span>
           </SectionHeading>
-          <div className="mt-3 grid gap-5 md:grid-cols-2">
+          <ul role="list" className="m-0 mt-3 grid list-none gap-5 p-0 md:grid-cols-2">
             {page.pastLives.map((l) => (
-              <PastLifeCard key={`${l.serverId}:${l.lifeId}`} life={l} now={now} gamertag={page.gamertag} />
+              <li key={`${l.serverId}:${l.lifeId}`}>
+                <PastLifeCard life={l} now={now} gamertag={page.gamertag} />
+              </li>
             ))}
-          </div>
+          </ul>
           <div className="mt-5">
             <PlayerPagination slug={slug} page={page.pastLivesPage} total={page.pastLivesTotal} pageSize={page.pastLivesPageSize} />
           </div>

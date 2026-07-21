@@ -49,4 +49,15 @@ describe("NotificationList", () => {
     render(<NotificationList items={[]} unreadIds={new Set()} now={NOW} onDark />);
     expect(screen.getByText("Nothing on the wire.").className).toContain("text-cream-muted");
   });
+
+  test("rows are a list — one listitem per row, list-none reset, stack classes preserved", () => {
+    render(<NotificationList items={[n(1), n(2), n(3)]} unreadIds={new Set()} now={NOW} />);
+    const list = screen.getByRole("list");
+    expect(list.tagName).toBe("UL");
+    expect(list.className).toContain("list-none");
+    expect(list.className).toContain("flex");
+    expect(list.className).toContain("flex-col");
+    expect(list.className).toContain("gap-1.5");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
 });

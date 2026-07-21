@@ -75,11 +75,13 @@ export function Timeline({ view, heading = "The record so far" }: { view: LifeTi
     <div>
       {view.alive && <WithheldBar />}
       <h2 className="mt-7 font-display text-xl font-bold uppercase tracking-[.1em] text-ink">{heading}</h2>
-      <div className="mt-4">
+      <ol role="list" className="m-0 mt-4 list-none p-0">
         {view.events.map((e, idx) => (
-          <EventRow key={`${e.kind}-${idx}`} e={e} />
+          <li key={`${e.kind}-${idx}`}>
+            <EventRow e={e} />
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
   );
 }

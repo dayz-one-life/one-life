@@ -63,4 +63,19 @@ describe("Timeline", () => {
     render(<Timeline view={buildTimeline(d, now)} />);
     expect(screen.getByText(/Died — Likely starvation/i)).toBeInTheDocument();
   });
+
+  test("event sequence is an ordered list — one listitem per event, list-none reset", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const d = data({
+      kills: [{ victimGamertag: "V", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(120) }],
+      life: { ...data().life, endedAt: at(360), deathCause: "pvp", deathByGamertag: "SomeKiller", deathWeapon: "VSD", deathDistance: 126, energyAtDeath: 42, waterAtDeath: 18, bleedSourcesAtDeath: 2, playtimeSeconds: 21600 },
+    });
+    const view = buildTimeline(d, now);
+    render(<Timeline view={view} />);
+    const list = screen.getByRole("list");
+    expect(list.tagName).toBe("OL");
+    expect(list.className).toContain("list-none");
+    expect(list.className).toContain("mt-4");
+    expect(screen.getAllByRole("listitem")).toHaveLength(view.events.length);
+  });
 });
