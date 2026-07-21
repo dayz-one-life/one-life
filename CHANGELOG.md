@@ -16,14 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.29.6] - 2026-07-21
+
+### Fixed
+
 - The notifications popover no longer opens behind the page. Clicking the masthead bell
   rendered the panel underneath whatever was beside it — the controls rail on wide screens,
   article hero images elsewhere — so the notifications were present but unreadable. The
   masthead now sits on its own layer above the page and below full-screen overlays, so the
   panel opens on top while the skip-to-content link and the mobile controls sheet still
   clear it.
-
-### Security
 
 ## [0.29.5] - 2026-07-21
 
