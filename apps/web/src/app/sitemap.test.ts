@@ -84,4 +84,16 @@ describe("sitemap", () => {
     vi.mocked(getSitemapData).mockRejectedValue(new Error("api down"));
     expect(await urls()).toContain("https://dayzonelife.com/about");
   });
+
+  // The two fetches degrade INDEPENDENTLY. The test above covers "data fails"; this covers the
+  // other direction — losing the board list must not cost us the ~470 content URLs, which are the
+  // whole point of the sitemap. One shared try/catch would pass that test and fail this one.
+  it("still returns player, life and article URLs when the servers call fails", async () => {
+    vi.mocked(getServers).mockRejectedValue(new Error("api down"));
+    const u = await urls();
+    expect(u).toContain("https://dayzonelife.com/players/xsgt-hartman");
+    expect(u).toContain("https://dayzonelife.com/players/xsgt-hartman/livonia/lives/2");
+    expect(u).toContain("https://dayzonelife.com/obituaries/hartman-falls");
+    expect(u.some((x) => x.startsWith("https://dayzonelife.com/survivors"))).toBe(false);
+  });
 });
