@@ -1,7 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import { z } from "zod";
-import { getPlayerPage, getPlayerLives, resolveGamertagBySlug, getLifeTimeline } from "@onelife/read-models";
+import {
+  getPlayerPage,
+  getPlayerLives,
+  resolveGamertagBySlug,
+  getLifeTimeline,
+  getPlayerArticles,
+  PLAYER_ARTICLES_PAGE_SIZE,
+} from "@onelife/read-models";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const gt = z.object({ gamertag: z.string().min(1) });
@@ -34,5 +41,16 @@ export function registerPlayerAggregateRoutes(app: FastifyInstance, db: Database
     const data = await getLifeTimeline(db, server.id, real, match.id);
     if (!data) return reply.code(404).send({ error: "not_found" });
     return { ...data, gamertag: real, map: server.map, slug: server.slug };
+  });
+
+  // An unknown gamertag is a normal state here (a player the paper has never written about),
+  // not a 404 — unlike the routes above, which 404 on an unresolvable identity/life.
+  app.get("/players/:gamertag/articles", async (req, reply) => {
+    const p = gt.safeParse(req.params);
+    if (!p.success) return reply.code(400).send({ error: "bad_request" });
+    const { page } = pageQ.parse(req.query);
+    const real = await resolveGamertagBySlug(db, p.data.gamertag);
+    if (!real) return { rows: [], total: 0, page, pageSize: PLAYER_ARTICLES_PAGE_SIZE };
+    return getPlayerArticles(db, real, { page });
   });
 }
