@@ -204,9 +204,17 @@ stating why, plus a test pinning the container's isolation.
 
 ### 5.3 Tiles
 
-A one-time mirroring script pulls tiles via [DZMap](https://github.com/WoozyMasta/dzmap) into
-`/var/www/tiles/<mapCodename>/{z}/{x}/{y}.png` on the host, served by nginx with a long
-immutable cache. Not in git, not in Postgres, never fetched at runtime from iZurvive (which
+A one-time run of the [DZMap](https://github.com/WoozyMasta/dzmap) `loader` mirrors tiles to
+disk on the host, served by nginx at
+
+```
+/tiles/{mapCodename}/{layer}/{z}/{x}/{y}.webp
+```
+
+with a long immutable cache. This is DZMap's own on-disk layout — `{layer}` (e.g. `terrain`,
+`sat`) is part of it and is not optional. Tiles are **webp**, not png. `loader --limit` is
+used to fetch only the three maps we run, and max zoom is capped at **6** (DZMap's vanilla
+default), which is 1 px ≈ 1 m at full zoom for a 15360-size map. Not in git, not in Postgres, never fetched at runtime from iZurvive (which
 has no public tile or embed API — only `#location=x;y;zoom` deep links). Deploy prerequisite
 documented in `deploy/README.md`.
 
