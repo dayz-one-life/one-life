@@ -34,18 +34,21 @@ function endMs(s: Session, now: Date): number {
 
 /**
  * Live time-alive for an open life: closed sessions count their stored duration; the open
- * session's elapsed time is capped at `min(now, lastSeenAt)` — mirroring `livePlaytime`'s cap
- * idiom in `packages/read-models/src/survivors.ts` (`upTo = lastSeenAt ?? connectedAt ?? now`) so
- * this page agrees with the survivor board and the dossier standing card: a crashed/ghosted
- * player stops accruing at their last heartbeat instead of climbing to request-time `now`. A
- * missing heartbeat (`lastSeenAt` null) falls back to the session's own `connectedAt` — zero
- * additional accrual — rather than growing unbounded.
+ * session's elapsed time accrues to `lastSeenAt ?? connectedAt` — matching `livePlaytime`'s
+ * `upTo = lastSeenAt ?? connectedAt ?? now` idiom in `packages/read-models/src/survivors.ts`
+ * EXACTLY (no clamp to `now`), so this page agrees with the survivor board and the dossier
+ * standing card byte-for-byte: a crashed/ghosted player stops accruing at their last heartbeat
+ * instead of climbing to request-time `now`, and — under game-server-vs-app clock skew, where
+ * `lastSeenAt` can land a few seconds ahead of `now` — a still-online player accrues through that
+ * heartbeat rather than being clamped short of it. A missing heartbeat (`lastSeenAt` null) falls
+ * back to the session's own `connectedAt` — zero additional accrual — rather than growing
+ * unbounded.
  */
 function liveTimeAlive(sessions: Session[], now: Date, lastSeenAt: Date | null): number {
   return sessions.reduce((acc, s) => {
     const conn = connMs(s);
     if (s.disconnectedAt) return acc + (s.durationSeconds ?? Math.max(0, Math.floor((Date.parse(s.disconnectedAt) - conn) / 1000)));
-    const upToMs = Math.min(now.getTime(), lastSeenAt ? lastSeenAt.getTime() : conn);
+    const upToMs = lastSeenAt ? lastSeenAt.getTime() : conn;
     return acc + Math.max(0, Math.floor((upToMs - conn) / 1000));
   }, 0);
 }

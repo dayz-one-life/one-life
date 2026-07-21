@@ -140,6 +140,23 @@ describe("buildTimeline", () => {
     expect(line).toBe("9h 0m");
   });
 
+  test("clock skew: lastSeenAt a few seconds AFTER now is not clamped — matches survivors.ts (lastSeenAt, no clamp to now)", () => {
+    // A still-online player whose heartbeat is a few seconds ahead of request-time `now`
+    // (game-server-vs-app clock skew). survivors.ts's `upTo = lastSeenAt ?? connectedAt ?? now`
+    // has no clamp, so it would accrue straight through to lastSeenAt; this page must match.
+    const now = new Date(Date.parse(start) + 540 * 60_000); // +9h
+    const lastSeenAt = new Date(now.getTime() + 5_000).toISOString(); // 5s AFTER now
+    const d = data({
+      sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
+      kills: [],
+      qualifiedAt: { at: at(5), by: "playtime" },
+      lastSeenAt,
+    });
+    const v = buildTimeline(d, now);
+    // Not clamped to `now` (9h = 32400s) — accrues through to lastSeenAt (9h + 5s = 32405s).
+    expect(v.hero.timeAliveSeconds).toBe(9 * 3600 + 5);
+  });
+
   test("threads the verdict onto the death event", () => {
     const now = new Date(Date.parse(start) + 400 * 60_000);
     const deadData = data({

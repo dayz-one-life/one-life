@@ -66,9 +66,10 @@ as "Banned" and only real bans can be lifted with a token.
 - `getLifeTimeline` (`packages/read-models/src/life-timeline.ts`) already fetches `players.lastSeenAt`
   (line ~35) for `lifeQualifiedAt` but drops it. Add `lastSeenAt` to `LifeTimelineData`
   (`apps/web/src/lib/types.ts`) and cap the open-session accrual in `liveTimeAlive` (line ~39) at
-  `min(now, lastSeenAt)`, mirroring `livePlaytime` in `survivors.ts` and the dossier's cap in
-  `player-page`/`queries.ts`. `LifeHero` (`life/hero.tsx`) and the timeline NOW row inherit the
-  capped value.
+  `lastSeenAt ?? connectedAt ?? now` — matching `livePlaytime` in `survivors.ts` and the dossier's
+  cap in `player-page`/`queries.ts` EXACTLY, with **no clamp to `now`** (a clamp would diverge from
+  those two under clock skew, when `lastSeenAt` lands a few seconds ahead of `now`). `LifeHero`
+  (`life/hero.tsx`) and the timeline NOW row inherit the uncapped value.
 - The "and counting" phrasing on the NOW row is a **server-baked snapshot that never ticks** — soften
   it (e.g. "Still drawing breath — Xh Ym" without "and counting", or "as of last seen"), so the page
   doesn't claim a live counter it doesn't have.
