@@ -97,7 +97,7 @@ describe("SurvivorControls", () => {
     );
     const kills = screen.getByRole("link", { name: "Kills" });
     expect(kills).toHaveAttribute("aria-current", "page");
-    expect(kills.className).toContain("text-red");
+    expect(kills.className).toContain("text-red-deep");
     expect(kills.className).toContain("border-red");
     expect(screen.getByRole("link", { name: "Time alive" }).className).toContain("text-ink-muted");
   });

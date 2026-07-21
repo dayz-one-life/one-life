@@ -20,7 +20,7 @@ export function ObituaryCard({ card, now }: { card: Card; now: Date }) {
         </span>
         {facts.map((f) => (
           <span key={f.label} className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
-            {f.label} <span className={cn("font-bold", f.hot ? "text-red" : "text-ink")}>{f.value}</span>
+            {f.label} <span className={cn("font-bold", f.hot ? "text-red-deep" : "text-ink")}>{f.value}</span>
           </span>
         ))}
       </div>

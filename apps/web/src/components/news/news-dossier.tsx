@@ -10,7 +10,7 @@ export function NewsDossier({ article }: { article: NewsArticle }) {
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-hairline py-3">
       {facts.map((f) => (
         <span key={f.label} className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
-          {f.label} <span className={cn("font-bold", f.hot ? "text-red" : "text-ink")}>{f.value}</span>
+          {f.label} <span className={cn("font-bold", f.hot ? "text-red-deep" : "text-ink")}>{f.value}</span>
         </span>
       ))}
     </div>

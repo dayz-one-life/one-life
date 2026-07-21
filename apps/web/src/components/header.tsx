@@ -48,7 +48,13 @@ export function Masthead() {
           <span aria-hidden className="block h-[3px] w-4 bg-red" />
         </button>
         <Link href="/" aria-label="One Life — home">
-          <img src="/brand/wordmark-primary@2x.png" alt="One Life" className="h-auto w-[150px] md:w-[280px]" />
+          <img
+            src="/brand/wordmark-primary@2x.png"
+            alt="One Life"
+            width={1641}
+            height={499}
+            className="h-auto w-[150px] md:w-[280px]"
+          />
         </Link>
         <MastheadBell />
       </div>

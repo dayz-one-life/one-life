@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-const colors = { red: "text-red", blue: "text-blue", yellow: "text-yellow", ink: "text-ink" } as const;
+const colors = { red: "text-red-deep", blue: "text-blue", yellow: "text-yellow", ink: "text-ink" } as const;
 
 export function Kicker({ children, color = "red" }: { children: ReactNode; color?: keyof typeof colors }) {
   return (
