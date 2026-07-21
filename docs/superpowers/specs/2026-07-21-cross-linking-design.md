@@ -171,7 +171,8 @@ If the news vertical is ever enabled and publishes a multi-subject Long Form pie
 Today that is zero articles. When it stops being zero, revisit the child table; `news-facts.ts`'s
 `NewsSubject` is already shaped for it.
 
-Corpus at time of writing: **6** published obituaries name a killer, across just **two** distinct
+Corpus **as of the local `onelife_prod` dump, whose newest article is 2026-07-18 and which predates
+migration `0015` — i.e. ~3 days stale, so live production will have somewhat more**: **6** published obituaries name a killer, across just **two** distinct
 players (`YrJustBad` ×3, `TidierCart8730` ×3), both real player rows. So the `killer` role is real but
 tiny — render it as a role tag, do not build dedicated UI around it.
 
