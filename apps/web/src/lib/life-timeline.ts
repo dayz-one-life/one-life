@@ -44,7 +44,7 @@ function endMs(s: Session, now: Date): number {
  * back to the session's own `connectedAt` — zero additional accrual — rather than growing
  * unbounded.
  */
-function liveTimeAlive(sessions: Session[], now: Date, lastSeenAt: Date | null): number {
+function liveTimeAlive(sessions: Session[], lastSeenAt: Date | null): number {
   return sessions.reduce((acc, s) => {
     const conn = connMs(s);
     if (s.disconnectedAt) return acc + (s.durationSeconds ?? Math.max(0, Math.floor((Date.parse(s.disconnectedAt) - conn) / 1000)));
@@ -88,7 +88,7 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   const killObjs = data.kills.map((k: PlayerKill) => ({ ...k, at: new Date(k.occurredAt) }));
   const longest = longestOf(killObjs);
   const lastSeenAt = data.lastSeenAt ? new Date(data.lastSeenAt) : null;
-  const timeAlive = alive ? liveTimeAlive(data.sessions, now, lastSeenAt) : data.life.playtimeSeconds;
+  const timeAlive = alive ? liveTimeAlive(data.sessions, lastSeenAt) : data.life.playtimeSeconds;
 
   const events: TimelineEvent[] = [];
 

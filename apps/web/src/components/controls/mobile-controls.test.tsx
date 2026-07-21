@@ -90,7 +90,19 @@ describe("MobileControls", () => {
     const { container } = openSheet();
     // Must NOT assert "idle" from an unresolved player query, in the sheet row or the pill dots.
     expect(screen.queryByText("No life")).not.toBeInTheDocument();
-    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+    const skeleton = container.querySelector('[aria-busy="true"]');
+    expect(skeleton).toBeInTheDocument();
+    // Regression pin (two-surface token rule, CLAUDE.md): the sheet is the DARK surface — the
+    // standing-loading skeleton rows must carry the dark `bg-dark-well` token, never a light one
+    // like `bg-bone`/`bg-paper`, or they'd render present-in-the-DOM but invisible on a phone
+    // (the exact class of bug this rule exists to prevent — it shipped once, in v0.26.0).
+    const rows = skeleton!.querySelectorAll('[aria-hidden="true"]');
+    expect(rows.length).toBeGreaterThan(0);
+    rows.forEach((row) => {
+      expect(row.className).toContain("bg-dark-well");
+      expect(row.className).not.toContain("bg-bone");
+      expect(row.className).not.toContain("bg-paper");
+    });
   });
 
   // live-data honesty §5 fix round 1: the pill's status line must not assert "No active life"

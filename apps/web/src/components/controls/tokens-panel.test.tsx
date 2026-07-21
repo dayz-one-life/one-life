@@ -151,6 +151,22 @@ describe("TokensPanel", () => {
       expect(screen.getByText(/checking your balance/i)).toBeInTheDocument();
     });
 
+    // Regression pin (two-surface token rule, CLAUDE.md): TokensPanel always sits on a
+    // dark-toned surface (its own `bg-dark` island on the rail, or `boxed` into the already-dark
+    // sheet), so the loading chip must carry the dark `bg-dark-well` token, never a light one
+    // like `bg-bone`/`bg-paper` — a panel that ships an ink-on-dark token is present in the DOM
+    // and fully functional, but invisible on a phone (this exact class of bug shipped in v0.26.0).
+    test("the balance-loading chip carries the dark-surface bg-dark-well token, not a light one", () => {
+      render(<TokensPanel balance={0} balanceLoading send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      // The matched text lives on the inner sr-only span; the chip itself (bearing the visible
+      // token) is its parent.
+      const chip = screen.getByText(/checking your balance/i).parentElement;
+      expect(chip).not.toBeNull();
+      expect(chip!.className).toContain("bg-dark-well");
+      expect(chip!.className).not.toContain("bg-bone");
+      expect(chip!.className).not.toContain("bg-paper");
+    });
+
     test("a genuinely-resolved zero balance still renders as the numeral 0", () => {
       render(<TokensPanel balance={0} balanceLoading={false} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
       expect(screen.getByText("0")).toBeInTheDocument();

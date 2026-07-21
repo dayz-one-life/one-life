@@ -44,6 +44,16 @@ describe("BirthNoticeArticleView", () => {
     expect(screen.getByText(/Didn't last the day/)).toBeInTheDocument();
   });
 
+  // A response from a deploy predating this field (stale cache/CDN) would omit `subjectStatus`
+  // entirely. `dead` must fall back to "not dead" (the alive default) rather than throwing on
+  // `.kind` of undefined.
+  test("a response missing subjectStatus (stale cache predating the field) renders the alive default without throwing", () => {
+    const { subjectStatus: _subjectStatus, ...rest } = article;
+    const stale = rest as unknown as BirthNoticeArticle;
+    expect(() => render(<BirthNoticeArticleView article={stale} more={[]} now={now} />)).not.toThrow();
+    expect(screen.getByText(/Still drawing breath/)).toBeInTheDocument();
+  });
+
   test("renders no hero image when imageUrl is absent", () => {
     render(<BirthNoticeArticleView article={article} more={[]} now={now} />);
     expect(document.querySelector("img")).toBeNull();

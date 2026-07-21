@@ -91,6 +91,18 @@ const bannedCard: ServerCardData = {
 };
 
 describe("SheetServerRow", () => {
+  // Positive control for the live-countdown branch: standing-card/server-cards tests both pin
+  // this render (a FUTURE expiresAt renders "Ban lifts in" + the formatted remainder), but this
+  // file only ever exercised the terminal (past-expiry) and pending/loading branches — the live
+  // countdown itself was unpinned here.
+  test("future expiry: live countdown renders 'Ban lifts in' + the formatted remainder", () => {
+    render(
+      <SheetServerRow card={bannedCard} ownSlug={null} balance={1} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    expect(screen.getByText("Ban lifts in")).toBeInTheDocument();
+    expect(screen.getByText("22h 0m")).toBeInTheDocument();
+  });
+
   test("past expiry: terminal Lifting state on dark tokens, no dead 0h 0m timer", () => {
     const expiredCard: ServerCardData = { ...bannedCard, ban: { ...bannedCard.ban!, expiresAt: "2026-07-16T10:00:00Z", liftPending: false } };
     render(
@@ -135,6 +147,25 @@ describe("SheetServerRow", () => {
     expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /spend 1 token/i })).not.toBeInTheDocument();
     expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument();
+  });
+
+  // Regression pin (two-surface token rule, CLAUDE.md): the sheet is the DARK surface —
+  // SheetUnban's "Checking your tokens…" placeholder must carry on-dark tokens
+  // (`border-dark-edge`/`text-cream-muted`), never a light/ink-on-dark token like `text-ink` or
+  // `border-dash`, which would render present-in-the-DOM but invisible against `bg-dark`.
+  test("balance unresolved: the checking placeholder carries dark-surface tokens, not light ones", () => {
+    const readyCard: ServerCardData = { ...bannedCard, ban: { ...bannedCard.ban!, liftPending: false } };
+    render(
+      <SheetServerRow card={readyCard} ownSlug={null} balance={0} balanceLoading now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    const placeholder = screen.getByText(/checking your tokens/i);
+    // Exact-token match (not substring) — `border-dashed` legitimately contains the substring
+    // `border-dash`, the distinct LIGHT-surface token this assertion exists to rule out.
+    const classes = placeholder.className.split(/\s+/);
+    expect(classes).toContain("border-dark-edge");
+    expect(classes).toContain("text-cream-muted");
+    expect(classes).not.toContain("text-ink");
+    expect(classes).not.toContain("border-dash");
   });
 
   test("balance resolved to a real zero: still shows the no-tokens notice", () => {

@@ -20,7 +20,9 @@ export function BirthNoticeArticleView({
 }): ReactNode {
   // The §6 live status: recomputed at request time (packages/read-models/getBirthNoticeSubjectStatus),
   // never the frozen `article.endedAt` a subject who has since died would still read alive under.
-  const dead = article.subjectStatus.kind === "dead";
+  // Optional access: a response from a deploy predating this field (stale cache/CDN) would omit
+  // `subjectStatus` entirely — treat that as "not dead", the same safe default as `{kind:"alive"}`.
+  const dead = article.subjectStatus?.kind === "dead";
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-blue pb-5">

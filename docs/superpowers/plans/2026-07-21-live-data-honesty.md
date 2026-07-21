@@ -16,7 +16,7 @@
 - Fixes may touch `apps/web`, `packages/read-models`, `packages/tokens`, `apps/newsdesk` — scope each task to its listed files.
 - This pass CHANGES displayed values by design; tests assert the new honest behavior, not byte-identical output.
 - A ban is real only if `dry_run = false`. Real `pending` bans (queued under live enforcement) stay "banned"; only dry-run phantoms are filtered.
-- A duration that implies presence caps at `min(now, lastSeenAt)`.
+- A duration that implies presence accrues up to `lastSeenAt` (falling back to the session's own `connectedAt` when `lastSeenAt` is null) — matching `survivors.ts`'s `livePlaytime` idiom exactly, with NO clamp to `now` (clock skew between the game server and the app can put `lastSeenAt` a few seconds ahead of `now`; clamping to `now` would understate a still-online player's time alive).
 - Loading/error must never render as an authoritative zero/empty.
 - DB test suites need `TEST_DATABASE_URL=postgres://onelife:onelife@localhost:5434/onelife_test`; per-package `pnpm --filter X test` avoids the turbo env-strip. Web: `pnpm --filter @onelife/web run test`. Typecheck: `pnpm turbo run typecheck`.
 - Branch: `feature/live-data-honesty` (created from `develop`).
@@ -43,9 +43,9 @@
 ### Task 2: Time-alive cap at lastSeenAt
 
 **Files:**
-- Modify: `packages/read-models/src/life-timeline.ts` (thread `lastSeenAt`; cap `liveTimeAlive` open branch ~line 39 at `min(now, lastSeenAt)`)
+- Modify: `packages/read-models/src/life-timeline.ts` (thread `lastSeenAt`; the `liveTimeAlive` open branch ~line 39 accrues through `lastSeenAt`, no clamp to `now`)
 - Modify: `apps/web/src/lib/types.ts` (`LifeTimelineData` gains `lastSeenAt`)
-- Modify: `apps/web/src/lib/life-timeline.ts` (the pure `buildTimeline`/`liveTimeAlive` — cap; soften the NOW row "and counting")
+- Modify: `apps/web/src/lib/life-timeline.ts` (the pure `buildTimeline`/`liveTimeAlive` — accrue through `lastSeenAt`, no clamp to `now`; soften the NOW row "and counting")
 - Modify: `apps/web/src/components/life/hero.tsx` (inherits capped value; no change if it reads the read-model value — verify)
 - Test: `apps/web/src/lib/life-timeline.test.ts` (cap + NOW-row wording); read-models life-timeline test (returns lastSeenAt)
 
@@ -53,7 +53,7 @@
 
 - [ ] **Step 1:** Failing tests — a fixture with an OPEN session, `startedAt` 9h ago, `lastSeenAt` 4h ago, `now` = present: `liveTimeAlive` yields ~5h (capped), NOT ~9h; the NOW row text no longer says "and counting". Assert `getLifeTimeline` returns `lastSeenAt`.
 - [ ] **Step 2:** Run to verify failure.
-- [ ] **Step 3:** Thread `lastSeenAt` through the read-model DTO; cap the open-session accrual at `min(now, lastSeenAt)` (match `survivors.ts` `livePlaytime`); soften the NOW-row phrasing per spec §3. Confirm a still-online life (`lastSeenAt` ≈ `now`) is unchanged.
+- [ ] **Step 3:** Thread `lastSeenAt` through the read-model DTO; accrue the open-session time through `lastSeenAt` (match `survivors.ts` `livePlaytime`'s `lastSeenAt ?? connectedAt ?? now` idiom — no clamp to `now`); soften the NOW-row phrasing per spec §3. Confirm a still-online life (`lastSeenAt` ≈ `now`) is unchanged.
 - [ ] **Step 4:** Web suite + read-models suite + typecheck.
 - [ ] **Step 5:** Commit: `fix(web): life-timeline time-alive caps at last-seen, matching the board and dossier`.
 
