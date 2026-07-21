@@ -395,7 +395,12 @@ export interface ServerStanding { serverId: number; map: string; slug: string; s
 Then add `lastLifeNumber` to all three `card = { ... }` assignments:
 
 - alive branch (line ~83): `..., ban: null, lastLifeNumber: openLife.lifeNumber };`
-- banned branch (line ~86): `..., triggeringLifeNumber: trig?.lifeNumber ?? null }, lastLifeNumber: trig?.lifeNumber ?? livesRows[0]?.lifeNumber ?? null };`
+- banned branch (line ~86): `..., triggeringLifeNumber: trig?.lifeNumber ?? null }, lastLifeNumber: trig?.lifeNumber ?? null };`
+  **Do NOT fall back to `livesRows[0]?.lifeNumber` here.** An earlier draft of this plan did, which
+  contradicted the Global Constraint above and shipped a confident link to the WRONG life whenever a
+  ban could not be matched to its triggering life. Owner decision 2026-07-21: an unidentified
+  triggering life renders no link. The idle branch's use of the most recent life is correct and
+  unaffected — only the banned branch is constrained this way.
 - idle branch (line ~89): `..., alive: null, ban: null, lastLifeNumber: recent?.lifeNumber ?? null };`
 
 No new query — `openLife`, `trig`, and `recent` are all already in scope.
