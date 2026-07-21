@@ -6,6 +6,7 @@ import type {
   BirthNoticesFeed, BirthNoticeArticle,
   AppNotification, NotificationsFeed,
   NewsFeed, NewsArticle,
+  SitemapData,
 } from "./types";
 
 export class ApiError extends Error {
@@ -171,3 +172,5 @@ export const getNewsArticle = (slug: string, preview?: string) =>
   getOrNull<NewsArticle>(
     `/api/news/${encodeURIComponent(slug)}${preview ? `?preview=${encodeURIComponent(preview)}` : ""}`,
   );
+
+export const getSitemapData = () => apiGet<SitemapData>("/api/sitemap");
