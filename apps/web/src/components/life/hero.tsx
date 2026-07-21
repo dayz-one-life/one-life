@@ -6,10 +6,22 @@ import { GamertagLink } from "@/components/gamertag-link";
 import { mapLabel, formatDuration } from "@/components/player/format";
 import { playerSlug } from "@/lib/slug";
 
-function Stat({ value, label, blue = false }: { value: string; label: string; blue?: boolean }) {
+function Stat({ value, label, blue = false, srLabel }: { value: string; label: string; blue?: boolean; srLabel?: string }) {
   return (
     <div>
-      <div className={`font-display text-[28px] font-bold leading-none ${blue ? "text-blue" : "text-ink"}`}>{value}</div>
+      <div
+        className={`font-display text-[28px] font-bold leading-none ${blue ? "text-blue" : "text-ink"}`}
+        aria-label={srLabel}
+      >
+        {srLabel ? (
+          <>
+            <span aria-hidden="true">{value}</span>
+            <span className="sr-only">{srLabel}</span>
+          </>
+        ) : (
+          value
+        )}
+      </div>
       <div className="mt-[3px] font-mono text-[11px] uppercase tracking-[.07em] text-ink-muted">{label}</div>
     </div>
   );
@@ -51,7 +63,12 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
             <Stat value={String(h.kills)} label="Kills" />
             <Stat value={h.longestKillMeters == null ? "—" : `${Math.round(h.longestKillMeters)}m`} label="Longest kill" />
             <Stat value={String(h.sessions)} label="Sessions" />
-            <Stat value={h.qualified ? "✓" : "—"} label="Qualified" blue={h.qualified} />
+            <Stat
+              value={h.qualified ? "✓" : "—"}
+              label="Qualified"
+              blue={h.qualified}
+              srLabel={h.qualified ? "Qualified" : "Not qualified"}
+            />
           </div>
         </div>
       </div>

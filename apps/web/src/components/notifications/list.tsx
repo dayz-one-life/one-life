@@ -24,9 +24,13 @@ export function NotificationList({
   }
   return (
     <div className="flex flex-col gap-1.5">
-      {items.map((n) => (
-        <NotificationRow key={n.id} n={n} unread={unreadIds.has(n.id)} onDark={onDark} compact={compact} now={now} />
-      ))}
+      <ul role="list" className="m-0 flex list-none flex-col gap-1.5 p-0">
+        {items.map((n) => (
+          <li key={n.id}>
+            <NotificationRow n={n} unread={unreadIds.has(n.id)} onDark={onDark} compact={compact} now={now} />
+          </li>
+        ))}
+      </ul>
       {hasMore && onLoadMore && (
         <button
           type="button"

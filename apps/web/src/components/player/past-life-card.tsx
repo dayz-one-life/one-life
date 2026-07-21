@@ -10,7 +10,7 @@ export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Dat
   return (
     <section className="border border-hairline border-t-4 border-t-ink bg-archive px-5 py-4">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <span className="font-display text-[17px] font-bold uppercase text-ink">{mapLabel(life.map)}</span>
+        <h3 className="font-display text-[17px] font-bold uppercase text-ink">{mapLabel(life.map)}</h3>
         <span className="font-mono text-[10px] uppercase tracking-[.04em] text-ink-muted">
           {relativeDate(life.endedAt, now)} · lasted {formatDuration(life.timeAliveSeconds)}
         </span>

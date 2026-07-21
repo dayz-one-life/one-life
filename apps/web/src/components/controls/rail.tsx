@@ -13,6 +13,7 @@ import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { ServerCard } from "./server-cards";
+import { VerificationAnnouncer } from "./verification-announcer";
 
 function RailSkeleton() {
   return (
@@ -133,6 +134,7 @@ export function ControlsRail() {
   return (
     <aside aria-label="Player controls" className="hidden py-8 pl-7 xl:sticky xl:top-0 xl:block xl:max-h-screen xl:self-start xl:overflow-y-auto">
       <div className="flex flex-col gap-4">
+        <VerificationAnnouncer kind={c.status.kind} />
         {body}
         {signedIn && <SignedInFooter profileSlug={profileSlug} />}
       </div>

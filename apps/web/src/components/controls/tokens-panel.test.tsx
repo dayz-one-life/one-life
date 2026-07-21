@@ -58,8 +58,8 @@ describe("TokensPanel", () => {
       <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("Send a token to a verified player"), { target: { value: "Ga" } });
-    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
   test("referrer suggests verified players and excludes the current player", async () => {
@@ -68,13 +68,70 @@ describe("TokensPanel", () => {
       <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("Referred by"), { target: { value: "Ga" } });
-    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
   test("send errors announce via role=alert", () => {
     render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Not enough tokens");
+  });
+
+  test("send error ties to its input via aria-describedby and aria-invalid", () => {
+    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    const input = screen.getByLabelText("Send a token to a verified player");
+    expect(input).toHaveAccessibleDescription("Not enough tokens");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("referrer error ties to its input via aria-describedby and aria-invalid", () => {
+    render(<TokensPanel balance={1} send={idle} referrer={{ pending: false, ok: false, error: "Not a verified player" }} onSend={() => {}} onSetReferrer={() => {}} />);
+    const input = screen.getByLabelText("Referred by");
+    expect(input).toHaveAccessibleDescription("Not a verified player");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // TokensPanel mounts its own always-present SrStatus PLUS one inside each
+  // GamertagAutocomplete (send + referrer, when rendered) — all always-mounted per Finding 1.
+  // Disambiguate by picking the one node that actually carries text; the autocompletes' own
+  // status regions stay empty in these tests since no search is performed.
+  function nonEmptyStatus() {
+    const nonEmpty = screen.getAllByRole("status").filter((el) => el.textContent !== "");
+    expect(nonEmpty).toHaveLength(1);
+    return nonEmpty[0]!;
+  }
+
+  test("send success is announced via a role=status region", () => {
+    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    rerender(<TokensPanel balance={5} send={{ ...idle, ok: true }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    expect(nonEmptyStatus()).toHaveTextContent("Token sent — balance 5");
+  });
+
+  test("referrer success is announced via role=status and survives the form unmounting", () => {
+    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    rerender(<TokensPanel balance={2} send={idle} referrer={{ ...idle, ok: true }} onSend={() => {}} onSetReferrer={() => {}} />);
+    expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
+    expect(nonEmptyStatus()).toHaveTextContent(/referrer set/i);
+  });
+
+  // TokensPanel mounts simultaneously on the rail and in the mobile sheet (both live in the
+  // root layout at once, one hidden by CSS per breakpoint) — a fixed error-node id would
+  // duplicate in the DOM and aria-describedby could resolve to the wrong instance.
+  test("two mounted instances get distinct error ids (rail + mobile sheet render simultaneously)", () => {
+    const erroring = { pending: false, ok: false, error: "Not enough tokens" };
+    render(
+      <>
+        <TokensPanel balance={1} send={erroring} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />
+        <TokensPanel balance={1} send={erroring} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />
+      </>,
+    );
+    const errors = screen.getAllByRole("alert");
+    expect(errors).toHaveLength(2);
+    expect(errors[0]!.id).not.toBe(errors[1]!.id);
+    const inputs = screen.getAllByLabelText("Send a token to a verified player");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toHaveAttribute("aria-describedby", errors[0]!.id);
+    expect(inputs[1]).toHaveAttribute("aria-describedby", errors[1]!.id);
   });
 
   test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {

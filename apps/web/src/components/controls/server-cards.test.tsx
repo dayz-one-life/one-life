@@ -52,6 +52,11 @@ describe("ServerCard", () => {
   test("banned with lift pending: mono pending notice", () => {
     const card = { ...banned, ban: { ...banned.ban!, liftPending: true } };
     render(<ServerCard card={card} {...base} />);
-    expect(screen.getByText("Unban pending — lifting shortly…")).toBeInTheDocument();
+    // Two nodes now carry this text — the always-mounted sr-only status announcer plus the
+    // visible notice — so scope to the visible one specifically.
+    const notices = screen.getAllByText("Unban pending — lifting shortly…");
+    expect(notices).toHaveLength(2);
+    const visible = notices.find((el) => !el.className.includes("sr-only"));
+    expect(visible).toBeInTheDocument();
   });
 });

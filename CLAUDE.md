@@ -540,6 +540,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **`--red-deep` is a light-surface (paper/bone) token only** — on DARK surfaces the ratios
   invert (plain red ~5.1:1 passes AA, red-deep ~3.2:1 fails), so dark surfaces keep `red`/
   `red-soft`, never `red-deep`.
+  **Screen-reader structure (UX review sub-project 2) shipped** (spec
+  `docs/superpowers/specs/2026-07-21-sr-structure-design.md`): a status-message policy — a DOM
+  change from a user action or a background poll, with no accompanying focus move, announces
+  through a shared `role="status" aria-live="polite"` `SrStatus` (`@/components/shared/sr-status`),
+  including a persistent `VerificationAnnouncer` that outlives the pending→verified panel swap
+  (mounted as an unconditional sibling, never inside the branch it announces) and is gated
+  `xl:hidden` on the mobile sheet so it doesn't double-announce "Verification complete" against
+  the rail's own copy at `xl`; list semantics (`role="list"`/`<li>`, `<ol>` for the life timeline)
+  on the notification, standing/past-life, and timeline collections; the gamertag autocomplete is
+  a full WAI-ARIA 1.2 combobox-with-listbox with an always-present announced result count; and web
+  a11y tests query by ARIA role rather than DOM structure.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict

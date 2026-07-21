@@ -17,13 +17,22 @@ describe("LoginForm", () => {
     expect(onSocial).toHaveBeenCalledWith("discord");
   });
 
-  test("magic link submits and shows the sent state", async () => {
+  test("magic link submits and shows the sent state as a role=status announcement", async () => {
     const onMagicLink = vi.fn(async () => {});
     render(<LoginForm providers={[]} magicLink onMagicLink={onMagicLink} onSocial={() => {}} />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
     fireEvent.click(screen.getByRole("button", { name: "Send link" }));
-    await waitFor(() => expect(screen.getByText("Check your email for a sign-in link.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Check your email for a sign-in link."));
     expect(onMagicLink).toHaveBeenCalledWith("a@b.co");
+  });
+
+  test("magic link success moves focus to the status confirmation", async () => {
+    const onMagicLink = vi.fn(async () => {});
+    render(<LoginForm providers={[]} magicLink onMagicLink={onMagicLink} onSocial={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send link" }));
+    const status = await screen.findByRole("status");
+    await waitFor(() => expect(status).toHaveFocus());
   });
 
   test("magic link failure shows the alert", async () => {
@@ -33,6 +42,18 @@ describe("LoginForm", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
     fireEvent.click(screen.getByRole("button", { name: "Send link" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Could not send the link. Try again."));
+  });
+
+  test("email error ties to the input via aria-describedby and aria-invalid", async () => {
+    render(
+      <LoginForm providers={[]} magicLink onMagicLink={async () => { throw new Error("x"); }} onSocial={() => {}} />,
+    );
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.co" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send link" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    const input = screen.getByLabelText("Email");
+    expect(input).toHaveAccessibleDescription("Could not send the link. Try again.");
+    expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
   test("nothing configured: honest notice", () => {

@@ -51,6 +51,13 @@ describe("StandingCard", () => {
   });
 });
 
+describe("StandingCard heading", () => {
+  it("renders the map name as an h3 (player-profile.tsx nests cards under an h2 section)", () => {
+    wrap(<StandingCard standing={aliveStanding} now={now} pageGamertag="YrJustBad" />);
+    expect(screen.getByRole("heading", { level: 3, name: "Chernarus" })).toBeInTheDocument();
+  });
+});
+
 describe("StandingCard timeline link", () => {
   it("alive standing links to that life's timeline", () => {
     const standing: any = {

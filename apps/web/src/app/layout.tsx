@@ -20,18 +20,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${display.variable} ${mono.variable}`}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <a
-          href="#content"
+          href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-yellow focus:px-3 focus:py-2 focus:font-display focus:text-sm focus:font-bold focus:uppercase focus:text-ink"
         >
           Skip to content
         </a>
         <QueryProvider>
           <Masthead />
-          <div
-            id="content"
-            className="mx-auto w-full max-w-[1440px] flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:px-10"
-          >
-            <div className="min-w-0 pb-24 xl:border-r xl:border-ink xl:pb-0 xl:pr-8">{children}</div>
+          <div className="mx-auto w-full max-w-[1440px] flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:px-10">
+            <div
+              id="main-content"
+              tabIndex={-1}
+              className="min-w-0 pb-24 xl:border-r xl:border-ink xl:pb-0 xl:pr-8"
+            >
+              {children}
+            </div>
             <ControlsRail />
           </div>
           <MobileControls />
