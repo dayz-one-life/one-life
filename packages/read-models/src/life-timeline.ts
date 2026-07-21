@@ -50,7 +50,11 @@ export async function getLifeTimeline(
           eq(articles.status, "published"),
           eq(articles.serverId, serverId),
           sql`lower(${articles.gamertag}) = lower(${gamertag})`,
-          eq(articles.lifeNumber, life.lifeNumber),
+          // Identify the life by the rebuild-stable natural key (server_id, gamertag,
+          // life_started_at) — matching `articles_kind_server_gamertag_life_uniq`. Never use
+          // `life_number`: it is a derived count from projection fold and shifts if the fold
+          // changes, while `life_started_at` is frozen at generation time and stays stable.
+          eq(articles.lifeStartedAt, life.startedAt),
         ),
       )
       .limit(1),

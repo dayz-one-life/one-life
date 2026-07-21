@@ -49,7 +49,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(articles).where(inArray(articles.slug, [`lt-obit-${svc}`]));
+  await db.delete(articles).where(inArray(articles.slug, [`lt-obit-${svc}`, `lt-obit-wrong-${svc}`]));
   await db.delete(hitEvents).where(inArray(hitEvents.serverId, [serverId]));
   await db.delete(kills).where(inArray(kills.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
@@ -123,6 +123,22 @@ describe("obituarySlug", () => {
     // A retraction is a public correction, not the life's obituary. Linking it would present a
     // withdrawn story as the record of this death.
     await db.update(articles).set({ status: "retracted" }).where(eq(articles.slug, `lt-obit-${svc}`));
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBeNull();
+  });
+
+  it("REGRESSION: does not match an article that shares life_number but belongs to a different life", async () => {
+    // A published obituary for the SAME server + gamertag + life_number as deadLifeId (1), but
+    // with a DIFFERENT life_started_at (it actually belongs to openLifeId's life). Under the old
+    // `eq(articles.lifeNumber, life.lifeNumber)` predicate this row would wrongly match
+    // deadLifeId's timeline. The correct natural key — (server_id, gamertag, life_started_at) —
+    // must reject it, because life_number is a derived count that can drift from the real life
+    // while life_started_at (frozen at generation time) cannot.
+    await db.insert(articles).values({
+      kind: "obituary", status: "published", slug: `lt-obit-wrong-${svc}`,
+      serverId, gamertag: `LtHero-${svc}`, lifeNumber: 1, lifeStartedAt: mins(400),
+      headline: "Wrong Life, Right Number", body: "x", deathAt: mins(400),
+    });
     const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
     expect(t!.obituarySlug).toBeNull();
   });
