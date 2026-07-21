@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { searchClaimableGamertags } from "@/lib/api";
 import { GamertagAutocomplete } from "./gamertag-autocomplete";
 
@@ -14,6 +14,12 @@ export function LinkTagPanel({
   error: string | null;
 }) {
   const [tag, setTag] = useState("");
+  // LinkTagPanel mounts simultaneously on the rail (xl+) and in the mobile sheet, so a fixed
+  // id/error-node id would duplicate in the DOM and aria-describedby could resolve to the
+  // wrong (possibly hidden) instance. useId() gives each mounted instance its own unique base.
+  const uid = useId();
+  const inputId = `${uid}-gamertag`;
+  const errorId = `${uid}-gamertag-error`;
 
   return (
     <section className="bg-dark p-5">
@@ -28,16 +34,16 @@ export function LinkTagPanel({
           if (tag.trim()) onClaim(tag.trim());
         }}
       >
-        <label htmlFor="rail-gamertag" className="sr-only">
+        <label htmlFor={inputId} className="sr-only">
           Gamertag
         </label>
         <GamertagAutocomplete
-          id="rail-gamertag"
+          id={inputId}
           value={tag}
           onChange={setTag}
           fetchSuggestions={searchClaimableGamertags}
           placeholder="GAMERTAG…"
-          aria-describedby={error ? "rail-gamertag-error" : undefined}
+          aria-describedby={error ? errorId : undefined}
           aria-invalid={error ? true : undefined}
           inputClassName="w-full border border-paper bg-dark-well px-3 py-2.5 font-mono text-base xl:text-[13px] tracking-[.04em] text-paper outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red placeholder:text-cream-muted"
         />
@@ -49,7 +55,7 @@ export function LinkTagPanel({
           {pending ? "Claiming…" : "Claim it"}
         </button>
       </form>
-      {error && <p id="rail-gamertag-error" role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{error}</p>}
+      {error && <p id={errorId} role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{error}</p>}
       <p className="mt-2.5 font-mono text-[10px] uppercase leading-relaxed tracking-[.04em] text-cream-muted">
         We suggest tags seen on our servers. Verifying earns 1 token.
       </p>

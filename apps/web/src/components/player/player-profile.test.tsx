@@ -63,7 +63,12 @@ describe("PlayerProfile", () => {
     expect(list.className).toContain("md:grid-cols-2");
     expect(list.className).toContain("gap-5");
     expect(list.className).toContain("list-none");
-    expect(within(section).getAllByRole("listitem")).toHaveLength(page().standing.length);
+    const items = within(section).getAllByRole("listitem");
+    expect(items).toHaveLength(page().standing.length);
+    // Each <li> must itself be a grid item (a single-child grid item defaults to
+    // align-items/justify-items: stretch), so the <section> card inside fills it and the
+    // whole row aligns to equal height — the grid ITEM lives on the <li>, not the card.
+    for (const item of items) expect(item.className).toContain("grid");
   });
 
   test("Past lives is a separate list — one listitem per funeral card, grid classes + list-none preserved", () => {
@@ -76,7 +81,10 @@ describe("PlayerProfile", () => {
     expect(list.className).toContain("md:grid-cols-2");
     expect(list.className).toContain("gap-5");
     expect(list.className).toContain("list-none");
-    expect(within(section).getAllByRole("listitem")).toHaveLength(page().pastLives.length);
+    const items = within(section).getAllByRole("listitem");
+    expect(items).toHaveLength(page().pastLives.length);
+    // Same equal-height constraint as the standing list — see the comment there.
+    for (const item of items) expect(item.className).toContain("grid");
   });
 
   test("Current standing section is omitted when everyone is idle — no stray list", () => {

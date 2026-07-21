@@ -114,6 +114,26 @@ describe("TokensPanel", () => {
     expect(nonEmptyStatus()).toHaveTextContent(/referrer set/i);
   });
 
+  // TokensPanel mounts simultaneously on the rail and in the mobile sheet (both live in the
+  // root layout at once, one hidden by CSS per breakpoint) — a fixed error-node id would
+  // duplicate in the DOM and aria-describedby could resolve to the wrong instance.
+  test("two mounted instances get distinct error ids (rail + mobile sheet render simultaneously)", () => {
+    const erroring = { pending: false, ok: false, error: "Not enough tokens" };
+    render(
+      <>
+        <TokensPanel balance={1} send={erroring} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />
+        <TokensPanel balance={1} send={erroring} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />
+      </>,
+    );
+    const errors = screen.getAllByRole("alert");
+    expect(errors).toHaveLength(2);
+    expect(errors[0]!.id).not.toBe(errors[1]!.id);
+    const inputs = screen.getAllByLabelText("Send a token to a verified player");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toHaveAttribute("aria-describedby", errors[0]!.id);
+    expect(inputs[1]).toHaveAttribute("aria-describedby", errors[1]!.id);
+  });
+
   test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {
     render(<TokensPanel balance={1} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
     const input = screen.getByLabelText("Send a token to a verified player");

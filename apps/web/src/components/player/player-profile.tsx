@@ -34,7 +34,7 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
           <SectionHeading>Current standing</SectionHeading>
           <ul role="list" className="m-0 mt-3 grid list-none gap-5 p-0 md:grid-cols-2">
             {aliveOrBanned.map((s) => (
-              <li key={s.serverId}>
+              <li key={s.serverId} className="grid">
                 <StandingCard standing={s} now={now} pageGamertag={page.gamertag} />
               </li>
             ))}
@@ -49,7 +49,7 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
           </SectionHeading>
           <ul role="list" className="m-0 mt-3 grid list-none gap-5 p-0 md:grid-cols-2">
             {page.pastLives.map((l) => (
-              <li key={`${l.serverId}:${l.lifeId}`}>
+              <li key={`${l.serverId}:${l.lifeId}`} className="grid">
                 <PastLifeCard life={l} now={now} gamertag={page.gamertag} />
               </li>
             ))}

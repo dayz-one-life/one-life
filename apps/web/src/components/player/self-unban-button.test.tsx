@@ -39,6 +39,17 @@ describe("UnbanView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Unban pending — lifting shortly…");
   });
 
+  test("the status region pre-exists the ready state and announces on the ready -> pending transition", () => {
+    const { rerender } = render(<UnbanView state="ready" balance={3} onRedeem={() => {}} />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("");
+    rerender(<UnbanView state="pending" balance={3} onRedeem={() => {}} />);
+    // Same node — the live region was already in the DOM before its text changed, not born
+    // together with the pending message.
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Unban pending — lifting shortly…");
+  });
+
   test("unbanStateOf: pending wins, then balance decides", () => {
     expect(unbanStateOf(true, 5)).toBe("pending");
     expect(unbanStateOf(false, 2)).toBe("ready");

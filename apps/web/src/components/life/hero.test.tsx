@@ -20,11 +20,18 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
 describe("LifeHero", () => {
   test("alive: factual h1, Alive badge, gamertag links to dossier, QUALIFIED check", () => {
     const now = new Date(Date.parse(start) + 100 * 60_000);
-    render(<LifeHero data={data()} view={buildTimeline(data(), now)} />);
+    const { container } = render(<LifeHero data={data()} view={buildTimeline(data(), now)} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Life 4 · Sakhal");
     expect(screen.getByText("Alive")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "YrJustBad" })).toHaveAttribute("href", "/players/yrjustbad");
-    expect(screen.getAllByText("Qualified").length).toBeGreaterThan(0);
+    // Pin the VISIBLE checkmark specifically (not the sr-only "Qualified" text, which
+    // duplicates the always-rendered caption below it) — a regression that drops the visible
+    // glyph and leaves only the sr-only span must fail this.
+    const qualifiedValue = container.querySelector('[aria-label="Qualified"]');
+    expect(qualifiedValue).not.toBeNull();
+    const glyph = qualifiedValue!.querySelector('[aria-hidden="true"]');
+    expect(glyph).toHaveTextContent("✓");
+    expect(glyph).not.toHaveClass("sr-only");
   });
 
   test("Qualified stat: glyph is decorative, value has an sr-only text equivalent", () => {

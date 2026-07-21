@@ -97,4 +97,19 @@ describe("SheetServerRow", () => {
     );
     expect(screen.getByRole("status")).toHaveTextContent("Unban pending — lifting shortly…");
   });
+
+  test("the status region pre-exists the ready state and announces on the ready -> pending transition", () => {
+    const readyCard: ServerCardData = { ...bannedCard, ban: { ...bannedCard.ban!, liftPending: false } };
+    const { rerender } = render(
+      <SheetServerRow card={readyCard} ownSlug={null} balance={1} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming={false} />,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("");
+    rerender(
+      <SheetServerRow card={readyCard} ownSlug={null} balance={1} now={new Date("2026-07-16T12:00:00Z")} onRedeem={() => {}} redeeming />,
+    );
+    // Same node — the live region was already in the DOM before its text changed.
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Unban pending — lifting shortly…");
+  });
 });

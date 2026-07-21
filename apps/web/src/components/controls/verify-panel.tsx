@@ -56,7 +56,7 @@ export function ProveItPanel({
        *  strip its list semantics. Scoped to progress only, so the expiry countdown ticking
        *  above does not re-announce every second. */}
       <SrStatus>{`Step ${challenge.progressIndex} of ${challenge.sequence.length} confirmed`}</SrStatus>
-      <ol className="mt-3.5 flex gap-2 font-mono text-[12px] tracking-[.03em]">
+      <ol role="list" className="mt-3.5 flex gap-2 font-mono text-[12px] tracking-[.03em]">
         {challenge.sequence.map((emote, i) => {
           const done = i < challenge.progressIndex;
           const current = i === challenge.progressIndex;
@@ -72,7 +72,7 @@ export function ProveItPanel({
               )}
             >
               {i + 1} {emote}
-              {done ? " ✓" : current ? " ←" : ""}
+              <span aria-hidden="true">{done ? " ✓" : current ? " ←" : ""}</span>
             </li>
           );
         })}

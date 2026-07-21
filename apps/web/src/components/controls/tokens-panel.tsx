@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { GamertagAutocomplete } from "./gamertag-autocomplete";
 import { searchVerifiedGamertags } from "@/lib/api";
 import { SrStatus } from "@/components/shared/sr-status";
@@ -25,6 +25,12 @@ export function TokensPanel({
   boxed?: boolean;
   myGamertag?: string;
 }) {
+  // TokensPanel mounts simultaneously on the rail (xl+) and in the mobile sheet, so a fixed
+  // error-node id would duplicate in the DOM and aria-describedby could resolve to the wrong
+  // (possibly hidden) instance. useId() gives each mounted instance its own unique base.
+  const uid = useId();
+  const sendErrorId = `${uid}-send-token-error`;
+  const referrerErrorId = `${uid}-referrer-error`;
   const [to, setTo] = useState("");
   const [ref, setRef] = useState("");
   useEffect(() => {
@@ -54,7 +60,7 @@ export function TokensPanel({
       <form onSubmit={submitSend} className="mt-3 flex gap-2 border-t border-dark-line pt-3">
         <GamertagAutocomplete
           aria-label="Send a token to a verified player"
-          aria-describedby={send.error ? "send-token-error" : undefined}
+          aria-describedby={send.error ? sendErrorId : undefined}
           aria-invalid={send.error ? true : undefined}
           placeholder="SEND TO VERIFIED PLAYER…"
           value={to}
@@ -73,7 +79,7 @@ export function TokensPanel({
         </button>
       </form>
       {send.error && (
-        <p id="send-token-error" role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{send.error}</p>
+        <p id={sendErrorId} role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{send.error}</p>
       )}
       <p className="mt-2 font-mono text-[11px] uppercase tracking-[.04em] text-cream-muted xl:text-[10px]">
         +1 every 1st of the month · Transfers are final
@@ -83,7 +89,7 @@ export function TokensPanel({
           <form onSubmit={submitRef} className="mt-3 flex items-center gap-2 border-t border-dark-line pt-3">
             <GamertagAutocomplete
               aria-label="Referred by"
-              aria-describedby={referrer.error ? "referrer-error" : undefined}
+              aria-describedby={referrer.error ? referrerErrorId : undefined}
               aria-invalid={referrer.error ? true : undefined}
               placeholder="REFERRED BY…"
               value={ref}
@@ -102,7 +108,7 @@ export function TokensPanel({
             </button>
           </form>
           {referrer.error && (
-            <p id="referrer-error" role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
+            <p id={referrerErrorId} role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
           )}
         </>
       )}

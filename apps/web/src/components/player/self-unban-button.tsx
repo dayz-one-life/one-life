@@ -6,6 +6,7 @@ import { useGamertagLinks } from "@/lib/use-gamertag-links";
 import { activeLink } from "@/lib/active-link";
 import { getTokens, redeemToken } from "@/lib/api";
 import { SkewCta } from "@/components/tabloid/skew-cta";
+import { SrStatus } from "@/components/shared/sr-status";
 
 export type UnbanState = "hidden" | "ready" | "no-tokens" | "pending";
 
@@ -19,29 +20,42 @@ export function UnbanView({
   onRedeem: () => void;
 }) {
   if (state === "hidden") return null;
-  if (state === "pending") {
+  // Always-mount the announcer (per the SrStatus rule: a live region must pre-exist the text
+  // change it announces) so it is already in the DOM through the ready/no-tokens states and
+  // reliably announces on the ready -> pending transition, rather than being born together
+  // with its first message. The visible pending copy stays as its own plain paragraph —
+  // identical text and styling to before, just no longer double-announcing as its own live
+  // region.
+  const pending = state === "pending";
+  if (pending) {
     return (
-      <p role="status" aria-live="polite" className="mt-3 bg-bone px-3 py-2 text-center font-mono text-xs uppercase tracking-[.05em] text-ink-soft">
-        Unban pending — lifting shortly…
-      </p>
+      <>
+        <SrStatus>Unban pending — lifting shortly…</SrStatus>
+        <p className="mt-3 bg-bone px-3 py-2 text-center font-mono text-xs uppercase tracking-[.05em] text-ink-soft">
+          Unban pending — lifting shortly…
+        </p>
+      </>
     );
   }
   const ready = state === "ready";
   return (
-    <div className="mt-3 text-center">
-      {ready ? (
-        <SkewCta onClick={onRedeem}>Spend 1 token — skip the wait</SkewCta>
-      ) : (
-        <p className="border border-dashed border-dash px-3 py-2 font-mono text-xs uppercase tracking-[.05em] text-red-deep">
-          No unban tokens
+    <>
+      <SrStatus>{""}</SrStatus>
+      <div className="mt-3 text-center">
+        {ready ? (
+          <SkewCta onClick={onRedeem}>Spend 1 token — skip the wait</SkewCta>
+        ) : (
+          <p className="border border-dashed border-dash px-3 py-2 font-mono text-xs uppercase tracking-[.05em] text-red-deep">
+            No unban tokens
+          </p>
+        )}
+        <p className="mt-2 font-mono text-[11px] text-ink-muted">
+          {ready
+            ? `You have ${balance} unban token${balance === 1 ? "" : "s"}`
+            : "Earn tokens monthly, by referral, or on verification"}
         </p>
-      )}
-      <p className="mt-2 font-mono text-[11px] text-ink-muted">
-        {ready
-          ? `You have ${balance} unban token${balance === 1 ? "" : "s"}`
-          : "Earn tokens monthly, by referral, or on verification"}
-      </p>
-    </div>
+      </div>
+    </>
   );
 }
 

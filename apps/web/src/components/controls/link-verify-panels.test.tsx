@@ -64,6 +64,26 @@ describe("LinkTagPanel", () => {
     expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
   });
 
+  // LinkTagPanel mounts simultaneously on the rail and in the mobile sheet (both live in the
+  // root layout at once, one hidden by CSS per breakpoint) — a fixed input/error id would
+  // duplicate in the DOM and aria-describedby could resolve to the wrong instance.
+  test("two mounted instances get distinct ids for input and error", () => {
+    render(
+      <>
+        <LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />
+        <LinkTagPanel onClaim={() => {}} pending={false} error="Tag already claimed" />
+      </>,
+    );
+    const inputs = screen.getAllByLabelText("Gamertag");
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]!.id).not.toBe(inputs[1]!.id);
+    const errors = screen.getAllByRole("alert");
+    expect(errors).toHaveLength(2);
+    expect(errors[0]!.id).not.toBe(errors[1]!.id);
+    expect(inputs[0]).toHaveAttribute("aria-describedby", errors[0]!.id);
+    expect(inputs[1]).toHaveAttribute("aria-describedby", errors[1]!.id);
+  });
+
   test("a stale slow response cannot overwrite newer results", async () => {
     const mock = vi.mocked(searchClaimableGamertags);
     let resolveFirst: (v: string[]) => void = () => {};
