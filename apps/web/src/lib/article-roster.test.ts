@@ -37,3 +37,22 @@ describe("newsRoster", () => {
     expect(newsRoster({ gamertag: null, subjects: [] })).toEqual([]);
   });
 });
+
+// Xbox allows 3-character callsigns. Without a floor, an article about a player named Fox links
+// every ordinary "fox" in its own prose — at every occurrence, since §6.3 links them all.
+describe("the short-gamertag floor", () => {
+  it("drops a 3-character subject from an obituary roster", () => {
+    expect(obituaryRoster({ gamertag: "Fox", killerGamertag: "Hartman" })).toEqual(["Hartman"]);
+  });
+
+  it("keeps a 4-character subject", () => {
+    expect(obituaryRoster({ gamertag: "Bear", killerGamertag: null })).toEqual(["Bear"]);
+  });
+
+  it("drops short names from a birth notice and a news piece too", () => {
+    expect(birthNoticeRoster({ gamertag: "Ace" })).toEqual([]);
+    expect(
+      newsRoster({ gamertag: "Doc", subjects: [{ gamertag: "Wolfe", mapSlug: null, lifeNumber: 1 }] }),
+    ).toEqual(["Wolfe"]);
+  });
+});

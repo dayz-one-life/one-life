@@ -672,7 +672,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   notice: subject; news/editorial: `gamertag` + `facts.subjects[]`. Matching frozen prose against
   every gamertag on the server puts a link on any ordinary word that happens to be a callsign;
   that failure was designed out, not overlooked. (There is no `article_subjects` table — PR-2 killed
-  it.)
+  it.) **A roster entry shorter than `MIN_LINKIFY_LENGTH` (4) is dropped** — Xbox allows 3-character
+  callsigns, so a player named `Fox`/`Ash`/`Doc`/`Ace` would otherwise link every ordinary
+  occurrence of that word in their own obituary; they stay reachable from the byline, In The Paper
+  and the boards. 4+ character words (`Hunter`, `Bear`) are deliberately still linked (spec §9).
   **⚠️ No regex lookbehind.** Token boundaries are checked by inspecting the characters either side
   of the match. Safari below 16.4 throws a syntax error when a lookbehind regex is *constructed*,
   which crashes every article page rather than degrading. Alternatives are sorted **longest-first**

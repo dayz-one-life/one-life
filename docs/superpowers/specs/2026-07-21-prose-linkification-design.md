@@ -140,8 +140,14 @@ editorial piece.
 
 - **A gamertag that is also an ordinary word.** The per-article roster bounds the blast radius to
   players the article is genuinely about, but an obituary about a player named `Hunter` will link
-  the word "hunter" in its own prose. Accepted: the alternative is a global roster, which is
+  the word "hunter" in its own prose. Partly accepted: the alternative is a global roster, which is
   strictly worse, and the link still points at a real, relevant player.
+  **Amended after implementation review:** Xbox allows 3-character callsigns, which pushes this
+  further than the paragraph above assumed — a player named `Fox`, `Ash`, `Doc` or `Ace` would link
+  every ordinary occurrence of that word. A roster entry shorter than `MIN_LINKIFY_LENGTH` (4,
+  `@/lib/article-roster`) is therefore never linkified. A short-named player stays reachable from
+  the byline, In The Paper, and the boards. Names of 4+ characters that are also ordinary words
+  (`Hunter`, `Bear`) remain accepted per the original reasoning.
 - **A roster gamertag whose player row is later removed** would link to a 404. The player page
   already `notFound()`s on an unresolvable slug, so this degrades to a normal 404 rather than an
   error.
