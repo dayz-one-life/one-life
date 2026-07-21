@@ -73,6 +73,12 @@ describe("getLifeTimeline", () => {
     expect(t!.qualifiedAt?.by).toBe("playtime");
   });
 
+  it("returns the player's lastSeenAt heartbeat", async () => {
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t).not.toBeNull();
+    expect(t!.lastSeenAt).toEqual(mins(400));
+  });
+
   it("returns null for an unknown life", async () => {
     expect(await getLifeTimeline(db, serverId, `LtHero-${svc}`, 9_999_999)).toBeNull();
   });

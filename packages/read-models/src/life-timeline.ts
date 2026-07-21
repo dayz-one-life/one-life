@@ -16,6 +16,10 @@ export interface LifeTimeline {
   verdict: DeathVerdictSummary | null; // classified death — null while the life is open
   ordeals: LifeDossier["ordeals"] | null; // null while the life is open (no dossier fetched)
   hpLow: number | null;
+  // Player heartbeat — caps an open life's live time-alive accrual (mirrors `livePlaytime` in
+  // survivors.ts + the dossier's cap in queries.ts), so a crashed/ghosted player doesn't keep
+  // climbing on this page while the board and dossier stop at last-seen.
+  lastSeenAt: Date | null;
 }
 
 /** Full per-life timeline data: the life row, ordered sessions, resolved character,
@@ -52,5 +56,6 @@ export async function getLifeTimeline(
     verdict: dossier ? dossierVerdict(dossier) : null,
     ordeals: dossier?.ordeals ?? null,
     hpLow: dossier?.hpLow ?? null,
+    lastSeenAt: playerRow[0]?.lastSeenAt ?? null,
   };
 }

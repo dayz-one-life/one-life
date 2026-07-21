@@ -8,7 +8,7 @@ const start = "2026-07-14T00:00:00Z";
 const at = (m: number) => new Date(Date.parse(start) + m * 60_000).toISOString();
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
-    gamertag: "YrJustBad", map: "sakhal", slug: "sakhal",
+    gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null,
     life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) }],
