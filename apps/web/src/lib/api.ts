@@ -1,6 +1,6 @@
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
-  Me, GamertagLink, ClaimResult, PlayerPage,
+  Me, GamertagLink, ClaimResult, PlayerPage, PlayerArticlesFeed,
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
   ObituariesFeed, ObituaryArticle,
   BirthNoticesFeed, BirthNoticeArticle,
@@ -143,6 +143,11 @@ async function getOrNull<T>(path: string): Promise<T | null> {
 
 export const getPlayerPage = (slug: string, page?: number) =>
   getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}${page && page > 1 ? `?page=${page}` : ""}`);
+
+/** Never 404s — the backend returns an empty feed for a player with no articles, and falls
+ *  back to page 1 on a garbage `?page=`. */
+export const getPlayerArticles = (slug: string, page: number) =>
+  apiGet<PlayerArticlesFeed>(`/api/players/${encodeURIComponent(slug)}/articles?page=${page}`);
 
 export const getPlayerLife = (slug: string, map: string, n: number) =>
   getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
