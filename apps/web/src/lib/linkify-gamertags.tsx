@@ -46,7 +46,11 @@ export function linkifyGamertags(text: string, roster: string[]): ReactNode[] {
     // listed earlier would otherwise shadow a longer one that contains it.
     .sort((a, b) => b.length - a.length);
 
-  if (!text || names.length === 0) return [text];
+  // `typeof text !== "string"` is not paranoia: block text reaches here from `articles.body_blocks`,
+  // which is unchecked jsonb (see ArticleBody's doc comment). Before linkification a malformed row
+  // rendered its odd value harmlessly; without this guard `text.matchAll` throws and 500s a public
+  // article. Pass it through untouched, exactly as the pre-linkification renderer did.
+  if (typeof text !== "string" || !text || names.length === 0) return [text];
 
   const re = new RegExp(names.map(escapeRe).join("|"), "gi");
   const out: ReactNode[] = [];

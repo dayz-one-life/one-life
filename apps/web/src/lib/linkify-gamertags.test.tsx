@@ -67,6 +67,13 @@ describe("linkifyGamertags", () => {
     const { container } = render(<p>{linkifyGamertags("nothing here", ["", "  "])}</p>);
     expect(container.querySelectorAll("a")).toHaveLength(0);
   });
+
+  // `body_blocks` is unchecked jsonb, so a malformed row can hand us a non-string. Before
+  // linkification that rendered harmlessly; a throw here 500s a published article.
+  it("passes a non-string through instead of throwing", () => {
+    expect(() => linkifyGamertags(42 as unknown as string, ["Hartman"])).not.toThrow();
+    expect(linkifyGamertags(42 as unknown as string, ["Hartman"])).toEqual([42]);
+  });
 });
 
 describe("dedupeRoster", () => {
