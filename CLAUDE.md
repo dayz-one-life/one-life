@@ -472,10 +472,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **R3 shipped — the controls rail is the whole account surface.** Root layout is an `xl:`
   two-column grid (`max-w-[1440px]`, `[minmax(0,1fr)_380px]`): pages flow in the main column
   (ink right-border at `xl`), the **`ControlsRail`** (`@/components/controls/`) is the sticky right
-  column, and below `xl` a fixed **`ControlsPill` + `ControlsSheet`** (bottom sheet) replace it. All
+  column, and below `xl` a fixed **`ControlsPill` + `ControlsSheet`** (bottom sheet) replace it
+  *(superseded by pill re-homing, UX review sub-project 4, below — `ControlsPill` is retired; the
+  sheet is unchanged but now opens from a masthead trigger, `MobileAccount`)*. All
   three surfaces are driven by **`useControls`/`useControlsActions`** over the `accountStatus` union:
   signed-out → sign-in CTA (rail; on mobile a fixed **`SignInPill`** floating box → `/login`, so
-  logged-out mobile visitors don't scroll to the footer to sign in); unlinked → identity + in-rail
+  logged-out mobile visitors don't scroll to the footer to sign in — **also retired, see below**);
+  unlinked → identity + in-rail
   gamertag link panel (autocomplete over `GET /players/search`, race-guarded); pending → in-rail
   "prove it's you" emote challenge (live via the 5s poll); verified → identity + Verified stamp +
   **tokens panel** (balance, send-by-gamertag, quiet referrer) + **server cards** (alive/no-life/banned;
@@ -509,7 +512,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   client-side case-insensitive self-exclusion. The claim field and both token fields share one
   presentational **`<GamertagAutocomplete>`** (`@/components/controls/gamertag-autocomplete` — debounce,
   race guard, skip-after-pick, absolutely-positioned overlay dropdown; `fetchSuggestions` is injected,
-  so pass a **stable** reference); `TokensPanel` takes `myGamertag?` (from `rail`/`mobile-controls`)
+  so pass a **stable** reference); `TokensPanel` takes `myGamertag?` (from `rail`/`mobile-account`,
+  the latter renamed from `mobile-controls` by pill re-homing, UX review sub-project 4)
   as its `exclude`. **R3 also closed the R1 compat-shim
   story:** the legacy token aliases and `font-hand` are deleted, `--tint` was renamed **`--bone`**
   (brand "Bone" surface), the `ui/` primitives (Button/Input/Table) are gone, and the login page was
@@ -527,9 +531,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   read-models land ahead of the UI (R4) but a teaser doesn't retire until its content-engine slice
   ships. **Obituaries' teaser retired as of R5a; Fresh Spawns' as of R5b; News' as of R5d PR-C3** —
   all three teasers are now gone. The mobile-controls polish pass gave the sheet swipe-dismiss
-  (`useSheetDrag`, header-zone only), a two-phase motion-safe enter/exit, and a route-change close;
-  the controls dark surface uses four named tokens — `dark-well`/`dark-hollow`/`dark-edge`/
-  `dark-edge-bright` — no raw hexes (grep-gated).
+  (`useSheetDrag`, header-zone only), a two-phase motion-safe enter/exit, and a route-change close
+  *(this behavior lives on the sheet, not the trigger, so pill re-homing, UX review sub-project 4,
+  left it unchanged — only `mobile-controls.tsx`'s trigger + mount point moved, into
+  `mobile-account.tsx`)*; the controls dark surface uses four named tokens — `dark-well`/
+  `dark-hollow`/`dark-edge`/`dark-edge-bright` — no raw hexes (grep-gated).
   **Contrast & type floors (UX review sub-project 1) shipped:** plain `--red` (3.7:1 on paper)
   is now display-only — reserved for ≥19px-bold text, borders, tints, and stamps — with every
   smaller red text run moved to `--red-deep` (5.8:1), per the RED POLICY comment at the tokens
@@ -585,7 +591,27 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      `standingLoading`/`balanceLoading`; surfaces (`self-unban-button.tsx`, `TokensPanel`,
      `ServerCard`/`SheetServerRow`, the pill chip, `pillStatus`) gate on them instead of falling
      through to a `?? 0`/`[]`-means-idle default; the home page's four feed fetches distinguish a
-     resolved-empty desk from a failed fetch via `settleFeed` + a `FeedFailedBanner`.
+     resolved-empty desk from a failed fetch via `settleFeed` + a `FeedFailedBanner`. (The pill chip
+     and `pillStatus` were later deleted as dead code by pill re-homing, UX review sub-project 4 —
+     the invariant now holds on the remaining surfaces only.)
+  **Pill re-homing (UX review sub-project 4) shipped** (spec
+  `docs/superpowers/specs/2026-07-21-pill-rehome-design.md`): the mobile account surface is no
+  longer a floating pill fixed to the bottom of every page — it is now a **masthead trigger**
+  (**`MobileAccount`**, `@/components/controls/mobile-account.tsx`) that colocates the trigger and
+  the existing `ControlsSheet` (plus their shared open-state), mirroring how `MastheadBell` owns its
+  button + popover + state: an avatar-disc button when signed in (`aria-haspopup="dialog"`,
+  `aria-controls="controls-sheet"`) opening the sheet, a compact "Sign in" chip when signed out
+  (replacing `SignInPill`), nothing while `loading`; the trigger itself is `xl:hidden` (`MastheadBell`
+  is not — it still renders at every width). The masthead right cluster (`header.tsx`) — previously
+  the bell alone self-positioning `absolute right-4` — now wraps both in one positioned `flex` box so
+  they sit side by side without colliding. **`ControlsPill`/`SignInPill`
+  (`controls/pill.tsx`) and `mobile-controls.tsx` are retired — do not reintroduce a fixed-bottom
+  account pill.** The content column's `pb-24` bottom gutter is gone (no floating chrome remains to
+  reserve space for). Only the trigger and its location moved: the sheet, its drag-to-dismiss, focus
+  management (restored to the masthead trigger for free — `useModalBehavior` already captures
+  `document.activeElement` on open), the `VerificationAnnouncer`, and every panel inside the sheet
+  (identity, link/verify, tokens, server cards, self-unban, the SP2 live regions, the SP3 loading
+  affordances) are unchanged.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
