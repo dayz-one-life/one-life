@@ -56,4 +56,16 @@ describe("Masthead", () => {
     expect(bell.className).not.toContain("right-4");
     expect(account.className).not.toContain("right-4");
   });
+
+  it("the masthead establishes its own stacking layer above page content", () => {
+    // The bell popover's own `z-50` is scoped to the right cluster's transform-created
+    // stacking context, so it cannot outrank page content on its own. Anything positioned
+    // later in the DOM at z-auto — the `xl:sticky` ControlsRail, the `relative` next/image
+    // wrappers in news heroes — paints over the popover unless the header itself is a
+    // positioned layer. jsdom cannot observe paint order, so the contract is pinned here.
+    const { container } = render(<Masthead />);
+    const header = container.querySelector("header");
+    expect(header?.className).toContain("relative");
+    expect(header?.className).toContain("z-50");
+  });
 });

@@ -35,7 +35,11 @@ export function Masthead() {
   const panelRef = useModalBehavior(open, () => setOpen(false));
 
   return (
-    <header className="bg-dark">
+    // `relative z-50` is load-bearing, not decoration: the bell popover's own `z-50` only
+    // ranks it inside the right cluster, whose `-translate-y-1/2` opens a stacking context.
+    // Without a layer here, every later positioned-at-z-auto element paints over the
+    // popover — the `xl:sticky` ControlsRail and the `relative` article-hero image wrappers.
+    <header className="relative z-50 bg-dark">
       <div className="relative flex items-center justify-center px-4 pt-5 md:pt-7">
         <button
           type="button"
