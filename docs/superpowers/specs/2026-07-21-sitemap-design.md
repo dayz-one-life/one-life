@@ -104,9 +104,19 @@ crawlers to ignore the field.
 
 ## 6. Freshness
 
-`export const revalidate = 3600` on the sitemap route. One enumeration query per hour regardless of
-crawler traffic; a new obituary appears within the hour. Crawlers re-fetch sitemaps far less often
-than hourly, so anything finer is spend without benefit.
+One enumeration query per hour regardless of crawler traffic; a new obituary appears within the
+hour. Crawlers re-fetch sitemaps far less often than hourly, so anything finer is spend without
+benefit.
+
+**Amended during implementation.** This was originally specified as `export const revalidate = 3600`
+on the route. That does not work: a static/ISR route is prerendered by `next build`, which then
+fetches the API at build time — the build does not run alongside a serving API, so it fails outright,
+and adding a fetch timeout only downgrades the failure to a *baked* sitemap containing the static and
+board entries alone, which ISR serves for an hour. The route is therefore `force-dynamic`, and the
+hourly window lives on the fetch instead: `apiGetCached` passes `next: { revalidate: 3600 }` and,
+unlike the ordinary `apiGet`, never awaits `cookies()` and never forwards a cookie header — which is
+both what allows the response to be cached at all and what stops a crawler's cookies reaching a
+shared cache entry. Per-request rendering is cheap here: ~476 URLs from three indexed queries.
 
 ## 7. Failure behaviour
 

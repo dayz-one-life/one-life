@@ -79,14 +79,14 @@ export async function apiGet<T>(path: string): Promise<T> {
  * requests. Client-side callers don't need this: browser fetches already only cache what the
  * browser/CDN choose to, and don't run through `buildInit`'s server branch at all.
  */
-// Next attempts to actually populate this route at BUILD time (a static/ISR route is prerendered
-// during `next build`, per `deploy.sh`'s Phase 3 comment: "runs while the OLD fleet is still
-// serving" — the API is expected to be reachable then). Plain `fetch` has no default timeout, so
-// an API that's merely slow (not cleanly refusing) at that moment hangs the promise indefinitely;
-// Next's own build-worker budget (60s x3 retries) eventually kills it and fails the WHOLE build,
-// which `sitemap.ts`'s try/catch can never see because the promise never settles in time to be
-// caught. An explicit timeout makes a slow/unreachable API reject quickly instead, so the
-// existing try/catch degrades to a partial sitemap the same way it does for a clean HTTP error.
+// Plain `fetch` has no default timeout, so an API that is merely slow — rather than cleanly
+// refusing — hangs the promise indefinitely, and a caller's try/catch can never fire because the
+// promise never settles. An explicit timeout makes a slow or unreachable API reject quickly, so
+// `sitemap.ts`'s try/catch degrades to a partial sitemap exactly as it does for a clean HTTP
+// error. (This mattered acutely when the sitemap was briefly a static/ISR route: `next build`
+// prerendered it, the fetch hung, and Next's 60s x3 build-worker budget failed the WHOLE build.
+// The route is `force-dynamic` now, so that specific trap is gone — but a hung request is still
+// worth bounding.)
 const CACHED_FETCH_TIMEOUT_MS = 10_000;
 
 export async function apiGetCached<T>(path: string, revalidateSeconds: number): Promise<T> {

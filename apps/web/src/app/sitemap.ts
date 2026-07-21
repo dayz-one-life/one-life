@@ -5,9 +5,20 @@ import { playerSlug } from "@/lib/slug";
 import { boardHref } from "@/components/survivors/links";
 import { SORTS } from "@/lib/board-params";
 
-/** One enumeration query per hour regardless of crawler traffic; a new obituary appears within
- *  the hour. Crawlers re-fetch sitemaps far less often than that. */
-export const revalidate = 3600;
+/**
+ * Rendered per request; the hourly window lives on the FETCH (`apiGetCached`'s
+ * `next: { revalidate }`), not on the route.
+ *
+ * ⚠️ Do not "restore" `export const revalidate` here. Statically generating this route makes
+ * `next build` fetch the API at build time — and the build does not run alongside a serving API,
+ * so the fetch times out and **the build fails** (verified: three 60s attempts, then
+ * `Export encountered an error on /sitemap.xml/route`). Adding a fetch timeout only converts that
+ * into a worse failure: the sitemap gets baked with the static + board entries alone and ISR
+ * serves that gutted version — missing every player, life and article URL — until it revalidates.
+ * Per-request rendering costs nothing here (~476 URLs, three indexed queries) and cannot bake a
+ * bad snapshot.
+ */
+export const dynamic = "force-dynamic";
 
 /** Static pages carry no `lastmod` — they change constantly or not at all, and a fabricated
  *  value trains crawlers to ignore the field. */

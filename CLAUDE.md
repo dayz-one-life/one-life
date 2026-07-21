@@ -659,7 +659,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   that knows only its own param silently resets the other section.
   A failed fetch renders an explicit `role="status"` line, never an empty section: "no articles" and
   "couldn't load" are different statements (the live-data-honesty invariant).
-- **Sitemap + robots.txt** ✅: `apps/web/src/app/sitemap.ts` (ISR, `revalidate = 3600`) and
+- **Sitemap + robots.txt** ✅: `apps/web/src/app/sitemap.ts` (`force-dynamic`; the hourly window is
+  on the FETCH, not the route — see the ⚠️ below) and
   `apps/web/src/app/robots.ts`, fed by `getSitemapEntries` (`packages/read-models/src/sitemap.ts`)
   through public `GET /sitemap`. ~476 URLs today against a 50,000 limit, so there is deliberately
   **no sitemap index and no `generateSitemaps`**. Spec
@@ -678,6 +679,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **⚠️ The two fetches degrade INDEPENDENTLY** (separate try/catch): losing the server list must not
   cost the ~470 content URLs, and vice versa. A single shared try/catch passes the "data fails" test
   and silently guts the sitemap — pinned by a test proven red against exactly that change.
+  **⚠️ The route is `force-dynamic`, and `export const revalidate` must NOT be restored.** Making it
+  static/ISR means `next build` prerenders it and fetches the API at build time; the build does not
+  run alongside a serving API, so it fails outright (three 60s attempts, then `Export encountered an
+  error on /sitemap.xml/route`) — and a fetch timeout only downgrades that to a *baked* sitemap
+  holding the static + board entries alone, which ISR then serves for an hour, missing every player,
+  life and article URL. The hourly enumeration window instead lives on the fetch: `apiGetCached`
+  (`@/lib/api`) sends `next: { revalidate }` and, unlike `apiGet`, never awaits `cookies()` and
+  never forwards a cookie header — a crawler's cookies have no business reaching a shared cache
+  entry. Do not point the ordinary `getServers()` at it; authenticated RSC pages need the
+  cookie-forwarding version.
   **`lives.life_number` IS the URL segment here.** That does not contradict the rule against keying
   on `life_number`, which governs matching an *article* to a life; this generates the URL the router
   itself resolves by number.
