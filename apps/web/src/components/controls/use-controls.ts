@@ -14,6 +14,14 @@ export type Controls = {
   balance: number | null;
   servers: Server[];
   standing: ServerStanding[];
+  /**
+   * True while the standing behind `standing` is unresolved (loading or errored) for a
+   * verified user. `standing` itself stays `[]` in this case for backward compatibility, but
+   * `[]` is ALSO the genuinely-resolved "no life anywhere" shape — a consumer must check this
+   * flag before rendering per-server "idle" state, or it fabricates idle from an unknown
+   * (spec: live-data honesty §5).
+   */
+  standingLoading: boolean;
 };
 
 /** One data source for all three control surfaces (rail, pill, sheet). */
@@ -37,6 +45,7 @@ export function useControls(): Controls {
     balance: tokens.data?.balance ?? null,
     servers: servers.data ?? [],
     standing: player.data?.standing ?? [],
+    standingLoading: gamertag !== null && (player.isLoading || player.isError),
   };
 }
 

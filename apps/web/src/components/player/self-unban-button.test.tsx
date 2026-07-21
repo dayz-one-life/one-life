@@ -1,6 +1,26 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, test } from "vitest";
-import { UnbanView, unbanStateOf } from "./self-unban-button";
+import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { describe, it, expect, test, vi, beforeEach } from "vitest";
+import type { ReactNode } from "react";
+import { UnbanView, unbanStateOf, SelfUnbanButton } from "./self-unban-button";
+
+vi.mock("@/lib/auth-client", () => ({ useSession: () => ({ data: { user: { id: "u1" } } }) }));
+vi.mock("@/lib/use-gamertag-links", () => ({
+  useGamertagLinks: () => ({
+    data: [{ id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null }],
+  }),
+}));
+const getTokens = vi.fn();
+const redeemToken = vi.fn();
+vi.mock("@/lib/api", () => ({
+  getTokens: (...a: unknown[]) => getTokens(...a),
+  redeemToken: (...a: unknown[]) => redeemToken(...a),
+}));
+
+function wrap(ui: ReactNode) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 describe("UnbanView", () => {
   it("shows spend button when owner has tokens", () => {
@@ -19,6 +39,14 @@ describe("UnbanView", () => {
   it("renders nothing in the hidden state", () => {
     const { container } = render(<UnbanView state="hidden" balance={0} onRedeem={() => {}} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("loading state shows a checking affordance, not the no-tokens CTA or a balance claim", () => {
+    render(<UnbanView state="loading" balance={0} onRedeem={() => {}} />);
+    expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no unban tokens/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/you have 0 unban tokens/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   test("ready state renders the canvas CTA and balance line", () => {
@@ -54,5 +82,46 @@ describe("UnbanView", () => {
     expect(unbanStateOf(true, 5)).toBe("pending");
     expect(unbanStateOf(false, 2)).toBe("ready");
     expect(unbanStateOf(false, 0)).toBe("no-tokens");
+  });
+
+  test("unbanStateOf: unresolved balance is 'loading', never a fabricated no-tokens/ready", () => {
+    expect(unbanStateOf(false, 0, false)).toBe("loading");
+    expect(unbanStateOf(false, 5, false)).toBe("loading");
+    // Lift-already-pending still wins even while the balance is unresolved.
+    expect(unbanStateOf(true, 0, false)).toBe("pending");
+  });
+});
+
+describe("SelfUnbanButton: loading/error must not fabricate a resolved balance", () => {
+  beforeEach(() => {
+    getTokens.mockReset();
+    redeemToken.mockReset();
+  });
+
+  it("does not render '0 tokens' or the no-tokens CTA while the tokens query is loading", () => {
+    getTokens.mockReturnValue(new Promise(() => {})); // never resolves during this test
+    wrap(<SelfUnbanButton banId={1} pageGamertag="Boots" liftPending={false} />);
+    expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no unban tokens/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/you have 0 unban tokens/i)).not.toBeInTheDocument();
+  });
+
+  it("does not render '0 tokens' or the no-tokens CTA when the tokens query errors", async () => {
+    getTokens.mockRejectedValue(new Error("network down"));
+    wrap(<SelfUnbanButton banId={1} pageGamertag="Boots" liftPending={false} />);
+    await waitFor(() => expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument());
+    expect(screen.queryByText(/no unban tokens/i)).not.toBeInTheDocument();
+  });
+
+  it("still shows a genuinely-resolved zero balance as 'no unban tokens'", async () => {
+    getTokens.mockResolvedValue({ balance: 0 });
+    wrap(<SelfUnbanButton banId={1} pageGamertag="Boots" liftPending={false} />);
+    await waitFor(() => expect(screen.getByText(/no unban tokens/i)).toBeInTheDocument());
+  });
+
+  it("still shows a genuinely-resolved positive balance as ready to spend", async () => {
+    getTokens.mockResolvedValue({ balance: 2 });
+    wrap(<SelfUnbanButton banId={1} pageGamertag="Boots" liftPending={false} />);
+    await waitFor(() => expect(screen.getByText("You have 2 unban tokens")).toBeInTheDocument());
   });
 });

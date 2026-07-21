@@ -39,10 +39,11 @@ beforeEach(() => {
   });
 });
 
-function openSheet(): void {
-  render(<MobileControls />);
+function openSheet() {
+  const result = render(<MobileControls />);
   // The pill is the only thing rendered until the sheet is opened.
   fireEvent.click(screen.getByRole("button", { name: /player controls/i }));
+  return result;
 }
 
 describe("MobileControls", () => {
@@ -78,5 +79,17 @@ describe("MobileControls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
+  });
+
+  test("verified: standing unresolved shows a loading placeholder, not fabricated idle server rows/dots", () => {
+    (useControls as Mock).mockReturnValue({
+      ...verified,
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standingLoading: true,
+    });
+    const { container } = openSheet();
+    // Must NOT assert "idle" from an unresolved player query, in the sheet row or the pill dots.
+    expect(screen.queryByText("No life")).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 });

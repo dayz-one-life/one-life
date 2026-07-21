@@ -8,7 +8,7 @@ import { getTokens, redeemToken } from "@/lib/api";
 import { SkewCta } from "@/components/tabloid/skew-cta";
 import { SrStatus } from "@/components/shared/sr-status";
 
-export type UnbanState = "hidden" | "ready" | "no-tokens" | "pending";
+export type UnbanState = "hidden" | "ready" | "no-tokens" | "pending" | "loading";
 
 export function UnbanView({
   state,
@@ -37,6 +37,19 @@ export function UnbanView({
       </>
     );
   }
+  if (state === "loading") {
+    // The tokens query hasn't resolved (or failed) — we don't yet know the balance, so we
+    // must not assert "no tokens" or render the spend CTA as if ready. A quiet, honest
+    // placeholder beats a fabricated zero (spec: live-data honesty §5).
+    return (
+      <p
+        aria-busy="true"
+        className="mt-3 motion-safe:animate-pulse bg-bone px-3 py-2 text-center font-mono text-xs uppercase tracking-[.05em] text-ink-muted"
+      >
+        Checking your tokens…
+      </p>
+    );
+  }
   const ready = state === "ready";
   return (
     <>
@@ -59,9 +72,15 @@ export function UnbanView({
   );
 }
 
-/** Shared unban CTA state: lift already pending > has tokens > broke. */
-export function unbanStateOf(liftPending: boolean, balance: number): UnbanState {
-  return liftPending ? "pending" : balance > 0 ? "ready" : "no-tokens";
+/**
+ * Shared unban CTA state: lift already pending > tokens unresolved > has tokens > broke.
+ * `resolved` defaults to `true` for existing callers (e.g. `ServerCard`, which is out of
+ * scope for this fix) that already have a settled balance by the time they call this.
+ */
+export function unbanStateOf(liftPending: boolean, balance: number, resolved = true): UnbanState {
+  if (liftPending) return "pending";
+  if (!resolved) return "loading";
+  return balance > 0 ? "ready" : "no-tokens";
 }
 
 export function SelfUnbanButton({
@@ -84,7 +103,10 @@ export function SelfUnbanButton({
   if (!isOwner) return <UnbanView state="hidden" balance={0} onRedeem={() => {}} />;
 
   const balance = tokens.data?.balance ?? 0;
-  const state = unbanStateOf(pending, balance);
+  // Loading/errored is NOT the same as a resolved zero balance — only a settled query may
+  // assert "no tokens" (spec: live-data honesty §5).
+  const resolved = !tokens.isLoading && !tokens.isError;
+  const state = unbanStateOf(pending, balance, resolved);
   const onRedeem = async () => {
     setPending(true);
     try {

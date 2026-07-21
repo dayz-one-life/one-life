@@ -62,6 +62,20 @@ describe("ControlsRail", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 
+  test("verified: standing unresolved shows a loading placeholder, not fabricated idle server cards", () => {
+    (useControls as Mock).mockReturnValue({
+      ...base,
+      status: { kind: "verified", link: { id: 1, gamertag: "BootsColdwater", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null } },
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standingLoading: true,
+    });
+    const { container } = render(<ControlsRail />);
+    expect(screen.getByText("Your servers")).toBeInTheDocument();
+    // Must NOT assert "idle" from an unresolved player query.
+    expect(screen.queryByText("No life")).not.toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+  });
+
   test("sign out tears down push before ending the session", () => {
     (useControls as Mock).mockReturnValue({ ...base, status: { kind: "unlinked" } });
     render(<ControlsRail />);
