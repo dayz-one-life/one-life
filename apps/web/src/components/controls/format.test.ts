@@ -93,20 +93,20 @@ const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number 
 } as unknown as ServerStanding);
 
 describe("serverCards lifeNumber", () => {
-  it("carries the open life's number on an alive card", () => {
+  test("carries the open life's number on an alive card", () => {
     expect(serverCards([serverForLifeNumber("sakhal")], [aliveStandingForLifeNumber("sakhal")])[0]!.lifeNumber).toBe(4);
   });
 
-  it("carries the triggering life's number on a banned card", () => {
+  test("carries the triggering life's number on a banned card", () => {
     expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", 7)])[0]!.lifeNumber).toBe(7);
   });
 
-  it("is null when a banned card's triggering life could not be identified", () => {
+  test("is null when a banned card's triggering life could not be identified", () => {
     // Nullable upstream. Must not become 0 or undefined — a link would 404.
     expect(serverCards([serverForLifeNumber("sakhal")], [bannedStandingForLifeNumber("sakhal", null)])[0]!.lifeNumber).toBeNull();
   });
 
-  it("is null on a card with no standing at all", () => {
+  test("is null on a card with no standing at all", () => {
     expect(serverCards([serverForLifeNumber("sakhal")], [])[0]!.lifeNumber).toBeNull();
   });
 });
