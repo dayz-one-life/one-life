@@ -551,6 +551,41 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   on the notification, standing/past-life, and timeline collections; the gamertag autocomplete is
   a full WAI-ARIA 1.2 combobox-with-listbox with an always-present announced result count; and web
   a11y tests query by ARIA role rather than DOM structure.
+  **Live-data honesty (UX review sub-project 3) shipped** (spec
+  `docs/superpowers/specs/2026-07-21-live-data-honesty-design.md`): an audit of every live/derived/
+  polled surface found the UI presenting state as current/confirmed when it was stale, phantom, or
+  fabricated — a dry-run ban (never actually placed on the game server) rendered as a real "Banned"
+  standing and could burn a real unban token; the life-timeline "time alive" outran the survivor
+  board/dossier for a ghosted player; an expired ban countdown floored at a dead "0h 0m" forever;
+  three loading/error paths fabricated an authoritative "0 tokens"/idle/empty; and a Fresh Spawns
+  subject who died after publication still read "still drawing breath." Plus two small fixes: the
+  player-page OG card now says "First seen" (was "Surviving since," which implied continuous
+  survival) and a regenerated article hero now bumps `article_images.created_at` so its `?v=`
+  cache-buster actually changes. **Invariants a future change would silently break (don't "tidy"
+  them back):**
+  1. **A ban is real only if `dry_run=false`.** `packages/read-models/src/player-page.ts`'s
+     `activeBans` query and `packages/tokens/src/redeem.ts`'s candidate query both filter
+     `and(…, eq(bans.dryRun, false))` alongside their existing status filters
+     (`ACTIVE_BAN_STATUSES` / `["pending","applied"]`, both unchanged) — do not widen either back.
+     A dry-run ban must never render as banned or be spendable. Backlog: the enforcer's expire arm
+     only touches `status='applied'`, so a dry-run `pending` ban never expires (moot now that it's
+     invisible to both display and spend); already-spent phantom redemptions are not migrated.
+  2. **Presence-implying durations cap at `lastSeenAt ?? connectedAt ?? now`**, matching
+     `survivors.ts`'s `livePlaytime` cap and the dossier's `queries.ts` cap EXACTLY — **no clamp to
+     `now`** (a `Math.min(now, …)` clamp diverges from those two under clock skew, since
+     `servers.clockOffsetMs` means a real `lastSeenAt` can land a few seconds ahead of request-time
+     `now`). The life-timeline (`apps/web/src/lib/life-timeline.ts`'s `liveTimeAlive`) was the last
+     surface brought into line; its NOW row also dropped "and counting" (a server-baked snapshot
+     that never ticks).
+  3. **`banCountdown` (`apps/web/src/components/player/format.ts`) returns `null` past expiry**,
+     never a clamped "0h 0m." Every render site (`standing-card.tsx`, `controls/server-cards.tsx`,
+     `controls/sheet.tsx`) branches on null to a terminal "Lifting…" state, not a dead-looking live
+     timer.
+  4. **Loading/error is never rendered as an authoritative zero/empty.** `useControls` exposes
+     `standingLoading`/`balanceLoading`; surfaces (`self-unban-button.tsx`, `TokensPanel`,
+     `ServerCard`/`SheetServerRow`, the pill chip, `pillStatus`) gate on them instead of falling
+     through to a `?? 0`/`[]`-means-idle default; the home page's four feed fetches distinguish a
+     resolved-empty desk from a failed fetch via `settleFeed` + a `FeedFailedBanner`.
 - **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
