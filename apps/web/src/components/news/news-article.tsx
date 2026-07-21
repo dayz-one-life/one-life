@@ -12,6 +12,8 @@ import type { LifeTimelineView } from "@/lib/life-timeline";
 import { newsDateline, triggerLabel } from "@/lib/news-format";
 import { mapLabel } from "@/components/player/format";
 import { cn } from "@/lib/utils";
+import { newsRoster } from "@/lib/article-roster";
+import { linkifyGamertags } from "@/lib/linkify-gamertags";
 
 /** One subject's record, already built by the route. The gamertag is carried alongside the view
  *  because two unlabelled parallel timelines are unreadable. */
@@ -36,6 +38,7 @@ export function NewsArticleView({
   timelines: NewsTimeline[];
   now: Date;
 }): ReactNode {
+  const roster = newsRoster(article);
   const shown = timelines.slice(0, NEWS_TIMELINE_LIMIT);
   // A Long Form piece labels every loaded timeline by its subject's callsign even when only one
   // of the (up to two) records loaded — the heading identifies WHO the record belongs to, which
@@ -76,7 +79,7 @@ export function NewsArticleView({
         <ArticleHero src={article.imageUrl} caption={article.imageCaption} accent="ink" />
       ) : null}
 
-      <p className="mt-6 font-mono text-[15px] font-bold leading-relaxed text-ink">{article.lede}</p>
+      <p className="mt-6 font-mono text-[15px] font-bold leading-relaxed text-ink">{linkifyGamertags(article.lede, roster)}</p>
 
       {/* Spec §4.1.3: computed at request time, never regenerated prose. Standing Dead only. */}
       {article.subjectStatus && <NewsStatusLine status={article.subjectStatus} />}
@@ -88,7 +91,7 @@ export function NewsArticleView({
       {/* News is the first kind whose writer populates body_blocks; `blocks` takes precedence and
           a null/absent value falls back to splitting the flat body, byte-identically to every
           pre-R5d article. */}
-      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-5" />
+      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-5" roster={roster} />
 
       {/* ONE pull quote, never two. PR-C2's schema admits a `quote` BLOCK (news-prompt.ts) and a
           standalone `pullQuote` independently, and nothing in the prompt discourages using both —

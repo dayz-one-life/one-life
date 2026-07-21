@@ -10,6 +10,7 @@ import { birthDateline } from "@/lib/birth-format";
 import { cn } from "@/lib/utils";
 import { mapLabel } from "@/components/player/format";
 import { lifeHref } from "@/lib/life-href";
+import { birthNoticeRoster } from "@/lib/article-roster";
 
 export function BirthNoticeArticleView({
   article,
@@ -25,6 +26,7 @@ export function BirthNoticeArticleView({
   // Optional access: a response from a deploy predating this field (stale cache/CDN) would omit
   // `subjectStatus` entirely — treat that as "not dead", the same safe default as `{kind:"alive"}`.
   const dead = article.subjectStatus?.kind === "dead";
+  const roster = birthNoticeRoster(article);
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-blue pb-5">
@@ -43,7 +45,7 @@ export function BirthNoticeArticleView({
         </p>
       </div>
 
-      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-6" />
+      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-6" roster={roster} />
 
       {article.pullQuote && <PullQuote text={article.pullQuote.text} attribution={article.pullQuote.attribution} />}
 

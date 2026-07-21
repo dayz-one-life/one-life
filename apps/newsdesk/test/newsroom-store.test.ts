@@ -1,8 +1,10 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { articles } from "@onelife/db";
+import { articles, players } from "@onelife/db";
 import { eq, like } from "drizzle-orm";
-import { draftArticle, publishArticle, unpublishArticle, spikeArticle, listArticles } from "../src/newsroom/store.js";
+import {
+  draftArticle, publishArticle, unpublishArticle, spikeArticle, listArticles, assertKnownSubjects,
+} from "../src/newsroom/store.js";
 import type { EditorialPayload } from "../src/newsroom/contract.js";
 
 const { db, sql } = getTestDb();
@@ -112,5 +114,55 @@ describe("newsroom store", () => {
     const drafts = await listArticles(db, true);
     expect(drafts.some((d) => d.slug === slug)).toBe(true);
     expect(drafts.every((d) => d.status === "draft")).toBe(true);
+  });
+});
+
+describe("assertKnownSubjects", () => {
+  const tag = `Hartman${run}`;
+
+  it("passes for a gamertag that exists (case-insensitive)", async () => {
+    const [row] = await db.insert(players).values({ gamertag: tag }).returning();
+    try {
+      await expect(assertKnownSubjects(db, [{ gamertag: tag.toLowerCase() }])).resolves.toBeUndefined();
+    } finally {
+      await db.delete(players).where(eq(players.id, row!.id));
+    }
+  });
+
+  it("throws naming the unknown gamertag", async () => {
+    await expect(assertKnownSubjects(db, [{ gamertag: `Hartmn${run}` }])).rejects.toThrow(
+      new RegExp(`Hartmn${run}`),
+    );
+  });
+
+  it("accepts an empty subjects list", async () => {
+    await expect(assertKnownSubjects(db, [])).resolves.toBeUndefined();
+  });
+
+  it("draftArticle refuses a roster naming an unknown player, before any row is written", async () => {
+    const naturalKey = key("w34");
+    await expect(
+      draftArticle(db, payload({
+        naturalKey, headline: `Week Thirty Four ${run}`,
+        subjects: [{ gamertag: `NoSuchPlayer${run}` }],
+      })),
+    ).rejects.toThrow(new RegExp(`NoSuchPlayer${run}`));
+    const rows = await db.select().from(articles).where(eq(articles.naturalKey, naturalKey));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("draftArticle succeeds when every subject is a known player", async () => {
+    const [row] = await db.insert(players).values({ gamertag: tag }).returning();
+    try {
+      const naturalKey = key("w35");
+      const slug = await draftArticle(db, payload({
+        naturalKey, headline: `Week Thirty Five ${run}`,
+        subjects: [{ gamertag: tag.toLowerCase() }],
+      }));
+      const [saved] = await db.select().from(articles).where(eq(articles.slug, slug));
+      expect((saved!.facts as { subjects: { gamertag: string }[] }).subjects).toEqual([{ gamertag: tag.toLowerCase() }]);
+    } finally {
+      await db.delete(players).where(eq(players.id, row!.id));
+    }
   });
 });

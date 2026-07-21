@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { NewsArticleView, type NewsTimeline } from "./news-article";
 import type { NewsArticle } from "@/lib/types";
@@ -353,5 +353,42 @@ describe("NewsArticleView — the Fog Rule reaches the rendered page", () => {
     expect(text).not.toContain("7423.51");
     expect(text).not.toContain("812.4");   // the near-edge value /\d{4}\.\d/ would have missed
     expect(text).not.toMatch(/\d{3,5}\.\d/);
+  });
+});
+
+// The byline already renders <GamertagLink gamertag={article.gamertag}> (see line 63 above) — so
+// "Hartman" (the primary subject, which IS article.gamertag) is linked there regardless of whether
+// the lede itself is linkified. The lede assertion below is therefore scoped with `within` to the
+// lede paragraph specifically (selected by its unique `leading-relaxed` <p> class — the body's own
+// paragraphs carry no className of their own). "Pyle" is a co-subject that appears nowhere but the
+// body, so an unscoped query on it already proves the body — and only the body — was linkified.
+describe("news prose linkification", () => {
+  it("links a subject in the lede and a co-subject in the body", () => {
+    const { container } = render(
+      <NewsArticleView
+        article={article({
+          gamertag: "Hartman",
+          subjects: [
+            { gamertag: "Hartman", mapSlug: "chernarus", lifeNumber: 3 },
+            { gamertag: "Pyle", mapSlug: "chernarus", lifeNumber: 1 },
+          ],
+          lede: "Hartman has not been seen.",
+          body: "Pyle's tent is still standing.",
+          bodyBlocks: null,
+        })}
+        more={[]}
+        timelines={[]}
+        now={now}
+      />,
+    );
+
+    const lede = container.querySelector("p.leading-relaxed");
+    expect(lede).not.toBeNull();
+    expect(within(lede as HTMLElement).getByRole("link", { name: "Hartman" })).toHaveAttribute(
+      "href",
+      "/players/hartman",
+    );
+
+    expect(screen.getByRole("link", { name: "Pyle" })).toHaveAttribute("href", "/players/pyle");
   });
 });

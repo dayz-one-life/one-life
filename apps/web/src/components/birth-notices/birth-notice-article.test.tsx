@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { describe, expect, it, test, vi } from "vitest";
 import { BirthNoticeArticleView } from "./birth-notice-article";
 import type { BirthNoticeArticle } from "@/lib/types";
 
@@ -79,5 +79,25 @@ describe("BirthNoticeArticleView", () => {
     render(<BirthNoticeArticleView article={{ ...article, mapSlug: null, lifeNumber: 4 }} more={[]} now={now} />);
     expect(screen.queryByRole("link", { name: /life 4/i })).toBeNull();
     expect(screen.getByText(/life 4/i)).toBeInTheDocument();
+  });
+});
+
+describe("birth notice prose linkification", () => {
+  it("links the subject in the body", () => {
+    render(
+      <BirthNoticeArticleView
+        article={{ ...article, gamertag: "Pyle", body: "Pyle drew breath on the coast.", bodyBlocks: null }}
+        more={[]}
+        now={now}
+      />,
+    );
+    // The byline ALSO links the subject's gamertag (via GamertagLink), so a document-wide
+    // getByRole query would be ambiguous and would pass even if the body itself were never
+    // linkified. Scope the query to the body wrapper (identified by its "mt-6" class, the same
+    // hook the "body wrapper carries the birth notice's mt-6 top margin" test above uses) to
+    // prove the BODY specifically was linkified.
+    const body = document.querySelector(".mt-6");
+    expect(body).not.toBeNull();
+    expect(within(body as HTMLElement).getByRole("link", { name: "Pyle" })).toHaveAttribute("href", "/players/pyle");
   });
 });

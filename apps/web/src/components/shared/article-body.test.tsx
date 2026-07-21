@@ -101,3 +101,44 @@ describe("ArticleBody — block rendering", () => {
     expect(screen.queryByText("From a newer writer.")).toBeNull();
   });
 });
+
+describe("ArticleBody linkification", () => {
+  it("links a gamertag in a para block", () => {
+    render(<ArticleBody blocks={[{ type: "para", text: "Hartman went north." }]} fallback="" roster={["Hartman"]} />);
+    expect(screen.getByRole("link", { name: "Hartman" })).toHaveAttribute("href", "/players/hartman");
+  });
+
+  it("links a gamertag in a quote block", () => {
+    render(
+      <ArticleBody
+        blocks={[{ type: "quote", text: "Hartman never came back.", attribution: "a bystander" }]}
+        fallback=""
+        roster={["Hartman"]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Hartman" })).toBeInTheDocument();
+  });
+
+  it("links a gamertag in a list item", () => {
+    render(<ArticleBody blocks={[{ type: "list", items: ["Hartman, twice"] }]} fallback="" roster={["Hartman"]} />);
+    expect(screen.getByRole("link", { name: "Hartman" })).toBeInTheDocument();
+  });
+
+  it("links a gamertag in the flat fallback path — the whole pre-0014 corpus", () => {
+    render(<ArticleBody blocks={null} fallback={"Hartman went north.\n\nThen he did not."} roster={["Hartman"]} />);
+    expect(screen.getByRole("link", { name: "Hartman" })).toBeInTheDocument();
+  });
+
+  it("does not link a subhead", () => {
+    render(<ArticleBody blocks={[{ type: "subhead", text: "Hartman" }]} fallback="" roster={["Hartman"]} />);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("renders identical markup to an unlinked body when no roster is passed", () => {
+    const blocks = [{ type: "para" as const, text: "Hartman went north." }];
+    const without = render(<ArticleBody blocks={blocks} fallback="" />).container.innerHTML;
+    const empty = render(<ArticleBody blocks={blocks} fallback="" roster={[]} />).container.innerHTML;
+    expect(empty).toBe(without);
+    expect(without).not.toContain("<a");
+  });
+});

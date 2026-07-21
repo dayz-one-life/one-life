@@ -5,6 +5,8 @@ import { MoreFromTheDesk } from "./more-from-the-desk";
 import { newsDateline } from "@/lib/news-format";
 import { relativeDate } from "@/components/player/format";
 import type { NewsArticle, NewsCard } from "@/lib/types";
+import { newsRoster } from "@/lib/article-roster";
+import { linkifyGamertags } from "@/lib/linkify-gamertags";
 
 /** Kicker for an editorial piece. Unknown formats title-case rather than throwing, so a format
  *  added by a future session renders sanely before anyone ships a label for it. */
@@ -24,6 +26,7 @@ export function EditorialArticleView({
   more: NewsCard[];
   now: Date;
 }): ReactNode {
+  const roster = newsRoster(article);
   // An institutional piece usually has no map; the dateline files from the desk instead.
   const dateline = article.map
     ? newsDateline(article.map, article.createdAt, now)
@@ -60,10 +63,10 @@ export function EditorialArticleView({
         <ArticleHero src={article.imageUrl} caption={article.imageCaption} accent="ink" />
       )}
 
-      <p className="mt-6 font-display text-xl leading-snug text-ink">{article.lede}</p>
+      <p className="mt-6 font-display text-xl leading-snug text-ink">{linkifyGamertags(article.lede, roster)}</p>
 
       <div className="mt-5">
-        <ArticleBody blocks={article.bodyBlocks ?? null} fallback={article.body} />
+        <ArticleBody blocks={article.bodyBlocks ?? null} fallback={article.body} roster={roster} />
       </div>
 
       {article.pullQuote && (
