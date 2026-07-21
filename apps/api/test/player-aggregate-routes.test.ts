@@ -106,10 +106,23 @@ describe("GET /players/:gamertag/articles", () => {
         createdAt: new Date("2026-07-12T12:00:00Z"),
       },
     ]);
+
+    // Seed a multi-word gamertag to test slug normalization (spaces → dashes)
+    const [p2] = await db.insert(players).values({ gamertag: "Dead Eye Jim" }).returning();
+    await db.insert(articles).values([
+      {
+        kind: "obituary", status: "published", slug: "dead-eye-jim-perishes",
+        gamertag: p2!.gamertag, mapSlug: "pa-chernarus", map: "chernarusplus", lifeNumber: 1,
+        headline: "Dead Eye Jim Perishes", lede: "L", deathAt: new Date("2026-07-13T12:00:00Z"),
+        createdAt: new Date("2026-07-13T12:00:00Z"),
+      },
+    ]);
   });
   afterAll(async () => {
     await db.delete(articles).where(eq(articles.gamertag, "InkStainedWretch"));
     await db.delete(players).where(eq(players.gamertag, "InkStainedWretch"));
+    await db.delete(articles).where(eq(articles.gamertag, "Dead Eye Jim"));
+    await db.delete(players).where(eq(players.gamertag, "Dead Eye Jim"));
   });
 
   it("returns a known player's published articles", async () => {
@@ -149,5 +162,15 @@ describe("GET /players/:gamertag/articles", () => {
     const body = res.json();
     expect(body.total).toBe(0);
     expect(body.rows).toEqual([]);
+  });
+
+  it("resolves a slug with dashes (spaces normalized) to the real gamertag", async () => {
+    // This tests actual slug normalization: "Dead Eye Jim" → "dead-eye-jim"
+    const res = await app.inject({ method: "GET", url: "/players/dead-eye-jim/articles" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].slug).toBe("dead-eye-jim-perishes");
   });
 });
