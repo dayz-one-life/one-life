@@ -81,6 +81,7 @@ export function MobileControls() {
         line={line}
         dots={cards.map((x) => x.state)}
         balance={c.balance}
+        balanceLoading={c.balanceLoading}
         verified={verified}
         open={open}
         onOpen={() => setOpen(true)}

@@ -26,6 +26,44 @@ describe("ControlsPillView", () => {
     expect(screen.getByText("Link your gamertag →")).toBeInTheDocument();
     expect(screen.queryByText("tok")).not.toBeInTheDocument();
   });
+
+  // live-data honesty §5 fix round 2: the pill's "N tok" chip did its own unguarded
+  // `balance ?? 0`, fabricating "0 tok" while the tokens query is still loading/errored — right
+  // next to the sheet's TokensPanel correctly showing "Checking your tokens…".
+  test("verified pill: balance loading shows a loading placeholder, not a fabricated 0", () => {
+    render(
+      <ControlsPillView
+        name="Boots"
+        line={line}
+        dots={["alive"]}
+        balance={null}
+        balanceLoading
+        verified
+        open={false}
+        onOpen={() => {}}
+      />,
+    );
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+    expect(screen.queryByText("tok")).not.toBeInTheDocument();
+    expect(screen.getByText(/checking your tokens/i)).toBeInTheDocument();
+  });
+
+  test("verified pill: a genuinely-resolved zero balance still shows '0 tok' (resolved-zero control)", () => {
+    render(
+      <ControlsPillView
+        name="Boots"
+        line={line}
+        dots={["alive"]}
+        balance={0}
+        balanceLoading={false}
+        verified
+        open={false}
+        onOpen={() => {}}
+      />,
+    );
+    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("tok")).toBeInTheDocument();
+  });
 });
 
 describe("SignInPill", () => {

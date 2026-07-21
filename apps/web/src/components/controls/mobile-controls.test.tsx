@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
 import { MobileControls } from "./mobile-controls";
@@ -120,11 +120,12 @@ describe("MobileControls", () => {
       standing: [{ serverId: 1, map: "chernarusplus", slug: "chernarus", state: "banned", character: null, alive: null, ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: null, liftPending: false, triggeringLifeNumber: 1 } }],
     });
     openSheet();
-    // Note: the pill's own small "N tok" chip (`pill.tsx`) does its own `balance ?? 0` and is
-    // out of this fix's scope, so it isn't asserted against here — the assertions below cover
-    // the two surfaces this fix actually touches (TokensPanel's 26px readout, the sheet row's
-    // unban CTA).
     expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
     expect(screen.getAllByText(/checking your (balance|tokens)/i).length).toBeGreaterThan(0);
+    // fix round 2: the pill's own "N tok" chip (`pill.tsx`) must not fabricate "0 tok" either —
+    // it sits inches from TokensPanel's correct "Checking your tokens…" and used to contradict it.
+    const pill = screen.getByRole("button", { name: /player controls/i });
+    expect(within(pill).queryByText("0")).not.toBeInTheDocument();
+    expect(within(pill).getByText(/checking your tokens/i)).toBeInTheDocument();
   });
 });
