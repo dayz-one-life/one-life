@@ -66,24 +66,25 @@ export function MastheadBell() {
   if (!signedIn) return null;
   const label = n.unreadCount > 0 ? `Notifications, ${n.unreadCount} unread` : "Notifications";
 
+  // No self-positioning here: this renders as a plain inline control inside the masthead's
+  // right cluster (`header.tsx`), alongside `MobileAccount`'s trigger. `relative` is kept —
+  // it's the popover's anchor and the badge's positioning context, not page positioning.
   return (
-    <div ref={rootRef} className="absolute right-4 top-1/2 -translate-y-1/2 md:top-auto md:translate-y-0">
-      <div className="relative">
-        <Link href="/notifications" aria-label={label} className="block p-2 text-paper md:hidden">
-          <BellGlyph />
-        </Link>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-label={label}
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          className="hidden p-2 text-paper hover:text-red-soft md:flex"
-        >
-          <BellGlyph />
-        </button>
-        {n.unreadCount > 0 && <Badge count={n.unreadCount} />}
-      </div>
+    <div ref={rootRef} className="relative">
+      <Link href="/notifications" aria-label={label} className="block p-2 text-paper md:hidden">
+        <BellGlyph />
+      </Link>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={label}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="hidden p-2 text-paper hover:text-red-soft md:flex"
+      >
+        <BellGlyph />
+      </button>
+      {n.unreadCount > 0 && <Badge count={n.unreadCount} />}
       {open && (
         <NotificationsPopover
           items={n.firstPage}

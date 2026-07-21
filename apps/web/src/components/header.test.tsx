@@ -5,7 +5,12 @@ import { Masthead } from "./header";
 
 const mockPathname = vi.fn(() => "/survivors");
 vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
-vi.mock("@/components/notifications/bell", () => ({ MastheadBell: () => null }));
+vi.mock("@/components/notifications/bell", () => ({
+  MastheadBell: () => <div data-testid="bell-stub" />,
+}));
+vi.mock("@/components/controls/mobile-account", () => ({
+  MobileAccount: () => <div data-testid="account-stub" />,
+}));
 
 describe("Masthead", () => {
   it("renders the wordmark home link and all five nav items", () => {
@@ -37,5 +42,18 @@ describe("Masthead", () => {
     const img = screen.getByAltText("One Life");
     expect(img).toHaveAttribute("width", "1641");
     expect(img).toHaveAttribute("height", "499");
+  });
+
+  it("the bell and the account trigger sit in one right cluster, not two competing absolute elements", () => {
+    render(<Masthead />);
+    const bell = screen.getByTestId("bell-stub");
+    const account = screen.getByTestId("account-stub");
+    const cluster = bell.parentElement;
+    // Both live inside the same wrapper — so only the wrapper, not each control, positions
+    // itself `absolute right-4` (the overlap this refactor exists to fix).
+    expect(account.parentElement).toBe(cluster);
+    expect(cluster?.className).toContain("right-4");
+    expect(bell.className).not.toContain("right-4");
+    expect(account.className).not.toContain("right-4");
   });
 });

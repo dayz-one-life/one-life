@@ -5,9 +5,8 @@ import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
 import { useControls, useControlsActions } from "./use-controls";
-import { pillStatus, serverCards, transferErrorLabel } from "./format";
+import { serverCards, transferErrorLabel } from "./format";
 import { AvatarDisc } from "./identity-row";
-import { ControlsPillView, SignInPill } from "./pill";
 import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { LinkTagPanel } from "./link-panel";
@@ -23,20 +22,38 @@ function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; 
   };
 }
 
-/** Mobile pill + bottom sheet (canvas 10b/10c). Renders nothing for signed-out visitors. */
-export function MobileControls() {
+/** Masthead account trigger — the mobile counterpart of the desktop rail's sign-in CTA, so a
+ *  signed-out reader can sign in without scrolling to the footer. Replaces the retired
+ *  `SignInPill`. */
+function SignInChip() {
+  return (
+    <Link
+      href="/login"
+      className="flex-none border border-red px-2.5 py-1.5 font-display text-[11px] font-bold uppercase tracking-[.06em] text-paper hover:bg-red xl:hidden"
+    >
+      Sign in
+    </Link>
+  );
+}
+
+/**
+ * The masthead account control (spec: pill re-homing, canvas 10b/10c). Colocates the trigger,
+ * the `ControlsSheet`, and their shared open-state — mirroring how `MastheadBell` owns its
+ * button + popover + state. Only the trigger and its location moved out of the retired floating
+ * `pill.tsx`/`mobile-controls.tsx`; the sheet and everything inside it are unchanged (ported
+ * verbatim below).
+ */
+export function MobileAccount() {
   const c = useControls();
   const a = useControlsActions();
   const [open, setOpen] = useState(false);
-  // Loading: render nothing (avoids pop-in until auth resolves). Signed-out: a floating sign-in
-  // box so mobile visitors don't have to scroll to the footer to log in.
+  // Loading: render nothing (avoids pop-in until auth resolves), same as the retired pill.
   if (c.status.kind === "loading") return null;
-  if (c.status.kind === "signedOut") return <SignInPill />;
+  if (c.status.kind === "signedOut") return <SignInChip />;
 
   const now = new Date();
-  // Standing unresolved (loading/errored) — don't fabricate "idle" cards/dots from an unknown
-  // state; the empty list here degrades to no dots on the pill and a loading row in the sheet
-  // (spec: live-data honesty §5).
+  // Standing unresolved (loading/errored) — don't fabricate "idle" cards from an unknown state
+  // (live-data honesty §5), same guard the retired pill applied.
   const cards = c.standingLoading ? [] : serverCards(c.servers, c.standing);
   const verified = c.status.kind === "verified";
   const pendingLink = c.status.kind === "pending" ? c.status.link : null;
@@ -44,7 +61,6 @@ export function MobileControls() {
     c.status.kind === "verified" || c.status.kind === "pending" ? c.status.link.gamertag : null;
   const name = gamertag ?? c.name ?? "You";
   const slug = verified && gamertag ? playerSlug(gamertag) : null;
-  const line = pillStatus(c.status, cards, now, c.standingLoading);
 
   const header = (
     <div className="flex items-center gap-3">
@@ -76,16 +92,17 @@ export function MobileControls() {
       <div className="xl:hidden">
         <VerificationAnnouncer kind={c.status.kind} />
       </div>
-      <ControlsPillView
-        name={name}
-        line={line}
-        dots={cards.map((x) => x.state)}
-        balance={c.balance}
-        balanceLoading={c.balanceLoading}
-        verified={verified}
-        open={open}
-        onOpen={() => setOpen(true)}
-      />
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls="controls-sheet"
+        aria-label="Player controls"
+        className="flex-none rounded-full p-0.5 xl:hidden hover:opacity-80"
+      >
+        <AvatarDisc name={name} size={30} />
+      </button>
       <ControlsSheet open={open} onClose={() => setOpen(false)} header={header}>
         {c.status.kind === "unlinked" && (
           <LinkTagPanel
