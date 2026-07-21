@@ -24,12 +24,13 @@ const base = { ownSlug: "bootscoldwater", balance: 3, now: NOW, onRedeem: () => 
 
 describe("ServerCard", () => {
   test("alive: blue chip and fact line", () => {
-    render(<ServerCard card={alive} {...base} />);
+    const { container } = render(<ServerCard card={alive} {...base} />);
     expect(screen.getByText("Alive")).toBeInTheDocument();
     // The alive fixture also carries a lifeNumber, so the fact line now shares its <p> with a
-    // Timeline link (rendered for any card with a known lifeNumber, not just banned ones) — match
-    // the fact-line substring rather than the whole (now longer) element text.
-    expect(screen.getByText(/Qualified · 6h 22m this life · 0 kills/)).toBeInTheDocument();
+    // Timeline link (rendered for any card with a known lifeNumber, not just banned ones) — assert
+    // the full exact text including the new suffix.
+    const factParagraph = container.querySelector("p");
+    expect(factParagraph?.textContent).toBe("Qualified · 6h 22m this life · 0 kills · Timeline →");
   });
 
   test("idle: dashed chip and the grace invitation", () => {
@@ -110,5 +111,16 @@ describe("ServerCard", () => {
   test("renders no timeline link when the viewer has no slug", () => {
     render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug={null} balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
     expect(screen.queryByRole("link", { name: /timeline/i })).toBeNull();
+  });
+
+  test("links to the life timeline with LIGHT-SURFACE tokens, not the dark-surface red", () => {
+    render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
+    const link = screen.getByRole("link", { name: /timeline/i });
+    expect(link).toHaveAttribute("href", "/players/dead-eye-jim/chernarus/lives/4");
+    // ⚠️ --red-deep is a light-surface-only token: on bg-dark it fails AA. RTL asserts the DOM,
+    // not contrast, so this token assertion is the only thing standing between us and an
+    // invisible-but-present control on dark surfaces. The rail is the light surface.
+    expect(link.className).toContain("red-deep");
+    expect(link.className).not.toContain("red-soft");
   });
 });
