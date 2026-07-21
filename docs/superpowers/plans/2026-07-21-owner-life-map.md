@@ -150,7 +150,7 @@ export function worldToPixel(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @onelife/web exec vitest run src/lib/dayz-projection.test.ts`
-Expected: PASS, 5 tests.
+Expected: PASS, 6 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -201,8 +201,10 @@ describe("thinTrack", () => {
 
   it("drops a sample within 15m of the last KEPT point", () => {
     // An idle player parked in a base — this is the bulk of real volume, not travel.
+    // Length 2, not 1: the interior fixes at 5m and 9m are dropped, but the FINAL point
+    // is always kept (see below), so it is force-appended. Both rules bind here.
     const out = thinTrack([p(0, 0, 0), p(5, 0, 10), p(9, 0, 20), p(14, 0, 30)]);
-    expect(out).toHaveLength(1);
+    expect(out.map((q) => q.x)).toEqual([0, 14]);
   });
 
   it("keeps a sample beyond 15m", () => {
@@ -421,7 +423,7 @@ export function markerAt(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @onelife/read-models exec vitest run test/life-track-shape.test.ts`
-Expected: PASS, 24 tests.
+Expected: PASS, 21 tests.
 
 - [ ] **Step 5: Commit**
 
