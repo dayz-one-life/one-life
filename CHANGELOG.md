@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Screen-reader structure (UX review sub-project 2): verification progress, token sends, and
+  the magic-link confirmation now announce via live regions; the gamertag autocomplete is a
+  proper ARIA combobox with announced result counts; notification/standing/past-life/timeline
+  collections carry list semantics; card and Rap Sheet titles are real headings; the Rap Sheet
+  and Priors definition lists read label-before-value; the Qualified stat has a text
+  equivalent; form errors are tied to their inputs; and the skip link lands focus on a
+  focusable `<main>`. No visual change.
+
 ### Security
 
 ## [0.29.2] - 2026-07-21
