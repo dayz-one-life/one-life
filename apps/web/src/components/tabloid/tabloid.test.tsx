@@ -8,7 +8,7 @@ describe("Kicker", () => {
   it("renders red by default", () => {
     render(<Kicker>About the paper</Kicker>);
     const el = screen.getByText("About the paper");
-    expect(el.className).toContain("text-red");
+    expect(el.className).toContain("text-red-deep");
     expect(el.className).toContain("uppercase");
   });
   it("supports semantic colors", () => {

@@ -24,7 +24,7 @@ export function ObituaryArticleView({
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-red pb-5">
-        <p className="font-mono text-[11px] uppercase tracking-[.06em] text-red">Obituary · {dateline(article.map, article.deathAt, now)}</p>
+        <p className="font-mono text-[11px] uppercase tracking-[.06em] text-red-deep">Obituary · {dateline(article.map, article.deathAt, now)}</p>
         <h1 className="mt-2 font-display text-5xl font-bold uppercase leading-[.92] text-ink md:text-6xl">{article.headline}</h1>
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
           Filed by The Desk · A life of <GamertagLink gamertag={article.gamertag} className="font-bold text-ink underline" /> · Life {article.lifeNumber} · {mapLabel(article.map)}

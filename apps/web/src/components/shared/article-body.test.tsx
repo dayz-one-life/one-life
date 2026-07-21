@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, test } from "vitest";
 import { ArticleBody } from "@/components/shared/article-body";
 import type { ArticleBlock } from "@/lib/types";
 
@@ -40,10 +40,18 @@ describe("ArticleBody — flat fallback (the 168-existing-rows guarantee)", () =
     const wrapper = container.firstElementChild!;
     expect(wrapper.className).toContain("space-y-4");
     expect(wrapper.className).toContain("font-mono");
-    expect(wrapper.className).toContain("text-[14px]");
+    expect(wrapper.className).toContain("text-base");
     expect(wrapper.className).toContain("leading-relaxed");
     expect(wrapper.className).toContain("text-ink-soft");
     expect(wrapper.className).toContain("mt-5");
+  });
+
+  test("prose is 16px reading text with a measure cap", () => {
+    render(<ArticleBody blocks={null} fallback={"One paragraph."} />);
+    const wrapper = screen.getByText("One paragraph.").closest("div")!;
+    expect(wrapper.className).toContain("text-base");
+    expect(wrapper.className).toContain("max-w-[68ch]");
+    expect(wrapper.className).not.toContain("text-[14px]");
   });
 });
 

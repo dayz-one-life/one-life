@@ -57,7 +57,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
             />
           </div>
           <div className="mt-3 border-t border-hairline-2 pt-2.5">
-            <p className="font-display text-xs font-bold uppercase tracking-[.12em] text-red">Kills this life</p>
+            <p className="font-display text-xs font-bold uppercase tracking-[.12em] text-red-deep">Kills this life</p>
             <KillList kills={standing.alive.killList} limit={10} />
           </div>
         </>
@@ -68,7 +68,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
           {banCountdown(standing.ban.expiresAt, now) && (
             <div className="flex items-center justify-between border border-hairline-2 bg-paper px-3 py-2">
               <span className="font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">Ban lifts in</span>
-              <span className="font-display text-lg font-bold text-ink">{banCountdown(standing.ban.expiresAt, now)}</span>
+              <span className="font-display text-lg font-bold tabular-nums text-ink">{banCountdown(standing.ban.expiresAt, now)}</span>
             </div>
           )}
           <SelfUnbanButton banId={standing.ban.banId} pageGamertag={pageGamertag} liftPending={standing.ban.liftPending} />

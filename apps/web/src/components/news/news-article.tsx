@@ -69,7 +69,7 @@ export function NewsArticleView({
           status='published', so the <img> would resolve to a 404 and render broken. The
           retraction banner is the honest replacement. */}
       {article.retracted ? (
-        <p className="mt-6 border-[3px] border-red px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-[.08em] text-red">
+        <p className="mt-6 border-[3px] border-red px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-[.08em] text-red-deep">
           Retracted — the subject acted, and this filing no longer describes the world.
         </p>
       ) : article.imageUrl ? (

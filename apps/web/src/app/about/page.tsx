@@ -94,7 +94,7 @@ export default async function AboutPage() {
           <div key={s.n} className="md:px-7 md:first:pl-0 md:last:pr-0">
             <div aria-hidden className="font-display text-6xl font-bold leading-none text-red">{s.n}</div>
             <h2 className="mt-3 font-display text-2xl font-bold uppercase">{s.title}</h2>
-            <p className="mt-2 font-sans text-[15px] leading-relaxed text-ink-soft">{s.body}</p>
+            <p className="mt-2 font-sans text-base leading-relaxed text-ink-soft">{s.body}</p>
           </div>
         ))}
       </section>
@@ -107,8 +107,8 @@ export default async function AboutPage() {
         <dl>
           {RULES.map((r) => (
             <div key={r.term} className="grid gap-2 border-b border-hairline py-4 md:grid-cols-[190px_1fr] md:gap-6">
-              <dt className="font-mono text-xs font-bold uppercase tracking-[.06em] text-red">{r.term}</dt>
-              <dd className="m-0 font-sans text-[15px] leading-relaxed text-ink-soft">{r.def}</dd>
+              <dt className="font-mono text-xs font-bold uppercase tracking-[.06em] text-red-deep">{r.term}</dt>
+              <dd className="m-0 font-sans text-base leading-relaxed text-ink-soft">{r.def}</dd>
             </div>
           ))}
         </dl>

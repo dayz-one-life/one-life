@@ -45,7 +45,7 @@ export function BirthNoticeArticleView({
         </p>
       )}
 
-      <p className={cn("mt-6 font-mono text-[11px] uppercase tracking-[.06em]", dead ? "text-red" : "text-blue")}>
+      <p className={cn("mt-6 font-mono text-[11px] uppercase tracking-[.06em]", dead ? "text-red-deep" : "text-blue")}>
         {dead ? "Didn't last the day — already in the morgue." : "Still drawing breath — for now."}
       </p>
 

@@ -125,7 +125,7 @@ export function PushToggle() {
   if (state === "error") {
     return (
       <div className="mt-1 flex flex-col items-start gap-0.5">
-        <p role="alert" className="font-mono text-[10px] uppercase tracking-[.05em] text-red">
+        <p role="alert" className="font-mono text-[11px] uppercase tracking-[.05em] text-red-deep">
           {error}
         </p>
         <button type="button" onClick={() => void reconcile()} className={cls}>

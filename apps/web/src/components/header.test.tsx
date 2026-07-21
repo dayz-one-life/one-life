@@ -31,4 +31,11 @@ describe("Masthead", () => {
     await userEvent.click(screen.getByRole("button", { name: "Close menu" }));
     expect(screen.queryByRole("button", { name: "Close menu" })).not.toBeInTheDocument();
   });
+
+  it("wordmark declares intrinsic dimensions so the masthead cannot shift", () => {
+    render(<Masthead />);
+    const img = screen.getByAltText("One Life");
+    expect(img).toHaveAttribute("width", "1641");
+    expect(img).toHaveAttribute("height", "499");
+  });
 });
