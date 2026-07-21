@@ -86,6 +86,63 @@ describe("getPlayerPage", () => {
   });
 });
 
+describe("getPlayerPage phantom dry-run bans", () => {
+  const svcD = Math.floor(Math.random() * 1e8) + 51e7;
+  let dryServer: number;
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcD, name: "pp-dry", map: "chernarusplus", slug: `dry-${svcD}`, active: true }).returning();
+    dryServer = s!.id;
+    const [pl] = await db.insert(players).values({ gamertag: "Phantom", firstSeenAt: hoursAgo(200), lastSeenAt: now }).returning();
+    // One ended life on this server so the card isn't skipped entirely (livesRows.length !== 0).
+    const [ended] = await db
+      .insert(lives)
+      .values({ serverId: dryServer, playerId: pl!.id, lifeNumber: 1, startedAt: hoursAgo(40), endedAt: hoursAgo(20), playtimeSeconds: 600, deathCause: "pvp" })
+      .returning();
+    // A dry-run ban never actually placed on Nitrado — must not render as "banned".
+    await db.insert(bans).values({ serverId: dryServer, gamertag: "Phantom", lifeStartedAt: ended!.startedAt, reason: "qualified_death", qualifiedBy: "pvp-death", bannedAt: hoursAgo(20), expiresAt: hoursAgo(-4), status: "pending", dryRun: true });
+  });
+  afterAll(async () => {
+    await db.delete(bans).where(eq(bans.serverId, dryServer));
+    await db.delete(lives).where(eq(lives.serverId, dryServer));
+    await db.delete(players).where(eq(players.gamertag, "Phantom"));
+    await db.delete(servers).where(eq(servers.id, dryServer));
+  });
+
+  it("does not render a dry-run ban as banned — falls through to idle (no open life)", async () => {
+    const pg = (await getPlayerPage(db, "Phantom", now))!;
+    const card = pg.standing.find((s) => s.serverId === dryServer)!;
+    expect(card).toBeDefined();
+    expect(card.state).not.toBe("banned");
+    expect(card.state).toBe("idle");
+    expect(card.ban).toBeNull();
+  });
+
+  it("positive control: a dry_run=false pending ban STILL renders as banned", async () => {
+    const svcR = Math.floor(Math.random() * 1e8) + 52e7;
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcR, name: "pp-real", map: "chernarusplus", slug: `real-${svcR}` }).returning();
+    const realServer = s!.id;
+    try {
+      const [pl] = await db.insert(players).values({ gamertag: "RealBan", firstSeenAt: hoursAgo(200), lastSeenAt: now }).returning();
+      const [ended] = await db
+        .insert(lives)
+        .values({ serverId: realServer, playerId: pl!.id, lifeNumber: 1, startedAt: hoursAgo(40), endedAt: hoursAgo(20), playtimeSeconds: 600, deathCause: "pvp" })
+        .returning();
+      await db.insert(bans).values({ serverId: realServer, gamertag: "RealBan", lifeStartedAt: ended!.startedAt, reason: "qualified_death", qualifiedBy: "pvp-death", bannedAt: hoursAgo(20), expiresAt: hoursAgo(-4), status: "pending", dryRun: false });
+
+      const pg = (await getPlayerPage(db, "RealBan", now))!;
+      const card = pg.standing.find((s2) => s2.serverId === realServer)!;
+      expect(card).toBeDefined();
+      expect(card.state).toBe("banned");
+      expect(card.ban).not.toBeNull();
+    } finally {
+      await db.delete(bans).where(eq(bans.serverId, realServer));
+      await db.delete(lives).where(eq(lives.serverId, realServer));
+      await db.delete(players).where(eq(players.gamertag, "RealBan"));
+      await db.delete(servers).where(eq(servers.id, realServer));
+    }
+  });
+});
+
 describe("getPlayerPage pagination", () => {
   const svcP = Math.floor(Math.random() * 1e8) + 49e7;
   let srv: number;
