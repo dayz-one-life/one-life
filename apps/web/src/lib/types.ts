@@ -214,6 +214,12 @@ export type BirthNoticeCard = {
   priorLives: number;
 };
 export type BirthNoticesFeed = { rows: BirthNoticeCard[]; total: number; page: number; pageSize: number };
+
+/** The §6 live status — recomputed at request time, mirroring NewsSubjectStatus. A birth-notice
+ *  subject is never presumed missing (no idle/returned branch), only whether the life it was filed
+ *  about is still open. */
+export type BirthNoticeSubjectStatus = { kind: "alive" } | { kind: "dead"; diedAt: string };
+
 export type BirthNoticeArticle = BirthNoticeCard & {
   body: string;
   bodyBlocks?: ArticleBlock[] | null;
@@ -226,7 +232,10 @@ export type BirthNoticeArticle = BirthNoticeCard & {
     lastDeathCause: string | null;
     bestLifeMap: string | null;
   };
+  /** FROZEN — the article's own death_at snapshot as written. Never recomputed; kept for API
+   *  stability. Use `subjectStatus` for the live read. */
   endedAt: string | null;
+  subjectStatus: BirthNoticeSubjectStatus;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,

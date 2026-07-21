@@ -16,6 +16,7 @@ const article: BirthNoticeArticle = {
   body: "The tide does not care who it drops on the sand.",
   pullQuote: { text: "It always begins with a flare.", attribution: "a bystander" }, endedAt: null,
   priors: { livesLived: 2, longestLifeSeconds: 7200, totalKills: 9, usualDeathCause: "pvp", lastDeathCause: "starvation", bestLifeMap: "sakhal" },
+  subjectStatus: { kind: "alive" },
 };
 
 describe("BirthNoticeArticleView", () => {
@@ -34,7 +35,12 @@ describe("BirthNoticeArticleView", () => {
     expect(screen.getByText(/Still drawing breath/)).toBeInTheDocument();
   });
   test("status line flips to a past-tense note once the life has died", () => {
-    render(<BirthNoticeArticleView article={{ ...article, endedAt: "2026-07-17T11:00:00Z" }} more={[]} now={now} />);
+    render(<BirthNoticeArticleView article={{ ...article, subjectStatus: { kind: "dead", diedAt: "2026-07-17T11:00:00Z" } }} more={[]} now={now} />);
+    expect(screen.getByText(/Didn't last the day/)).toBeInTheDocument();
+  });
+
+  test("status line is live — reads dead even when the frozen endedAt still says alive (the bug this recompute fixes)", () => {
+    render(<BirthNoticeArticleView article={{ ...article, endedAt: null, subjectStatus: { kind: "dead", diedAt: "2026-07-17T11:00:00Z" } }} more={[]} now={now} />);
     expect(screen.getByText(/Didn't last the day/)).toBeInTheDocument();
   });
 

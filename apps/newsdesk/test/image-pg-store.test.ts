@@ -219,6 +219,39 @@ describe("saveArticleImage / recordImageFailure", () => {
     expect(imageFileName("a-slug", "application/octet-stream")).toBe("a-slug.png");
   });
 
+  // v0.27.2's cache-bust rule (CLAUDE.md): the read-model versions imageUrl as
+  // `?v=<article_images.created_at epoch>`, so a regenerated hero under the SAME filename must
+  // bump created_at, or the CDN/browser's year-long immutable cache header pins the stale bytes
+  // forever. This is Task 5's Fix C — the regenerate path previously left created_at untouched.
+  it("regenerating the SAME article's image bumps article_images.created_at, so ?v= changes", async () => {
+    const target = await seedArticle({ imageAttempts: 0 });
+    const first = fakePng(640, 480);
+    const firstAt = hrs(310);
+
+    await saveArticleImage(db, {
+      articleId: target.id, slug: target.slug!,
+      prompt: "SCENE LINE\n\nSTYLE: full body shot, cinematic, deadpan tabloid photography.",
+      caption: "FIRST CAPTION", model: "test-image-model",
+      image: { bytes: first, contentType: "image/png" }, now: firstAt,
+    });
+    const [afterFirst] = await db.select().from(articleImages).where(eq(articleImages.articleId, target.id));
+    expect(afterFirst!.createdAt.getTime()).toBe(firstAt.getTime());
+
+    const second = fakePng(800, 600);
+    const secondAt = hrs(311);
+    await saveArticleImage(db, {
+      articleId: target.id, slug: target.slug!,
+      prompt: "SCENE LINE TWO\n\nSTYLE: full body shot, cinematic, deadpan tabloid photography.",
+      caption: "REGENERATED CAPTION", model: "test-image-model",
+      image: { bytes: second, contentType: "image/png" }, now: secondAt,
+    });
+
+    const [afterSecond] = await db.select().from(articleImages).where(eq(articleImages.articleId, target.id));
+    expect(afterSecond!.bytes.equals(second)).toBe(true);
+    expect(afterSecond!.createdAt.getTime()).toBe(secondAt.getTime());
+    expect(afterSecond!.createdAt.getTime()).not.toBe(afterFirst!.createdAt.getTime());
+  });
+
   it("allow-lists the stored content type — an untrusted/unexpected type is stored as image/png and the URL extension matches", async () => {
     const target = await seedArticle({ imageAttempts: 0 });
     const png = fakePng(640, 480);

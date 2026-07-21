@@ -18,7 +18,9 @@ export function BirthNoticeArticleView({
   more: BirthNoticeCard[];
   now: Date;
 }): ReactNode {
-  const dead = article.endedAt != null;
+  // The §6 live status: recomputed at request time (packages/read-models/getBirthNoticeSubjectStatus),
+  // never the frozen `article.endedAt` a subject who has since died would still read alive under.
+  const dead = article.subjectStatus.kind === "dead";
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-blue pb-5">
