@@ -75,8 +75,8 @@ describe("MobileAccount", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  test("no ControlsPillView/SignInPill markup renders in signed-out or signed-in state", () => {
-    for (const status of [verified, { ...base, status: { kind: "signedOut" } }]) {
+  test("no ControlsPillView/SignInPill markup renders in any signed-in state", () => {
+    for (const status of [verified, pending, { ...base, status: { kind: "unlinked" } }, { ...base, status: { kind: "signedOut" } }]) {
       (useControls as Mock).mockReturnValue(status);
       const { unmount } = render(<MobileAccount />);
       // The old pill rendered a visible "Player controls" text label inside the button; the new
@@ -85,6 +85,31 @@ describe("MobileAccount", () => {
       expect(document.querySelector(".fixed.inset-x-3\\.5")).toBeNull();
       unmount();
     }
+  });
+
+  // Regression pin (final-review Critical fix): the masthead's right-cluster wrapper
+  // (`header.tsx`) carries `-translate-y-1/2` / `md:translate-y-0`, both non-`none` transforms
+  // that make the wrapper a containing block for `position: fixed` descendants — an un-portaled
+  // `ControlsSheet` collapses its `fixed inset-0` sheet + backdrop into that ~76x40px cluster box
+  // instead of the viewport. Render MobileAccount inside a `<header>` standing in for that
+  // cluster and assert the open dialog is portaled straight to document.body, not nested under
+  // it — this is testable in jsdom (which computes no transforms) because it pins DOM structure,
+  // not layout.
+  test("portals the sheet to document.body, not nested under a masthead/header ancestor", async () => {
+    const user = userEvent.setup();
+    (useControls as Mock).mockReturnValue(verified);
+    const { container } = render(
+      <header>
+        <MobileAccount />
+      </header>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Player controls" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.closest("header")).toBeNull();
+    expect(container.contains(dialog)).toBe(false);
+    expect(dialog.parentElement?.parentElement).toBe(document.body);
   });
 
   test("mounts the VerificationAnnouncer live region, wrapped xl:hidden, unconditionally for a signed-in user", () => {

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
@@ -47,6 +48,16 @@ export function MobileAccount() {
   const c = useControls();
   const a = useControlsActions();
   const [open, setOpen] = useState(false);
+  // Portal guard: the sheet (+ its announcer) is rendered via `createPortal(..., document.body)`
+  // below, so its `fixed inset-0` resolves against the viewport rather than the masthead's
+  // transformed right-cluster wrapper — `-translate-y-1/2` (and `md:translate-y-0`, still a
+  // non-`none` transform) on that wrapper in `header.tsx` makes it a containing block for
+  // `position: fixed` descendants, which otherwise collapses the whole sheet + backdrop into the
+  // ~76x40px cluster box. `document` doesn't exist during SSR, so the portal call itself is
+  // gated on a client-only mount flag; `ControlsSheet` already returns `null` while `!open`, so
+  // this guard is purely about the SSR crash, not extra pop-in.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // Loading: render nothing (avoids pop-in until auth resolves), same as the retired pill.
   if (c.status.kind === "loading") return null;
   if (c.status.kind === "signedOut") return <SignInChip />;
@@ -82,16 +93,6 @@ export function MobileAccount() {
 
   return (
     <>
-      {/* Mounted unconditionally (not inside ControlsSheet, which unmounts entirely while
-       *  closed) so it survives both the pending -> verified swap and the sheet's own
-       *  open/close cycle. Wrapped `xl:hidden`: sr-only is clip-based, not display:none, so
-       *  the <p> stays in the a11y tree at every breakpoint unless we gate it ourselves. The
-       *  rail already carries this announcer at `xl` (`hidden xl:block`), so leaving this copy
-       *  unguarded would put two live announcers in the tree at `xl` and double-announce
-       *  "Verification complete" to desktop screen readers. */}
-      <div className="xl:hidden">
-        <VerificationAnnouncer kind={c.status.kind} />
-      </div>
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -103,76 +104,95 @@ export function MobileAccount() {
       >
         <AvatarDisc name={name} size={30} />
       </button>
-      <ControlsSheet open={open} onClose={() => setOpen(false)} header={header}>
-        {c.status.kind === "unlinked" && (
-          <LinkTagPanel
-            pending={a.claim.isPending}
-            error={a.claim.isError ? claimErrorMessage(a.claim.error) : null}
-            onClaim={(gt) => a.claim.mutate({ gamertag: gt })}
-          />
-        )}
-        {pendingLink && (
-          <ProveItPanel
-            gamertag={pendingLink.gamertag}
-            challenge={pendingLink.challenge}
-            now={now.getTime()}
-            onCancel={() => a.cancel.mutate(pendingLink.id)}
-            onReclaim={() => a.claim.mutate({ gamertag: pendingLink.gamertag })}
-            canceling={a.cancel.isPending}
-            reclaiming={a.claim.isPending}
-          />
-        )}
-        {verified && (
+      {/* The sheet (+ its announcer) is portaled to document.body — see the `mounted` comment
+       *  above — so only the trigger button stays inline as a `gap-1` flex child of the
+       *  masthead's right-cluster wrapper. */}
+      {mounted &&
+        createPortal(
           <>
-            <TokensPanel
-              boxed
-              showReferrer={false}
-              balance={c.balance ?? 0}
-              balanceLoading={c.balanceLoading}
-              send={mutView(a.send)}
-              referrer={mutView(a.refer)}
-              onSend={(gt) => a.send.mutate(gt)}
-              onSetReferrer={() => {}}
-              myGamertag={gamertag ?? undefined}
-            />
-            {c.standingLoading ? (
-              <div aria-busy="true" className="flex flex-col gap-2">
-                <div aria-hidden className="h-16 motion-safe:animate-pulse bg-dark-well" />
-                <div aria-hidden className="h-16 motion-safe:animate-pulse bg-dark-well" />
-              </div>
-            ) : (
-              cards.map((card) => (
-                <SheetServerRow
-                  key={card.slug}
-                  card={card}
-                  ownSlug={slug}
-                  balance={c.balance ?? 0}
-                  balanceLoading={c.balanceLoading}
-                  now={now}
-                  onRedeem={(banId) => a.redeem.mutate(banId)}
-                  redeeming={a.redeem.isPending}
+            {/* Mounted unconditionally (not inside ControlsSheet, which unmounts entirely while
+             *  closed) so it survives both the pending -> verified swap and the sheet's own
+             *  open/close cycle. Wrapped `xl:hidden`: sr-only is clip-based, not display:none, so
+             *  the <p> stays in the a11y tree at every breakpoint unless we gate it ourselves. The
+             *  rail already carries this announcer at `xl` (`hidden xl:block`), so leaving this copy
+             *  unguarded would put two live announcers in the tree at `xl` and double-announce
+             *  "Verification complete" to desktop screen readers. */}
+            <div className="xl:hidden">
+              <VerificationAnnouncer kind={c.status.kind} />
+            </div>
+            <ControlsSheet open={open} onClose={() => setOpen(false)} header={header}>
+              {c.status.kind === "unlinked" && (
+                <LinkTagPanel
+                  pending={a.claim.isPending}
+                  error={a.claim.isError ? claimErrorMessage(a.claim.error) : null}
+                  onClaim={(gt) => a.claim.mutate({ gamertag: gt })}
                 />
-              ))
-            )}
-          </>
+              )}
+              {pendingLink && (
+                <ProveItPanel
+                  gamertag={pendingLink.gamertag}
+                  challenge={pendingLink.challenge}
+                  now={now.getTime()}
+                  onCancel={() => a.cancel.mutate(pendingLink.id)}
+                  onReclaim={() => a.claim.mutate({ gamertag: pendingLink.gamertag })}
+                  canceling={a.cancel.isPending}
+                  reclaiming={a.claim.isPending}
+                />
+              )}
+              {verified && (
+                <>
+                  <TokensPanel
+                    boxed
+                    showReferrer={false}
+                    balance={c.balance ?? 0}
+                    balanceLoading={c.balanceLoading}
+                    send={mutView(a.send)}
+                    referrer={mutView(a.refer)}
+                    onSend={(gt) => a.send.mutate(gt)}
+                    onSetReferrer={() => {}}
+                    myGamertag={gamertag ?? undefined}
+                  />
+                  {c.standingLoading ? (
+                    <div aria-busy="true" className="flex flex-col gap-2">
+                      <div aria-hidden className="h-16 motion-safe:animate-pulse bg-dark-well" />
+                      <div aria-hidden className="h-16 motion-safe:animate-pulse bg-dark-well" />
+                    </div>
+                  ) : (
+                    cards.map((card) => (
+                      <SheetServerRow
+                        key={card.slug}
+                        card={card}
+                        ownSlug={slug}
+                        balance={c.balance ?? 0}
+                        balanceLoading={c.balanceLoading}
+                        now={now}
+                        onRedeem={(banId) => a.redeem.mutate(banId)}
+                        redeeming={a.redeem.isPending}
+                      />
+                    ))
+                  )}
+                </>
+              )}
+              <div className="flex justify-between font-mono text-[11px] uppercase tracking-[.06em]">
+                {slug ? (
+                  <Link href={`/players/${slug}`} className="inline-flex min-h-[44px] items-center text-cream-dim hover:text-paper">
+                    Your profile →
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="button"
+                  onClick={() => void signOutAndTeardownPush()}
+                  className="inline-flex min-h-[44px] items-center text-cream-muted hover:text-paper"
+                >
+                  Sign out
+                </button>
+              </div>
+            </ControlsSheet>
+          </>,
+          document.body,
         )}
-        <div className="flex justify-between font-mono text-[11px] uppercase tracking-[.06em]">
-          {slug ? (
-            <Link href={`/players/${slug}`} className="inline-flex min-h-[44px] items-center text-cream-dim hover:text-paper">
-              Your profile →
-            </Link>
-          ) : (
-            <span />
-          )}
-          <button
-            type="button"
-            onClick={() => void signOutAndTeardownPush()}
-            className="inline-flex min-h-[44px] items-center text-cream-muted hover:text-paper"
-          >
-            Sign out
-          </button>
-        </div>
-      </ControlsSheet>
     </>
   );
 }
