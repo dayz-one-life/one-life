@@ -22,10 +22,10 @@ describe("LinkTagPanel", () => {
   test("suggests tags and picking one fills the input", async () => {
     render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
-    const suggestion = await screen.findByRole("button", { name: "BOOTSCOLDWATER" });
+    const suggestion = await screen.findByRole("option", { name: "BOOTSCOLDWATER" });
     fireEvent.click(suggestion);
     expect((screen.getByLabelText("Gamertag") as HTMLInputElement).value).toBe("BOOTSCOLDWATER");
-    await waitFor(() => expect(screen.queryByRole("button", { name: "BOOTSNCATS99" })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("option", { name: "BOOTSNCATS99" })).not.toBeInTheDocument());
   });
 
   test("submits the claim and shows an error", () => {
@@ -58,10 +58,10 @@ describe("LinkTagPanel", () => {
   test("picking a suggestion does not reopen the dropdown after the debounce window", async () => {
     render(<LinkTagPanel onClaim={() => {}} pending={false} error={null} />);
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
-    const suggestion = await screen.findByRole("button", { name: "BOOTSCOLDWATER" });
+    const suggestion = await screen.findByRole("option", { name: "BOOTSCOLDWATER" });
     fireEvent.click(suggestion);
     await new Promise((r) => setTimeout(r, 250));
-    expect(screen.queryByRole("button", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
   });
 
   test("a stale slow response cannot overwrite newer results", async () => {
@@ -73,11 +73,11 @@ describe("LinkTagPanel", () => {
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "Boots" } });
     await new Promise((r) => setTimeout(r, 250)); // first (hanging) request issued
     fireEvent.change(screen.getByLabelText("Gamertag"), { target: { value: "BootsN" } });
-    await screen.findByRole("button", { name: "BOOTSNCATS99" }); // second resolves
+    await screen.findByRole("option", { name: "BOOTSNCATS99" }); // second resolves
     resolveFirst(["BOOTSCOLDWATER"]); // stale response lands late
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole("button", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "BOOTSNCATS99" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "BOOTSNCATS99" })).toBeInTheDocument();
   });
 });
 

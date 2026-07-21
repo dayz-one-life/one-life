@@ -58,8 +58,8 @@ describe("TokensPanel", () => {
       <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("Send a token to a verified player"), { target: { value: "Ga" } });
-    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
   test("referrer suggests verified players and excludes the current player", async () => {
@@ -68,8 +68,8 @@ describe("TokensPanel", () => {
       <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
     );
     fireEvent.change(screen.getByLabelText("Referred by"), { target: { value: "Ga" } });
-    expect(await screen.findByRole("button", { name: "OtherGuy" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "MeGamer" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
   test("send errors announce via role=alert", () => {
