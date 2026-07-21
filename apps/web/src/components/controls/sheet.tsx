@@ -68,6 +68,8 @@ export function ControlsSheet({
   if (!mounted) return null;
   const out = phase === "enter" || phase === "closing";
   return (
+    // `z-50` must stay ABOVE the masthead's z-40 (LAYER LEGEND in `components/header.tsx`) —
+    // this sheet covers the whole screen, including the trigger that opened it.
     <div className="fixed inset-0 z-50 xl:hidden">
       <div
         aria-hidden
