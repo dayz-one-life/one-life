@@ -456,11 +456,13 @@ git commit -m "feat: link idle server cards to the player's most recent life"
 - Test: the matching `.test.tsx` for each
 
 **Interfaces:**
-- Consumes: `lifeHref` (gamertag form, Task 1 — these components hold the raw gamertag), and the article fields `gamertag`, `map`, `lifeNumber`
+- Consumes: `lifeHref` (gamertag form, Task 1 — these components hold the raw gamertag), and the article fields `gamertag`, **`mapSlug`**, `lifeNumber`
 
 - [ ] **Step 1: Write the failing tests**
 
-For each of the two article components, add a test asserting that the byline's `Life {n}` text is a link to `lifeHref(article.gamertag, article.map, article.lifeNumber)`, and a second test asserting that when `map` is null **no link renders and the page does not throw** — `mapSlug` is nullable and the news interior already degrades this way.
+For each of the two article components, add a test asserting that the byline's `Life {n}` text is a link to `lifeHref(article.gamertag, article.mapSlug, article.lifeNumber)`, and a second test asserting that when `mapSlug` is null **no link renders and the page does not throw**.
+
+**⚠️ Use `mapSlug`, NOT `map`.** They are different fields on the article DTO: `map` is the DayZ mission codename (`chernarusplus`, `enoch`) and is non-nullable; `mapSlug` is the `servers.slug` value and IS nullable. The life route resolves its map segment with `resolveServerBySlug` (see the comment at `apps/api/src/routes/player-aggregate.ts:8`), which 404s on an unknown slug — so building the href from `map` yields a broken link on every article, not merely a null-guard problem.
 
 ```tsx
 test("links the life number to that life's timeline", () => {
