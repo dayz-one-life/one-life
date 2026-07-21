@@ -45,3 +45,30 @@ describe("EditorialArticleView", () => {
     expect(screen.getByText(/draft/i)).toBeInTheDocument();
   });
 });
+
+// An editorial piece renders no GamertagLink anywhere else in the interior (no dossier, no
+// timelines, and the byline test above already pins that a null-gamertag byline renders no
+// /players/ link) — so, unlike the news/obituary interiors, there is no pre-existing link to
+// scope around here. An unscoped query already proves the lede and the body were linkified.
+describe("editorial prose linkification", () => {
+  it("links every gamertag the desk listed in subjects, though the article has no subject column", () => {
+    render(
+      <EditorialArticleView
+        article={almanac({
+          gamertag: null,
+          subjects: [
+            { gamertag: "Hartman", mapSlug: null, lifeNumber: 1 },
+            { gamertag: "Pyle", mapSlug: null, lifeNumber: 1 },
+          ],
+          lede: "Hartman leads the ledger.",
+          body: "Pyle is second.",
+          bodyBlocks: null,
+        })}
+        more={[]}
+        now={NOW}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Hartman" })).toHaveAttribute("href", "/players/hartman");
+    expect(screen.getByRole("link", { name: "Pyle" })).toHaveAttribute("href", "/players/pyle");
+  });
+});

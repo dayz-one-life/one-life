@@ -659,6 +659,48 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   that knows only its own param silently resets the other section.
   A failed fetch renders an explicit `role="status"` line, never an empty section: "no articles" and
   "couldn't load" are different statements (the live-data-honesty invariant).
+- **Cross-linking, PR-3 — gamertags in prose** ✅: a gamertag named in an article's prose links to
+  that player's dossier, via the pure `linkifyGamertags(text, roster)`
+  (`apps/web/src/lib/linkify-gamertags.tsx`) applied inside `ArticleBody` to the `para`/`quote`/
+  `list` blocks **and the flat `body.split()` fallback** — the path the whole pre-0014 corpus still
+  renders through — plus the lede on the obituary, news, and editorial interiors (the birth-notice
+  interior renders **no lede**). Spec
+  `docs/superpowers/specs/2026-07-21-prose-linkification-design.md`. Retroactive across the whole
+  back catalogue: nothing is stored, so there is no migration and no backfill.
+  **⚠️ The roster is per-article, NEVER global.** The `articleRoster` builders
+  (`@/lib/article-roster`) read only fields already on the DTO — obituary: subject + killer; birth
+  notice: subject; news/editorial: `gamertag` + `facts.subjects[]`. Matching frozen prose against
+  every gamertag on the server puts a link on any ordinary word that happens to be a callsign;
+  that failure was designed out, not overlooked. (There is no `article_subjects` table — PR-2 killed
+  it.) **A roster entry shorter than `MIN_LINKIFY_LENGTH` (4) is dropped** — Xbox allows 3-character
+  callsigns, so a player named `Fox`/`Ash`/`Doc`/`Ace` would otherwise link every ordinary
+  occurrence of that word in their own obituary; they stay reachable from the byline, In The Paper
+  and the boards. 4+ character words (`Hunter`, `Bear`) are deliberately still linked (spec §9).
+  **⚠️ No regex lookbehind.** Token boundaries are checked by inspecting the characters either side
+  of the match. Safari below 16.4 throws a syntax error when a lookbehind regex is *constructed*,
+  which crashes every article page rather than degrading. Alternatives are sorted **longest-first**
+  because JS alternation is leftmost-first, not leftmost-longest — without it a short callsign
+  shadows a longer one containing it.
+  **The prose is never rewritten:** the *matched* text renders, so `hartman` in the copy stays
+  `hartman`, linked to `/players/xsgt-hartman`. Matching is case-insensitive only, so the matched
+  text and the roster entry always share a slug — which is why `GamertagLink` needs no `children`.
+  **An omitted/empty roster renders byte-identical DOM**, the regression guard for the 168 legacy
+  articles (pinned by a test, and verified at review time against the pre-change component — the
+  in-suite version of that test compares two renders of the *new* component and so cannot catch a
+  change made to both paths).
+  Headlines, subheads, kickers, captions, OG cards and feed cards are deliberately **not**
+  linkified. In-prose links carry `red-deep` + a dotted underline — hover-only colour fails
+  WCAG 1.4.1, and `red-deep` is a light-surface token only.
+  **⚠️ `facts.subjects` is now public link surface**, so `newsroom` **draft** rejects a roster naming
+  an unknown player (`assertKnownSubjects`, `newsroom/store.ts`) rather than shipping a link to a
+  404. It sits in `draftArticle` because that insert is the **only** writer of `facts.subjects` —
+  `publishArticle` flips `status`/`createdAt`, `unpublish`/`spike` touch `status` — so a bad roster
+  can never become a draft row and therefore can never be published. A future admin script that
+  inserts an editorial `articles` row directly would bypass this, as it bypasses the rest of the
+  CLI contract.
+  **⚠️ `PullQuote.text` is a `ReactNode`, and its “curly quotes” + em dash are pinned by a test** —
+  a tool that rewrites them to ASCII changes every pull quote on the site, and the other 615 tests
+  all pass while it does.
 - **Cross-linking, PR-1** ✅: links between players, lives, and articles that need no schema change.
   Controls-rail + mobile-sheet server cards link to the life they describe; an obituary/birth-notice
   byline links to that life's timeline; a life timeline links back to its published obituary.

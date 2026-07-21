@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { articles } from "@onelife/db";
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { articles, players } from "@onelife/db";
+import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { EDITORIAL_PREFIXES } from "@onelife/read-models";
 import { editorialSlug, flattenBlocks, type EditorialPayload } from "./contract.js";
 
@@ -11,6 +11,30 @@ import { editorialSlug, flattenBlocks, type EditorialPayload } from "./contract.
  *  same subject at a paid model call per tick. */
 const editorialOnly = or(...EDITORIAL_PREFIXES.map((p) => like(articles.naturalKey, `${p}%`)));
 
+/**
+ * A subject roster is public link surface: `facts.subjects` drives prose linkification on the
+ * article page, so an unknown gamertag ships a link to a 404. Fail the publish instead.
+ * Compared case-insensitively — the desk writes prose casing, not stored casing.
+ */
+export async function assertKnownSubjects(
+  db: Database,
+  subjects: { gamertag: string }[],
+): Promise<void> {
+  for (const s of subjects) {
+    const hit = await db
+      .select({ gamertag: players.gamertag })
+      .from(players)
+      .where(sql`lower(${players.gamertag}) = lower(${s.gamertag})`)
+      .limit(1);
+    if (hit.length === 0) {
+      throw new Error(
+        `subjects names "${s.gamertag}", which is not a known player. ` +
+        `Fix the callsign — a subject roster becomes links on the published page.`,
+      );
+    }
+  }
+}
+
 export async function draftArticle(db: Database, p: EditorialPayload): Promise<string> {
   const slug = p.slug ?? editorialSlug(p.format, p.headline, p.naturalKey);
 
@@ -18,6 +42,7 @@ export async function draftArticle(db: Database, p: EditorialPayload): Promise<s
   if (clash[0]) throw new Error(`slug "${slug}" already exists — pass an explicit slug to override`);
   const dupe = await db.select({ slug: articles.slug }).from(articles).where(eq(articles.naturalKey, p.naturalKey)).limit(1);
   if (dupe[0]) throw new Error(`story already covered: natural key "${p.naturalKey}" is article "${dupe[0].slug}"`);
+  await assertKnownSubjects(db, p.subjects);
 
   await db.insert(articles).values({
     kind: "news",

@@ -64,3 +64,43 @@ describe("ObituaryArticleView", () => {
     expect(screen.getByText(/life 4/i)).toBeInTheDocument();
   });
 });
+
+describe("obituary prose linkification", () => {
+  test("links the subject in the lede and the killer in the body", () => {
+    render(
+      <ObituaryArticleView
+        article={{
+          ...article,
+          gamertag: "Hartman",
+          killerGamertag: "Pyle",
+          lede: "Hartman is dead.",
+          body: "Pyle was waiting on the ridge.",
+          bodyBlocks: null,
+        }}
+        more={[]}
+        finalReload={null}
+        now={new Date("2026-07-12T00:00:00Z")}
+      />,
+    );
+    // "Hartman" is also linked in the byline (article.gamertag), so more than one match is expected —
+    // assert every link named "Hartman" (byline + lede) points at the same dossier.
+    const hartmanLinks = screen.getAllByRole("link", { name: "Hartman" });
+    expect(hartmanLinks.length).toBeGreaterThanOrEqual(2);
+    for (const link of hartmanLinks) {
+      expect(link).toHaveAttribute("href", "/players/hartman");
+    }
+    expect(screen.getByRole("link", { name: "Pyle" })).toHaveAttribute("href", "/players/pyle");
+  });
+
+  test("does not link the headline", () => {
+    const { container } = render(
+      <ObituaryArticleView
+        article={{ ...article, gamertag: "Hartman", killerGamertag: null, headline: "Hartman Falls", lede: "", body: "", bodyBlocks: null }}
+        more={[]}
+        finalReload={null}
+        now={new Date("2026-07-12T00:00:00Z")}
+      />,
+    );
+    expect(container.querySelector("h1 a")).toBeNull();
+  });
+});

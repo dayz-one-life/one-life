@@ -11,6 +11,8 @@ import type { LifeTimelineView } from "@/lib/life-timeline";
 import { dateline } from "@/lib/obituary-format";
 import { mapLabel } from "@/components/player/format";
 import { lifeHref } from "@/lib/life-href";
+import { obituaryRoster } from "@/lib/article-roster";
+import { linkifyGamertags } from "@/lib/linkify-gamertags";
 
 export function ObituaryArticleView({
   article,
@@ -23,6 +25,7 @@ export function ObituaryArticleView({
   finalReload: LifeTimelineView | null;
   now: Date;
 }): ReactNode {
+  const roster = obituaryRoster(article);
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-red pb-5">
@@ -41,7 +44,7 @@ export function ObituaryArticleView({
         </p>
       </div>
 
-      <p className="mt-6 font-mono text-[15px] font-bold leading-relaxed text-ink">{article.lede}</p>
+      <p className="mt-6 font-mono text-[15px] font-bold leading-relaxed text-ink">{linkifyGamertags(article.lede, roster)}</p>
 
       <div className="mt-5">
         <RapSheet article={article} />
@@ -49,7 +52,7 @@ export function ObituaryArticleView({
 
       {article.pullQuote && <PullQuote text={article.pullQuote.text} attribution={article.pullQuote.attribution} />}
 
-      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-5" />
+      <ArticleBody blocks={article.bodyBlocks} fallback={article.body} className="mt-5" roster={roster} />
 
       {article.tags.length > 0 && (
         <p className="mt-6 flex flex-wrap gap-2">
