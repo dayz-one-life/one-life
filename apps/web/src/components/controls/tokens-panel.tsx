@@ -8,6 +8,7 @@ export type MutationView = { pending: boolean; error: string | null; ok: boolean
 
 export function TokensPanel({
   balance,
+  balanceLoading = false,
   send,
   referrer,
   onSend,
@@ -17,6 +18,9 @@ export function TokensPanel({
   myGamertag,
 }: {
   balance: number;
+  /** True while the balance behind `balance` is unresolved (loading/errored) — the readout
+   *  must not assert a fabricated numeral (e.g. "0") in that state (live-data honesty §5). */
+  balanceLoading?: boolean;
   send: MutationView;
   referrer: MutationView;
   onSend: (gamertag: string) => void;
@@ -55,7 +59,16 @@ export function TokensPanel({
     <section className={boxed ? "border border-dark-line p-4" : "bg-dark p-5"}>
       <div className="flex items-center justify-between">
         <h2 className="font-display text-[15px] font-bold uppercase tracking-[.1em] text-paper">Unban tokens</h2>
-        <span className="font-display text-[26px] font-bold leading-none text-paper">{balance}</span>
+        {balanceLoading ? (
+          // TokensPanel always sits on a dark-toned surface — either its own `bg-dark` island
+          // (rail) or the already-dark sheet it's `boxed` into — so `bg-dark-well` is correct
+          // on both mounts (the two-surface rule doesn't require a light variant here).
+          <span aria-busy="true" className="inline-block h-[22px] w-9 motion-safe:animate-pulse bg-dark-well">
+            <span className="sr-only">Checking your balance…</span>
+          </span>
+        ) : (
+          <span className="font-display text-[26px] font-bold leading-none text-paper">{balance}</span>
+        )}
       </div>
       <form onSubmit={submitSend} className="mt-3 flex gap-2 border-t border-dark-line pt-3">
         <GamertagAutocomplete

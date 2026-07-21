@@ -50,7 +50,7 @@ export async function getPlayerPage(
 
   const [p] = await db.select().from(players).where(eq(players.gamertag, gamertag));
   const activeServers = await db.select().from(servers).where(eq(servers.active, true));
-  const activeBans = await db.select().from(bans).where(and(eq(bans.gamertag, gamertag), inArray(bans.status, ACTIVE_BAN_STATUSES)));
+  const activeBans = await db.select().from(bans).where(and(eq(bans.gamertag, gamertag), inArray(bans.status, ACTIVE_BAN_STATUSES), eq(bans.dryRun, false)));
   const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified"))).limit(1);
 
   const standing: ServerStanding[] = [];

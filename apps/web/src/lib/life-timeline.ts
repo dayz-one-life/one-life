@@ -32,11 +32,24 @@ function endMs(s: Session, now: Date): number {
   return s.disconnectedAt ? Date.parse(s.disconnectedAt) : now.getTime();
 }
 
-function liveTimeAlive(sessions: Session[], now: Date): number {
+/**
+ * Live time-alive for an open life: closed sessions count their stored duration; the open
+ * session's elapsed time accrues to `lastSeenAt ?? connectedAt` — matching `livePlaytime`'s
+ * `upTo = lastSeenAt ?? connectedAt ?? now` idiom in `packages/read-models/src/survivors.ts`
+ * EXACTLY (no clamp to `now`), so this page agrees with the survivor board and the dossier
+ * standing card byte-for-byte: a crashed/ghosted player stops accruing at their last heartbeat
+ * instead of climbing to request-time `now`, and — under game-server-vs-app clock skew, where
+ * `lastSeenAt` can land a few seconds ahead of `now` — a still-online player accrues through that
+ * heartbeat rather than being clamped short of it. A missing heartbeat (`lastSeenAt` null) falls
+ * back to the session's own `connectedAt` — zero additional accrual — rather than growing
+ * unbounded.
+ */
+function liveTimeAlive(sessions: Session[], lastSeenAt: Date | null): number {
   return sessions.reduce((acc, s) => {
     const conn = connMs(s);
     if (s.disconnectedAt) return acc + (s.durationSeconds ?? Math.max(0, Math.floor((Date.parse(s.disconnectedAt) - conn) / 1000)));
-    return acc + Math.max(0, Math.floor((now.getTime() - conn) / 1000));
+    const upToMs = lastSeenAt ? lastSeenAt.getTime() : conn;
+    return acc + Math.max(0, Math.floor((upToMs - conn) / 1000));
   }, 0);
 }
 
@@ -74,7 +87,8 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
 
   const killObjs = data.kills.map((k: PlayerKill) => ({ ...k, at: new Date(k.occurredAt) }));
   const longest = longestOf(killObjs);
-  const timeAlive = alive ? liveTimeAlive(data.sessions, now) : data.life.playtimeSeconds;
+  const lastSeenAt = data.lastSeenAt ? new Date(data.lastSeenAt) : null;
+  const timeAlive = alive ? liveTimeAlive(data.sessions, lastSeenAt) : data.life.playtimeSeconds;
 
   const events: TimelineEvent[] = [];
 
@@ -118,7 +132,9 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
 
   // Terminal: now (alive) or death (dead)
   if (alive) {
-    events.push({ kind: "now", at: now, marker: "blue", timeLabel: "NOW", title: "Still drawing breath", line: `${formatDuration(timeAlive)} and counting` });
+    // No "and counting" — this line is a server-baked snapshot that never ticks, capped at
+    // lastSeenAt; claiming a live counter would be dishonest (spec: live-data-honesty §3).
+    events.push({ kind: "now", at: now, marker: "blue", timeLabel: "NOW", title: "Still drawing breath", line: formatDuration(timeAlive) });
   } else {
     events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: label(endedAt), cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life), verdict: data.verdict ?? null });
   }

@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, articles } from "@onelife/db";
+import { servers, articles, players, lives } from "@onelife/db";
 import { eq } from "drizzle-orm";
-import { getPublishedBirthNotices, getBirthNoticeBySlug } from "../src/birth-notice-articles.js";
+import {
+  getPublishedBirthNotices, getBirthNoticeBySlug, getBirthNoticeSubjectStatus,
+} from "../src/birth-notice-articles.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
@@ -103,6 +105,86 @@ describe("getBirthNoticeBySlug", () => {
   it("returns null bodyBlocks for a pre-R5d row", async () => {
     const a = await getBirthNoticeBySlug(db, `stale-${svc}`);
     expect(a!.bodyBlocks).toBeNull();
+  });
+});
+
+// Task 5 / spec §6: the frozen `death_at` column (surfaced as `endedAt`) is set once at write
+// time and never touched again. `subjectStatus` is the recomputed-at-request-time counterpart,
+// mirroring getNewsSubjectStatus in news-articles.test.ts: real `players`/`lives` rows, joined on
+// the exact (server, gamertag, lifeStartedAt) natural key the article carries.
+describe("getBirthNoticeSubjectStatus (the §6 live status, mirrors getNewsSubjectStatus)", () => {
+  const born = hrs(50);
+  const ALIVE = `bn-alive-${svc}`;
+  const DIED = `bn-died-${svc}`;
+
+  const seedLife = async (gamertag: string, endedAt: Date | null) => {
+    const [p] = await db.insert(players).values({ gamertag }).returning();
+    await db.insert(lives).values({
+      serverId, playerId: p!.id, lifeNumber: 1, startedAt: born, endedAt, playtimeSeconds: 600,
+    });
+  };
+
+  beforeAll(async () => {
+    await seedLife(ALIVE, null);
+    // Life closed AFTER the notice ran — this is exactly the bug: the article was filed while the
+    // subject was alive (frozen death_at null), and has since died.
+    await seedLife(DIED, hrs(55));
+
+    await db.insert(articles).values([
+      base({
+        status: "published", slug: `status-alive-${svc}`, gamertag: ALIVE, lifeNumber: 1,
+        // `new Date(born.toISOString())`, NOT `born` — mirrors news-articles.test.ts's precision
+        // note: lives.started_at is timestamptz (microsecond); round-tripping through
+        // toISOString() is how the value actually travels start-to-finish in production
+        // (apps/newsdesk), so reusing the same object would let a real precision mismatch hide.
+        lifeStartedAt: new Date(born.toISOString()), deathAt: null,
+        headline: "Alive Spawn", lede: "l", body: "b",
+        facts: { minutesToQualify: 5, priors: noPriors, isKnownQuantity: false },
+      }),
+      base({
+        status: "published", slug: `status-died-${svc}`, gamertag: DIED, lifeNumber: 1,
+        lifeStartedAt: new Date(born.toISOString()), deathAt: null, // frozen: still alive at write time
+        headline: "Since Died Spawn", lede: "l", body: "b",
+        facts: { minutesToQualify: 5, priors: noPriors, isKnownQuantity: false },
+      }),
+      base({
+        status: "published", slug: `status-missing-life-${svc}`, gamertag: `bn-missing-${svc}`, lifeNumber: 1,
+        // No matching `lives` row is ever seeded for this gamertag — simulates a rebuild gap.
+        // Frozen death_at IS set (subject had already died by the time the notice was written).
+        lifeStartedAt: new Date(born.toISOString()), deathAt: hrs(52),
+        headline: "No Life Row", lede: "l", body: "b",
+        facts: { minutesToQualify: null, priors: noPriors, isKnownQuantity: false },
+      }),
+    ]);
+  });
+
+  afterAll(async () => {
+    await db.delete(lives).where(eq(lives.serverId, serverId));
+    await db.delete(players).where(eq(players.gamertag, ALIVE));
+    await db.delete(players).where(eq(players.gamertag, DIED));
+  });
+
+  it("still alive → reads alive", async () => {
+    const a = await getBirthNoticeBySlug(db, `status-alive-${svc}`);
+    expect(a!.subjectStatus).toEqual({ kind: "alive" });
+  });
+
+  it("since died → reads dead with the real death instant, even though the frozen endedAt (death_at at write time) still says alive — THIS IS THE BUG THIS TASK FIXES", async () => {
+    const a = await getBirthNoticeBySlug(db, `status-died-${svc}`);
+    expect(a!.endedAt).toBeNull(); // the frozen field never updates — proves it's frozen
+    expect(a!.subjectStatus).toEqual({ kind: "dead", diedAt: hrs(55) });
+  });
+
+  it("no matching life row (e.g. a rebuild in flight) falls back to the frozen death_at snapshot rather than resurrecting the subject", async () => {
+    const a = await getBirthNoticeBySlug(db, `status-missing-life-${svc}`);
+    expect(a!.subjectStatus).toEqual({ kind: "dead", diedAt: hrs(52) });
+  });
+
+  it("getBirthNoticeSubjectStatus falls back to alive when there is no life row and no frozen death_at", async () => {
+    const status = await getBirthNoticeSubjectStatus(db, {
+      serverId, gamertag: `bn-nonexistent-${svc}`, lifeStartedAt: born, frozenDeathAt: null,
+    });
+    expect(status).toEqual({ kind: "alive" });
   });
 });
 

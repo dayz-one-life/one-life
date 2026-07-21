@@ -25,6 +25,17 @@ function RailSkeleton() {
   );
 }
 
+/** Standing is still loading/errored — the truth is unknown, so show a placeholder rather
+ *  than fabricating "idle" for every server (spec: live-data honesty §5). */
+function ServerCardsSkeleton() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-2.5">
+      <div aria-hidden className="h-20 motion-safe:animate-pulse bg-bone" />
+      <div aria-hidden className="h-20 motion-safe:animate-pulse bg-bone" />
+    </div>
+  );
+}
+
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
   return {
     pending: m.isPending,
@@ -103,6 +114,7 @@ export function ControlsRail() {
         <IdentityRow name={gamertag} provider={c.provider} verified />
         <TokensPanel
           balance={c.balance ?? 0}
+          balanceLoading={c.balanceLoading}
           send={mutView(a.send)}
           referrer={mutView(a.refer)}
           onSend={(gt) => a.send.mutate(gt)}
@@ -112,17 +124,22 @@ export function ControlsRail() {
         <h2 className="border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink">
           Your servers
         </h2>
-        {cards.map((card) => (
-          <ServerCard
-            key={card.slug}
-            card={card}
-            ownSlug={slug}
-            balance={c.balance ?? 0}
-            now={now}
-            onRedeem={(banId) => a.redeem.mutate(banId)}
-            redeeming={a.redeem.isPending}
-          />
-        ))}
+        {c.standingLoading ? (
+          <ServerCardsSkeleton />
+        ) : (
+          cards.map((card) => (
+            <ServerCard
+              key={card.slug}
+              card={card}
+              ownSlug={slug}
+              balance={c.balance ?? 0}
+              balanceLoading={c.balanceLoading}
+              now={now}
+              onRedeem={(banId) => a.redeem.mutate(banId)}
+              redeeming={a.redeem.isPending}
+            />
+          ))
+        )}
       </>
     );
   }

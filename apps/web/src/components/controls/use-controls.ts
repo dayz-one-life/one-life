@@ -14,6 +14,21 @@ export type Controls = {
   balance: number | null;
   servers: Server[];
   standing: ServerStanding[];
+  /**
+   * True while the standing behind `standing` is unresolved (loading or errored) for a
+   * verified user. `standing` itself stays `[]` in this case for backward compatibility, but
+   * `[]` is ALSO the genuinely-resolved "no life anywhere" shape — a consumer must check this
+   * flag before rendering per-server "idle" state, or it fabricates idle from an unknown
+   * (spec: live-data honesty §5).
+   */
+  standingLoading: boolean;
+  /**
+   * True while the balance behind `balance` is unresolved (loading or errored) for a signed-in
+   * user. `balance` itself stays `null` in this case (see below) — a consumer must check this
+   * flag before treating `balance ?? 0` as a resolved fact, or it fabricates a "0" balance (and,
+   * transitively, a "no unban tokens" CTA) from an unknown state (spec: live-data honesty §5).
+   */
+  balanceLoading: boolean;
 };
 
 /** One data source for all three control surfaces (rail, pill, sheet). */
@@ -37,6 +52,10 @@ export function useControls(): Controls {
     balance: tokens.data?.balance ?? null,
     servers: servers.data ?? [],
     standing: player.data?.standing ?? [],
+    standingLoading: gamertag !== null && (player.isLoading || player.isError),
+    // Mirrors the tokens query's own `enabled` predicate above (`signedIn`), the same way
+    // `standingLoading` mirrors the player-page query's `gamertag !== null`.
+    balanceLoading: signedIn && (tokens.isLoading || tokens.isError),
   };
 }
 

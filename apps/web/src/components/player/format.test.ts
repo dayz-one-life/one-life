@@ -7,10 +7,14 @@ describe("player format helpers", () => {
     expect(formatDuration(3720)).toBe("1h 2m");
     expect(formatDuration(-5)).toBe("0h 0m");
   });
-  it("computes ban countdown, clamped at zero", () => {
+  it("computes ban countdown for a live future expiry", () => {
     const now = new Date("2026-07-14T12:00:00Z");
     expect(banCountdown("2026-07-14T14:30:00Z", now)).toBe("2h 30m");
-    expect(banCountdown("2026-07-14T11:00:00Z", now)).toBe("0h 0m");
+  });
+  it("returns null once expiry has passed, instead of a dead 0h 0m timer", () => {
+    const now = new Date("2026-07-14T12:00:00Z");
+    expect(banCountdown("2026-07-14T11:00:00Z", now)).toBeNull();
+    expect(banCountdown("2026-07-14T12:00:00Z", now)).toBeNull(); // exactly at expiry
     expect(banCountdown(null, now)).toBeNull();
   });
 });

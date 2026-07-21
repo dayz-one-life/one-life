@@ -12,6 +12,7 @@ let serverId: number;
 let serverId2: number;
 const LIFE1 = new Date("2026-07-11T10:00:00Z");
 const LIFE2 = new Date("2026-07-12T10:00:00Z");
+const LIFE2B = new Date("2026-07-12T14:00:00Z");
 const LIFE3 = new Date("2026-07-13T10:00:00Z");
 
 beforeAll(async () => {
@@ -46,12 +47,23 @@ describe("redeem", () => {
     await expect(redeem(db, { userId: "rd1" })).rejects.toThrow(/no_active_ban/);
   });
 
-  it("lifts a PENDING (dry-run) ban straight to lifted", async () => {
+  it("does NOT redeem a dry-run ban — throws no_active_ban and spends no token (phantom ban)", async () => {
     await db.insert(bans).values({ serverId, gamertag: "RG1", lifeStartedAt: LIFE2, reason: "qualified_death", bannedAt: LIFE2, status: "pending", dryRun: true });
     await grant(db, { userId: "rd1", kind: "monthly", idempotencyKey: "monthly:rd1" });
+    const before = await getBalance(db, "rd1");
+    expect(before).toBe(1);
+    await expect(redeem(db, { userId: "rd1" })).rejects.toThrow(/no_active_ban/);
+    // The token must NOT have been spent on a ban that was never actually placed.
+    expect(await getBalance(db, "rd1")).toBe(before);
+  });
+
+  it("positive control: still lifts a real (dry_run=false) PENDING ban straight to lifted", async () => {
+    await db.insert(bans).values({ serverId, gamertag: "RG1", lifeStartedAt: LIFE2B, reason: "qualified_death", bannedAt: LIFE2B, status: "pending", dryRun: false });
+    const before = await getBalance(db, "rd1");
     const r = await redeem(db, { userId: "rd1" });
     const [b] = await db.select().from(bans).where(eq(bans.id, r.banId));
     expect(b!.status).toBe("lifted");
+    expect(await getBalance(db, "rd1")).toBe(before - 1);
   });
 
   it("owns a ban on a DIFFERENT server than any prior activity — gamertag ownership is global, not per-server", async () => {

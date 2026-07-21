@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
 import { MobileControls } from "./mobile-controls";
@@ -39,10 +39,11 @@ beforeEach(() => {
   });
 });
 
-function openSheet(): void {
-  render(<MobileControls />);
+function openSheet() {
+  const result = render(<MobileControls />);
   // The pill is the only thing rendered until the sheet is opened.
   fireEvent.click(screen.getByRole("button", { name: /player controls/i }));
+  return result;
 }
 
 describe("MobileControls", () => {
@@ -78,5 +79,65 @@ describe("MobileControls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(signOutAndTeardownPush).toHaveBeenCalledOnce();
+  });
+
+  test("verified: standing unresolved shows a loading placeholder, not fabricated idle server rows/dots", () => {
+    (useControls as Mock).mockReturnValue({
+      ...verified,
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standingLoading: true,
+    });
+    const { container } = openSheet();
+    // Must NOT assert "idle" from an unresolved player query, in the sheet row or the pill dots.
+    expect(screen.queryByText("No life")).not.toBeInTheDocument();
+    const skeleton = container.querySelector('[aria-busy="true"]');
+    expect(skeleton).toBeInTheDocument();
+    // Regression pin (two-surface token rule, CLAUDE.md): the sheet is the DARK surface — the
+    // standing-loading skeleton rows must carry the dark `bg-dark-well` token, never a light one
+    // like `bg-bone`/`bg-paper`, or they'd render present-in-the-DOM but invisible on a phone
+    // (the exact class of bug this rule exists to prevent — it shipped once, in v0.26.0).
+    const rows = skeleton!.querySelectorAll('[aria-hidden="true"]');
+    expect(rows.length).toBeGreaterThan(0);
+    rows.forEach((row) => {
+      expect(row.className).toContain("bg-dark-well");
+      expect(row.className).not.toContain("bg-bone");
+      expect(row.className).not.toContain("bg-paper");
+    });
+  });
+
+  // live-data honesty §5 fix round 1: the pill's status line must not assert "No active life"
+  // (a factual claim) while standing is still unresolved — it falls through pillStatus's cards
+  // empty-shape branch exactly like a genuinely-resolved empty board does.
+  test("verified: standing unresolved shows the pill's neutral checking line, not 'No active life'", () => {
+    (useControls as Mock).mockReturnValue({ ...verified, standingLoading: true });
+    render(<MobileControls />);
+    expect(screen.getByText("Checking your servers…")).toBeInTheDocument();
+    expect(screen.queryByText("No active life")).not.toBeInTheDocument();
+  });
+
+  test("verified: standing genuinely resolved empty still shows 'No active life' on the pill", () => {
+    (useControls as Mock).mockReturnValue({ ...verified, standingLoading: false });
+    render(<MobileControls />);
+    expect(screen.getByText("No active life")).toBeInTheDocument();
+  });
+
+  // live-data honesty §5 fix round 1: mirrors the rail — the sheet's tokens panel and any
+  // banned-server CTA must not fabricate a "0" balance / "No unban tokens" while unresolved.
+  test("verified: balance unresolved shows a checking affordance, not a fabricated 0 balance or no-tokens CTA", () => {
+    (useControls as Mock).mockReturnValue({
+      ...verified,
+      balance: null,
+      balanceLoading: true,
+      servers: [{ id: 1, nitradoServiceId: 1, name: "s", map: "chernarusplus", slug: "chernarus", active: true, clockOffsetMs: 0, createdAt: "2026-01-01T00:00:00Z" }],
+      standing: [{ serverId: 1, map: "chernarusplus", slug: "chernarus", state: "banned", character: null, alive: null, ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt: null, liftPending: false, triggeringLifeNumber: 1 } }],
+    });
+    openSheet();
+    expect(screen.queryByText("No unban tokens")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/checking your (balance|tokens)/i).length).toBeGreaterThan(0);
+    // fix round 2: the pill's own "N tok" chip (`pill.tsx`) must not fabricate "0 tok" either —
+    // it sits inches from TokensPanel's correct "Checking your tokens…" and used to contradict it.
+    const pill = screen.getByRole("button", { name: /player controls/i });
+    expect(within(pill).queryByText("0")).not.toBeInTheDocument();
+    expect(within(pill).getByText(/checking your tokens/i)).toBeInTheDocument();
   });
 });
