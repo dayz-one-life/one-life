@@ -12,6 +12,7 @@ import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
+import { VerificationAnnouncer } from "./verification-announcer";
 import { ApiError } from "@/lib/api";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
@@ -62,6 +63,10 @@ export function MobileControls() {
 
   return (
     <>
+      {/* Mounted unconditionally (not inside ControlsSheet, which unmounts entirely while
+       *  closed) so it survives both the pending -> verified swap and the sheet's own
+       *  open/close cycle. */}
+      <VerificationAnnouncer kind={c.status.kind} />
       <ControlsPillView
         name={name}
         line={line}
