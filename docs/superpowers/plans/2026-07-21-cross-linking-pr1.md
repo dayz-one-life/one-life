@@ -586,7 +586,12 @@ Add a fourth promise to the existing `Promise.all` (it already destructures four
           eq(articles.status, "published"),
           eq(articles.serverId, serverId),
           sql`lower(${articles.gamertag}) = lower(${gamertag})`,
-          eq(articles.lifeNumber, life.lifeNumber),
+          // ⚠️ Identify the life by the REBUILD-STABLE natural key, matching
+          // articles_kind_server_gamertag_life_uniq (kind, server_id, gamertag, life_started_at).
+          // NOT life_number: that is a nullable display field with no uniqueness constraint,
+          // derived by counting prior lives during fold, so it shifts for every later life if the
+          // fold ever changes. An earlier draft of this plan used it and matched the WRONG life.
+          eq(articles.lifeStartedAt, life.startedAt),
         ),
       )
       .limit(1),
