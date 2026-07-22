@@ -41,6 +41,25 @@
 
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 
+/* Town / landmark labels on both maps (see `runPlaces` in components/map/map-canvas.tsx).
+   These sit on dark topographic tiles, so they are paper-on-dark with a hard shadow rather
+   than a box — a label with a background would read as a marker and compete with the dots.
+   `transform` re-centres the text on a zero-sized divIcon. */
+.map-place {
+  color: rgb(var(--paper));
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: 0.06em;
+  pointer-events: none; /* belt to `interactive: false`'s braces */
+  text-shadow: 0 1px 2px rgb(var(--dark)), 0 0 4px rgb(var(--dark));
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  width: max-content;
+}
+.map-place-major { font-size: 13px; }
+.map-place-minor { font-size: 11px; color: rgb(var(--cream-dim)); }
+.map-place-faint { font-size: 10px; color: rgb(var(--cream-muted)); letter-spacing: 0.04em; }
+
 /* Permanent gamertag labels on the friends map. Leaflet's own tooltip is a white bubble with a
    drop shadow and an arrow; on a dark tile canvas that reads as a UI popup rather than a map
    label. Scoped `.leaflet-tooltip.friend-label` to win on specificity over Leaflet's own rule
