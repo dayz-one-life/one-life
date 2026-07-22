@@ -2,6 +2,13 @@
 import { useEffect, useRef } from "react";
 import { worldSize, worldToPixel } from "@/lib/dayz-projection";
 import type { LifeTrack } from "@/lib/types";
+// Next.js's bundler special-cases global stylesheets imported FROM node_modules: unlike an
+// app-authored global .css (which must live in the root layout), a third-party package's CSS
+// may be imported directly in the component that needs it and still gets extracted + emitted —
+// scoped to this component's chunk rather than loaded on every page. This is that import; do
+// not move it to app/layout.tsx (that would load Leaflet's CSS globally) and do not delete it —
+// without it Leaflet's panes/tiles/controls have no positioning CSS in a real browser.
+import "leaflet/dist/leaflet.css";
 
 /** DZMap's vanilla pyramid tops out at zoom 6. The pixel extent of the pyramid at that
  *  zoom is 256 * 2**6 = 16384. If the mirrored tiles turn out to use a different max
