@@ -21,8 +21,9 @@ let otherServerId = 0;
  * - "aa" (Yankee): an accepted friend, with the VIEWER as `friendships.user_b`. The pair is
  *                  canonically ordered under a CHECK (`user_a < user_b`), so seeding the mirror
  *                  branch takes a user id that sorts BEFORE the viewer's — hence "aa".
- * - "AaStranger": an unlinked stranger who is SHARING a position.
- * - "AbStranger": an unlinked stranger who is not.
+ * - "AaStranger": an unlinked stranger, alphabetically FIRST.
+ * - "AbStranger": an unlinked stranger, alphabetically SECOND — the one the ordering test
+ *                 makes share, so a collapse of the sharing tier into `rest` reorders them.
  *
  * ⚠️ The stranger callsigns are prefixed rather than the obvious "Alpha"/"Bravo": every test
  * file in this package shares ONE database, and claimable.test.ts seeds a player literally
@@ -159,20 +160,25 @@ describe("getOnlinePlayers", () => {
     expect(out.map((p) => p.gamertag)).not.toContain("Zulu");
   });
 
-  // ⚠️ The callsigns fight the alphabet on purpose (see `seed`): the two friends sort LAST by
-  // name and the two strangers FIRST, so a rank of `p.self ? 0 : 1` — or any collapse of the
-  // friend/sharing tiers — produces Alpha/Bravo before Yankee/Zulu and fails here.
+  // ⚠️ EVERY callsign here fights the alphabet, and each one closes a different collapse.
+  // The friends sort LAST by name and the strangers FIRST, so `p.self ? 0 : 1` (or merging
+  // friend-sharing with friend, or friend with sharing) puts a stranger too early and fails.
+  //
+  // The sharing stranger is the alphabetically LATER one on purpose. When it was AaStranger —
+  // first by name anyway — collapsing `sharing` into `rest` reproduced this exact array via
+  // the localeCompare tie-break, so the last tier boundary was undefended in the very test
+  // written to defend them. Swap these two back and that mutation passes again.
   it("orders self, then friends sharing, then friends, then sharers, then the rest", async () => {
     const out = await call([
       { gamertag: "Zulu", x: 1, y: 1, recordedAt: NOW, self: false },
-      { gamertag: "AaStranger", x: 2, y: 2, recordedAt: NOW, self: false },
+      { gamertag: "AbStranger", x: 2, y: 2, recordedAt: NOW, self: false },
     ]);
     expect(out.map((p) => p.gamertag)).toEqual([
-      "ViewerMike", // self
-      "Zulu",       // friend + sharing
-      "Yankee",     // friend
-      "AaStranger",      // sharing
-      "AbStranger",      // neither
+      "ViewerMike",  // self
+      "Zulu",        // friend + sharing
+      "Yankee",      // friend
+      "AbStranger",  // sharing        — later by name, so a collapse into `rest` reorders
+      "AaStranger",  // neither
     ]);
   });
 
