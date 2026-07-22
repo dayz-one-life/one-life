@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { gamertagLinks, verificationChallenges, players } from "@onelife/db";
-import { and, eq, gt, desc, isNull, inArray } from "drizzle-orm";
+import { and, eq, gt, desc, isNull, inArray, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
 import { generateSequence } from "@onelife/verification";
 import { tokenToLabel } from "@onelife/domain";
@@ -55,13 +55,18 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     const now = new Date();
 
     // D6: the gamertag must be an observed player (players are global, not per-server).
-    const player = await db.select({ id: players.id }).from(players)
-      .where(eq(players.gamertag, gamertag));
+    // Resolve case-insensitively and adopt the canonical casing for everything below — the
+    // stored link must match players.gamertag byte for byte, or the verifier's emote match
+    // and every downstream eq() join silently misses it.
+    const player = await db.select({ gamertag: players.gamertag }).from(players)
+      .where(dsql`lower(${players.gamertag}) = lower(${gamertag})`)
+      .limit(1);
     if (player.length === 0) return reply.code(422).send({ error: "gamertag_not_seen" });
+    const canonical = player[0]!.gamertag;
 
     // D3: reject if this gamertag is already verified by anyone.
     const verified = await db.select({ id: gamertagLinks.id }).from(gamertagLinks)
-      .where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
+      .where(and(dsql`lower(${gamertagLinks.gamertag}) = lower(${canonical})`, eq(gamertagLinks.status, "verified")));
     if (verified.length > 0) return reply.code(409).send({ error: "already_verified" });
 
     // One active link per user: a user may hold at most one link with status pending|verified.
@@ -71,7 +76,7 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     const active = await db.select({ gamertag: gamertagLinks.gamertag, status: gamertagLinks.status })
       .from(gamertagLinks)
       .where(and(eq(gamertagLinks.userId, userId), inArray(gamertagLinks.status, ["pending", "verified"])));
-    const other = active.find((l) => l.gamertag !== gamertag);
+    const other = active.find((l) => l.gamertag.toLowerCase() !== canonical.toLowerCase());
     if (other) {
       return reply.code(409).send({ error: "active_link_exists", current: { gamertag: other.gamertag, status: other.status } });
     }
@@ -82,7 +87,7 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
       const result = await db.transaction(async (tx) => {
         // Upsert the caller's link for (user, gamertag) to pending.
         const existing = await tx.select().from(gamertagLinks)
-          .where(and(eq(gamertagLinks.userId, userId), eq(gamertagLinks.gamertag, gamertag)));
+          .where(and(eq(gamertagLinks.userId, userId), dsql`lower(${gamertagLinks.gamertag}) = lower(${canonical})`));
         let id: number;
         if (existing[0]) {
           id = existing[0].id;
@@ -90,7 +95,7 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
             await tx.update(gamertagLinks).set({ status: "pending", verifiedAt: null }).where(eq(gamertagLinks.id, id));
           }
         } else {
-          const [row] = await tx.insert(gamertagLinks).values({ userId, gamertag, status: "pending" }).returning();
+          const [row] = await tx.insert(gamertagLinks).values({ userId, gamertag: canonical, status: "pending" }).returning();
           id = row!.id;
         }
 
