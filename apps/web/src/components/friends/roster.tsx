@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { SrStatus } from "@/components/shared/sr-status";
-import { friendErrorMessage } from "@/components/player/friend-button";
+import { friendErrorMessage } from "./format";
 import { useFriendActions, useFriends } from "@/lib/use-friends";
 import type { FriendEntryDto, FriendsFeed } from "@/lib/types";
 

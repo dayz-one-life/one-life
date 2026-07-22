@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { FriendView, friendButtonLabel, friendErrorMessage, FriendButton } from "./friend-button";
+import { FriendView, friendButtonLabel, FriendButton } from "./friend-button";
+import { friendErrorMessage } from "@/components/friends/format";
 
 const noop = () => {};
 const actions = { onAdd: noop, onAccept: noop, onDecline: noop, onRemove: noop };
