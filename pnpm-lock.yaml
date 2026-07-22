@@ -536,6 +536,28 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
 
+  packages/friends:
+    dependencies:
+      '@onelife/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.36.0
+        version: 0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.7)
+    devDependencies:
+      '@onelife/test-support':
+        specifier: workspace:*
+        version: link:../test-support
+      postgres:
+        specifier: ^3.4.4
+        version: 3.4.9
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+
   packages/nitrado:
     devDependencies:
       typescript:
