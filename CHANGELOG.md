@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A friend whose gamertag has been recorded under two different capitalisations no longer
+  appears twice on the map, in two different places at once. Only their most recent position
+  is shown.
+- The friends map no longer comes up empty for a player who has verified a gamertag but not
+  yet been seen in game. Their own dot is simply absent; their friends still appear.
+- Fixed the disabled sharing switches on the friends roster: they no longer show a clickable
+  cursor, and a switch that is both on and unavailable now dims as one piece instead of
+  showing a full-strength checkmark in a faded box.
+- The friends roster now announces it to screen readers when the list shrinks under you —
+  for example when someone declines a request while you are looking at a later page — instead
+  of silently moving you to a different page.
+- Test tooling: the shared test cache now treats the database a suite runs against as an
+  input, so pointing the suite at a different database can no longer replay a cached pass and
+  report success without running anything. Database migrations likewise refuse to run against
+  a guessed connection string instead of silently targeting the wrong database.
+
 ### Security
 
 ## [0.37.0] - 2026-07-22
