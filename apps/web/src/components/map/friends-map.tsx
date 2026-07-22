@@ -1,6 +1,6 @@
 "use client";
 import MapCanvas, { type DrawContext, type MapFocus } from "./map-canvas";
-import type { FriendMap, FriendPositionDto } from "@/lib/types";
+import type { FriendMap } from "@/lib/types";
 
 const SELF_COLOR = "#2563eb";
 const FRIEND_COLOR = "#c8102e";
@@ -9,31 +9,6 @@ const FRIEND_COLOR = "#c8102e";
 export function positionAge(recordedAt: string, now: Date): string {
   const mins = Math.floor((now.getTime() - new Date(recordedAt).getTime()) / 60_000);
   return mins < 1 ? "just now" : `${mins}m ago`;
-}
-
-/** ⚠️ DARK SURFACE — the map shell is dark end to end (app/maps/layout.tsx), so this carries
- *  cream tokens, never `text-ink`. RTL asserts the DOM, not contrast: ink here renders present,
- *  functional and invisible, with every other test still green.
- *
- *  The accessible companion to the canvas: every dot as text, with its own age. A map alone
- *  is unreadable to a screen reader, and this is also the honest place to say nobody is here. */
-export function FriendsMapLegend({ positions, now }: { positions: FriendPositionDto[]; now: Date }) {
-  if (positions.length === 0) {
-    return (
-      <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
-        Nobody is sharing a position here right now.
-      </p>
-    );
-  }
-  return (
-    <ul role="list" className="mt-3 flex flex-col gap-1">
-      {positions.map((p) => (
-        <li key={p.gamertag} className="flex min-h-[52px] items-center font-mono text-[15px] uppercase tracking-[.05em] text-cream-dim md:min-h-0 md:text-[11px]">
-          {p.gamertag}{p.self ? " (you)" : ""} · {positionAge(p.recordedAt, now)}
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 export default function FriendsMap({ data, now, focus, onCenterChange }: {
@@ -66,8 +41,9 @@ export default function FriendsMap({ data, now, focus, onCenterChange }: {
     return all;
   }
 
-  // The legend is NOT rendered here any more: it lives in the top bar's FriendsPanel, which
-  // is its only home now that the map fills the viewport. It stays exported for that panel.
+  // No legend/list is rendered here: it lives in the top/bottom bars' FriendsPanel (now the
+  // online list, @/components/map/shell/online-list), which is its only home now that the map
+  // fills the viewport.
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="relative min-h-0 flex-1">

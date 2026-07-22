@@ -63,6 +63,7 @@ const data: FriendMap = {
     { gamertag: "You", x: 1000, y: 1000, recordedAt: "2026-07-22T11:59:00Z", self: true },
     { gamertag: "Mate", x: 5000, y: 5000, recordedAt: "2026-07-22T11:50:00Z", self: false },
   ],
+  online: [],
 };
 const NOW = new Date("2026-07-22T12:00:00Z");
 

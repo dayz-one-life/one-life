@@ -112,10 +112,9 @@ export function MapPage({ slug }: { slug: string }) {
         onLocate={setFocus}
       />
       <FriendsPanel
-        positions={q.data?.positions}
+        players={q.data?.online}
         loading={q.isPending}
         error={q.isError && !q.data}
-        now={new Date()}
       />
     </>
   ) : null;
