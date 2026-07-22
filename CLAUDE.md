@@ -1251,11 +1251,34 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `#main-content`, so **every route outside `(site)` must supply that id itself** — `not-found.tsx`,
   `error.tsx` and the map shell (`MapPage`, on the map region, not the bar the link exists to skip)
   each do, and each is pinned by a test.
-  **⚠️ Only `/maps/[map]` is the tool shell — the picker at `/maps` stays an ordinary (site)
-  page.** It was moved out with the rest of `app/maps/` at first, which orphaned it: no masthead,
-  no footer, no way back, clipped inside `overflow-hidden`, and every one of its ink tokens
-  invisible on the dark shell. It is a list page and belongs with the site chrome; `next build`
-  confirms both routes still resolve and that no URL gained a `(site)` segment.
+  **⚠️ `/maps` is a REDIRECT, not a picker page (post-M1, `feature/maps-nav-link`).** The
+  primary nav gained a **Maps** item (`lib/nav.ts`, between Survivors and About) pointing at the
+  static `/maps`, and the route (`app/(site)/maps/page.tsx`) resolves where "here" is and
+  `redirect()`s: the map you last opened (cookie **`ol_last_map`**, written client-side by
+  `MapPage` on mount for every visitor), else the `chernarusplus` server, else any slugged
+  server — `resolveMapSlug` (`@/lib/last-map`). **The remembered slug is re-checked against the
+  live `GET /servers` list on every read** — that endpoint returns active servers only, so a
+  slug that has since gone away falls back to the default rather than redirecting to a 404. The
+  old `ServerPicker` + its page body are deleted; the map's own switcher covers choosing a map.
+  **⚠️ `redirect()` throws (`NEXT_REDIRECT`), so it MUST stay outside the try/catch around
+  `getServers()`** — inside it, the catch swallows the redirect and every visitor gets the
+  error page. The one rendered branch (no cookie AND the server fetch failed → no slug) is why
+  the route stays inside the `(site)` group: it needs the masthead, a way back, and light
+  tokens. The duplicate "Map →" link in the controls-rail friends block was removed — the nav
+  reaches every page.
+  **⚠️ THE MAP IS PUBLIC; only the DOTS are gated.** `MapPageView` used to return the sign-in
+  card *instead of* the terrain for a signed-out visitor — a dead end the moment Maps went into
+  the nav. Terrain, town labels, place search and the switcher now draw for everyone, resolved
+  from the **public `GET /servers`** (which carries the mission codename `map` beside `slug` —
+  the whole reason the terrain is drawable without a session; `MapCanvas` needs the codename to
+  pick its tile tree and place list). The session-gated `GET /me/maps/:slug` (dots, online list,
+  Locate) is **unchanged and just as gated** — no coordinate egress moved. Anything merely
+  *missing dots* (signed out / unverified / a failed friend payload) renders as a **floating
+  strip** beside the map (`pointer-events-none` so it never swallows a Leaflet drag), never a
+  blocking card — an empty map must never stand in for "you may not look." `FriendsMap` takes
+  `mapCodename` + `positions` separately (different sources, one optional), not one `FriendMap`.
+  The switcher reads a public `SwitchableMap` (`{slug,name}`) shape; `getMapServers`/
+  `MapServerDto` are retired from the web (the API route still serves the shape).
   **⚠️ The online sheet's ✕ and its backdrop are the ONLY way out on a touch device.** Below
   `md` the sheet is `fixed bottom-0` and covers the bottom bar holding the ☰ that opened it, so
   tapping the trigger again is impossible — and a phone has no Escape key, which was the only
