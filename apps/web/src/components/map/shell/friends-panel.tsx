@@ -23,9 +23,10 @@ export function FriendsPanel({ players, positions, now, loading, error }: {
   const [open, setOpen] = useState(false);
   const panelRef = useModalBehavior(open, () => setOpen(false));
   // Loading is not zero. Until the payload lands, the button carries no count at all.
-  // The count is players online, EXCLUDING the viewer — it changed meaning from "friends
-  // sharing" when the panel stopped being location-only.
-  const count = loading || !players ? null : players.filter((p) => !p.self).length;
+  // The count is everyone online INCLUDING the viewer: it has to agree with the list directly
+  // beneath it and with the server's own player count, and excluding yourself buys nothing —
+  // you know whether you are playing.
+  const count = loading || !players ? null : players.length;
 
   return (
     <div className="relative">
@@ -47,32 +48,61 @@ export function FriendsPanel({ players, positions, now, loading, error }: {
         <span className="sr-only md:hidden">Online{count !== null ? ` ${count}` : ""}</span>
       </button>
       {open && (
-        // z-50 is the overlay altitude (LAYER LEGEND, components/header.tsx) — above the z-40
-        // bar this hangs from. A bottom sheet on a phone, an anchored panel from md up.
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-modal="true"
-          // Load-bearing: useModalBehavior calls panelRef.current?.focus(), which is a silent
-          // no-op on a div with no tabindex — the sheet would open with focus left behind.
-          tabIndex={-1}
-          aria-label="Who is online on this map"
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[60dvh] overflow-y-auto border-t border-dark-edge bg-dark-well p-4 pb-[env(safe-area-inset-bottom)] md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-1 md:w-72 md:border"
-        >
-          {/* OnlineList already carries cream/paper tokens — the map shell is dark end to end,
-              so there is no light variant of it to swap to. */}
-          {error ? (
-            <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
-              Couldn&apos;t load who is online.
-            </p>
-          ) : loading ? (
-            <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
-              Loading…
-            </p>
-          ) : (
-            <OnlineList players={players ?? []} positions={positions} now={now} />
-          )}
-        </div>
+        <>
+          {/* ⚠️ THE WAY OUT ON A TOUCH DEVICE. Below `md` the sheet is `fixed bottom-0` and
+              COVERS the bottom bar holding the ☰ trigger, so tapping it again is impossible;
+              there is no Escape key either. This backdrop and the Close button below are the
+              only exits, and both must stay. Reported from a real phone.
+              `aria-hidden` + no role: it is a gesture target, not content — the dialog is
+              `aria-modal` so AT already ignores what is behind it, and announcing an empty
+              region would be noise. Same z-50 overlay altitude as the sheet, painted under it
+              by DOM order, so this adds no fourth altitude to the LAYER LEGEND. */}
+          <div
+            aria-hidden
+            data-testid="online-backdrop"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-50 md:hidden"
+          />
+          {/* z-50 is the overlay altitude (LAYER LEGEND, components/header.tsx) — above the
+              z-40 bar this hangs from. A bottom sheet on a phone, an anchored panel from md up. */}
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            // Load-bearing: useModalBehavior calls panelRef.current?.focus(), which is a silent
+            // no-op on a div with no tabindex — the sheet would open with focus left behind.
+            tabIndex={-1}
+            aria-label="Who is online on this map"
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[60dvh] overflow-y-auto border-t border-dark-edge bg-dark-well p-4 pb-[env(safe-area-inset-bottom)] md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-1 md:w-72 md:border"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3 border-b border-dark-edge pb-2">
+              <span className="font-mono text-[11px] uppercase tracking-[.08em] text-cream-muted">
+                Online
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="flex min-h-[52px] min-w-[52px] items-center justify-center font-mono text-[19px] text-paper md:min-h-0 md:min-w-0 md:text-[13px]"
+              >
+                <span aria-hidden>✕</span>
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
+            {/* OnlineList already carries cream/paper tokens — the map shell is dark end to
+                end, so there is no light variant of it to swap to. */}
+            {error ? (
+              <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
+                Couldn&apos;t load who is online.
+              </p>
+            ) : loading ? (
+              <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
+                Loading…
+              </p>
+            ) : (
+              <OnlineList players={players ?? []} positions={positions} now={now} />
+            )}
+          </div>
+        </>
       )}
     </div>
   );

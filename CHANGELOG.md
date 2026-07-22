@@ -10,11 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The online list counts everyone on the server, you included, so the number agrees with the
+  list beneath it.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- The online list can be closed on a phone. It opened over the bar holding the button that
+  opened it, with no way back out — tap the ✕ or anywhere on the map behind it.
 
 ### Security
 
