@@ -63,12 +63,36 @@ last_seen_at)`, one row per name a player has used.
   unique would crash the ingest the day it happens. Uniqueness is per player
   (`(player_id, lower(gamertag))`); resolution picks the most recent holder.
 
-### 3.1 The alias-set consequence
+### 3.1 Player-scoped stats key on the FK, not on names
 
-Player-scoped read models currently match a single gamertag string (`getLifeKills`,
-`getPlayerPage`, the survivors board). For a merged player they must match the **alias set** —
-`IN (…)` rather than `= …`. This is the part that makes this a sub-project rather than a
-migration, and it is where the implementation effort actually lands.
+Player-scoped read models currently match a gamertag **string** — `kills.killer_gamertag`,
+`kills.victim_gamertag`, `hit_events.victim_gamertag`. For a merged player those miss every row
+recorded under a previous name.
+
+The fix is **not** to match a set of aliases. `packages/projections/src/fold.ts` already resolves
+and stores the identity on those rows: `killerPlayerId` and `victimPlayerId` on `kills`
+(lines 85-90), `victimPlayerId` on `hit_events` (line 106), each via `store.getPlayer(...)`. Once
+`getPlayer` resolves by `dayz_id`, **those foreign keys become identity-correct automatically on
+the rebuild.**
+
+So the read models switch from matching the text column to matching the FK. That is:
+
+- correct by construction, rather than by keeping a name list in sync
+- immune to the casing fragility closed in migration `0024`
+- backed by a real foreign key instead of a text column
+
+`getPlayerProfile` and `getPlayerLives` need no change at all — they already resolve to `p.id` and
+query `lives`/`sessions` by it.
+
+Two supporting indexes are required, because today's are on the gamertag columns:
+`kills (server_id, killer_player_id)` and `hit_events (server_id, victim_player_id)`.
+
+**`killer_player_id` is nullable** — populated only where the killer had a `players` row at fold
+time. After a full rebuild that is every real player, but the switch must treat a null as "no
+match" rather than silently widening or dropping rows, and that is pinned by a test.
+
+The **alias table is therefore scoped to URL resolution and redirects only** (§5). It is not an
+identity-matching mechanism.
 
 ## 4. The fold, and why the merge is the rebuild
 
@@ -152,8 +176,9 @@ Every test proven red before its fix, as with `0024`.
    can still self-unban.
 
 **Supporting:** `player_gamertags` is truncated and rebuilt by `rebuildAll`; `first_seen_at` /
-`last_seen_at` are maintained across repeat connects; alias-set matching returns kills recorded
-under a previous name.
+`last_seen_at` are maintained across repeat connects; FK-keyed stat queries return kills recorded
+under a previous name; and a `kills` row with a NULL `killer_player_id` is excluded rather than
+silently matching.
 
 ## 9. Explicitly out of scope
 
