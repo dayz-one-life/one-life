@@ -21,9 +21,41 @@ set -euo pipefail
 # is bad. Take that seriously — the auto-rollback is not symmetric with the bot.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─── Re-exec from a stable copy ──────────────────────────────────────────────
+# ⚠️ DO NOT REMOVE. This script runs `git checkout "$LATEST_TAG"` in the FETCH phase —
+# rewriting the very file bash is still reading. Bash reads a script incrementally by byte
+# offset, so once the file is replaced underneath it, execution continues at that offset in
+# the NEW content: a splice of old and new text. Observed consequences, both real:
+#
+#   * v0.37.2 added ~10 lines above the MIGRATE phase. The running v0.37.1 process executed
+#     the OLD migrate line (no DATABASE_URL), so the fix that release shipped could not
+#     apply to the deploy that installed it.
+#   * A shorter replacement is worse: bash hits EOF early and EXITS 0, silently skipping
+#     every remaining phase. A deploy that never stopped, migrated or restarted anything
+#     reports success. (Reproduced directly — see the commit message.)
+#
+# So: before touching the working tree, copy ourselves somewhere git cannot reach and hand
+# off to that copy. `$ONELIFE_DEPLOY_SELF` carries the ORIGINAL path across the exec, because
+# REPO_DIR is derived from the script's own location and a temp copy would otherwise resolve
+# the repo root to /tmp. All arguments are forwarded, so --rebuild et al. survive.
+if [[ -z "${ONELIFE_DEPLOY_SELF:-}" ]]; then
+  ONELIFE_DEPLOY_SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  export ONELIFE_DEPLOY_SELF
+  _copy="$(mktemp "${TMPDIR:-/tmp}/onelife-deploy.XXXXXX")"
+  cp "$ONELIFE_DEPLOY_SELF" "$_copy"
+  exec /usr/bin/env bash "$_copy" "$@"
+fi
+# Unlink the copy immediately. POSIX keeps the inode alive for the open descriptor bash is
+# reading from, so execution is unaffected and nothing is left in /tmp on any exit path —
+# including the ERR trap and a kill, which an EXIT trap would not survive.
+if [[ "${BASH_SOURCE[0]}" != "$ONELIFE_DEPLOY_SELF" ]]; then
+  rm -f "${BASH_SOURCE[0]}"
+fi
+
 # ─── Paths ───────────────────────────────────────────────────────────────────
-# This script lives in deploy/; the repo root is one level up.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# This script lives in deploy/; the repo root is one level up. Resolved from
+# $ONELIFE_DEPLOY_SELF, not $BASH_SOURCE — see the re-exec block above.
+SCRIPT_DIR="$(cd "$(dirname "$ONELIFE_DEPLOY_SELF")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # All ten units, in a safe stop order (consumers/HTTP first, projector last).
@@ -40,7 +72,10 @@ for arg in "$@"; do
   case "$arg" in
     --rebuild) DO_REBUILD=1 ;;
     -h|--help)
-      sed -n '3,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      # $ONELIFE_DEPLOY_SELF, not $BASH_SOURCE: after the re-exec above we are running from a
+      # copy that has been UNLINKED, so it has no path left for sed to open. The original
+      # tracked file is always there.
+      sed -n '3,20p' "$ONELIFE_DEPLOY_SELF" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "Unknown option: $arg (see --help)" >&2; exit 2 ;;
   esac

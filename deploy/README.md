@@ -154,6 +154,39 @@ only in the systemd env is too late — the wrong values are already frozen in t
 
 ## Rebuild / redeploy
 
+### ⚠️ One-time bootstrap when upgrading TO v0.37.3 (or from any older tag)
+
+`deploy.sh` checks out the new release tag while bash is still reading `deploy.sh` — so
+whenever a release **changes that file**, the running process executes a splice of the old
+and new text. v0.37.3 fixes this permanently by re-exec'ing from a copy git cannot reach,
+but the deploy that *installs* v0.37.3 is still driven by the old, unfixed script.
+
+Two real consequences, both observed: v0.37.2's migrate fix silently did not apply (the old
+migrate line ran, without `DATABASE_URL`), and a replacement file shorter than the original
+makes bash hit EOF early and **exit 0, skipping every remaining phase** — a deploy that
+stopped, migrated and restarted nothing, reporting success.
+
+So run the *new* script from a path the checkout will not overwrite. Keep it inside
+`deploy/` — `REPO_DIR` is resolved relative to the script, so `/tmp` would break it:
+
+```bash
+cd /var/www/dayzonelife.com
+git fetch --tags origin
+git show v0.37.3:deploy/deploy.sh > deploy/deploy-bootstrap.sh
+chmod +x deploy/deploy-bootstrap.sh
+
+# belt-and-braces for the migrate phase, harmless once the fix is in
+export DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')"
+
+./deploy/deploy-bootstrap.sh          # add --rebuild if the release needs it
+rm -f deploy/deploy-bootstrap.sh
+```
+
+It is untracked, so the checkout leaves it alone. **From v0.37.3 onward this is unnecessary**
+— plain `./deploy/deploy.sh` is safe against its own replacement.
+
+### Normal deploys
+
 **Preferred: `deploy/deploy.sh`.** It automates the whole sequence below —
 checks out the latest release tag, installs + builds web, stops the fleet, takes
 a full-DB `pg_dump` checkpoint, migrates, restarts, and health-checks:
