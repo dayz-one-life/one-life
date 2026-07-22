@@ -108,6 +108,13 @@ export function registerFriendRoutes(app: FastifyInstance, db: Database, auth: A
     if (!session) return reply.code(401).send({ error: "unauthorized" });
     const { id } = idParam.parse(req.params);
     const body = presenceBody.parse(req.body ?? {});
+    // Every field is optional, so an empty body reaches the domain, hits setPresenceFlags'
+    // no-fields early return BEFORE its party lookup, and answers 200 {ok:true} — reporting a
+    // successful update of a friendship the caller may not be a party to and which may not
+    // exist. A patch that patches nothing is a malformed request, not a success.
+    if (body.share === undefined && body.notify === undefined && body.shareLocation === undefined) {
+      return reply.code(400).send({ error: "no_fields" });
+    }
     try {
       await setPresenceFlags(db, {
         userId: session.user.id, friendshipId: id, share: body.share, notify: body.notify,

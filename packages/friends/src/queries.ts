@@ -93,18 +93,20 @@ export async function listFriends(
     // A friend whose link was released by an admin has no verified gamertag left; they are
     // unreachable and unnameable, so they drop out of the roster rather than render blank.
     //
-    // ⚠️ PREREQUISITE for the location-sharing sub-project: the underlying friendships row
-    // (and its four a/b_shares_location/presence columns) is NOT deleted here — it merely
-    // becomes unreachable, since no surface can reach it (hidden from the roster, the
-    // dossier control is gated on the target being verified, and the user does not know the
-    // friendship id). If that user later re-verifies, the friendship silently reappears with
-    // its sharing flags intact. Inert today because F1 writes nothing into those columns, but
-    // once location sharing ships this is a live consent leak, contradicting the design's
-    // "after remove, no consent survives" claim (spec §3) for a case remove() was never
-    // asked about. Before location sharing ships, resolve this one of two ways: (a) make a
-    // drop-out row removable/severable so it can't silently return sharing flags intact, or
-    // (b) clear the sharing flags when a gamertag link is released. Needs a product decision,
-    // not a default — not attempted in this pass.
+    // The friendships row itself is NOT deleted — it merely becomes unreachable, since no
+    // surface can reach it (hidden here, the dossier control is gated on the target being
+    // verified, and the user does not know the friendship id).
+    //
+    // ⚠️ RESOLVED in F2, both halves, and BOTH are load-bearing — this was flagged here as an
+    // open consent leak for the whole of F1/F3 and must not regress:
+    //   (a) structural — the coordinate query inner-joins a `verified` gamertag_links row
+    //       (packages/read-models/src/friend-positions.ts), so a released link means no
+    //       coordinates unconditionally, whatever the surviving flags say; and
+    //   (b) explicit — verifyLink resets share_location AND share_presence in the same
+    //       transaction (apps/verifier/src/pg-store.ts, the only writer of status='verified'),
+    //       so re-verifying is a deliberate re-opt-in rather than a silent resurrection.
+    // (a) alone leaves stale `true` flags that go live again on re-verification; (b) alone
+    // dies to any future query that forgets the join.
     if (!gamertag) return null;
     return {
       id: v.view.id, gamertag, slug: playerSlug(gamertag),

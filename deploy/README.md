@@ -181,7 +181,10 @@ cd /var/www/dayzonelife.com
 cd /var/www/dayzonelife.com
 git pull                        # (via the fork/PR workflow — see CLAUDE.md)
 pnpm install --frozen-lockfile
-pnpm --filter @onelife/db run db:migrate   # if there are new migrations
+# drizzle-kit reads DATABASE_URL and nothing else, and its bundled dotenv loads from
+# packages/db/, not the repo root — so name the database explicitly or it errors out.
+DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')" \
+  pnpm --filter @onelife/db run db:migrate   # if there are new migrations
 pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
      onelife-projector onelife-enforcer onelife-granter onelife-rebooter onelife-newsdesk \

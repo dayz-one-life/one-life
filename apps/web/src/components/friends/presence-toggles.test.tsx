@@ -12,6 +12,16 @@ describe("MasterShareSwitch", () => {
     await userEvent.click(box);
     expect(onChange).toHaveBeenCalledWith(true);
   });
+
+  // jsdom cannot observe a computed cursor, so the token itself is pinned. A disabled control
+  // must not advertise a pointer affordance it does not have.
+  it("drops cursor-pointer when disabled", () => {
+    const { rerender } = render(<MasterShareSwitch on={false} onChange={() => {}} />);
+    const labelOf = () => screen.getByRole("checkbox").closest("label")!;
+    expect(labelOf().className).toContain("cursor-pointer");
+    rerender(<MasterShareSwitch on={false} disabled onChange={() => {}} />);
+    expect(labelOf().className).not.toContain("cursor-pointer");
+  });
 });
 
 describe("PresenceToggles", () => {

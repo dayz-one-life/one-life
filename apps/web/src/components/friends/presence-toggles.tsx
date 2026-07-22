@@ -6,8 +6,10 @@ export function MasterShareSwitch(p: {
   on: boolean; disabled?: boolean; onChange: (v: boolean) => void;
 }) {
   return (
+    // `cursor-pointer` is conditional, matching PresenceToggles below: an unconditional pointer
+    // cursor on a disabled control advertises an affordance that does nothing.
     <label
-      className={`${LABEL} border-b border-hairline pb-2.5 ${p.disabled ? LABEL_DISABLED : ""} cursor-pointer`}
+      className={`${LABEL} border-b border-hairline pb-2.5 ${p.disabled ? LABEL_DISABLED : "cursor-pointer"}`}
     >
       <Box checked={p.on} disabled={p.disabled} onChange={p.onChange} />
       Share my status with friends

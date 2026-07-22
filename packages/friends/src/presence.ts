@@ -61,7 +61,11 @@ export async function setPresenceFlags(
   if (!row) throw new FriendError("not_found");
 
   const isA = row.userA === a.userId;
-  const patch: Record<string, boolean> = {};
+  // ⚠️ Typed against the table, not `Record<string, boolean>`. Drizzle's `.set()` ignores keys
+  // that are not columns, so under a loose record type a mis-typed column name ("aSharePresence")
+  // compiles, runs, updates nothing, and returns success — the flag silently stays as it was.
+  // With `$inferInsert` the same typo is a compile error.
+  const patch: Partial<typeof friendships.$inferInsert> = {};
   if (a.share !== undefined) patch[isA ? "aSharesPresence" : "bSharesPresence"] = a.share;
   if (a.notify !== undefined) patch[isA ? "aNotifyPresence" : "bNotifyPresence"] = a.notify;
 

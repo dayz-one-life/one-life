@@ -34,10 +34,13 @@ export function Box(p: {
           peer-focus-visible:outline-offset-2 peer-focus-visible:outline-red
           peer-disabled:border-ink-muted peer-disabled:opacity-50"
       />
+      {/* The checkmark carries `peer-disabled:opacity-50` to MATCH the box above it. Without
+          it, a disabled+checked control renders a full-opacity checkmark over a half-opacity
+          fill — the glyph reading as more "on" than the control it sits in. */}
       <svg
         aria-hidden="true"
         viewBox="0 0 8 8"
-        className="relative hidden h-2 w-2 text-paper peer-checked:block"
+        className="relative hidden h-2 w-2 text-paper peer-checked:block peer-disabled:opacity-50"
       >
         <path d="M1 4.2 L3.1 6.2 L7 1.8" fill="none" stroke="currentColor" strokeWidth="1.4" />
       </svg>

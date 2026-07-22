@@ -190,6 +190,15 @@ describe("friend routes", () => {
     expect((await patch(cookieA, "/me/friends/99999999/presence", { share: true })).statusCode).toBe(404);
   });
 
+  // Every field is optional, so an empty patch used to slip past setPresenceFlags' party
+  // lookup (its no-fields early return runs first) and answer 200 {ok:true} for a friendship
+  // that does not exist and that the caller is not a party to.
+  it("400s an empty presence patch instead of reporting a phantom success", async () => {
+    const res = await patch(cookieA, "/me/friends/99999999/presence", {});
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("no_fields");
+  });
+
   // The nonexistent-id case above proves nothing about the party predicate itself — a
   // friendship id that never existed would 404 even if `or(userA, userB)` were deleted
   // entirely from setPresenceFlags. Patch a REAL friendship (the C/D pair idiom, per the
