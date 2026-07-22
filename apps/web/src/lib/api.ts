@@ -5,7 +5,7 @@ import type {
   ObituariesFeed, ObituaryArticle,
   BirthNoticesFeed, BirthNoticeArticle,
   AppNotification, NotificationsFeed,
-  NewsFeed, NewsArticle,
+  NewsFeed, NewsArticle, LifeTrack,
 } from "./types";
 
 export class ApiError extends Error {
@@ -151,6 +151,11 @@ export const getPlayerArticles = (slug: string, page: number) =>
 
 export const getPlayerLife = (slug: string, map: string, n: number) =>
   getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
+
+/** Owner-only. Returns null when the caller is not the verified owner, or the life does
+ *  not exist — the UI must not distinguish those two for a stranger. */
+export const getLifeTrack = (mapSlug: string, n: number) =>
+  getOrNull<LifeTrack>(`/api/me/lives/${encodeURIComponent(mapSlug)}/${n}/track`);
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);

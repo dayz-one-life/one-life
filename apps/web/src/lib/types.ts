@@ -329,3 +329,28 @@ export type NewsArticle = NewsCard & {
   subjects: NewsSubjectRef[];
   subjectStatus: NewsSubjectStatus | null;
 };
+
+export interface TrackPointDto { x: number; y: number; at: string }
+export interface TrackSegmentDto { sessionId: number; points: TrackPointDto[] }
+
+/** Every marker is approximate — deaths and kills carry no recorded coordinates, so this
+ *  is the last position fix before the event. `sampleAgeSeconds` is non-optional so a
+ *  render site must actively discard it to omit the staleness. */
+export interface TrackMarkerDto {
+  kind: "kill" | "death" | "now";
+  at: string;
+  x: number;
+  y: number;
+  sampleAt: string;
+  sampleAgeSeconds: number;
+  label: string | null;
+}
+
+export interface LifeTrack {
+  mapCodename: string;
+  segments: TrackSegmentDto[];
+  markers: TrackMarkerDto[];
+  sampleCount: number;
+  truncated: boolean;
+  alive: boolean;
+}
