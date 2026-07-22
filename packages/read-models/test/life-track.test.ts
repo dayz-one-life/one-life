@@ -20,10 +20,25 @@ beforeAll(async () => {
   }).returning();
   serverId = s!.id;
 
-  const [p] = await db.insert(players).values({ gamertag: tag, lastSeenAt: mins(200) }).returning();
-  pid = p!.id;
+  // The other player is created FIRST so its player id sorts below the subject's — the
+  // `lives` table's (server_id, player_id) index means an unfiltered query naturally
+  // surfaces the lower player id first, so this ordering is what makes a dropped
+  // gamertag predicate observable instead of accidentally masked.
   const [o] = await db.insert(players).values({ gamertag: other, lastSeenAt: mins(200) }).returning();
   otherPid = o!.id;
+  const [p] = await db.insert(players).values({ gamertag: tag, lastSeenAt: mins(200) }).returning();
+  pid = p!.id;
+
+  // Another player's colliding life 1 on the same server.
+  const [ol] = await db.insert(lives).values({
+    serverId, playerId: otherPid, lifeNumber: 1, startedAt: start, endedAt: mins(60), playtimeSeconds: 3600,
+  }).returning();
+  await db.insert(sessions).values({
+    serverId, playerId: otherPid, lifeId: ol!.id, connectedAt: start, disconnectedAt: mins(60), durationSeconds: 3600, closeReason: "death",
+  });
+  await db.insert(positions).values({
+    serverId, playerId: otherPid, gamertag: other, x: 9999, y: 9999, recordedAt: mins(10),
+  });
 
   // Life 1: closed, two sessions with a gap between them.
   const [l1] = await db.insert(lives).values({
@@ -36,6 +51,11 @@ beforeAll(async () => {
   ]);
   await db.insert(kills).values({
     serverId, killerGamertag: tag, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(70),
+  });
+  // A kill by the OTHER player in the same server/time window — must never bleed into
+  // the subject's track via a missing killerGamertag predicate.
+  await db.insert(kills).values({
+    serverId, killerGamertag: other, victimGamertag: "OtherVictim", weapon: "KAS-74U", distance: 10, occurredAt: mins(75),
   });
   // Fixes: two in session 1 (far apart so neither is thinned), two in session 2.
   await db.insert(positions).values([
@@ -54,17 +74,6 @@ beforeAll(async () => {
   });
   await db.insert(positions).values({
     serverId, playerId: pid, gamertag: tag, x: 7000, y: 7000, recordedAt: mins(199),
-  });
-
-  // Another player's life 1 on the same server, with its own fixes.
-  const [ol] = await db.insert(lives).values({
-    serverId, playerId: otherPid, lifeNumber: 1, startedAt: start, endedAt: mins(60), playtimeSeconds: 3600,
-  }).returning();
-  await db.insert(sessions).values({
-    serverId, playerId: otherPid, lifeId: ol!.id, connectedAt: start, disconnectedAt: mins(60), durationSeconds: 3600, closeReason: "death",
-  });
-  await db.insert(positions).values({
-    serverId, playerId: otherPid, gamertag: other, x: 9999, y: 9999, recordedAt: mins(10),
   });
 });
 
@@ -89,6 +98,19 @@ describe("getLifeTrack", () => {
     expect(k!.x).toBe(5000);
     expect(k!.label).toBe("Victim1");
     expect(k!.sampleAgeSeconds).toBe(300); // 65m fix, 70m kill
+  });
+
+  it("NEVER includes a kill credited to another player, even in the same server and window", async () => {
+    const t = await getLifeTrack(db, serverId, tag, 1);
+    expect(t!.markers.some((m) => m.label === "OtherVictim")).toBe(false);
+  });
+
+  it("resolves the CALLER's own life 1, not another player's colliding life 1", async () => {
+    const t = await getLifeTrack(db, serverId, tag, 1);
+    // The subject's life 1 has two sessions and a kill marker; the other player's life 1
+    // (same serverId, same lifeNumber) has one session and no kills.
+    expect(t!.segments).toHaveLength(2);
+    expect(t!.markers.some((m) => m.kind === "kill")).toBe(true);
   });
 
   it("emits a death marker for a closed life and no `now` marker", async () => {

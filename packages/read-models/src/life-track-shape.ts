@@ -34,9 +34,11 @@ function far(a: TrackPoint, b: TrackPoint): boolean {
 
 /** Distance-threshold thinning, measured against the last KEPT point so a slow walk
  *  accumulates instead of being dropped pairwise. The final point is always kept — on an
- *  open life it is the whole answer. */
-export function thinTrack(points: TrackPoint[]): TrackPoint[] {
-  if (points.length === 0) return [];
+ *  open life it is the whole answer. Also reports whether the cap branch actually dropped
+ *  points, so `truncated` is a fact this layer asserts rather than something the caller
+ *  infers from a length (a thinned track landing at EXACTLY the cap had nothing dropped). */
+export function thinTrackWithMeta(points: TrackPoint[]): { points: TrackPoint[]; truncated: boolean } {
+  if (points.length === 0) return { points: [], truncated: false };
   const kept: TrackPoint[] = [points[0]!];
   for (let i = 1; i < points.length; i++) {
     const q = points[i]!;
@@ -44,10 +46,16 @@ export function thinTrack(points: TrackPoint[]): TrackPoint[] {
   }
   const last = points[points.length - 1]!;
   if (kept[kept.length - 1] !== last) kept.push(last);
-  if (kept.length <= TRACK_POINT_CAP) return kept;
+  if (kept.length <= TRACK_POINT_CAP) return { points: kept, truncated: false };
   // Keep the earliest points and the true final fix; the caller reports the honest
   // pre-thinning `sampleCount` so the UI can say the trail is truncated.
-  return [...kept.slice(0, TRACK_POINT_CAP - 1), last];
+  return { points: [...kept.slice(0, TRACK_POINT_CAP - 1), last], truncated: true };
+}
+
+/** Behaviourally identical to `thinTrackWithMeta` minus the truncation fact — kept for
+ *  existing callers that only need the points. */
+export function thinTrack(points: TrackPoint[]): TrackPoint[] {
+  return thinTrackWithMeta(points).points;
 }
 
 /** One polyline per session. Joining across a session gap would draw a straight line

@@ -2,7 +2,7 @@ import type { Database } from "@onelife/db";
 import { servers, players, lives, sessions, kills, positions } from "@onelife/db";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import {
-  thinTrack, segmentBySession, markerAt, TRACK_POINT_CAP,
+  thinTrackWithMeta, segmentBySession, markerAt,
   type TrackPoint, type TrackSegment, type TrackMarker,
 } from "./life-track-shape.js";
 
@@ -75,7 +75,7 @@ export async function getLifeTrack(
     .orderBy(asc(positions.recordedAt));
 
   const raw: TrackPoint[] = posRows.map((p) => ({ x: p.x, y: p.y, at: p.recordedAt }));
-  const thinned = thinTrack(raw);
+  const { points: thinned, truncated } = thinTrackWithMeta(raw);
   const segments = segmentBySession(thinned, windows);
 
   const killRows = await db
@@ -111,7 +111,7 @@ export async function getLifeTrack(
     segments,
     markers,
     sampleCount: raw.length,
-    truncated: thinned.length >= TRACK_POINT_CAP,
+    truncated,
     alive: row.endedAt === null,
   };
 }

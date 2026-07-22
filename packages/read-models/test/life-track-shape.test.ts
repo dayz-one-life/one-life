@@ -1,7 +1,7 @@
 // packages/read-models/test/life-track-shape.test.ts
 import { describe, it, expect } from "vitest";
 import {
-  thinTrack, segmentBySession, markerAt,
+  thinTrack, thinTrackWithMeta, segmentBySession, markerAt,
   THIN_MIN_METERS, TRACK_POINT_CAP, MARKER_MAX_AGE_SECONDS,
   type TrackPoint,
 } from "../src/life-track-shape.js";
@@ -49,6 +49,22 @@ describe("thinTrack", () => {
 
   it("returns an empty array for no input", () => {
     expect(thinTrack([])).toEqual([]);
+  });
+});
+
+describe("thinTrackWithMeta", () => {
+  it("reports truncated: false when the thinned track lands at EXACTLY the cap", () => {
+    const exact = Array.from({ length: TRACK_POINT_CAP }, (_, i) => p(i * 100, 0, i));
+    const { points, truncated } = thinTrackWithMeta(exact);
+    expect(points).toHaveLength(TRACK_POINT_CAP);
+    expect(truncated).toBe(false);
+  });
+
+  it("reports truncated: true and caps at TRACK_POINT_CAP when the thinned track exceeds it", () => {
+    const over = Array.from({ length: TRACK_POINT_CAP + 1 }, (_, i) => p(i * 100, 0, i));
+    const { points, truncated } = thinTrackWithMeta(over);
+    expect(points).toHaveLength(TRACK_POINT_CAP);
+    expect(truncated).toBe(true);
   });
 });
 
