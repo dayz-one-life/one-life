@@ -11,7 +11,7 @@ export class TokenError extends Error {
 
 // Helpers accept a drizzle db OR transaction executor — both expose the same query builder.
 // Typed loosely because Database and PgTransaction are distinct TS types.
-type Executor = { select: (...a: unknown[]) => any };
+export type Executor = { select: (...a: unknown[]) => any };
 
 export async function balanceOf(tx: Executor, userId: string): Promise<number> {
   const [r] = await tx

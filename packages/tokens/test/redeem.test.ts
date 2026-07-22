@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { user, servers, gamertagLinks, bans } from "@onelife/db";
+import { user, servers, gamertagLinks, bans, players, playerGamertags } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { grant } from "../src/grant.js";
@@ -24,6 +24,8 @@ beforeAll(async () => {
   // Global-player model: verified gamertag links carry no serverId — owning a gamertag
   // means owning it everywhere, not on one server.
   await db.insert(gamertagLinks).values({ userId: "rd1", gamertag: "RG1", status: "verified" });
+  // Ownership now compares IDENTITY, not name strings — "RG1" needs a players row to resolve to.
+  await db.insert(players).values({ gamertag: "RG1" });
 });
 afterAll(async () => { await sql.end(); });
 
@@ -91,5 +93,25 @@ describe("redeem", () => {
       .values({ serverId, gamertag: "RG1", lifeStartedAt: LIFE3, reason: "qualified_death", bannedAt: LIFE3, status: "applied", dryRun: false })
       .returning();
     await expect(redeem(db, { userId: "rd2", banId: ban!.id })).rejects.toThrow(/not_owner/);
+  });
+
+  it("lets a RENAMED verified player redeem against a ban under their new name", async () => {
+    // The link still names the callsign they claimed; the ban names who they are now.
+    // Matching those as raw strings silently denies them their own unban.
+    await db.insert(user).values({ id: "rn1", name: "RN1", email: "rn1@x.com" });
+    const [pl] = await db.insert(players).values({ gamertag: "CurrentName" }).returning();
+    const playerId = pl!.id;
+    await db.insert(playerGamertags).values([
+      { playerId, gamertag: "FormerName", firstSeenAt: new Date("2026-06-01T00:00:00Z"), lastSeenAt: new Date("2026-06-02T00:00:00Z") },
+      { playerId, gamertag: "CurrentName", firstSeenAt: new Date("2026-07-01T00:00:00Z"), lastSeenAt: new Date("2026-07-02T00:00:00Z") },
+    ]);
+    // The verified link still names the OLD callsign the user claimed and emote-verified.
+    await db.insert(gamertagLinks).values({ userId: "rn1", gamertag: "FormerName", status: "verified" });
+    await grant(db, { userId: "rn1", kind: "verification", idempotencyKey: "verify:rn1" });
+    // The ban was written under who they are NOW.
+    await db.insert(bans).values({ serverId, gamertag: "CurrentName", lifeStartedAt: LIFE3, reason: "qualified_death", bannedAt: LIFE3, status: "applied", dryRun: false });
+
+    const r = await redeem(db, { userId: "rn1" });
+    expect(r.gamertag).toBe("CurrentName");
   });
 });

@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { servers, players, lives, sessions, bans, gamertagLinks, kills } from "@onelife/db";
+import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags } from "@onelife/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { getPlayerProfile, getPlayerLives } from "./queries.js";
 import { getLifeCharacter } from "./character.js";
@@ -66,7 +66,16 @@ export async function getPlayerPage(
   const [p] = await db.select().from(players).where(eq(players.gamertag, gamertag));
   const activeServers = await db.select().from(servers).where(eq(servers.active, true));
   const activeBans = await db.select().from(bans).where(and(eq(bans.gamertag, gamertag), inArray(bans.status, ACTIVE_BAN_STATUSES), eq(bans.dryRun, false)));
-  const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified"))).limit(1);
+  // The verified stamp follows IDENTITY, not the current name: after a rename the verified
+  // link still names a FORMER callsign while `gamertag` (already resolved to the current one)
+  // and the ban rows carry the new one. Match on every name this player has ever held —
+  // current label plus alias history — so a raw-string compare can't drop the badge.
+  const identityNames = [gamertag.toLowerCase()];
+  if (p) {
+    const aliasRows = await db.select({ gamertag: playerGamertags.gamertag }).from(playerGamertags).where(eq(playerGamertags.playerId, p.id));
+    for (const a of aliasRows) identityNames.push(a.gamertag.toLowerCase());
+  }
+  const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames), eq(gamertagLinks.status, "verified"))).limit(1);
 
   const standing: ServerStanding[] = [];
   const endedLives: { row: LifeRow; serverId: number; map: string; slug: string }[] = [];
