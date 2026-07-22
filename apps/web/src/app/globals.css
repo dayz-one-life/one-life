@@ -100,6 +100,28 @@ body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 }
 .leaflet-tooltip.friend-label::before { display: none; } /* the arrow, which has no bubble now */
 
+/* Centre crosshair for the map's coordinate readout. Pointer-events off — it must never
+   intercept a drag. Two hairlines rather than a glyph, so it stays legible on any tile. */
+.map-crosshair {
+  height: 18px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  z-index: 10;
+}
+.map-crosshair::before,
+.map-crosshair::after {
+  background: rgb(var(--paper));
+  box-shadow: 0 0 0 1px rgb(var(--dark) / 0.7);
+  content: "";
+  position: absolute;
+}
+.map-crosshair::before { height: 100%; left: 50%; transform: translateX(-50%); width: 1px; }
+.map-crosshair::after { height: 1px; top: 50%; transform: translateY(-50%); width: 100%; }
+
 :focus-visible {
   outline: 2px solid rgb(var(--red));
   outline-offset: 2px;

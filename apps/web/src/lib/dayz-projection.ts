@@ -25,3 +25,32 @@ export function worldToPixel(
   const k = canvasPx / size;
   return [x * k, (size - y) * k];
 }
+
+/**
+ * Tile-pyramid pixels at max zoom → world metres. The exact inverse of `worldToPixel`,
+ * including the northing flip (DayZ's origin is bottom-left; Leaflet's is top-left).
+ *
+ * Used by the map's coordinate readout. Keep it here, beside its inverse, so the projection
+ * rules live in one module and `canvasPx` stays a single parameter.
+ */
+export function pixelToWorld(
+  px: number, py: number, size: number, canvasPx: number,
+): [number, number] {
+  const k = canvasPx / size;
+  return [px / k, size - py / k];
+}
+
+/**
+ * World metres → the Leaflet `CRS.Simple` latLng that `MapCanvas` draws in.
+ *
+ * For consumers that need to NAME a point ("fly to my dot") without holding a map instance —
+ * the Leaflet lifecycle stays sealed in map-canvas.tsx. CRS.Simple divides the pixel plane by
+ * 2**zoom and flips y, which is why this is not just `worldToPixel`.
+ */
+export function worldToLatLng(
+  x: number, y: number, size: number, canvasPx: number, maxZoom: number,
+): { lat: number; lng: number } {
+  const [px, py] = worldToPixel(x, y, size, canvasPx);
+  const scale = 2 ** maxZoom;
+  return { lat: -py / scale, lng: px / scale };
+}
