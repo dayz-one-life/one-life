@@ -7,6 +7,7 @@ import type {
   AppNotification, NotificationsFeed,
   NewsFeed, NewsArticle,
   SitemapData,
+  FriendsFeed, FriendStatusDto,
 } from "./types";
 
 export class ApiError extends Error {
@@ -211,3 +212,17 @@ export const getSitemapData = () => apiGetCached<SitemapData>("/api/sitemap", SI
 /** Sitemap-only variant of `getServers()` — same endpoint, but cacheable/cookie-free. Do NOT
  *  point the regular `getServers()` (used by authenticated RSC pages) at this. */
 export const getServersCached = () => apiGetCached<Server[]>("/api/servers", SITEMAP_REVALIDATE_SECONDS);
+
+export const getFriends = (page = 1) => apiGet<FriendsFeed>(`/api/me/friends?page=${page}`);
+export const getFriendStatus = (gamertag: string) =>
+  apiGet<FriendStatusDto>(`/api/me/friends/status?gamertag=${encodeURIComponent(gamertag)}`);
+export const sendFriendRequest = (toGamertag: string) =>
+  apiSend<{ id: number; status: string }>("POST", "/api/me/friends/requests", { toGamertag });
+export const acceptFriendRequest = (id: number) =>
+  apiSend<{ ok: true }>("POST", `/api/me/friends/${id}/accept`);
+export const declineFriendRequest = (id: number) =>
+  apiSend<{ ok: true }>("POST", `/api/me/friends/${id}/decline`);
+// Bodyless DELETE: apiSend only sets content-type when a body is present, which is why
+// this must not pass one — Fastify rejects an empty JSON body with a 400.
+export const deleteFriendship = (id: number) =>
+  apiSend<{ ok: true }>("DELETE", `/api/me/friends/${id}`);

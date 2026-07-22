@@ -12,6 +12,7 @@ import { SignInPanel } from "./signin-panel";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
 import { TokensPanel, type MutationView } from "./tokens-panel";
+import { FriendsPanelContainer } from "./friends-panel";
 import { ServerCard } from "./server-cards";
 import { VerificationAnnouncer } from "./verification-announcer";
 
@@ -140,6 +141,7 @@ export function ControlsRail() {
             />
           ))
         )}
+        <FriendsPanelContainer />
       </>
     );
   }

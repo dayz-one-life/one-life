@@ -127,6 +127,20 @@
       "when": 1784700000000,
       "tag": "0017_article_subject_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784800000000,
+      "tag": "0018_friendships",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784900000000,
+      "tag": "0019_notification_key_pattern_idx",
+      "breakpoints": true
     }
   ]
 }

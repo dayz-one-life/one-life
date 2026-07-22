@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Friends. Send a survivor a friend request from their dossier, and answer the ones you
+  receive from a new roster page at `/friends` — reachable from the account rail on desktop
+  and the account sheet on a phone. Both sides must have a verified gamertag. Declining is
+  silent, and a declined request can't be re-sent for seven days; removing a friend is
+  immediate and mutual. Requests are capped at 20 a day.
+- Two new notifications: someone sent you a friend request, and someone accepted yours.
+  Unlike every other notification on the site, these are written the moment the action
+  happens rather than by the background sweep — **they are live as soon as this deploys**,
+  with no cutoff to configure first. Declining and removing tell nobody.
+
 ### Changed
 
 ### Deprecated

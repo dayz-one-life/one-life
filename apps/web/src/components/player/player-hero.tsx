@@ -1,6 +1,7 @@
 import type { PlayerPage } from "@/lib/types";
 import { heroStats, monthYear, aliveMaps } from "./format";
 import { Stat } from "./stat";
+import { FriendButton } from "./friend-button";
 
 export function PlayerHero({ page }: { page: PlayerPage }) {
   const stats = heroStats(page.totals);
@@ -26,6 +27,7 @@ export function PlayerHero({ page }: { page: PlayerPage }) {
             Verified
           </span>
         )}
+        {page.verified && <FriendButton gamertag={page.gamertag} />}
       </div>
       <div className="mt-5 grid grid-cols-2 gap-y-4 sm:flex sm:gap-x-9">
         {stats.map((st) => (
