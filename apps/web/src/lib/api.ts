@@ -152,8 +152,12 @@ export const getPlayerArticles = (slug: string, page: number) =>
 export const getPlayerLife = (slug: string, map: string, n: number) =>
   getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
 
-/** Owner-only. Returns null when the caller is not the verified owner, or the life does
- *  not exist — the UI must not distinguish those two for a stranger. */
+/** Owner-only. Wraps `getOrNull`, so a 404 (life does not exist) resolves to null. A 403
+ *  (signed-in but not the verified owner) is NOT translated here — it rethrows, matching
+ *  every other `getOrNull` wrapper in this file. Prefer `useLifeTrack` (`./use-life-track`)
+ *  as the entry point: its `queryFn` is what catches the 403 and turns it into null so the
+ *  UI doesn't distinguish "not found" from "not yours" for a stranger. A caller importing
+ *  this function directly must handle the 403 itself. */
 export const getLifeTrack = (mapSlug: string, n: number) =>
   getOrNull<LifeTrack>(`/api/me/lives/${encodeURIComponent(mapSlug)}/${n}/track`);
 

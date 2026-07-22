@@ -1,4 +1,3 @@
-// apps/web/src/lib/use-life-track.ts
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { getLifeTrack, ApiError } from "./api";
