@@ -34,10 +34,13 @@ export function FriendsPanel({ players, loading, error }: {
         className="flex min-h-[52px] min-w-[52px] items-center justify-center gap-1.5 border border-dark-edge px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] text-paper md:min-h-0 md:min-w-0 md:px-2 md:text-[11px]"
       >
         <span aria-hidden>☰</span>
-        <span className="hidden md:inline">Friends</span>
+        {/* "Online" — not "Friends": the panel lists every player on the server, friends first,
+            and the count is players online, not friends sharing. "Friends" here would be the
+            same class of lie the presence-switch copy was fixed for above. */}
+        <span className="hidden md:inline">Online</span>
         {count !== null && <span>{count}</span>}
         {/* The visible label collapses to an icon below md, so the accessible name must not. */}
-        <span className="sr-only md:hidden">Friends{count !== null ? ` ${count}` : ""}</span>
+        <span className="sr-only md:hidden">Online{count !== null ? ` ${count}` : ""}</span>
       </button>
       {open && (
         // z-50 is the overlay altitude (LAYER LEGEND, components/header.tsx) — above the z-40

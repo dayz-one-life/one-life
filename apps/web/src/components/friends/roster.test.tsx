@@ -156,7 +156,7 @@ describe("RosterView", () => {
         {...actions}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /tell friends when i come online/i })).toBeChecked();
   });
 
   // A user with only pending requests (no accepted friends yet) can still set their global
@@ -169,7 +169,7 @@ describe("RosterView", () => {
         {...actions}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /tell friends when i come online/i })).toBeInTheDocument();
   });
 
   it("renders the master switch with only outgoing requests, no friends yet", () => {
@@ -179,12 +179,12 @@ describe("RosterView", () => {
         {...actions}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /tell friends when i come online/i })).toBeInTheDocument();
   });
 
   it("does not render the master switch with a genuinely empty roster", () => {
     render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }} {...actions} />);
-    expect(screen.queryByRole("checkbox", { name: /share my status with friends/i })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /tell friends when i come online/i })).toBeNull();
   });
 
   it("shows per-friend presence toggles on friend rows, but not on incoming or outgoing rows", () => {
@@ -198,7 +198,7 @@ describe("RosterView", () => {
       />,
     );
     const friends = screen.getByRole("list", { name: /friends/i });
-    expect(within(friends).getByRole("checkbox", { name: /share my status/i })).toBeInTheDocument();
+    expect(within(friends).getByRole("checkbox", { name: /tell them when i come online/i })).toBeInTheDocument();
     expect(within(friends).getByRole("checkbox", { name: /notify me/i })).toBeInTheDocument();
 
     const incoming = screen.getByRole("list", { name: /requests/i });
@@ -229,7 +229,7 @@ describe("RosterView", () => {
         onSharePresenceChange={onSharePresenceChange}
       />,
     );
-    screen.getByRole("checkbox", { name: /share my status with friends/i }).click();
+    screen.getByRole("checkbox", { name: /tell friends when i come online/i }).click();
     expect(onSharePresenceChange).toHaveBeenCalledWith(true);
   });
 
