@@ -21,6 +21,9 @@ import "leaflet/dist/leaflet.css";
  *  worldToPixel takes canvasPx as a parameter precisely so this stays a one-line fix.
  *  Do NOT touch worldToPixel itself: it is unit-tested and correct by construction. */
 export const MAX_ZOOM = 6;
+/** Zoom granularity. See the `zoomSnap` note where the map is created — this value is why the
+ *  world-covering floor is reachable at all, and why the wheel still steps. */
+const ZOOM_SNAP = 0.25;
 export const CANVAS_PX = 256 * 2 ** MAX_ZOOM;
 
 // Vendored verbatim from deploy/dzmap.yaml's top-level `attribution:` — the same string
@@ -226,7 +229,15 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
     // to the snap FIRST and clamps to min second, so the wheel steps between whole levels
     // (smooth) and the final zoom-out lands exactly on this floor (no grey).
     const size = m.getSize();
-    const floor = Math.log2(Math.max(size.x, size.y) / 256);
+    const exact = Math.log2(Math.max(size.x, size.y) / 256);
+    // ⚠️ Rounded UP to a ZOOM_SNAP multiple, which is what makes the floor REACHABLE.
+    // Leaflet re-rounds any zoom target to the snap and then clamps to minZoom, so a floor
+    // sitting between snap points gets rounded away and the map bounces back to the level
+    // above — a zoom-out control that silently does nothing. On a snap point, rounding is a
+    // no-op and the clamp holds. Rounding UP rather than down is what keeps grey off screen;
+    // the cost is that the last quarter-step of zoom-out is unavailable, which is invisible
+    // next to the full step the old getBoundsZoom floor cost.
+    const floor = Math.ceil(exact / ZOOM_SNAP) * ZOOM_SNAP;
     // A container Leaflet measures as zero-sized yields -Infinity. Setting a nonsense floor
     // clamps every gesture to a zoom whose tiles do not exist — an unusable map. A bad number
     // is better ignored: the worst case is the old behaviour, not a broken one.
@@ -327,6 +338,23 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
         leafletRef.current = L;
         const m = L.map(ref.current, {
           crs: L.CRS.Simple, minZoom: 0, maxZoom: MAX_ZOOM, attributionControl: true,
+          // ⚠️ Quarter steps, and the value is load-bearing in BOTH directions.
+          //
+          // `0` (v0.39.2) makes wheel zoom continuous — every notch rescales tiles instead of
+          // stepping between rendered levels, reported as slow and choppy.
+          //
+          // `1` (v0.41.2, the default) makes a fractional `minZoom` UNREACHABLE, because
+          // Leaflet applies `_limitZoom` TWICE on the way to a new view: the first call rounds
+          // to the snap and clamps up to the floor (2 -> 2.567), the second rounds THAT to the
+          // nearest whole level and clamps again (2.567 -> 3). Any floor whose fraction is
+          // >= 0.5 is bounced straight back, and the map cannot zoom out to its own edge —
+          // verified live on Livonia at a 1502x1517 viewport, where zoom-out was a silent
+          // no-op with the control still enabled.
+          //
+          // A quarter step is small enough that ZOOM_SNAP-aligned floors are stable under a
+          // second rounding, and large enough that one wheel notch still moves a whole level
+          // (`_performZoom` takes `ceil(d2 / snap) * snap`, and d2 for one notch is ~1).
+          zoomSnap: ZOOM_SNAP,
           // A hard stop at the world's edge rather than an elastic bounce — the edge is a
           // fact about the terrain, not a suggestion. The real floor is set by
           // applyWorldBounds() once the container has been measured; this minZoom is only
