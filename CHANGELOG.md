@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.37.4] - 2026-07-22
+
+### Fixed
+
+- Deploy: the `db:migrate` and `--rebuild` phases now receive the `DATABASE_URL` environment variable explicitly. Both ran as subprocesses of the deploy script without inheriting the variable, causing drizzle-kit to fail with "DATABASE_URL is not set". The fix exports `DATABASE_URL` after reading it from `.env`, ensuring child processes can access it.
+
 ## [0.37.3] - 2026-07-22
 
 ### Changed
