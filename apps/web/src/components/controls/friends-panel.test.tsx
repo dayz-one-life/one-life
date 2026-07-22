@@ -21,20 +21,40 @@ describe("FriendsPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
   });
 
+  it("swaps tokens for the dark sheet surface while loading", () => {
+    render(<FriendsPanel loading />);
+    const lightStatus = screen.getByRole("status");
+    expect(lightStatus.className).toMatch(/\btext-ink-muted\b/);
+    expect(lightStatus.className).not.toMatch(/\btext-cream-muted\b/);
+    const lightContainer = lightStatus.parentElement as HTMLElement;
+    expect(lightContainer.className).toMatch(/\bborder-hairline\b/);
+
+    const { container: darkContainer } = render(<FriendsPanel loading boxed />);
+    const darkStatus = darkContainer.querySelector('[role="status"]') as HTMLElement;
+    expect(darkStatus.className).toMatch(/\btext-cream-muted\b/);
+    expect(darkStatus.className).not.toMatch(/\btext-ink-muted\b/);
+    const darkRoot = darkContainer.firstElementChild as HTMLElement;
+    expect(darkRoot.className).toMatch(/\bborder-dark-line\b/);
+  });
+
   // ⚠️ The rail is light paper; the mobile sheet is bg-dark. A panel written only in
   // text-ink/border-ink is present, functional and INVISIBLE on a phone — exactly how the
   // notifications panel shipped in v0.26.0. RTL asserts the DOM, not contrast, so the
   // token swap itself needs pinning or the whole suite stays green while it is broken.
   it("swaps its tokens for the dark sheet surface", () => {
-    const { container: light } = render(<FriendsPanel friendCount={1} requestCount={0} />);
+    const { container: light } = render(<FriendsPanel friendCount={1} requestCount={2} />);
     const lightRoot = light.firstElementChild as HTMLElement;
     expect(lightRoot.className).toMatch(/\btext-ink\b/);
     expect(lightRoot.className).not.toMatch(/\btext-paper\b/);
+    // Badge must render on light surface with bg-red-deep
+    expect(lightRoot.innerHTML).toMatch(/\bbg-red-deep\b/);
 
-    const { container: dark } = render(<FriendsPanel friendCount={1} requestCount={0} boxed />);
+    const { container: dark } = render(<FriendsPanel friendCount={1} requestCount={2} boxed />);
     const darkRoot = dark.firstElementChild as HTMLElement;
     expect(darkRoot.className).toMatch(/\btext-paper\b/);
     expect(darkRoot.className).not.toMatch(/\btext-ink\b/);
+    // Badge must render on dark surface with bg-red, not bg-red-deep
+    expect(darkRoot.innerHTML).toMatch(/\bbg-red\b/);
     // red-deep is a LIGHT-surface token only: on dark it drops to ~3.2:1 and fails AA.
     expect(darkRoot.innerHTML).not.toMatch(/red-deep/);
   });

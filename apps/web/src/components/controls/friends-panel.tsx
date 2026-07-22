@@ -24,6 +24,7 @@ export function FriendsPanel(p: FriendsPanelProps) {
   const muted = p.boxed ? "text-cream-muted" : "text-ink-muted";
   const border = p.boxed ? "border-dark-line" : "border-hairline";
   const badge = p.boxed ? "bg-red text-paper" : "bg-red-deep text-paper";
+  const minH = p.boxed ? "min-h-[44px]" : "";
 
   if (p.loading) {
     return (
@@ -41,7 +42,7 @@ export function FriendsPanel(p: FriendsPanelProps) {
     <div className={`border-t ${border} pt-2.5 ${text}`}>
       <Link
         href="/friends"
-        className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[.05em] font-bold"
+        className={`flex items-center justify-between font-mono text-[11px] uppercase tracking-[.05em] font-bold ${minH}`}
       >
         <span>Friends {showCount && p.friendCount}</span>
         {showCount && p.requestCount ? (
