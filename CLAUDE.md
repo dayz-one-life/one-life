@@ -1055,6 +1055,59 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **un-dormants the other eleven kinds simultaneously** — set `NOTIFIER_SINCE` to the go-live
   instant and watch one dry-run interval first; and separately, no user is visible until they turn
   on the master switch.
+- **Friends, F2 — location sharing** ✅ (spec
+  `docs/superpowers/specs/2026-07-22-friends-f2-location-design.md`), completing the three-part
+  friends feature: a live map per server at **`/maps/{map}`** (plus a `/maps` picker) showing the
+  viewer's own position and every friend sharing with them. Migration `0022` adds
+  `user_preferences.share_location` and flips the two dormant `friendships.*_shares_location`
+  defaults to `true` with a backfill.
+  **⚠️ Invariants a future change would break by accident:**
+  1. **ONE coordinate egress point per audience, and neither takes a subject.**
+     `GET /me/maps[/:mapSlug]` takes a **server slug and no player identifier** — the subject set
+     is computed from the session alone, so serving a *named* player's coordinates is
+     **unexpressible**, not merely rejected. The owner-only `GET /me/lives/:mapSlug/:n/track` holds
+     the same property. **Do not parameterise either by subject**, and do not add a third route
+     that serves coordinates. Both carry `cache-control: no-store, private` — a shared proxy
+     caching either hands one player's squad positions to the next visitor.
+  2. **Effective sharing = `user_preferences.share_location` AND the subject's per-pair flag**,
+     via `shouldShareLocation` (`packages/friends/src/location.ts`). Master defaults **false**, the
+     per-pair flag defaults **true** ("not individually hidden"), and **an absent preferences row
+     means `false`** — which is exactly why `0022`'s backfill exposed nobody.
+  3. **Last known position ONLY, and only while the subject is online.** Not a route trail — a
+     trail shows direction, pace and habitual locations, i.e. an interception tool. And the dot
+     vanishes on disconnect, because **where a DayZ player logs out is where their stash is**; a
+     position that survives logout publishes that to everyone they ever shared with, and an expiry
+     window is worse still (it exposes the stash during exactly the minutes someone watching would
+     act). A fix older than **`MARKER_MAX_AGE_SECONDS` (900)** — reused, never redefined — is
+     absent rather than shown somewhere the player no longer is.
+  4. **The reciprocity line is ONE collapsed boolean.** `theyShareLocation` is computed
+     server-side and cannot distinguish "their master switch is off" from "they hid from you
+     specifically". Differentiating would tell one player a named friend singled them out, which
+     makes the per-friend hide switch a visible act and therefore unusable. **This is the only
+     place this codebase reports anything about another user's settings** — presence deliberately
+     reports none. Do not generalise it, and do not add a field that reconstructs the difference.
+  5. **F1's deferred prerequisite is fixed in BOTH halves, and both are needed.** Structural: the
+     candidate query **inner-joins a `verified` `gamertag_links` row**, so a released link means no
+     coordinates, unconditionally. Explicit: **`verifyLink` resets `share_location` AND
+     `share_presence`** in the same transaction (`apps/verifier/src/pg-store.ts` — the only writer
+     of `status='verified'`), scoped to the userId `RETURNING`ed from that same UPDATE. The join
+     alone leaves stale `true` flags that go live on re-verification; the reset alone dies to any
+     query that forgets the join. **The reset is one-directional** — it clears the re-verifying
+     user's *outbound* sharing, not their friends' inbound flags toward them.
+  6. **The positions lookup filters on `player_id`, never `lower(gamertag)`.** Only the former can
+     be served by `positions_player_idx (server_id, player_id, recorded_at)`; the gamertag shape
+     seq-scans the largest table in the system, on a 30s poll per viewer and once per server on
+     `/maps`. Measured: index scan 0.066ms vs seq scan filtering 60,115 rows at 2.356ms.
+  7. **The Leaflet lifecycle lives in ONE place** — `apps/web/src/components/map/map-canvas.tsx`,
+     extracted from `TrackMap`. Nearly every comment in it documents a fixed bug (the two-effect
+     split, the first-draw fit latch, the created-then-added LayerGroup, the SSR-avoiding dynamic
+     import, the `isolate` stacking context). Consumers supply a `draw` function and nothing else;
+     do not grow a second copy.
+  **Deploy:** migration `0022` touches no projection table — plain `./deploy/deploy.sh`,
+  **no `--rebuild`**. No new env vars, worker or systemd unit. Unlike F3 there is **no operator
+  gate** (no worker is involved), so the endpoint is live on deploy — but **inert**: every master
+  switch starts `false`, so the map shows the viewer's own dot and nobody else's until people opt
+  in. Live-but-inert rather than dark.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
@@ -1088,7 +1141,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
   `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
   character sightings), `friends` (friendship pair ordering + viewer-relative projection,
-  presence consent flags + the `shouldNotifyPresence` predicate,
+  presence + location consent flags and the `shouldNotifyPresence`/`shouldShareLocation`
+  predicates,
   transitions, read queries; writes its own notifications inline — see the Friends F1 entry, whose
   ten invariants are all load-bearing).
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with

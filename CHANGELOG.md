@@ -8,7 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- See where your friends are. A new map for each server shows your own position alongside
+  every friend currently sharing with you, reachable from the account rail. **Nobody is on
+  the map until they switch sharing on** — there is one switch to share with your friends
+  and a per-friend one to hide from someone in particular, and a line on each friend telling
+  you whether they are sharing with you. Only a last known position is ever shown, only
+  while that player is online, and only if it is recent: log off and your dot disappears
+  rather than leaving a marker on wherever you stopped.
+
 ### Changed
+
+- Verifying a gamertag now switches your status and location sharing back off. If the
+  gamertag on your account changes, the people you had shared with are no longer sharing
+  with the same survivor, so those choices start again rather than carrying over silently.
 
 ### Deprecated
 
