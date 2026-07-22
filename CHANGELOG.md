@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The map's bars and controls are bigger again, sized from how they actually felt on a phone
+  rather than from the accessibility minimum, and the One Life wordmark at the top left is now
+  full size. The arrow beside it is gone — the wordmark itself is the way back.
+
 ### Deprecated
 
 ### Removed
