@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getPlayerPage, getPlayerArticles } from "@/lib/api";
 import { settleFeed } from "@/lib/settle-feed";
 import { absoluteUrl } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
+import { playerPageHref, shouldRedirectSlug } from "@/lib/player-page-href";
 import { PlayerProfile } from "@/components/player/player-profile";
 import { formatDuration } from "@/components/player/format";
 
@@ -47,6 +48,11 @@ export default async function PlayerPageRoute({ params, searchParams }: Props) {
     settleFeed(getPlayerArticles(slug, apNum)),
   ]);
   if (!page) notFound();
+  if (shouldRedirectSlug(slug, page.gamertag)) {
+    // 308, not 307: a rename is permanent, and shared links / crawlers should consolidate onto
+    // the current dossier. playerPageHref preserves ?page=/?ap= so pagination survives the bounce.
+    permanentRedirect(playerPageHref(playerSlug(page.gamertag), { page: pageNum, ap: apNum }));
+  }
   return (
     <PlayerProfile
       page={page}

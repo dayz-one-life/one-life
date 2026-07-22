@@ -1,3 +1,5 @@
+import { playerSlug } from "./slug";
+
 /**
  * Pure href builder for `/players/[slug]` — the page carries TWO independent paginations
  * (`page` for past lives, `ap` for In The Paper) that must never move together. A link that
@@ -11,4 +13,13 @@ export function playerPageHref(slug: string, params: { page?: number; ap?: numbe
   if (params.ap && params.ap > 1) sp.set("ap", String(params.ap));
   const qs = sp.toString();
   return `/players/${slug}${qs ? `?${qs}` : ""}`;
+}
+
+/**
+ * True when the URL's slug does not name the player's CURRENT gamertag — i.e. it came from a
+ * former name and the page should permanently redirect. Casing is not a difference: playerSlug
+ * lower-cases, so /players/TDS-Maverick12 is already canonical.
+ */
+export function shouldRedirectSlug(currentSlug: string, canonicalGamertag: string): boolean {
+  return playerSlug(currentSlug) !== playerSlug(canonicalGamertag);
 }
