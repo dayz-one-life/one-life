@@ -1144,6 +1144,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      a dedicated `places` pane at z-index 350**, because Leaflet puts every `L.marker` at 600,
      *above* the overlay pane (400) holding our dots and trails — a LayerGroup cannot fix
      this, and without the pane a town name covers the friend you opened the map to find.
+     **⚠️ Labels carry a SOLID `--dark` background, not a text shadow** — the shipped halo
+     treatment left the 10px/11px tiers unreadable over real topographic tiles (busy,
+     mid-value terrain), which is precisely the content they appear over; and the tiers
+     differentiate by size/weight ONLY, never by fading text toward the background. A box is
+     safe here because the `places` pane already keeps every label under the markers.
      **This also finally verifies `CANVAS_PX = 16384`**, the long-flagged unverified
      assumption: a wrong extent puts every town visibly off its own buildings, and a test
      pins Chernogorsk to its real world position.
