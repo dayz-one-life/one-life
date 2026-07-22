@@ -1081,8 +1081,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **no `--rebuild`**. No new env vars, worker or systemd unit. **F3 ships dark behind TWO gates**:
   the notifier's generate pass is off in production (`NOTIFIER_SINCE` unset), and switching it on
   **un-dormants the other eleven kinds simultaneously** — set `NOTIFIER_SINCE` to the go-live
-  instant and watch one dry-run interval first; and separately, no user is visible until they turn
-  on the master switch.
+  instant and watch one dry-run interval first. **Presence visibility itself is no longer gated at
+  all** (see the map online-list feature below) — the master switch now governs only whether
+  friends are told when you come online. **Location sharing IS still gated**: no friend sees your
+  dot on the map until you turn on that separate master switch.
 - **Friends, F2 — location sharing** ✅ (spec
   `docs/superpowers/specs/2026-07-22-friends-f2-location-design.md`), completing the three-part
   friends feature: a live map per server at **`/maps/{map}`** (plus a `/maps` picker) showing the
@@ -1357,9 +1359,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   friends panel's focus move is pinned by a test.
   **The `CoordChip` is deliberately NOT a live region** — it updates every animation frame of a
   pan, and a polite region would read a new coordinate continuously; the value reaches assistive
-  tech through the copy button's accessible name. **`FriendsMapLegend` is no longer rendered under
-  the map** — the bar's `FriendsPanel` is its only home, and it stays reachable by a real button in
-  the tab order because it is the screen-reader companion to a canvas with no text.
+  tech through the copy button's accessible name. **`FriendsMapLegend` was deleted; the ☰ panel's
+  `OnlineList` replaces it** — the bar's `FriendsPanel` is its only home, and it stays reachable by
+  a real button in the tab order because it is the screen-reader companion to a canvas with no text.
   **⚠️ Any Leaflet double in a test that renders `FriendsMap` needs `flyTo`/`project`/`getCenter`.**
   A partial double throws inside the rAF as an **unhandled** error, which vitest reports separately
   from the assertions — the file stays green while exercising a component that crashed.
@@ -1367,6 +1369,38 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   layout, paint or stacking, and two releases shipped green-but-broken on 2026-07-22 for exactly
   that reason. It needs real mirrored tiles (a tile-less local run is explicitly not sufficient).
   The six checks are listed in the plan; run them against the deployed site.
+  **The ☰ panel is an online list, not a friends list** (spec
+  `docs/superpowers/specs/2026-07-22-map-online-list-design.md`): every player currently connected
+  to that server, friends first, with anyone sharing their position marked. This publishes
+  presence to any signed-in verified viewer **regardless of the F3 presence switches** — a
+  deliberate policy call, not an oversight: DayZ's own in-game player menu already lists everyone
+  on the server, so gating our copy of that list protects nothing and only makes it look broken.
+  **The F3 "share my status" switches now govern notifications only**, and their copy was reworded
+  in the same release to say so — the old copy implied they hid you from this list, which they
+  never did and now provably don't. **Location stays a completely separate, still consent-gated
+  disclosure**: `shouldShareLocation` (master off by default) still gates the dot on the map, and
+  the coordinate route keeps every guard it had — no subject parameter, a verified-link inner
+  join, `MARKER_MAX_AGE_SECONDS`.
+  **⚠️ Online = an open session AND `players.last_seen_at` within `ONLINE_MAX_AGE_SECONDS` (900)**
+  (`getOnlinePlayers`, `packages/read-models/src/online-players.ts`) — an open session ALONE is
+  not evidence of presence: `apps/rebooter` restarts every active server every 2 hours, so a
+  crashed client's session stays open (`disconnected_at IS NULL`) until the next even-hour reboot,
+  and a bare open-session list would show players who left up to two hours ago as if they were
+  still there. Same 900s bound the map's own markers, the presence generator, and `survivors.ts`'s
+  live-playtime cap already use. Mutation-tested — removing the bound fails a named test.
+  **`sharing` is derived from the payload's own `positions` array, never a second consent
+  lookup** — `getOnlinePlayers` takes the exact `FriendPosition[]` the route already fetched for
+  the dots and intersects against it, so the online list and the map's dots are one fact and can
+  never disagree with each other. Pinned by a route test proven red against a route that instead
+  passed `[]`.
+  **Ordering is owned by the read-model, not the component** — self → friends sharing → friends →
+  everyone else sharing → everyone else, then by gamertag (`getOnlinePlayers`'s `rank()`).
+  `OnlineList`/`FriendsMapLegend` render the array as given; sorting client-side would put the
+  rule in the surface instead of the model that owns it, and the accessible legend wants the same
+  order.
+  **`GET /me/maps/:mapSlug` gained an `online: OnlinePlayer[]` field on the existing payload** —
+  no new route, so the route's defining properties are unchanged: still no subject parameter (the
+  viewer's session is the only input), still `cache-control: no-store, private`.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 

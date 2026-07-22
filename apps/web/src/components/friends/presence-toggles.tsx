@@ -1,7 +1,7 @@
 "use client";
 import { Box, LABEL, LABEL_DISABLED, NOTE } from "./checkbox";
 
-/** The per-user master switch. Off by default — nobody is visible until they opt in. */
+/** The per-user master switch. Off by default — nobody is alerted until they opt in. */
 export function MasterShareSwitch(p: {
   on: boolean; disabled?: boolean; onChange: (v: boolean) => void;
 }) {
@@ -12,7 +12,7 @@ export function MasterShareSwitch(p: {
       className={`${LABEL} border-b border-hairline pb-2.5 ${p.disabled ? LABEL_DISABLED : "cursor-pointer"}`}
     >
       <Box checked={p.on} disabled={p.disabled} onChange={p.onChange} />
-      Share my status with friends
+      Tell friends when I come online
     </label>
   );
 }
@@ -47,9 +47,9 @@ export function PresenceToggles(p: {
           ariaDescribedby={p.masterOn ? undefined : noteId}
           onChange={(v) => p.onChange({ share: v })}
         />
-        Share my status
+        Tell them when I come online
       </label>
-      {p.masterOn ? null : <span className={NOTE} id={noteId}>Sharing is off for everyone</span>}
+      {p.masterOn ? null : <span className={NOTE} id={noteId}>Alerts are off for everyone</span>}
       <label className={`${LABEL} ${p.disabled ? LABEL_DISABLED : "cursor-pointer"}`}>
         <Box
           checked={p.notify}

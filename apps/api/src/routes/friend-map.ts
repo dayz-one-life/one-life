@@ -4,7 +4,7 @@ import type { Auth } from "@onelife/auth";
 import { gamertagLinks, servers } from "@onelife/db";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
-import { getFriendPositions } from "@onelife/read-models";
+import { getFriendPositions, getOnlinePlayers } from "@onelife/read-models";
 import { getSession } from "../auth-plugin.js";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
@@ -71,13 +71,19 @@ export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth
     const server = await resolveServerBySlug(db, parsed.data.mapSlug);
     if (!server) return reply.code(404).send({ error: "not_found" });
 
+    const now = new Date();
     const positions = await getFriendPositions(db, {
-      viewerUserId: session.user.id, serverId: server.id, now: new Date(),
+      viewerUserId: session.user.id, serverId: server.id, now,
+    });
+    // Composed from the SAME positions the payload returns, so `sharing` and the dots are one
+    // fact rather than two lookups that can disagree.
+    const online = await getOnlinePlayers(db, {
+      viewerUserId: session.user.id, serverId: server.id, now, positions,
     });
 
     // A shared proxy or CDN caching this would hand one player's squad positions to the next
     // visitor — the classic way a correct auth check still leaks.
     reply.header("cache-control", "no-store, private");
-    return { mapCodename: server.map, positions };
+    return { mapCodename: server.map, positions, online };
   });
 }

@@ -5,7 +5,7 @@ import { MapPageView } from "./map-page";
 vi.mock("./friends-map", () => ({ default: () => <div data-testid="friends-map" /> }));
 
 const NOW = new Date("2026-07-22T12:00:00Z");
-const data = { mapCodename: "sakhal", positions: [] };
+const data = { mapCodename: "sakhal", positions: [], online: [] };
 
 describe("MapPageView", () => {
   it("prompts a signed-out visitor to sign in, never a blank canvas", () => {

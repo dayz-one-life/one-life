@@ -406,5 +406,17 @@ export type FriendPositionDto = {
   recordedAt: string;
   self: boolean;
 };
-export type FriendMap = { mapCodename: string; positions: FriendPositionDto[] };
+export type OnlinePlayerDto = {
+  gamertag: string;
+  /** An accepted friendship with the viewer. */
+  friend: boolean;
+  /** Has a dot on this map — derived server-side from the same positions. */
+  sharing: boolean;
+  self: boolean;
+};
+export type FriendMap = {
+  mapCodename: string;
+  positions: FriendPositionDto[];
+  online: OnlinePlayerDto[];
+};
 export type MapServerDto = { slug: string; name: string; map: string; friendCount: number };

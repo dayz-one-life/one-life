@@ -7,10 +7,18 @@ describe("MasterShareSwitch", () => {
   it("reflects its state and reports a change", async () => {
     const onChange = vi.fn();
     render(<MasterShareSwitch on={false} onChange={onChange} />);
-    const box = screen.getByRole("checkbox", { name: /share my status with friends/i });
+    const box = screen.getByRole("checkbox", { name: /tell friends when i come online/i });
     expect(box).not.toBeChecked();
     await userEvent.click(box);
     expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("describes what the switch actually does — alerts, not visibility", () => {
+    // The map lists everyone online regardless of these switches (the game's own player menu
+    // does too). Copy that implies hiding would be a lie about a privacy control.
+    render(<MasterShareSwitch on={false} onChange={() => {}} />);
+    expect(screen.getByText(/tell friends when i come online/i)).toBeInTheDocument();
+    expect(screen.queryByText(/share my status/i)).toBeNull();
   });
 
   // jsdom cannot observe a computed cursor, so the token itself is pinned. A disabled control
@@ -29,7 +37,7 @@ describe("PresenceToggles", () => {
 
   it("renders both switches reflecting their flags", () => {
     render(<PresenceToggles friendshipId={1} share={true} notify={false} masterOn onChange={noop} />);
-    expect(screen.getByRole("checkbox", { name: /share my status/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /tell them when i come online/i })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /notify me/i })).not.toBeChecked();
   });
 
@@ -44,8 +52,8 @@ describe("PresenceToggles", () => {
   // per-friend share control is disabled AND says why.
   it("disables the share switch and explains when the master switch is off", () => {
     render(<PresenceToggles friendshipId={1} share notify masterOn={false} onChange={noop} />);
-    expect(screen.getByRole("checkbox", { name: /share my status/i })).toBeDisabled();
-    expect(screen.getByText(/sharing is off/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /tell them when i come online/i })).toBeDisabled();
+    expect(screen.getByText(/alerts are off/i)).toBeInTheDocument();
   });
 
   it("leaves the notify switch usable when the master switch is off", () => {
@@ -55,19 +63,19 @@ describe("PresenceToggles", () => {
 
   it("disables both while a write is in flight", () => {
     render(<PresenceToggles friendshipId={1} share notify masterOn disabled onChange={noop} />);
-    expect(screen.getByRole("checkbox", { name: /share my status/i })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /tell them when i come online/i })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: /notify me/i })).toBeDisabled();
   });
 
   it("associates the explanation with the share checkbox when the master switch is off", () => {
     render(<PresenceToggles friendshipId={7} share notify masterOn={false} onChange={noop} />);
-    const shareBox = screen.getByRole("checkbox", { name: /share my status/i });
+    const shareBox = screen.getByRole("checkbox", { name: /tell them when i come online/i });
     expect(shareBox).toHaveAttribute("aria-describedby", "share-disabled-7");
   });
 
   it("does not associate the explanation when the master switch is on", () => {
     render(<PresenceToggles friendshipId={1} share notify masterOn onChange={noop} />);
-    const shareBox = screen.getByRole("checkbox", { name: /share my status/i });
+    const shareBox = screen.getByRole("checkbox", { name: /tell them when i come online/i });
     expect(shareBox).not.toHaveAttribute("aria-describedby");
   });
 
@@ -81,7 +89,7 @@ describe("PresenceToggles", () => {
         <PresenceToggles friendshipId={22} share notify masterOn={false} onChange={noop} />
       </>,
     );
-    const boxes = screen.getAllByRole("checkbox", { name: /share my status/i });
+    const boxes = screen.getAllByRole("checkbox", { name: /tell them when i come online/i });
     const firstId = boxes[0]!.getAttribute("aria-describedby");
     const secondId = boxes[1]!.getAttribute("aria-describedby");
     expect(firstId).toBe("share-disabled-11");
