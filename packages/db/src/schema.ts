@@ -476,3 +476,36 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   uniqEndpoint: uniqueIndex("push_subscriptions_endpoint_uniq").on(t.endpoint),
   byUser: index("push_subscriptions_user_idx").on(t.userId),
 }));
+
+// ── Friendships (F1). Durable: NOT in apps/projector/src/rebuild.ts's truncate list.
+//
+// The pair is canonically ordered, user_a < user_b, enforced by a CHECK and not merely by
+// convention: the unique index alone would happily accept the mirrored duplicate
+// (user_b, user_a), and a hand-written INSERT during an incident is exactly when that
+// happens. All writes go through packages/friends' orderPair.
+//
+// request_seq is load-bearing. notifications.natural_key is a PLAIN GLOBAL unique index,
+// so a key of friend_request:<id> makes the SECOND request over a pair (decline → cooldown
+// → re-request) collide with the first and vanish under onConflictDoNothing — the
+// recipient is never told. Re-requesting bumps the seq. See the F1 spec §4.2.
+//
+// The four *_shares_* columns are F2/F3 surface: written by nothing and read by nothing in
+// F1. They ship now so location/presence sharing needs no second migration. ──
+
+export const friendships = pgTable("friendships", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userA: text("user_a").notNull().references(() => user.id, { onDelete: "cascade" }),
+  userB: text("user_b").notNull().references(() => user.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),
+  requestedBy: text("requested_by").notNull().references(() => user.id, { onDelete: "cascade" }),
+  requestSeq: integer("request_seq").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  aSharesLocation: boolean("a_shares_location").notNull().default(false),
+  bSharesLocation: boolean("b_shares_location").notNull().default(false),
+  aSharesPresence: boolean("a_shares_presence").notNull().default(false),
+  bSharesPresence: boolean("b_shares_presence").notNull().default(false),
+}, (t) => ({
+  uniqPair: uniqueIndex("friendships_pair_uniq").on(t.userA, t.userB),
+  byRecipient: index("friendships_recipient_idx").on(t.userB, t.status),
+}));
