@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Map place names are legible again. The smaller labels — the villages and landmarks that
+  only appear once you have zoomed in — were drawn as pale text with a soft shadow, which
+  disappears into the terrain underneath. Every label now sits on a solid block, at full
+  strength, whatever is behind it.
+
 ### Security
 
 ## [0.38.0] - 2026-07-22

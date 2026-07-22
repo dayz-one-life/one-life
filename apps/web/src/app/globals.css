@@ -42,23 +42,33 @@
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 
 /* Town / landmark labels on both maps (see `runPlaces` in components/map/map-canvas.tsx).
-   These sit on dark topographic tiles, so they are paper-on-dark with a hard shadow rather
-   than a box — a label with a background would read as a marker and compete with the dots.
+   ⚠️ SOLID BACKGROUND, NOT A TEXT SHADOW. These shipped as paper-on-dark with a blurred
+   shadow, which failed on the terrain they actually sit on: a topographic tile is busy and
+   mid-value, so a soft halo left the two small tiers unreadable at their own zoom — i.e.
+   exactly the labels that only appear when you have zoomed in to read them. A solid box is
+   the only treatment that holds over arbitrary tile content. The earlier worry that a box
+   would compete with the dots is handled instead by the `places` pane (z-index 350), which
+   keeps every label UNDER the markers regardless of how opaque it is.
    `transform` re-centres the text on a zero-sized divIcon. */
 .map-place {
+  background: rgb(var(--dark));
   color: rgb(var(--paper));
   font-family: var(--font-display), sans-serif;
   letter-spacing: 0.06em;
+  padding: 1px 4px;
   pointer-events: none; /* belt to `interactive: false`'s braces */
-  text-shadow: 0 1px 2px rgb(var(--dark)), 0 0 4px rgb(var(--dark));
   text-transform: uppercase;
   transform: translate(-50%, -50%);
   white-space: nowrap;
   width: max-content;
 }
-.map-place-major { font-size: 13px; }
-.map-place-minor { font-size: 11px; color: rgb(var(--cream-dim)); }
-.map-place-faint { font-size: 10px; color: rgb(var(--cream-muted)); letter-spacing: 0.04em; }
+/* Tiers separate by SIZE and WEIGHT only. They used to also fade the text toward the
+   background (`cream-dim`/`cream-muted`), which is the other half of why the small ones
+   were illegible — a 10px label is where contrast matters most, not least. Every tier is
+   now full-strength paper on solid ink. */
+.map-place-major { font-size: 13px; font-weight: 600; }
+.map-place-minor { font-size: 11px; }
+.map-place-faint { font-size: 10px; letter-spacing: 0.04em; opacity: 0.85; }
 
 /* Permanent gamertag labels on the friends map. Leaflet's own tooltip is a white bubble with a
    drop shadow and an arrow; on a dark tile canvas that reads as a UI popup rather than a map
