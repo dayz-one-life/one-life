@@ -25,9 +25,16 @@ beforeAll(async () => {
 });
 afterAll(async () => { await sql.end(); });
 
+// Notifier tests share one database and run sequentially with no per-file isolation, so a
+// sibling file's leftover rows (a verified link, a token transaction) can land inside this
+// suite's `since` window and corrupt an unscoped assertion. Scope every assertion here to the
+// ids this suite itself seeds ("ac1"/"ac2") rather than trusting every sibling to leave the
+// table empty — immune to pollution, not merely lucky that none exists today.
+const SEEDED_USER_IDS = new Set(["ac1", "ac2"]);
+
 describe("gamertagVerifiedGenerator", () => {
   it("emits one draft for a verified link and ignores pending", async () => {
-    const drafts = await gamertagVerifiedGenerator(deps);
+    const drafts = (await gamertagVerifiedGenerator(deps)).filter((d) => SEEDED_USER_IDS.has(d.userId));
     expect(drafts).toHaveLength(1);
     expect(drafts[0]!.userId).toBe("ac1");
     expect(drafts[0]!.kind).toBe("gamertag_verified");
@@ -38,7 +45,7 @@ describe("gamertagVerifiedGenerator", () => {
 
 describe("tokensGenerator", () => {
   it("emits grants and transfers-in, never redeems or out-of-window rows", async () => {
-    const drafts = await tokensGenerator(deps);
+    const drafts = (await tokensGenerator(deps)).filter((d) => SEEDED_USER_IDS.has(d.userId));
     const kinds = drafts.map((d) => d.kind).sort();
     expect(kinds).toEqual(["tokens_granted", "tokens_received"]);
     expect(drafts.every((d) => d.naturalKey.startsWith("tokens:"))).toBe(true);

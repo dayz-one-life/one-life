@@ -6,9 +6,11 @@ import { RosterView, Roster } from "./roster";
 
 const entry = (id: number, gamertag: string) => ({
   id, gamertag, slug: gamertag.toLowerCase(), status: "friends" as const,
-  since: "2026-07-01T00:00:00Z",
+  since: "2026-07-01T00:00:00Z", sharesPresence: false, notifyPresence: false,
 });
 const actions = { onAccept: () => {}, onDecline: () => {}, onRemove: () => {}, onCancel: () => {} };
+
+const withPresence = { ...entry(2, "FriendOne"), sharesPresence: true, notifyPresence: false };
 
 describe("RosterView", () => {
   it("shows a skeleton while loading, never an empty roster", () => {
@@ -24,14 +26,14 @@ describe("RosterView", () => {
   });
 
   it("says so plainly when the roster really is empty", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25 }} {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
     expect(screen.getByText(/no friends yet/i)).toBeInTheDocument();
   });
 
   it("lists incoming requests with Accept and Decline", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
       />,
     );
@@ -47,7 +49,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [entry(2, "FriendOne")], incoming: [],
-          outgoing: [entry(3, "PendingOne")], total: 1, page: 1, pageSize: 25,
+          outgoing: [entry(3, "PendingOne")], total: 1, page: 1, pageSize: 25, sharePresence: false,
         }}
         {...actions}
       />,
@@ -66,7 +68,7 @@ describe("RosterView", () => {
     const onCancel = vi.fn();
     render(
       <RosterView
-        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
         onRemove={onRemove}
         onCancel={onCancel}
@@ -78,14 +80,14 @@ describe("RosterView", () => {
   });
 
   it("announces the last completed action", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25 }} announcement="Friend request accepted" {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} announcement="Friend request accepted" {...actions} />);
     expect(screen.getByRole("status")).toHaveTextContent("Friend request accepted");
   });
 
   it("uses role=\"list\" so Tailwind preflight's list-style:none can't strip the implicit list role", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
       />,
     );
@@ -95,7 +97,7 @@ describe("RosterView", () => {
   it("disables row controls while a mutation is pending", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         pending
         {...actions}
       />,
@@ -105,7 +107,7 @@ describe("RosterView", () => {
   });
 
   it("requires a confirm step before removing a friend", () => {
-    const data = { friends: [entry(2, "FriendOne")], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25 };
+    const data = { friends: [entry(2, "FriendOne")], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false };
     const { rerender } = render(<RosterView data={data} {...actions} />);
     expect(screen.getByRole("button", { name: /^remove$/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /remove friend/i })).toBeNull();
@@ -118,7 +120,7 @@ describe("RosterView", () => {
     const friends = Array.from({ length: 25 }, (_, i) => entry(i + 1, `Friend${i + 1}`));
     render(
       <RosterView
-        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25 }}
+        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
       />,
     );
@@ -131,7 +133,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [], incoming: [entry(1, "InOne")], outgoing: [entry(2, "OutOne")],
-          total: 0, page: 1, pageSize: 25,
+          total: 0, page: 1, pageSize: 25, sharePresence: false,
         }}
         {...actions}
       />,
@@ -144,12 +146,97 @@ describe("RosterView", () => {
     expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/no friends yet/i)).toBeNull();
   });
+
+  it("renders the master share switch from data.sharePresence, when there is a friend", () => {
+    render(
+      <RosterView
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeChecked();
+  });
+
+  // A user with only pending requests (no accepted friends yet) can still set their global
+  // privacy preference ahead of the moment a request is accepted — the switch should not be
+  // hidden just because `friends` is empty.
+  it("renders the master switch with only incoming requests, no friends yet", () => {
+    render(
+      <RosterView
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+  });
+
+  it("renders the master switch with only outgoing requests, no friends yet", () => {
+    render(
+      <RosterView
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+  });
+
+  it("does not render the master switch with a genuinely empty roster", () => {
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
+    expect(screen.queryByRole("checkbox", { name: /share my status with friends/i })).toBeNull();
+  });
+
+  it("shows per-friend presence toggles on friend rows, but not on incoming or outgoing rows", () => {
+    render(
+      <RosterView
+        data={{
+          friends: [withPresence], incoming: [entry(1, "IncomingOne")], outgoing: [entry(3, "PendingOne")],
+          total: 1, page: 1, pageSize: 25, sharePresence: true,
+        }}
+        {...actions}
+      />,
+    );
+    const friends = screen.getByRole("list", { name: /friends/i });
+    expect(within(friends).getByRole("checkbox", { name: /share my status/i })).toBeInTheDocument();
+    expect(within(friends).getByRole("checkbox", { name: /notify me/i })).toBeInTheDocument();
+
+    const incoming = screen.getByRole("list", { name: /requests/i });
+    expect(within(incoming).queryByRole("checkbox")).toBeNull();
+    const outgoing = screen.getByRole("list", { name: /sent/i });
+    expect(within(outgoing).queryByRole("checkbox")).toBeNull();
+  });
+
+  it("reports a presence change through onPresenceChange", async () => {
+    const onPresenceChange = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
+        {...actions}
+        onPresenceChange={onPresenceChange}
+      />,
+    );
+    screen.getByRole("checkbox", { name: /notify me/i }).click();
+    expect(onPresenceChange).toHaveBeenCalledWith(2, { notify: true });
+  });
+
+  it("reports a master switch change through onSharePresenceChange", () => {
+    const onSharePresenceChange = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false }}
+        {...actions}
+        onSharePresenceChange={onSharePresenceChange}
+      />,
+    );
+    screen.getByRole("checkbox", { name: /share my status with friends/i }).click();
+    expect(onSharePresenceChange).toHaveBeenCalledWith(true);
+  });
 });
 
-const { mockAccount, getFriends, acceptFriendRequest } = vi.hoisted(() => ({
+const { mockAccount, getFriends, acceptFriendRequest, patchFriendPresence } = vi.hoisted(() => ({
   mockAccount: { value: null as unknown },
   getFriends: vi.fn(),
   acceptFriendRequest: vi.fn(),
+  patchFriendPresence: vi.fn(),
 }));
 
 vi.mock("@/lib/use-account-status", () => ({
@@ -166,6 +253,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
     acceptFriendRequest: (...a: unknown[]) => acceptFriendRequest(...a),
     declineFriendRequest: vi.fn(),
     deleteFriendship: vi.fn(),
+    patchFriendPresence: (...a: unknown[]) => patchFriendPresence(...a),
+    patchPreferences: vi.fn(),
   };
 });
 
@@ -175,7 +264,7 @@ describe("Roster container", () => {
     return { ...render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>), qc };
   }
 
-  const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 };
+  const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false };
 
   it("announces success only after a successful accept resolves — never at click time", async () => {
     mockAccount.value = {
@@ -256,8 +345,8 @@ describe("Roster container", () => {
     getFriends.mockImplementation((page: number) =>
       Promise.resolve(
         page === 1
-          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25 }
-          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25 },
+          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25, sharePresence: false }
+          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25, sharePresence: false },
       ),
     );
     const { qc } = wrap(<Roster />);
@@ -268,11 +357,30 @@ describe("Roster container", () => {
 
     // Simulate the server-side effect of removing that last friend on page 2: total drops to
     // 25 (one full page), and page 2 now has no rows.
-    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25 });
+    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25, sharePresence: false });
 
     // The roster clamps back to page 1 (already cached) rather than rendering an empty
     // section with no way back.
     await screen.findByRole("link", { name: "Friend1" });
     expect(screen.queryByText(/no friends yet/i)).toBeNull();
+  });
+
+  it("does not announce success on a failed presence write, and surfaces the mapped error text", async () => {
+    mockAccount.value = {
+      kind: "verified",
+      link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+    };
+    getFriends.mockResolvedValue({
+      friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true,
+    });
+    const { ApiError } = await import("@/lib/api");
+    patchFriendPresence.mockRejectedValue(new ApiError(404, "not_found"));
+    wrap(<Roster />);
+
+    const notifyBox = await screen.findByRole("checkbox", { name: /notify me/i });
+    notifyBox.click();
+
+    await waitFor(() => expect(screen.getByText(/not found|couldn't|went wrong/i)).toBeInTheDocument());
+    expect(screen.queryByText(/presence updated/i)).toBeNull();
   });
 });

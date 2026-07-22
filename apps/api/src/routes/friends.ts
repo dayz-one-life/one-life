@@ -3,7 +3,7 @@ import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { z } from "zod";
 import {
-  request, cancel, accept, decline, remove,
+  request, cancel, accept, decline, remove, setPresenceFlags,
   listFriends, statusFor, FriendError,
 } from "@onelife/friends";
 import { getSession } from "../auth-plugin.js";
@@ -13,6 +13,10 @@ const feedQuery = z.object({ page: z.coerce.number().int().positive().catch(1) }
 const statusQuery = z.object({ gamertag: z.string().min(1) });
 const requestBody = z.object({ toGamertag: z.string().min(1) });
 const idParam = z.object({ id: z.coerce.number().int().positive() });
+const presenceBody = z.object({
+  share: z.boolean().optional(),
+  notify: z.boolean().optional(),
+});
 
 const ERROR_STATUS: Record<string, number> = {
   self_request: 400,
@@ -92,6 +96,19 @@ export function registerFriendRoutes(app: FastifyInstance, db: Database, auth: A
           await cancel(db, { userId, friendshipId: id });
         } else throw e;
       }
+      return { ok: true };
+    } catch (e) {
+      return onFriendError(e, reply);
+    }
+  });
+
+  app.patch("/me/friends/:id/presence", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const { id } = idParam.parse(req.params);
+    const body = presenceBody.parse(req.body ?? {});
+    try {
+      await setPresenceFlags(db, { userId: session.user.id, friendshipId: id, ...body });
       return { ok: true };
     } catch (e) {
       return onFriendError(e, reply);

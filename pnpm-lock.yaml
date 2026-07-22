@@ -235,6 +235,9 @@ importers:
       '@onelife/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@onelife/friends':
+        specifier: workspace:*
+        version: link:../../packages/friends
       '@onelife/read-models':
         specifier: workspace:*
         version: link:../../packages/read-models
