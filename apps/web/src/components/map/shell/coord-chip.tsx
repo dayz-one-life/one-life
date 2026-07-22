@@ -33,7 +33,9 @@ export function CoordChip({ world }: { world: { x: number; y: number } | null })
       type="button"
       onClick={copy}
       aria-label={`Copy grid reference ${ref}`}
-      className="pointer-events-auto absolute bottom-3 left-3 z-10 border border-dark-edge bg-dark px-2 py-1 font-mono text-[11px] uppercase tracking-[.08em] tabular-nums text-paper"
+      // Position is the CALLER's business: in the bottom bar it is ordinary flow content, and
+      // over the map (md and up) the wrapper positions it. Only the box lives here.
+      className="flex min-h-[44px] items-center border border-dark-edge bg-dark px-3 py-1 font-mono text-[13px] uppercase tracking-[.08em] tabular-nums text-paper md:min-h-0 md:px-2 md:text-[11px]"
     >
       {copied ? "Copied" : ref}
     </button>

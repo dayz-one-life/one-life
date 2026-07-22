@@ -8,6 +8,8 @@ import type { FriendMap } from "@/lib/types";
 import FriendsMap from "./friends-map";
 import type { MapFocus } from "./map-canvas";
 import { TopBar } from "./shell/top-bar";
+import { MapBottomBar } from "./shell/bottom-bar";
+import { CoordChip } from "./shell/coord-chip";
 import { PlaceSearch } from "./shell/place-search";
 import { LocateButton } from "./shell/locate-button";
 import { FriendsPanel } from "./shell/friends-panel";
@@ -30,6 +32,8 @@ export type MapPageViewProps = {
   now: Date;
   /** Where the search box last asked the map to fly. */
   focus?: MapFocus | null;
+  /** Lifted out of FriendsMap: the grid chip is chrome now, not an overlay on the canvas. */
+  onCenterChange?: (world: { x: number; y: number }) => void;
 };
 
 /** Presentational. Five states, never collapsed: signed out, unverified, loading, failed,
@@ -77,13 +81,18 @@ export function MapPageView(p: MapPageViewProps) {
     );
   }
   if (!p.data) return null;
-  return <FriendsMap data={p.data} now={p.now} focus={p.focus} />;
+  return (
+    <FriendsMap data={p.data} now={p.now} focus={p.focus} onCenterChange={p.onCenterChange} />
+  );
 }
 
 export function MapPage({ slug }: { slug: string }) {
   const account = useAccountStatus();
   const verified = account.kind === "verified";
   const [focus, setFocus] = useState<MapFocus | null>(null);
+  // The map centre, in world metres. Owned HERE rather than in FriendsMap because the chip
+  // that reads it is chrome: on a phone it sits in the bottom bar, outside the map entirely.
+  const [world, setWorld] = useState<{ x: number; y: number } | null>(null);
   const servers = useQuery({ queryKey: ["map-servers"], queryFn: getMapServers, enabled: verified });
   const q = useQuery({
     queryKey: ["friend-map", slug],
@@ -91,6 +100,25 @@ export function MapPage({ slug }: { slug: string }) {
     enabled: verified,
     refetchInterval: 30_000,
   });
+
+  // Built once, placed twice — see the note at the top-bar slot below.
+  const controls = verified ? (
+    <>
+      <LocateButton
+        self={q.data?.positions.find((p) => p.self)}
+        loading={q.isPending}
+        error={q.isError && !q.data}
+        mapCodename={q.data?.mapCodename ?? ""}
+        onLocate={setFocus}
+      />
+      <FriendsPanel
+        positions={q.data?.positions}
+        loading={q.isPending}
+        error={q.isError && !q.data}
+        now={new Date()}
+      />
+    </>
+  ) : null;
 
   return (
     <>
@@ -101,23 +129,12 @@ export function MapPage({ slug }: { slug: string }) {
         {/* Signed-out and unverified visitors get no controls at all: the friend query is
             disabled for them, so `isPending` never resolves and Locate would sit there
             claiming to be loading a position that is never coming. */}
-        {verified && (
-          <>
-            <LocateButton
-              self={q.data?.positions.find((p) => p.self)}
-              loading={q.isPending}
-              error={q.isError && !q.data}
-              mapCodename={q.data?.mapCodename ?? ""}
-              onLocate={setFocus}
-            />
-            <FriendsPanel
-              positions={q.data?.positions}
-              loading={q.isPending}
-              error={q.isError && !q.data}
-              now={new Date()}
-            />
-          </>
-        )}
+        {/* ⚠️ These two ALSO render in the bottom bar, and only one copy is ever visible —
+            `hidden`/`md:hidden` is display:none, which also removes the hidden copy from the
+            accessibility tree. Same pattern as the ControlsRail/ControlsSheet pair. jsdom
+            applies no CSS, so the suite cannot prove the exclusivity; it is on the browser
+            checklist instead. */}
+        <div className="hidden md:flex md:items-center md:gap-1">{controls}</div>
       </TopBar>
       {/* The root layout's skip link points at #main-content, which lives in the (site) layout
           this route deliberately opts out of — so the shell supplies its own target, and it is
@@ -130,9 +147,18 @@ export function MapPage({ slug }: { slug: string }) {
           error={q.isError && !q.data}
           data={q.data}
           focus={focus}
+          onCenterChange={setWorld}
           now={new Date()}
         />
+        {/* From md up the chip floats over the map's bottom-left, as it always has. Below md
+            it lives in the bottom bar instead — within thumb reach, and clear of the map. */}
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 hidden md:block">
+          <div className="pointer-events-auto">
+            <CoordChip world={world} />
+          </div>
+        </div>
       </div>
+      <MapBottomBar chip={<CoordChip world={world} />}>{controls}</MapBottomBar>
     </>
   );
 }
