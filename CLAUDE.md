@@ -1664,6 +1664,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   The script reads it out of `.env` into a plain shell variable and never exports it; the
   migrate and `--rebuild` phases each prefix `DATABASE_URL="$DATABASE_URL"` for this reason.
   Both phases run *after* the fleet is stopped, so a miss aborts the deploy with the site down.
-- Deploy (prod): `./deploy/deploy.sh` deploys the latest release tag (build → backup → migrate →
-  restart fleet → health-check); add `--rebuild` for releases that change projection-table shape
-  (truncate + re-fold from the event log). See `deploy/README.md`.
+- Deploy (prod): `./deploy/deploy.sh` deploys the latest release tag; add `--rebuild` for releases
+  that change projection-table shape (truncate + re-fold from the event log). See `deploy/README.md`.
+- **⚠️ The `--rebuild` phase runs BEFORE the migrate phase** (backup → stop fleet → **rebuild** →
+  **migrate** → restart). So `rebuildAll`'s `TRUNCATE` executes against the *old* schema — a
+  projection table that a same-release migration CREATES does not exist yet. **Never name a
+  newly-created projection table in `REBUILD_TRUNCATE_TABLES` (`apps/projector/src/rebuild.ts`) in
+  the release that creates it** — naming a missing relation aborts the whole `TRUNCATE`, and since
+  the fleet is already stopped the deploy dies mid-flight (this is what broke the v0.42.1 deploy:
+  `0025` created `player_gamertags` and listed it in the same release). A child table with an FK to
+  a table already in the list is cleared by `RESTART IDENTITY CASCADE` and needs no entry at all; a
+  parentless new projection table must wait one release before being added. The rebuild-before-migrate
+  order is deliberate — it empties projection tables so a shape-changing migration applies to empty
+  rows — so do not "fix" it by reordering. Unlike a `deploy.sh` change, a `rebuild.ts` fix DOES
+  self-apply (the phase runs `tsx src/rebuild.ts` from the freshly-checked-out tag).
