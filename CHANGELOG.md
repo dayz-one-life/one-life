@@ -28,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.33.0] - 2026-07-21
+
+### Added
+
+- A sitemap, so search engines can find every player dossier, life timeline, article and
+  leaderboard the site publishes — plus a robots.txt that keeps crawlers out of the sign-in and
+  notification pages.
+
 ## [0.32.0] - 2026-07-21
 
 ### Added

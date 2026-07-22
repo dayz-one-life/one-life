@@ -354,3 +354,10 @@ export interface LifeTrack {
   truncated: boolean;
   alive: boolean;
 }
+/** Everything the sitemap may advertise. `gamertag` is raw — the web builds the URL with
+ *  `playerSlug`, the same function that builds every other player link. */
+export type SitemapData = {
+  players: { gamertag: string; lastmod: string }[];
+  lives: { gamertag: string; mapSlug: string; n: number; lastmod: string }[];
+  articles: { kind: string; slug: string; lastmod: string }[];
+};

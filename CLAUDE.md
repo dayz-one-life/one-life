@@ -663,6 +663,41 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   that knows only its own param silently resets the other section.
   A failed fetch renders an explicit `role="status"` line, never an empty section: "no articles" and
   "couldn't load" are different statements (the live-data-honesty invariant).
+- **Sitemap + robots.txt** ✅: `apps/web/src/app/sitemap.ts` (`force-dynamic`; the hourly window is
+  on the FETCH, not the route — see the ⚠️ below) and
+  `apps/web/src/app/robots.ts`, fed by `getSitemapEntries` (`packages/read-models/src/sitemap.ts`)
+  through public `GET /sitemap`. ~476 URLs today against a 50,000 limit, so there is deliberately
+  **no sitemap index and no `generateSitemaps`**. Spec
+  `docs/superpowers/specs/2026-07-21-sitemap-design.md`.
+  **⚠️ The sitemap must never advertise a URL that 404s or redirects.** A life's map segment is a
+  `servers.slug` and a life on an un-slugged server is omitted entirely; only players with at least
+  one life and only `status='published'` articles are listed; board URLs are built with `boardHref`,
+  **which collapses the default sort for you** — hand-building `/survivors/time` would advertise a
+  redirect. Each rule is mutation-tested (removing the clause makes a named test fail).
+  **`lastmod` is real** — article `created_at`, life `ended_at ?? started_at`, player `MAX` of their
+  lives' activity. A `new Date()` would train crawlers to ignore the field; static and board entries
+  carry none at all.
+  **The payload carries `gamertag`, not a slug.** The web builds the path with `playerSlug`, the same
+  function behind every other player link, rather than adding a third copy of the slug rule
+  (`read-models` already hand-syncs `slugNorm` — see the note at `player-aggregate.ts:19`).
+  **⚠️ The two fetches degrade INDEPENDENTLY** (separate try/catch): losing the server list must not
+  cost the ~470 content URLs, and vice versa. A single shared try/catch passes the "data fails" test
+  and silently guts the sitemap — pinned by a test proven red against exactly that change.
+  **⚠️ The route is `force-dynamic`, and `export const revalidate` must NOT be restored.** Making it
+  static/ISR means `next build` prerenders it and fetches the API at build time; the build does not
+  run alongside a serving API, so it fails outright (three 60s attempts, then `Export encountered an
+  error on /sitemap.xml/route`) — and a fetch timeout only downgrades that to a *baked* sitemap
+  holding the static + board entries alone, which ISR then serves for an hour, missing every player,
+  life and article URL. The hourly enumeration window instead lives on the fetch: `apiGetCached`
+  (`@/lib/api`) sends `next: { revalidate }` and, unlike `apiGet`, never awaits `cookies()` and
+  never forwards a cookie header — a crawler's cookies have no business reaching a shared cache
+  entry. Do not point the ordinary `getServers()` at it; authenticated RSC pages need the
+  cookie-forwarding version.
+  **`lives.life_number` IS the URL segment here.** That does not contradict the rule against keying
+  on `life_number`, which governs matching an *article* to a life; this generates the URL the router
+  itself resolves by number.
+  The home entry uses `SITE_URL` directly, not `absoluteUrl("")`, which would emit a trailing slash.
+  AI crawlers are deliberately **not** blocked — the paper wants citations.
 - **Cross-linking, PR-3 — gamertags in prose** ✅: a gamertag named in an article's prose links to
   that player's dossier, via the pure `linkifyGamertags(text, roster)`
   (`apps/web/src/lib/linkify-gamertags.tsx`) applied inside `ArticleBody` to the `para`/`quote`/
