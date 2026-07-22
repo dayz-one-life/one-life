@@ -20,16 +20,21 @@ beforeAll(async () => {
   }).returning();
   serverId = s!.id;
 
-  // The other player is created FIRST so its player id sorts below the subject's — the
-  // `lives` table's (server_id, player_id) index means an unfiltered query naturally
-  // surfaces the lower player id first, so this ordering is what makes a dropped
-  // gamertag predicate observable instead of accidentally masked.
+  // The other player is created first (irrelevant to the ordering below, but kept for
+  // readability alongside its life).
   const [o] = await db.insert(players).values({ gamertag: other, lastSeenAt: mins(200) }).returning();
   otherPid = o!.id;
   const [p] = await db.insert(players).values({ gamertag: tag, lastSeenAt: mins(200) }).returning();
   pid = p!.id;
 
   // Another player's colliding life 1 on the same server.
+  // ⚠️ This row is inserted BEFORE the subject's life 1 below, so it gets the lower
+  // `lives.id`. `getLifeTrack`'s opening query orders `ASC(lives.id) LIMIT 1` for a
+  // deterministic tiebreak — with the `lower(players.gamertag) = lower(gamertag)`
+  // predicate removed, the two rows would still collide on (server_id, lifeNumber=1),
+  // and the ORDER BY would deterministically pick THIS row (the wrong player's life),
+  // which is what makes the guard test below fail in a way that doesn't depend on the
+  // query planner. Swapping the insertion order would silently defang that test.
   const [ol] = await db.insert(lives).values({
     serverId, playerId: otherPid, lifeNumber: 1, startedAt: start, endedAt: mins(60), playtimeSeconds: 3600,
   }).returning();

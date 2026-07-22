@@ -42,7 +42,9 @@ export async function getLifeTrack(
       eq(lives.serverId, serverId),
       eq(lives.lifeNumber, lifeNumber),
       sql`lower(${players.gamertag}) = lower(${gamertag})`,
-    ));
+    ))
+    .orderBy(asc(lives.id))
+    .limit(1);
   if (!row) return null;
 
   // An open life's window ends at the presence cap — `lastSeenAt ?? connectedAt`, with NO
