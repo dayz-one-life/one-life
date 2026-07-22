@@ -459,6 +459,12 @@ export const notifications = pgTable("notifications", {
   uniqNatural: uniqueIndex("notifications_natural_key_uniq").on(t.naturalKey),
   byUser: index("notifications_user_created_idx").on(t.userId, t.createdAt),
   unpushedIdx: index("notifications_unpushed_idx").on(t.createdAt).where(sql`${t.pushedAt} IS NULL`),
+  // F1 friend-request rate limit (migration 0019): supports the LIKE 'prefix%' prefix scan
+  // in packages/friends/src/mutations.ts. text_pattern_ops has no drizzle-orm 0.36 builder
+  // API, so this is expressed as a raw expression the same way articles_subject_idx is —
+  // this entry documents the index; the migration SQL is the source of truth.
+  naturalKeyPatternIdx: index("notifications_natural_key_pattern_idx")
+    .on(sql`${t.naturalKey} text_pattern_ops`),
 }));
 
 export const pushSubscriptions = pgTable("push_subscriptions", {

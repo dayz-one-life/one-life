@@ -18,7 +18,12 @@ async function verifiedGamertag(tx: Tx, userId: string): Promise<string | null> 
   return row?.gamertag ?? null;
 }
 
-/** The row for a pair, locked for update so concurrent requests serialize. */
+/** The row for a pair, locked for update — but ONLY when a row already exists. A
+ *  `FOR UPDATE` that matches zero rows locks nothing, so this alone does not serialize two
+ *  concurrent FIRST-TIME requests aimed at the same pair (there is no row yet for either to
+ *  lock): see lockSender for the per-sender serialization that actually closes the rate
+ *  limit, and the unique-violation catch in request()'s insert path for the cross-sender
+ *  reciprocal race this function cannot prevent. */
 async function lockPair(tx: Tx, userA: string, userB: string) {
   const [row] = await tx
     .select()
@@ -27,6 +32,32 @@ async function lockPair(tx: Tx, userA: string, userB: string) {
     .for("update")
     .limit(1);
   return row ?? null;
+}
+
+/** Postgres error shape from the `postgres` driver for a unique-violation (23505),
+ *  narrowed to a specific constraint so we don't swallow an unrelated one. */
+function isUniqueViolation(err: unknown, constraintName: string): boolean {
+  const e = err as { code?: string; constraint_name?: string } | null;
+  return !!e && e.code === "23505" && e.constraint_name === constraintName;
+}
+
+/** Escapes a Postgres LIKE pattern's special characters (`%`, `_`, `\`) so a literal value
+ *  — here, a user id — can be safely used as a LIKE prefix. Without this, `_`/`%` in the id
+ *  act as single-character/any-length wildcards and can match a DIFFERENT user's
+ *  notification keys (see the ab_cd / abXcd regression test), silently under- or
+ *  over-counting that user's rate limit. */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+/** Transaction-scoped advisory lock keyed on the sender, taken before the rate-limit count
+ *  so concurrent request() calls from the SAME sender queue up rather than all reading the
+ *  same pre-commit count and all passing the `>= limit` check together (finding #1). Released
+ *  automatically at commit or rollback — never needs an explicit unlock.
+ *  `hashtext()` returns int4; `pg_advisory_xact_lock` only has a bigint overload, so the cast
+ *  is required rather than relying on an implicit conversion (there isn't one). */
+async function lockSender(tx: Tx, userId: string): Promise<void> {
+  await tx.execute(dsql`select pg_advisory_xact_lock(hashtext(${userId})::bigint)`);
 }
 
 /** A row the caller is a party to, locked. Throws not_found otherwise — a non-party must
@@ -66,6 +97,33 @@ function recipientOf(row: { userA: string; userB: string; requestedBy: string })
   return row.requestedBy === row.userA ? row.userB : row.userA;
 }
 
+/** Shared by both paths that can discover "the other party already has a pending request
+ *  aimed at you": the ordinary case (an existing pending row found under lockPair) and the
+ *  race case (request()'s insert loses a unique-violation to a concurrent reciprocal
+ *  first-request, finding #1/#4). The recipient requesting back IS an acceptance — erroring
+ *  here would refuse an unambiguous intent (spec §5.2); this is also the only sound outcome
+ *  for the race, since by construction the two colliding inserts came from the two different
+ *  members of the pair. */
+async function acceptReciprocalOrThrow(
+  tx: Tx,
+  existing: { id: number; requestedBy: string; requestSeq: number },
+  fromUserId: string,
+  now: Date,
+  fromTag: string,
+): Promise<{ id: number; status: "pending" | "accepted" }> {
+  if (existing.requestedBy === fromUserId) throw new FriendError("already_pending");
+  await tx.update(friendships)
+    .set({ status: "accepted", respondedAt: now })
+    .where(eq(friendships.id, existing.id));
+  await writeNotification(tx, acceptedNotification({
+    friendshipId: existing.id,
+    seq: existing.requestSeq,
+    senderId: existing.requestedBy,
+    accepterGamertag: fromTag,
+  }));
+  return { id: existing.id, status: "accepted" as const };
+}
+
 /**
  * Send a friend request, or accept an inverse pending one.
  *
@@ -81,6 +139,12 @@ export async function request(
   const { userA, userB } = orderPair(a.fromUserId, a.toUserId);
 
   return db.transaction(async (tx) => {
+    // Must come before the count query below (finding #1): it serializes concurrent
+    // request() calls from this SAME sender so they can't all read the pre-commit count and
+    // all pass the `>= limit` check together. It does NOT serialize two different senders
+    // racing to first-request the same pair — see the insert's catch block for that case.
+    await lockSender(tx, a.fromUserId);
+
     const fromTag = await verifiedGamertag(tx, a.fromUserId);
     const toTag = await verifiedGamertag(tx, a.toUserId);
     if (!fromTag || !toTag) throw new FriendError("not_verified");
@@ -90,19 +154,7 @@ export async function request(
     if (existing?.status === "accepted") throw new FriendError("already_friends");
 
     if (existing?.status === "pending") {
-      if (existing.requestedBy === a.fromUserId) throw new FriendError("already_pending");
-      // The recipient requesting back IS an acceptance — erroring here would refuse an
-      // unambiguous intent (spec §5.2).
-      await tx.update(friendships)
-        .set({ status: "accepted", respondedAt: now })
-        .where(eq(friendships.id, existing.id));
-      await writeNotification(tx, acceptedNotification({
-        friendshipId: existing.id,
-        seq: existing.requestSeq,
-        senderId: existing.requestedBy,
-        accepterGamertag: fromTag,
-      }));
-      return { id: existing.id, status: "accepted" as const };
+      return acceptReciprocalOrThrow(tx, existing, a.fromUserId, now, fromTag);
     }
 
     if (existing?.status === "declined") {
@@ -119,18 +171,25 @@ export async function request(
     // so this measures the thing the limit exists to bound.
     const since = new Date(now.getTime() - 86_400_000);
     const keyPrefix = `friend_request:${a.fromUserId}:`;
+    // `starts_with()` cannot use a btree index (it's an ordinary function call), and this
+    // query runs on every friend request against a table with no bound (finding #2). LIKE
+    // with a `text_pattern_ops` index (migration 0019) supports a prefix range scan. The
+    // prefix must be escaped — see escapeLikePattern.
+    const likePrefix = escapeLikePattern(keyPrefix);
     const [countRow] = await tx
       .select({ count: dsql<number>`count(*)::int` })
       .from(notifications)
       .where(and(
-        dsql`starts_with(${notifications.naturalKey}, ${keyPrefix})`,
+        dsql`${notifications.naturalKey} LIKE ${likePrefix} || '%'`,
         gte(notifications.createdAt, since),
       ));
     if (countRow!.count >= FRIEND_REQUEST_DAILY_LIMIT) throw new FriendError("rate_limited");
 
     if (existing) {
-      // Re-request after a decline reuses the row — the unique index leaves no choice —
-      // and bumps request_seq so the notification key is fresh (spec §4.2).
+      // Re-request after a decline reuses the row — the unique index leaves no choice — and
+      // bumps request_seq so the notification key is fresh (spec §4.2). NOTE: created_at is
+      // overwritten here too, so on a re-used row it means "this pending request's created
+      // at", not "when this pair's row was first created" — cooldownEnd/ordering rely on that.
       const seq = existing.requestSeq + 1;
       await tx.update(friendships)
         .set({ status: "pending", requestedBy: a.fromUserId, requestSeq: seq, respondedAt: null, createdAt: now })
@@ -141,14 +200,27 @@ export async function request(
       return { id: existing.id, status: "pending" as const };
     }
 
-    const [created] = await tx.insert(friendships)
-      .values({ userA, userB, status: "pending", requestedBy: a.fromUserId, createdAt: now })
-      .returning({ id: friendships.id, requestSeq: friendships.requestSeq });
-    // insert().values(single row) always returns exactly one row.
-    await writeNotification(tx, requestNotification({
-      friendshipId: created!.id, seq: created!.requestSeq, recipientId: a.toUserId, senderId: a.fromUserId, senderGamertag: fromTag,
-    }));
-    return { id: created!.id, status: "pending" as const };
+    try {
+      const [created] = await tx.insert(friendships)
+        .values({ userA, userB, status: "pending", requestedBy: a.fromUserId, createdAt: now })
+        .returning({ id: friendships.id, requestSeq: friendships.requestSeq });
+      // insert().values(single row) always returns exactly one row.
+      await writeNotification(tx, requestNotification({
+        friendshipId: created!.id, seq: created!.requestSeq, recipientId: a.toUserId, senderId: a.fromUserId, senderGamertag: fromTag,
+      }));
+      return { id: created!.id, status: "pending" as const };
+    } catch (err) {
+      if (!isUniqueViolation(err, "friendships_pair_uniq")) throw err;
+      // `existing` was null under lockPair, so there was no row for FOR UPDATE to lock and
+      // no per-pair serialization happened — only lockSender's per-SENDER lock did, and A and
+      // B are different senders. Both A→B and B→A can reach this INSERT concurrently; only
+      // one wins, the other lands here. Recover instead of surfacing a raw 500: re-read the
+      // row the winner just committed (now locked, since it exists) and resolve it the same
+      // way the ordinary "recipient requests back" branch above does.
+      const race = await lockPair(tx, userA, userB);
+      if (race?.status === "pending") return acceptReciprocalOrThrow(tx, race, a.fromUserId, now, fromTag);
+      throw err;
+    }
   });
 }
 

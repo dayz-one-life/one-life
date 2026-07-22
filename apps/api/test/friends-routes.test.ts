@@ -117,4 +117,28 @@ describe("friend routes", () => {
     expect(res.json().error).toBe("cooldown_active");
     expect(typeof res.json().until).toBe("string");
   });
+
+  it("429s rate_limited once the sender's 20/24h cap is spent", async () => {
+    // A dedicated fresh sender, so this test's count of notifications-actually-sent isn't
+    // entangled with the ones the earlier cases in this file already sent for cookieA/B.
+    const senderEmail = `frLimitSender${svc}@example.com`;
+    const senderTag = `FriendLimitSender${svc}`;
+    const cookieSender = await signIn(senderEmail);
+    const [senderUser] = await db.select({ id: user.id }).from(user).where(eq(user.email, senderEmail.toLowerCase()));
+    await db.insert(gamertagLinks).values({ userId: senderUser!.id, gamertag: senderTag, status: "verified", verifiedAt: new Date() });
+
+    for (let i = 0; i < 20; i++) {
+      const email = `frLimit${svc}_${i}@example.com`;
+      const tag = `FriendLimit${svc}_${i}`;
+      await signIn(email);
+      const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
+      await db.insert(gamertagLinks).values({ userId: u!.id, gamertag: tag, status: "verified", verifiedAt: new Date() });
+      const res = await post(cookieSender, "/me/friends/requests", { toGamertag: tag });
+      expect(res.statusCode).toBe(200);
+    }
+
+    const res = await post(cookieSender, "/me/friends/requests", { toGamertag: tagB });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error).toBe("rate_limited");
+  });
 });

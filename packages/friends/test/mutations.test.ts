@@ -132,6 +132,32 @@ describe("request", () => {
     await expect(request(db, { fromUserId: "fa", toUserId: "fb" })).rejects.toThrow(/rate_limited/);
   });
 
+  // ⚠️ Regression guard for finding #1: the rate limit is bypassable under concurrency. All
+  // 200 requests fire via Promise.all against 200 distinct fresh targets, so with no
+  // per-sender serialization every transaction reads count=0 before any of them commits and
+  // all 200 pass the `>= 20` check. Fired concurrently, not sequentially, or this proves
+  // nothing (a sequential loop would already pass against the unfixed code).
+  it("rate-limits concurrent requests from one sender, never exceeding the daily limit", async () => {
+    const targets = Array.from({ length: 200 }, (_, i) => `conc${i}`);
+    await db.insert(user).values(targets.map((id) => ({ id, name: id, email: `${id}@x.com` })));
+    await db.insert(gamertagLinks).values(
+      targets.map((id, i) => ({ userId: id, gamertag: `Conc${i}`, status: "verified" as const })),
+    );
+
+    const results = await Promise.allSettled(
+      targets.map((id) => request(db, { fromUserId: "fa", toUserId: id })),
+    );
+    const succeeded = results.filter((r) => r.status === "fulfilled").length;
+    const rateLimited = results.filter(
+      (r) => r.status === "rejected" && /rate_limited/.test(String((r as PromiseRejectedResult).reason)),
+    ).length;
+
+    expect(succeeded).toBeLessThanOrEqual(20);
+    expect(succeeded + rateLimited).toBe(200);
+    const pendingRows = await rows();
+    expect(pendingRows.length).toBeLessThanOrEqual(20);
+  });
+
   // ⚠️ Regression guard for LIKE wildcard bug: user IDs containing _ were treated as
   // wildcards in the LIKE pattern, matching other users' IDs that differ only at that
   // position. The pattern "friend_request:ab_cd:%" would match "friend_request:abXcd:%"

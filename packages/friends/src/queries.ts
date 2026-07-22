@@ -61,6 +61,19 @@ export async function listFriends(
     const gamertag = tags.get(v.view.friendUserId);
     // A friend whose link was released by an admin has no verified gamertag left; they are
     // unreachable and unnameable, so they drop out of the roster rather than render blank.
+    //
+    // ⚠️ PREREQUISITE for the location-sharing sub-project: the underlying friendships row
+    // (and its four a/b_shares_location/presence columns) is NOT deleted here — it merely
+    // becomes unreachable, since no surface can reach it (hidden from the roster, the
+    // dossier control is gated on the target being verified, and the user does not know the
+    // friendship id). If that user later re-verifies, the friendship silently reappears with
+    // its sharing flags intact. Inert today because F1 writes nothing into those columns, but
+    // once location sharing ships this is a live consent leak, contradicting the design's
+    // "after remove, no consent survives" claim (spec §3) for a case remove() was never
+    // asked about. Before location sharing ships, resolve this one of two ways: (a) make a
+    // drop-out row removable/severable so it can't silently return sharing flags intact, or
+    // (b) clear the sharing flags when a gamertag link is released. Needs a product decision,
+    // not a default — not attempted in this pass.
     if (!gamertag) return null;
     return {
       id: v.view.id, gamertag, slug: playerSlug(gamertag),
