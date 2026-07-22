@@ -1,11 +1,14 @@
 "use client";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getFriendMap, getMapServers } from "@/lib/api";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendMap } from "@/lib/types";
 import FriendsMap from "./friends-map";
+import type { MapFocus } from "./map-canvas";
 import { TopBar } from "./shell/top-bar";
+import { PlaceSearch } from "./shell/place-search";
 
 // ⚠️ DARK SURFACE. The shell has no paper anywhere — these notes sit over the map region, so
 // they carry cream/paper tokens, never the light surfaces' `text-ink-muted`.
@@ -22,6 +25,8 @@ export type MapPageViewProps = {
   signedOut?: boolean;
   unverified?: boolean;
   now: Date;
+  /** Where the search box last asked the map to fly. */
+  focus?: MapFocus | null;
 };
 
 /** Presentational. Five states, never collapsed: signed out, unverified, loading, failed,
@@ -60,12 +65,13 @@ export function MapPageView(p: MapPageViewProps) {
     );
   }
   if (!p.data) return null;
-  return <FriendsMap data={p.data} now={p.now} />;
+  return <FriendsMap data={p.data} now={p.now} focus={p.focus} />;
 }
 
 export function MapPage({ slug }: { slug: string }) {
   const account = useAccountStatus();
   const verified = account.kind === "verified";
+  const [focus, setFocus] = useState<MapFocus | null>(null);
   const servers = useQuery({ queryKey: ["map-servers"], queryFn: getMapServers, enabled: verified });
   const q = useQuery({
     queryKey: ["friend-map", slug],
@@ -76,7 +82,11 @@ export function MapPage({ slug }: { slug: string }) {
 
   return (
     <>
-      <TopBar slug={slug} servers={servers.data?.servers} serversLoading={servers.isPending} />
+      <TopBar slug={slug} servers={servers.data?.servers} serversLoading={servers.isPending}>
+        {/* Search needs the mission codename to look places up, and only the loaded payload
+            knows it — so the box appears with the map, not before it. */}
+        {q.data && <PlaceSearch mapCodename={q.data.mapCodename} onPick={setFocus} />}
+      </TopBar>
       {/* The root layout's skip link points at #main-content, which lives in the (site) layout
           this route deliberately opts out of — so the shell supplies its own target, and it is
           the map region, not the bar the link exists to skip. */}
@@ -87,6 +97,7 @@ export function MapPage({ slug }: { slug: string }) {
           loading={account.kind === "loading" || (verified && q.isPending)}
           error={q.isError && !q.data}
           data={q.data}
+          focus={focus}
           now={new Date()}
         />
       </div>

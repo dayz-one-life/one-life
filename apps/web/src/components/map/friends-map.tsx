@@ -1,5 +1,5 @@
 "use client";
-import MapCanvas, { type DrawContext } from "./map-canvas";
+import MapCanvas, { type DrawContext, type MapFocus } from "./map-canvas";
 import type { FriendMap, FriendPositionDto } from "@/lib/types";
 
 const SELF_COLOR = "#2563eb";
@@ -36,7 +36,9 @@ export function FriendsMapLegend({ positions, now }: { positions: FriendPosition
   );
 }
 
-export default function FriendsMap({ data, now }: { data: FriendMap; now: Date }) {
+export default function FriendsMap({ data, now, focus }: {
+  data: FriendMap; now: Date; focus?: MapFocus | null;
+}) {
   function draw({ L, group, pt }: DrawContext): unknown[] {
     const all: unknown[] = [];
     for (const p of data.positions) {
@@ -65,6 +67,7 @@ export default function FriendsMap({ data, now }: { data: FriendMap; now: Date }
           mapCodename={data.mapCodename}
           draw={draw}
           drawKey={data}
+          focus={focus}
           className="h-full w-full"
         />
       </div>
