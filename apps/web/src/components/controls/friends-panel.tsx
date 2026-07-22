@@ -6,6 +6,8 @@ export type FriendsPanelProps = {
   friendCount?: number;
   requestCount?: number;
   loading?: boolean;
+  /** True when the fetch failed — the count is unknown and should not render a number. */
+  error?: boolean;
   /** True when mounted in the mobile sheet, which is bg-dark. */
   boxed?: boolean;
 };
@@ -33,14 +35,16 @@ export function FriendsPanel(p: FriendsPanelProps) {
     );
   }
 
+  const showCount = typeof p.friendCount === "number";
+
   return (
     <div className={`border-t ${border} pt-2.5 ${text}`}>
       <Link
         href="/friends"
         className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[.05em] font-bold"
       >
-        <span>Friends {p.friendCount ?? 0}</span>
-        {p.requestCount ? (
+        <span>Friends {showCount && p.friendCount}</span>
+        {showCount && p.requestCount ? (
           <span
             aria-label={`${p.requestCount} pending friend requests`}
             className={`${badge} px-1.5 py-0.5`}
@@ -54,12 +58,13 @@ export function FriendsPanel(p: FriendsPanelProps) {
 }
 
 export function FriendsPanelContainer({ boxed }: { boxed?: boolean }) {
-  const { data, loading } = useFriends();
+  const { data, loading, error } = useFriends();
   // A failed load falls through to the link with no counts rather than a fabricated zero
   // badge — the link still works, which is the panel's whole job.
   return (
     <FriendsPanel
       loading={loading}
+      error={error}
       boxed={boxed}
       friendCount={data?.total}
       requestCount={data?.incoming.length}

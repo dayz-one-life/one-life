@@ -38,4 +38,25 @@ describe("FriendsPanel", () => {
     // red-deep is a LIGHT-surface token only: on dark it drops to ~3.2:1 and fails AA.
     expect(darkRoot.innerHTML).not.toMatch(/red-deep/);
   });
+
+  it("renders 'Friends 0' when loaded with zero friends", () => {
+    render(<FriendsPanel friendCount={0} requestCount={0} />);
+    const link = screen.getByRole("link", { name: /friends/i });
+    expect(link).toHaveTextContent("Friends 0");
+  });
+
+  it("hides the count when the fetch has failed (error state)", () => {
+    render(<FriendsPanel error={true} />);
+    const link = screen.getByRole("link", { name: /friends/i });
+    expect(link).toHaveTextContent("Friends");
+    // The link itself should still be present and working
+    expect(link).toHaveAttribute("href", "/friends");
+    // Should NOT render any number
+    expect(link).not.toHaveTextContent("0");
+  });
+
+  it("does not show request badge when count is unknown (error state)", () => {
+    render(<FriendsPanel error={true} requestCount={2} />);
+    expect(screen.queryByLabelText(/pending friend requests/i)).toBeNull();
+  });
 });
