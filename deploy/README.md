@@ -131,6 +131,34 @@ Restart `onelife-notifier` after each `.env` change (`sudo systemctl restart one
 
 ## Environment
 
+### ⚠️ Never enable `ENFORCER_DRY_RUN` while a ban is `applied`
+
+Under dry-run, the enforcer's expire and lift arms mark a ban `expired`/`lifted` **without calling
+Nitrado**. So switching dry-run on mid-ban closes the database row while its entries stay on the
+game server's Banlist — and once the row is closed, no query ever revisits it, so nothing will
+ever remove them.
+
+Since bans are placed against the player's **account ID** as well as their gamertag, such an
+orphan is now **permanent and unshakeable**: the player cannot escape it by renaming, and only
+manual editing of the Banlist will clear it. Before this feature the orphan was a name, which a
+rename shed on its own.
+
+Check first, and wait for it to clear:
+
+```bash
+psql "$DATABASE_URL" -tAc "select count(*) from bans where status='applied' and dry_run=false;"
+# must be 0 before setting ENFORCER_DRY_RUN=true
+```
+
+If you have already tripped this, the affected entries are recoverable — find them with the query
+below and delete those lines from the server's Banlist by hand:
+
+```bash
+psql "$DATABASE_URL" -c "select gamertag, dayz_id, server_id, status, lifted_at from bans
+                         where status in ('expired','lifted') and dry_run=false
+                         order by lifted_at desc limit 20;"
+```
+
 Runtime env is `/var/www/dayzonelife.com/.env` (loaded by systemd `EnvironmentFile`).
 Key deployment values added at standup:
 

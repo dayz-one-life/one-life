@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { planBans, planExpiries, type EndedLife } from "../src/decide.js";
+import { planBans, planExpiries, banNames, type EndedLife } from "../src/decide.js";
 
 const base: EndedLife = {
   serverId: 1,
   gamertag: "Steveo12491",
+  dayzId: null,
   startedAt: new Date("2026-07-11T10:00:00Z"),
   endedAt: new Date("2026-07-11T12:00:00Z"),
   deathCause: "infected",
@@ -39,6 +40,28 @@ describe("planBans", () => {
     const plans = planBans([{ ...base, effectivePlaytimeSeconds: 400 }], 12);
     expect(plans[0]!.expiresAt.toISOString()).toBe("2026-07-12T00:00:00.000Z");
   });
+
+  it("carries dayzId from the life onto the plan", () => {
+    const life = {
+      serverId: 1, gamertag: "Ronald", dayzId: "ABC123",
+      startedAt: new Date("2026-07-20T00:00:00Z"),
+      endedAt: new Date("2026-07-20T02:00:00Z"),
+      deathCause: "pvp", effectivePlaytimeSeconds: 7200, playerKills: [],
+    };
+    expect(planBans([life], 24)[0]!.dayzId).toBe("ABC123");
+  });
+
+  it("carries a null dayzId through rather than dropping the ban", () => {
+    const life = {
+      serverId: 1, gamertag: "Ronald", dayzId: null,
+      startedAt: new Date("2026-07-20T00:00:00Z"),
+      endedAt: new Date("2026-07-20T02:00:00Z"),
+      deathCause: "pvp", effectivePlaytimeSeconds: 7200, playerKills: [],
+    };
+    const plans = planBans([life], 24);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]!.dayzId).toBeNull();
+  });
 });
 
 describe("planExpiries", () => {
@@ -54,5 +77,27 @@ describe("planExpiries", () => {
       now,
     );
     expect(ids).toEqual([1, 2]);
+  });
+});
+
+describe("banNames", () => {
+  it("banNames lists the id first, then the gamertag", () => {
+    expect(banNames({ dayzId: "ABC123", gamertag: "Ronald" })).toEqual(["ABC123", "Ronald"]);
+  });
+
+  it("banNames omits a null id rather than emitting a blank entry", () => {
+    expect(banNames({ dayzId: null, gamertag: "Ronald" })).toEqual(["Ronald"]);
+  });
+
+  it("banNames omits an empty-string id", () => {
+    expect(banNames({ dayzId: "", gamertag: "Ronald" })).toEqual(["Ronald"]);
+  });
+
+  it("banNames omits a whitespace-only id", () => {
+    expect(banNames({ dayzId: "   ", gamertag: "Ronald" })).toEqual(["Ronald"]);
+  });
+
+  it("banNames trims a padded id", () => {
+    expect(banNames({ dayzId: " ABC123 ", gamertag: "Ronald" })).toEqual(["ABC123", "Ronald"]);
   });
 });

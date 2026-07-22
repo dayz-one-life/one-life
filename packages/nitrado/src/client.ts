@@ -65,6 +65,37 @@ export class NitradoClient {
     await this.setBans(bans.filter((b) => b !== gamertag));
   }
 
+  // ── Batched ban-list mutation. Every mutation is a whole-field read-modify-write of one
+  // \r\n-joined string, so a caller needing N entries must NOT loop over addBan/removeBan:
+  // that is N round trips with a lost-update window between each. Both methods below do
+  // exactly one read and, when something actually changed, exactly one write.
+  async addBans(names: string[]): Promise<void> {
+    const trimmed = names.map((n) => n.trim()).filter((n) => n !== "");
+    if (trimmed.length === 0) return;
+    // Deduplicate within input, preserving first-occurrence order
+    const seen = new Set<string>();
+    const wanted: string[] = [];
+    for (const name of trimmed) {
+      if (!seen.has(name)) {
+        seen.add(name);
+        wanted.push(name);
+      }
+    }
+    const bans = await this.getBans();
+    const missing = wanted.filter((n) => !bans.includes(n));
+    if (missing.length === 0) return; // nothing to do — do not rewrite the field
+    await this.setBans([...bans, ...missing]);
+  }
+
+  async removeBans(names: string[]): Promise<void> {
+    const doomed = new Set(names.map((n) => n.trim()).filter((n) => n !== ""));
+    if (doomed.size === 0) return;
+    const bans = await this.getBans();
+    const kept = bans.filter((b) => !doomed.has(b));
+    if (kept.length === bans.length) return; // nothing was present — do not rewrite
+    await this.setBans(kept);
+  }
+
   /** Restart this service's game server (fire immediately, no warning message). */
   async restartServer(): Promise<void> {
     await this.postJson(`/services/${this.serviceId}/gameservers/restart`, {});

@@ -162,6 +162,13 @@
       "when": 1785200000000,
       "tag": "0022_location_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785300000000,
+      "tag": "0023_bans_dayz_id",
+      "breakpoints": true
     }
   ]
 }
