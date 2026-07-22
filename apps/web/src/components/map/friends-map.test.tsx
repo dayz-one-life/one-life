@@ -39,4 +39,16 @@ describe("FriendsMapLegend", () => {
     render(<FriendsMapLegend positions={[]} now={NOW} />);
     expect(screen.getByText(/nobody is sharing/i)).toBeInTheDocument();
   });
+
+  it("is written in dark-surface tokens — the map shell is dark end to end", () => {
+    // RTL asserts the DOM, not contrast, so an ink-on-dark legend keeps every other test in
+    // this file green while being invisible on the actual page.
+    render(<FriendsMapLegend positions={[you, mate]} now={NOW} />);
+    for (const li of screen.getAllByRole("listitem")) {
+      expect(li.className).not.toMatch(/\btext-ink/);
+      expect(li.className).toMatch(/\btext-cream/);
+    }
+    render(<FriendsMapLegend positions={[]} now={NOW} />);
+    expect(screen.getByText(/nobody is sharing/i).className).not.toMatch(/\btext-ink/);
+  });
 });

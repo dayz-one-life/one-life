@@ -11,12 +11,16 @@ export function positionAge(recordedAt: string, now: Date): string {
   return mins < 1 ? "just now" : `${mins}m ago`;
 }
 
-/** The accessible companion to the canvas: every dot as text, with its own age. A map alone
+/** ⚠️ DARK SURFACE — the map shell is dark end to end (app/maps/layout.tsx), so this carries
+ *  cream tokens, never `text-ink`. RTL asserts the DOM, not contrast: ink here renders present,
+ *  functional and invisible, with every other test still green.
+ *
+ *  The accessible companion to the canvas: every dot as text, with its own age. A map alone
  *  is unreadable to a screen reader, and this is also the honest place to say nobody is here. */
 export function FriendsMapLegend({ positions, now }: { positions: FriendPositionDto[]; now: Date }) {
   if (positions.length === 0) {
     return (
-      <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+      <p className="mt-3 font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
         Nobody is sharing a position here right now.
       </p>
     );
@@ -24,7 +28,7 @@ export function FriendsMapLegend({ positions, now }: { positions: FriendPosition
   return (
     <ul role="list" className="mt-3 flex flex-col gap-1">
       {positions.map((p) => (
-        <li key={p.gamertag} className="font-mono text-[11px] uppercase tracking-[.05em] text-ink">
+        <li key={p.gamertag} className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">
           {p.gamertag}{p.self ? " (you)" : ""} · {positionAge(p.recordedAt, now)}
         </li>
       ))}
