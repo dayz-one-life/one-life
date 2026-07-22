@@ -1262,6 +1262,27 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   list, or the suite gains the ability to report success it did not earn.
   `.gitignore` covers OS cruft (`.DS_Store`); prefer `git add -p`/explicit paths over `git add -A`
   at the repo root so stray untracked files don't ride into a commit.
+- **⚠️ A change to `deploy/deploy.sh` NEVER applies to the deploy that installs it.** The
+  operator invokes the currently-checked-out script, which checks out the new tag and runs to
+  completion — so a release shipping a `deploy.sh` fix is deployed *by the previous release's
+  script*, flaw included; the fix takes effect from the next deploy onward. This is inherent to
+  a deploy script that deploys its own repo. Compensate manually for that one deploy (v0.37.2's
+  `DATABASE_URL` fix needs a one-time `DATABASE_URL=placeholder ./deploy/deploy.sh`; see
+  `deploy/README.md`). **Two distinct things here — don't conflate them:**
+  1. **Self-application is FIXABLE, and deliberately unfixed.** The script could `exec` its new
+     self behind a guard flag after the checkout succeeds. That is a legitimate future change;
+     it is declined because a manual step on the rare `deploy.sh` release is cheaper than an
+     exec-resume in the one script whose failure is an outage. Not forbidden — just not free.
+  2. **Machinery to defend against a MID-RUN REWRITE is forbidden**, because that hazard does
+     not exist. It was tried and reverted: `git checkout` unlinks and recreates rather than
+     writing in place, so the running bash keeps reading the original inode (verified on
+     macOS/APFS and Linux/overlayfs — a 236 KB script that checks out a 42-byte replacement of
+     itself completes every phase). The self-re-exec guard bought nothing and introduced a way
+     to delete `deploy.sh` from the working tree.
+- **Any child process of `deploy.sh` that needs `DATABASE_URL` must be passed it EXPLICITLY.**
+  The script reads it out of `.env` into a plain shell variable and never exports it; the
+  migrate and `--rebuild` phases each prefix `DATABASE_URL="$DATABASE_URL"` for this reason.
+  Both phases run *after* the fleet is stopped, so a miss aborts the deploy with the site down.
 - Deploy (prod): `./deploy/deploy.sh` deploys the latest release tag (build → backup → migrate →
   restart fleet → health-check); add `--rebuild` for releases that change projection-table shape
   (truncate + re-fold from the event log). See `deploy/README.md`.
