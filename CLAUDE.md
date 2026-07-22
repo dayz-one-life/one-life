@@ -1316,9 +1316,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   out of the a11y tree — **jsdom applies no CSS, so no test can prove that exclusivity** and it
   lives on the browser checklist instead. The **map centre state therefore lives in `MapPage`,
   not `FriendsMap`** — the chip that reads it is chrome, and on a phone it renders outside the
-  map entirely. Every control in both bars holds `min-h-[44px]` at 13px, dropping to the compact
-  11px only at `md`; **Leaflet's own 26px zoom buttons are scaled to 44 under
+  map entirely. Every control in both bars holds **`min-h-[52px]` at 15px** below `md`, dropping to the
+  compact 11px at `md`; the bars are **64px** tall on a phone. Those numbers come from a
+  measured phone, not from the 44px accessibility floor — 44/13 shipped in v0.40.0 and still
+  read as fiddly, so do not "correct" them back down to the minimum; **Leaflet's own 26px zoom buttons are scaled to 44 under
   `@media (pointer: coarse)`** in `globals.css`, so a mouse keeps the compact control.
+  **There is no arrow beside the wordmark** — the wordmark is the way home, as in the masthead,
+  and the link's label carries the "back" meaning for anyone who cannot see it.
   **The back link's wordmark is `alt=""`** — the link already carries `aria-label="Back to One
   Life"`, and an alt of "One Life" on top of it makes the accessible name "Back to One Life One
   Life" — and declares intrinsic `width`/`height` so the bar cannot shift as it loads. The arrow

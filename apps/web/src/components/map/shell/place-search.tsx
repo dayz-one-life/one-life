@@ -57,7 +57,7 @@ export function PlaceSearch({ mapCodename, onPick }: {
         aria-expanded={expanded}
         aria-label="Search places"
         onClick={() => setExpanded(true)}
-        className={`flex min-h-[44px] min-w-[44px] items-center justify-center border border-dark-edge px-3 py-1.5 font-mono text-[15px] text-paper md:hidden ${
+        className={`flex min-h-[52px] min-w-[52px] items-center justify-center border border-dark-edge px-4 py-1.5 font-mono text-[19px] text-paper md:hidden ${
           expanded ? "invisible" : ""
         }`}
       >
@@ -84,7 +84,7 @@ export function PlaceSearch({ mapCodename, onPick }: {
         <button
           type="button"
           onClick={() => { setExpanded(false); setValue(""); }}
-          className="flex min-h-[44px] shrink-0 items-center px-3 py-1.5 font-mono text-[13px] uppercase text-cream-dim md:hidden"
+          className="flex min-h-[52px] shrink-0 items-center px-3 py-1.5 font-mono text-[15px] uppercase text-cream-dim md:hidden"
         >
           Close
         </button>

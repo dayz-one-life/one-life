@@ -22,7 +22,7 @@ export function MapBottomBar({ chip, children }: {
   children?: ReactNode;
 }) {
   return (
-    <div className="flex w-full shrink-0 items-center justify-between gap-2 border-t border-dark-edge bg-dark px-2 pb-[env(safe-area-inset-bottom)] md:hidden">
+    <div className="flex h-16 w-full shrink-0 items-center justify-between gap-2 border-t border-dark-edge bg-dark px-3 pb-[env(safe-area-inset-bottom)] md:hidden">
       <div className="flex min-w-0 items-center">{chip}</div>
       <div className="flex shrink-0 items-center gap-1">{children}</div>
     </div>
