@@ -11,10 +11,16 @@ import { staleness } from "./track-marker-list";
 // without it Leaflet's panes/tiles/controls have no positioning CSS in a real browser.
 import "leaflet/dist/leaflet.css";
 
-/** DZMap's vanilla pyramid tops out at zoom 6. The pixel extent of the pyramid at that
- *  zoom is 256 * 2**6 = 16384. If the mirrored tiles turn out to use a different max
- *  zoom, change these two together — worldToPixel takes canvasPx as a parameter
- *  precisely so this stays a one-line correction. */
+/** DZMap's vanilla pyramid tops out at zoom 6 (its loader's --zoom-limit default),
+ *  giving a pixel extent of 256 * 2**6 = 16384 at that zoom. This is a DOCUMENTED
+ *  ASSUMPTION, NOT YET VERIFIED against real mirrored tiles — deploy/mirror-tiles.sh
+ *  had no production host or mirrored tile set available at the time this was written
+ *  (see deploy/README.md's "Verify the tile projection" step, which is REQUIRED and
+ *  still outstanding). If a life's trail renders uniformly offset or scaled relative
+ *  to a known in-game landmark once real tiles are being served, CANVAS_PX (and/or
+ *  MAX_ZOOM) is wrong for the mirrored pyramid and this is the constant to correct —
+ *  worldToPixel takes canvasPx as a parameter precisely so this stays a one-line fix.
+ *  Do NOT touch worldToPixel itself: it is unit-tested and correct by construction. */
 const MAX_ZOOM = 6;
 const CANVAS_PX = 256 * 2 ** MAX_ZOOM;
 

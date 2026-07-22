@@ -225,6 +225,68 @@ Adding/removing a server later is a pure data change (`active` flag) — no rede
 Without Discord, login falls back to **magic-link with a console mailer** — the login
 link is printed to `journalctl -u onelife-api`, not emailed. Configure SMTP later.
 
+## Owner-only life map tiles (DayZ terrain mirror)
+
+The per-life map (owner-only, `/players/[slug]/[map]/lives/[n]`) renders a player's
+trail over a self-hosted mirror of DayZ's own terrain tiles. This is **host
+configuration, not a release artifact** — it is a one-time prerequisite (redone only
+when a map's terrain changes upstream), never touched by `deploy/deploy.sh`.
+
+**Prerequisite:** install [`dzmap-loader`](https://github.com/WoozyMasta/dzmap) on
+the host and put it on `PATH` first. `deploy/mirror-tiles.sh` checks for it and
+fails with a clear message rather than half-running if it's missing.
+
+Mirror all three maps (`chernarusplus`, `sakhal`, `enoch`/Livonia):
+
+```bash
+cd /var/www/dayzonelife.com
+./deploy/mirror-tiles.sh              # first-time mirror
+./deploy/mirror-tiles.sh -f           # re-mirror, forcing overwrite (after a
+                                       # DayZ terrain update)
+```
+
+This populates `/var/www/tiles/<map>/terrain/<z>/<x>/<y>.webp` (override the root
+with `TILE_DIR`). DZMap's own layer vocabulary is `topographic`/`satellite`, not
+`terrain` — the script mirrors the `topographic` layer and renames it to `terrain`
+on disk so the path matches exactly what the web app requests
+(`apps/web/src/components/life/track-map.tsx`); mismatch here 404s every tile.
+
+Add the nginx location block (alongside the existing `dayzonelife.com` vhost
+server block):
+
+```nginx
+# Owner-only life map tiles. Static, immutable, and regenerated only by
+# deploy/mirror-tiles.sh — never by a release.
+location /tiles/ {
+    alias /var/www/tiles/;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    access_log off;
+    try_files $uri =404;
+}
+```
+
+Then `sudo nginx -t && sudo systemctl reload nginx`.
+
+Things to know before relying on this:
+
+- **Tiles are NOT in git (hundreds of MB) and NOT in Postgres**, so they are
+  **not captured by the `pg_dump` backup** in `deploy/deploy.sh`. They are fully
+  reproducible by re-running `deploy/mirror-tiles.sh` — that's the trade being
+  made: no backup coverage, in exchange for keeping hundreds of MB of static
+  binary tiles out of every database checkpoint.
+- **A missed or not-yet-run mirror is not a release blocker.** `track-map.tsx`
+  sets `errorTileUrl` to a blank placeholder and the map container has a dark
+  background, so an absent tile set degrades to a bare trail on a dark
+  backdrop rather than a broken-tile checkerboard or a crash.
+- **The tile-pyramid projection (`CANVAS_PX` in `track-map.tsx`) is a documented
+  assumption, not yet verified against real tiles** — there was no mirrored tile
+  set or production host available when it was written. **Before relying on the
+  life map for real**, mirror at least one map, sign in as that life's owner,
+  open its life-map page, and confirm a known in-game landmark lands where it
+  should. If the trail renders uniformly offset or scaled, `CANVAS_PX` (and/or
+  `MAX_ZOOM`) needs correcting for the mirrored pyramid — see the comment beside
+  it in `track-map.tsx`. This step is still outstanding as of this writing.
+
 ## TLS
 
 Certbot-managed lineage `dayzonelife.com` (apex + www). `live/ → archive/` symlinks are

@@ -1,0 +1,25 @@
+# DayZ map sources for deploy/mirror-tiles.sh — vendored from DZMap's own upstream
+# config.yaml (https://github.com/WoozyMasta/dzmap/blob/master/config.yaml), trimmed
+# down to the three maps this project runs and to the "topographic" layer only (the
+# one layer the owner-only life map actually serves; see track-map.tsx). If xam.nu
+# bumps a map's tile-source version segment (the "/1.27/" in the URL below), re-copy
+# the three blocks below from the upstream file — do not hand-edit the version guess.
+attribution: '<a href="https://dayz.xam.nu" target="_blank">Tiles © Xam.nu</a>'
+maps:
+  - name: chernarusplus
+    size: 15360
+    id: 221100
+    aliases: ["chernarus"]
+    topographic: https://static.xam.nu/dayz/maps/chernarusplus/1.27/topographic/{z}/{x}/{y}.webp
+
+  - name: enoch
+    size: 12800
+    id: 221100
+    aliases: ["livonia"]
+    topographic: https://static.xam.nu/dayz/maps/livonia/1.27/topographic/{z}/{x}/{y}.webp
+
+  - name: sakhal
+    size: 15360
+    id: 2968040
+    aliases: ["frostline"]
+    topographic: https://static.xam.nu/dayz/maps/sakhal/1.27/topographic/{z}/{x}/{y}.webp
