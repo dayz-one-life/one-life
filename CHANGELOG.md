@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.41.1] - 2026-07-22
+
+### Changed
+
+- The online list counts everyone on the server, you included, so the number agrees with the
+  list beneath it.
+
+### Fixed
+
+- The online list can be closed on a phone. It opened over the bar holding the button that
+  opened it, with no way back out — tap the ✕ or anywhere on the map behind it.
+
 ## [0.41.0] - 2026-07-22
 
 ### Changed

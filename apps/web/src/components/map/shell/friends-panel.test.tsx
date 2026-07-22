@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FriendsPanel } from "./friends-panel";
 
@@ -7,6 +7,7 @@ const players = [
   { gamertag: "You", friend: false, sharing: true, self: true },
   { gamertag: "Mate", friend: true, sharing: false, self: false },
 ];
+const NOW = new Date("2026-07-22T12:00:00.000Z");
 
 describe("FriendsPanel", () => {
   it("opens a list of who is online", async () => {
@@ -30,9 +31,12 @@ describe("FriendsPanel", () => {
     expect(screen.getByText(/on the map · 1m ago/i)).toBeInTheDocument();
   });
 
-  it("counts players online, excluding the viewer", () => {
+  it("counts everyone online INCLUDING the viewer", () => {
+    // "Online 3" on a server with three people on it, one of whom is you. Excluding yourself
+    // makes the number disagree with the list directly beneath it and with the server's own
+    // player count, for no gain — you know whether you are playing.
     render(<FriendsPanel players={players} loading={false} />);
-    expect(screen.getByRole("button", { name: /online 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /online 2/i })).toBeInTheDocument();
   });
 
   it("shows a loading state instead of a fabricated zero", () => {
@@ -53,6 +57,33 @@ describe("FriendsPanel", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/couldn't load/i);
     expect(screen.queryByText(/nobody is on this server/i)).toBeNull();
+  });
+
+  it("can be closed again on a phone, where there is no Escape key", async () => {
+    // ⚠️ THE BUG THIS PINS: the sheet is `fixed bottom-0 z-50`, so below md it COVERS the
+    // bottom bar that holds the ☰ trigger. Without a close control inside the dialog there is
+    // no way out on a touch device — no trigger to tap, no Escape key, and (before this) no
+    // backdrop. Reported from a real phone.
+    const user = userEvent.setup();
+    render(<FriendsPanel players={players} loading={false} now={NOW} />);
+    await user.click(screen.getByRole("button", { name: /online/i }));
+    const dialog = screen.getByRole("dialog");
+    const close = within(dialog).getByRole("button", { name: /close/i });
+    await user.click(close);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes when the map behind it is tapped", async () => {
+    const user = userEvent.setup();
+    render(<FriendsPanel players={players} loading={false} now={NOW} />);
+    await user.click(screen.getByRole("button", { name: /online/i }));
+    await user.click(screen.getByTestId("online-backdrop"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps the backdrop out of the accessibility tree — it is a gesture, not content", () => {
+    render(<FriendsPanel players={players} loading={false} now={NOW} />);
+    expect(screen.queryByTestId("online-backdrop")).toBeNull();
   });
 
   it("moves focus into the sheet it opens", async () => {
