@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@onelife/db": "workspace:*",
+    "@onelife/friends": "workspace:*",
     "@onelife/read-models": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "pino": "^9.4.0",
