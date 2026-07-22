@@ -122,6 +122,77 @@ describe("presenceGenerator", () => {
     expect(await presenceGenerator(deps())).toHaveLength(0);
   });
 
+  it("picks the newest connectedAt when the subject reconnects inside the window", async () => {
+    // A second, later session for the same subject/server. The intra-tick dedupe must emit
+    // exactly one draft, and it must be keyed on the LATER connect — not left to query-plan
+    // luck — since that is the connect the subject is actually online as of.
+    const [srv] = await db.select().from(servers);
+    const [p] = await db.select().from(players);
+    const [life] = await db.select().from(lives);
+    await db.insert(sessions).values({
+      serverId: srv!.id, playerId: p!.id, lifeId: life!.id,
+      connectedAt: new Date("2026-07-22T11:57:00Z"),
+    });
+    const drafts = await presenceGenerator(deps());
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.naturalKey).toBe(
+      presenceNaturalKey("sb", "SubjectAlpha", new Date("2026-07-22T11:57:00Z")),
+    );
+  });
+
+  it("notifies the correct party when the subject is side B of the canonical pair", async () => {
+    await sql`truncate table user_preferences, friendships, notifications, sessions, lives, players, servers, gamertag_links, "user" restart identity cascade`;
+    // "zz" sorts after "aa", so the subject (observed player) is userB here; a_* now belong
+    // to the observer and b_* to the subject — an inversion in the join mapping would read
+    // the wrong party's share/notify flags and either notify the wrong user or nobody.
+    await db.insert(user).values([
+      { id: "aa-observer", name: "Observer", email: "obs@x.com" },
+      { id: "zz-subject", name: "Subject", email: "subj@x.com" },
+    ]);
+    await db.insert(gamertagLinks).values([
+      { userId: "aa-observer", gamertag: "ObserverAA", status: "verified", verifiedAt: NOW },
+      { userId: "zz-subject", gamertag: "SubjectZZ", status: "verified", verifiedAt: NOW },
+    ]);
+    const [srv] = await db.insert(servers)
+      .values({ nitradoServiceId: 990002, name: "Sakhal Server", map: "sakhal", slug: "sakhal" })
+      .returning();
+    const [p] = await db.insert(players).values({ gamertag: "SubjectZZ", lastSeenAt: NOW }).returning();
+    const [life] = await db.insert(lives)
+      .values({ serverId: srv!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-22T10:00:00Z") })
+      .returning();
+    await db.insert(sessions).values({
+      serverId: srv!.id, playerId: p!.id, lifeId: life!.id,
+      connectedAt: new Date("2026-07-22T11:55:00Z"),
+    });
+    // userA < userB alphabetically, so "aa-observer" is side A (observer) and "zz-subject" is
+    // side B (subject): b_* flags must be read as the subject's, a_* as the observer's.
+    await db.insert(friendships).values({
+      userA: "aa-observer", userB: "zz-subject", status: "accepted", requestedBy: "aa-observer",
+      bSharesPresence: true, aNotifyPresence: true,
+    });
+    await db.insert(userPreferences).values({ userId: "zz-subject", sharePresence: true });
+
+    const drafts = await presenceGenerator(deps());
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]!.userId).toBe("aa-observer");
+    expect(drafts[0]!.body).toBe("SubjectZZ is on Sakhal.");
+  });
+
+  it("fans out one draft per friend when the subject has two friends", async () => {
+    const [sc] = await db.insert(user).values({ id: "sc", name: "SC", email: "sc@x.com" }).returning();
+    await db.insert(gamertagLinks).values({
+      userId: sc!.id, gamertag: "ObserverCharlie", status: "verified", verifiedAt: NOW,
+    });
+    await db.insert(friendships).values({
+      userA: "sa", userB: "sc", status: "accepted", requestedBy: "sa",
+      aSharesPresence: true, bNotifyPresence: true,
+    });
+    const drafts = await presenceGenerator(deps());
+    expect(drafts).toHaveLength(2);
+    expect(drafts.map((d) => d.userId).sort()).toEqual(["sb", "sc"]);
+    expect(drafts.every((d) => d.body === "SubjectAlpha is on Sakhal.")).toBe(true);
+  });
+
   it("is unaffected by a LIKE wildcard in a user id", async () => {
     // A `_` in an observer id must not let another observer's rows satisfy the cooldown.
     await db.insert(user).values({ id: "s_b", name: "SUB", email: "sub@x.com" });

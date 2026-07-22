@@ -93,7 +93,13 @@ async function candidates(deps: Parameters<Generator>[0]): Promise<Candidate[]> 
       gte(sessions.connectedAt, lower),
       eq(servers.active, true),
       isNotNull(servers.slug),
-    ));
+    ))
+    // Deterministic pick among multiple connects by one subject inside the window: newest
+    // first, so the intra-tick `seen` dedupe in presenceGenerator keeps the most recent
+    // connect. A rapid disconnect/reconnect means the subject is online NOW as of the later
+    // timestamp — that's the one a friend would consider "the one they came online at",
+    // not a stale earlier connect that was immediately superseded.
+    .orderBy(sql`${sessions.connectedAt} DESC`);
 
   return rows.map((r) => {
     const subjectIsA = r.userA === r.subjectUserId;
