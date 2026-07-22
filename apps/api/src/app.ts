@@ -20,6 +20,7 @@ import { registerFreshSpawnsRoutes } from "./routes/fresh-spawns.js";
 import { registerMediaRoutes } from "./routes/media.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerLifeTrackRoutes } from "./routes/life-track.js";
+import { registerFriendRoutes } from "./routes/friends.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
 
 export interface AuthOptions {
@@ -46,6 +47,7 @@ export function buildApp(db: Database, opts?: AuthOptions, newsPreviewToken = ""
     registerTokenRoutes(app, db, opts.auth);
     registerNotificationRoutes(app, db, opts.auth, opts.vapidPublicKey ?? "");
     registerLifeTrackRoutes(app, db, opts.auth);
+    registerFriendRoutes(app, db, opts.auth);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);

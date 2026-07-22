@@ -10,6 +10,7 @@ import { serverCards, transferErrorLabel } from "./format";
 import { AvatarDisc } from "./identity-row";
 import { ControlsSheet, SheetServerRow } from "./sheet";
 import { TokensPanel, type MutationView } from "./tokens-panel";
+import { FriendsPanelContainer } from "./friends-panel";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
 import { VerificationAnnouncer } from "./verification-announcer";
@@ -171,6 +172,7 @@ export function MobileAccount() {
                       />
                     ))
                   )}
+                  <FriendsPanelContainer boxed />
                 </>
               )}
               <div className="flex justify-between font-mono text-[11px] uppercase tracking-[.06em]">

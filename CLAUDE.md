@@ -940,6 +940,73 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   is a one-line fix, not a rewrite.
   No migration and no new table — this release deploys with a plain `./deploy/deploy.sh`, **no
   `--rebuild`**.
+- **Friends, F1 — friendships + requests** ✅ (spec
+  `docs/superpowers/specs/2026-07-21-friends-f1-design.md`): user↔user friendships addressed by
+  **verified** gamertag — the same boundary self-unban and the token ledger already enforce. New
+  `packages/friends` (the `packages/tokens` shape: pure logic + DB ops, no HTTP) owns every
+  transition; `apps/api/src/routes/friends.ts` is six thin session-gated `/me/friends` routes; the
+  web surfaces are a `FriendButton` on the dossier, the `/friends` **Roster** page, and a thin
+  `FriendsPanel` in the rail + mobile sheet. **F1 of three** — F2 (location sharing) and F3
+  (presence notifications) are surface-only follow-ups; their four columns
+  (`a_/b_shares_location`, `a_/b_shares_presence`) ship **dormant in migration `0018`**, written by
+  nothing and read by nothing, so neither needs a second migration. A reviewer seeing dead columns
+  should find this line.
+  **⚠️ Invariants a future change would break by accident (each shipped as a review fix — don't
+  "tidy" them back):**
+  1. **The pair is canonically ordered `user_a < user_b` under a CHECK constraint**, not by
+     convention. The unique index alone would happily accept the mirrored duplicate
+     `(user_b, user_a)`. Every write goes through `orderPair`; every read projects through
+     **`viewOf`**, the single source of truth for viewer-relative status — never re-derive
+     "incoming vs outgoing" inline.
+  2. **The notification natural key is `friend_request:<senderUserId>:<friendshipId>:<seq>`.**
+     `notifications.natural_key` is a **plain GLOBAL** unique index (so `onConflictDoNothing` takes
+     **no `targetWhere`** — do not copy the newsdesk's partial-index pattern). Drop `:<seq>` and the
+     second request over a pair (decline → cooldown → re-request) is silently swallowed and the
+     recipient is never told. Drop `<senderUserId>` and the rate limit below cannot be counted at
+     all, since notifications are keyed by **recipient**.
+  3. **The 20-per-24h rate limit counts `friend_request_received` NOTIFICATIONS, not `friendships`
+     rows** — `cancel` hard-deletes the row while the notification survives, so a row-based count is
+     reset by request→cancel→request spam while the target is still notified every time. It is
+     `natural_key LIKE <prefix>%` with **`%`, `_` and `\` escaped** (an unescaped `_` in a generated
+     user id is a single-char wildcard and wrongly rate-limits a different user), served by
+     `notifications_natural_key_pattern_idx` (`text_pattern_ops`, migration `0019`). **Do not
+     "simplify" it back to `starts_with()`** — that is not index-usable and seq-scans a table that
+     grows across all nine other notification kinds.
+  4. **`request()` takes `pg_advisory_xact_lock(hashtext(sender))` as its FIRST statement.** The
+     count is otherwise a plain `SELECT` in READ COMMITTED serialised by nothing — `lockPair` locks
+     a *different* row per target, and no row at all on a first request — so 200 concurrent requests
+     to 200 targets all read `count = 0` and all pass. Lock order is total (advisory → row); nothing
+     anywhere takes a row lock first.
+  5. **The reciprocal-collision recovery runs inside a nested `tx.transaction()`.** Postgres aborts
+     the transaction on the `friendships_pair_uniq` violation, and drizzle/postgres-js issue no
+     per-statement savepoint, so a flat recovery dies on `25P02` and 500s. The nested transaction is
+     a real `SAVEPOINT`; the recovery itself then runs on the **outer** handle.
+  6. **`remove` DELETEs the row; `decline` keeps it.** A retained row is a retained F2 sharing
+     consent, so nothing may survive a removal. `decline`'s `responded_at` **is** the 7-day cooldown
+     clock, and a decline notifies **nobody** — "X declined you" is a hostile message with no action
+     attached. A re-request after a decline reuses the row and bumps `request_seq`; after a removal
+     it is a fresh row at `seq = 1`.
+  7. **`accept`/`decline` throw `not_recipient` (403) for any non-recipient; `cancel`/`remove` throw
+     `not_found` (404) for a non-party.** The asymmetry is deliberate.
+  8. **Loading and error never render as an authoritative negative** — the live-data-honesty rule,
+     which this feature violated four separate times in review: a default "Add friend" against an
+     unknown relationship, a fabricated "Friends 0" on a failed fetch, a blank `/friends` for
+     signed-out visitors, and an `SrStatus` announcing "Friend request accepted" at **click** time
+     rather than on settlement (announcing success to a screen-reader user for a request that then
+     failed). Announce on settle, and keep loading / failed / genuinely-empty three distinct renders.
+  9. **`FriendButton` gates on the target's `verified` flag AND a case-insensitive self-comparison**,
+     because `statusFor` collapses self, unverified target and ordinary stranger all into
+     `status:"none"`. The self-gate skips the **fetch**, not just the render, so there is no flash of
+     "Add friend" on your own dossier while identity resolves.
+  10. **A friend whose gamertag link is released drops out of the roster — but the row survives,
+      unreachable, with its sharing flags intact** (`packages/friends/src/queries.ts`). Inert in F1;
+      **an F2 prerequisite**, flagged in a comment there. Resolve it before location sharing ships.
+  **Deploy:** migrations `0018` + `0019` touch no projection table — plain `./deploy/deploy.sh`,
+  **no `--rebuild`**. No new env vars, no new worker, no systemd unit. **Friend notifications are
+  live on deploy**, unlike the nine worker-generated kinds: they are written inline in the API
+  request, in the same transaction as the state change, so they are not gated behind
+  `NOTIFIER_SINCE`/`NOTIFIER_DRY_RUN`. The notifier's **push** pass still delivers them unchanged —
+  it selects on `pushed_at IS NULL` and does not care who inserted.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
@@ -972,7 +1039,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `getPublishedBirthNotices`/`getBirthNoticeBySlug`), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
   `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
-  character sightings).
+  character sightings), `friends` (friendship pair ordering + viewer-relative projection,
+  transitions, read queries; writes its own notifications inline — see the Friends F1 entry, whose
+  ten invariants are all load-bearing).
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
