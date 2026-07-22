@@ -201,14 +201,27 @@ export async function request(
     }
 
     try {
-      const [created] = await tx.insert(friendships)
-        .values({ userA, userB, status: "pending", requestedBy: a.fromUserId, createdAt: now })
-        .returning({ id: friendships.id, requestSeq: friendships.requestSeq });
-      // insert().values(single row) always returns exactly one row.
-      await writeNotification(tx, requestNotification({
-        friendshipId: created!.id, seq: created!.requestSeq, recipientId: a.toUserId, senderId: a.fromUserId, senderGamertag: fromTag,
-      }));
-      return { id: created!.id, status: "pending" as const };
+      // Nested in a SAVEPOINT (drizzle's tx.transaction() emits a real SAVEPOINT /
+      // ROLLBACK TO SAVEPOINT for a transaction opened from inside another transaction — see
+      // PostgresJsTransaction#transaction). Without this, a unique-violation raised by the
+      // INSERT aborts the WHOLE outer transaction: Postgres refuses every further statement
+      // with 25P02 "current transaction is aborted" until the transaction ends, so the very
+      // next statement below — lockPair, the recovery read — would itself fail rather than
+      // recover, and that failure escapes uncaught as a raw 500 with the auto-accept never
+      // happening. A failed nested transaction rolls back only to the savepoint, leaving the
+      // OUTER transaction (and therefore the lockSender advisory lock + everything already
+      // read in it) alive so the recovery below can actually run.
+      const created = await tx.transaction(async (sp) => {
+        const [row] = await sp.insert(friendships)
+          .values({ userA, userB, status: "pending", requestedBy: a.fromUserId, createdAt: now })
+          .returning({ id: friendships.id, requestSeq: friendships.requestSeq });
+        // insert().values(single row) always returns exactly one row.
+        await writeNotification(sp, requestNotification({
+          friendshipId: row!.id, seq: row!.requestSeq, recipientId: a.toUserId, senderId: a.fromUserId, senderGamertag: fromTag,
+        }));
+        return row!;
+      });
+      return { id: created.id, status: "pending" as const };
     } catch (err) {
       if (!isUniqueViolation(err, "friendships_pair_uniq")) throw err;
       // `existing` was null under lockPair, so there was no row for FOR UPDATE to lock and
@@ -216,7 +229,8 @@ export async function request(
       // B are different senders. Both A→B and B→A can reach this INSERT concurrently; only
       // one wins, the other lands here. Recover instead of surfacing a raw 500: re-read the
       // row the winner just committed (now locked, since it exists) and resolve it the same
-      // way the ordinary "recipient requests back" branch above does.
+      // way the ordinary "recipient requests back" branch above does. This only works because
+      // the insert above ran inside a SAVEPOINT — the outer transaction is still alive here.
       const race = await lockPair(tx, userA, userB);
       if (race?.status === "pending") return acceptReciprocalOrThrow(tx, race, a.fromUserId, now, fromTag);
       throw err;

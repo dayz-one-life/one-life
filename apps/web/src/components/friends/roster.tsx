@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { GamertagLink } from "@/components/gamertag-link";
 import { SrStatus } from "@/components/shared/sr-status";
@@ -74,6 +74,10 @@ export type RosterViewProps = {
   onAccept: (id: number) => void;
   onDecline: (id: number) => void;
   onRemove: (id: number) => void;
+  /** Withdraw your own un-answered outgoing request. Distinct from `onRemove` — cancelling a
+   *  pending request you sent is not the same action as removing an accepted friend, and
+   *  should not share its announcement (see FriendButton, which already distinguishes them). */
+  onCancel: (id: number) => void;
   onPageChange?: (page: number) => void;
 };
 
@@ -133,7 +137,7 @@ export function RosterView(p: RosterViewProps) {
       />
       <Section
         title="Sent" id="roster-outgoing" entries={d.outgoing}
-        action={(e) => [{ label: "Cancel request", onClick: () => p.onRemove(e.id), disabled: p.pending }]}
+        action={(e) => [{ label: "Cancel request", onClick: () => p.onCancel(e.id), disabled: p.pending }]}
       />
       {empty ? <p className="font-mono text-[11px] uppercase text-ink-muted">No friends yet.</p> : null}
     </div>
@@ -145,6 +149,19 @@ export function Roster() {
   const [page, setPage] = useState(1);
   const { data, loading, error } = useFriends(page);
   const a = useFriendActions();
+
+  // A removal (decline/cancel/remove) can shrink `total` below what the current page needs —
+  // e.g. 26 friends on page 2, remove one, total becomes 25 and page 2 is now empty. `page` is
+  // local state with no other feedback loop back to the server total, so without this the
+  // Friends section silently renders nothing and FriendsPagination — now genuinely a single
+  // page — returns null, stranding the user with no control back to page 1. Clamps only
+  // DOWNWARD, and only once real data has actually loaded (never against a stale/loading
+  // total, which would be a fabricated clamp).
+  useEffect(() => {
+    if (!data) return;
+    const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+    if (page > totalPages) setPage(totalPages);
+  }, [data, page]);
   const [announcement, setAnnouncement] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -187,6 +204,7 @@ export function Roster() {
         a.removeFriend(id, settle("Removed"));
         setConfirmingId(null);
       }}
+      onCancel={(id) => a.removeFriend(id, settle("Friend request canceled"))}
     />
   );
 }

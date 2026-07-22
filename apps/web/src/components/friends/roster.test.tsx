@@ -8,7 +8,7 @@ const entry = (id: number, gamertag: string) => ({
   id, gamertag, slug: gamertag.toLowerCase(), status: "friends" as const,
   since: "2026-07-01T00:00:00Z",
 });
-const actions = { onAccept: () => {}, onDecline: () => {}, onRemove: () => {} };
+const actions = { onAccept: () => {}, onDecline: () => {}, onRemove: () => {}, onCancel: () => {} };
 
 describe("RosterView", () => {
   it("shows a skeleton while loading, never an empty roster", () => {
@@ -56,6 +56,25 @@ describe("RosterView", () => {
     expect(within(friends).getByRole("button", { name: /remove/i })).toBeInTheDocument();
     const outgoing = screen.getByRole("list", { name: /sent/i });
     expect(within(outgoing).getByRole("button", { name: /cancel/i })).toBeInTheDocument();
+  });
+
+  // Withdrawing your own un-answered outgoing request is not "removing a friend" — it fires
+  // the distinct onCancel callback so the container can announce "Friend request canceled"
+  // rather than "Removed" (matching FriendButton, which already distinguishes the two).
+  it("cancelling a sent request fires onCancel, not onRemove", () => {
+    const onRemove = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25 }}
+        {...actions}
+        onRemove={onRemove}
+        onCancel={onCancel}
+      />,
+    );
+    screen.getByRole("button", { name: /cancel/i }).click();
+    expect(onCancel).toHaveBeenCalledWith(3);
+    expect(onRemove).not.toHaveBeenCalled();
   });
 
   it("announces the last completed action", () => {
@@ -153,7 +172,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 describe("Roster container", () => {
   function wrap(ui: ReactNode) {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+    return { ...render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>), qc };
   }
 
   const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 };
@@ -222,5 +241,38 @@ describe("Roster container", () => {
     getFriends.mockResolvedValue(feed);
     wrap(<Roster />);
     expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
+  });
+
+  // ⚠️ Regression guard: `page` is local state with no other feedback loop back to the
+  // server total. 26 friends on page 2, remove the last one on that page — total drops to 25
+  // — and without a clamp, page 2 renders an empty Friends section forever (a single real
+  // page means FriendsPagination also returns null, so there is no control back to page 1).
+  it("clamps back to a real page once a removal shrinks the roster out from under it", async () => {
+    mockAccount.value = {
+      kind: "verified",
+      link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+    };
+    const page1Friends = Array.from({ length: 25 }, (_, i) => entry(i + 1, `Friend${i + 1}`));
+    getFriends.mockImplementation((page: number) =>
+      Promise.resolve(
+        page === 1
+          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25 }
+          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25 },
+      ),
+    );
+    const { qc } = wrap(<Roster />);
+
+    const nextBtn = await screen.findByRole("button", { name: /next/i });
+    nextBtn.click();
+    await screen.findByRole("link", { name: "Friend26" });
+
+    // Simulate the server-side effect of removing that last friend on page 2: total drops to
+    // 25 (one full page), and page 2 now has no rows.
+    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25 });
+
+    // The roster clamps back to page 1 (already cached) rather than rendering an empty
+    // section with no way back.
+    await screen.findByRole("link", { name: "Friend1" });
+    expect(screen.queryByText(/no friends yet/i)).toBeNull();
   });
 });
