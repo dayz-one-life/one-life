@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getFriendMap, getMapServers } from "@/lib/api";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendMap } from "@/lib/types";
+import { rememberMap } from "@/lib/last-map";
 import FriendsMap from "./friends-map";
 import type { MapFocus } from "./map-canvas";
 import { TopBar } from "./shell/top-bar";
@@ -93,6 +94,11 @@ export function MapPage({ slug }: { slug: string }) {
   // The map centre, in world metres. Owned HERE rather than in FriendsMap because the chip
   // that reads it is chrome: on a phone it sits in the bottom bar, outside the map entirely.
   const [world, setWorld] = useState<{ x: number; y: number } | null>(null);
+  // What makes the nav's `/maps` link land where you left off. Written for EVERY visitor,
+  // signed in or not — a signed-out browser still has a map they were looking at. The slug is
+  // stored unvalidated (this route renders for any segment), which is safe because the read
+  // side re-checks it against the live server list; see resolveMapSlug in lib/last-map.ts.
+  useEffect(() => { rememberMap(slug); }, [slug]);
   const servers = useQuery({ queryKey: ["map-servers"], queryFn: getMapServers, enabled: verified });
   const q = useQuery({
     queryKey: ["friend-map", slug],

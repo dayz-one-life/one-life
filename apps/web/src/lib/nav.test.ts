@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { activeNavKey, NAV_ITEMS } from "./nav";
 
 describe("NAV_ITEMS", () => {
-  it("is the five-section paper nav, in order", () => {
+  it("is the six-section paper nav, in order", () => {
     expect(NAV_ITEMS.map((n) => n.label)).toEqual([
-      "News", "Obituaries", "Fresh Spawns", "Survivors", "About",
+      "News", "Obituaries", "Fresh Spawns", "Survivors", "Maps", "About",
     ]);
   });
 });
@@ -18,6 +18,8 @@ describe("activeNavKey", () => {
     ["/survivors", "survivors"],
     ["/survivors/sakhal/kills", "survivors"],
     ["/players/yrjustbad", "survivors"],
+    ["/maps", "maps"],
+    ["/maps/op-cher", "maps"],
     ["/about", "about"],
     ["/account", null],
     ["/login", null],
