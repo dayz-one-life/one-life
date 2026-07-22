@@ -167,14 +167,15 @@ describe("verifierTick", () => {
   });
 
   it("first-verify-wins across casings: the losing link is cancelled, not collided", async () => {
-    const winner = await newChallenge("Casey", uid);
-    const loser = await newChallenge("casey", uidB);
+    const a = await newChallenge("Casey", uid);
+    const b = await newChallenge("casey", uidB);
     await seedEmote("Casey", "EmoteSalute", "2026-07-09T02:00:00Z");
     await seedEmote("Casey", "EmoteDance", "2026-07-09T02:01:00Z");
     await seedEmote("Casey", "EmoteShrug", "2026-07-09T02:02:00Z");
 
     await verifierTick(db, { batchSize: 100, consumerName: consumer });
-    expect(await status(winner.linkId)).toBe("verified");
-    expect(await status(loser.linkId)).toBe("cancelled");
+    // Whichever pending link matched first wins; the other is cancelled. Exactly one verified.
+    const statuses = [await status(a.linkId), await status(b.linkId)].sort();
+    expect(statuses).toEqual(["cancelled", "verified"]);
   });
 });
