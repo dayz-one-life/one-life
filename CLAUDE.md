@@ -1128,9 +1128,20 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      one `players` row, and have one receive the other's coordinates as their own dot. Three
      code paths had to change with it, and **each is load-bearing, not tidy-up**:
      the claim route resolves the submitted gamertag to the canonical `players.gamertag` casing
-     and stores THAT (`apps/api/src/routes/gamertag-links.ts`) — which is what keeps the ~35
-     bare `eq(x.gamertag, …)` comparisons elsewhere correct without touching them, and a
-     `lower()` sweep of those would defeat `positions_player_idx` and both partial indexes from
+     and stores THAT (`apps/api/src/routes/gamertag-links.ts`) — **on the INSERT path and on the
+     reuse path**, since a pre-`0024` row found by the case-folded lookup and merely re-activated
+     would keep its typed casing; migration `0024` canonicalizes the existing corpus the same way
+     (a guarded `UPDATE`, reported as a `NOTICE`), so the invariant is true at deploy time rather
+     than assumed. **That keeps the ~35 bare `eq(x.gamertag, …)` comparisons correct wherever
+     both sides derive from `players.gamertag` or a `gamertag_links` row** — notably
+     `redeem.ts`'s link↔`bans.gamertag` match and `player-page.ts`'s Verified stamp, where a
+     mis-cased link silently cost the player their self-unban. It does **NOT** extend to
+     ADM-sourced denormalised columns: `kills.killer_gamertag` and `hit_events.victim_gamertag`
+     are written by `packages/projections/src/fold.ts` from the raw event payload, not from
+     `players.gamertag`, so a re-cased log line still writes a differently-cased value there and
+     bare `eq()` against it can still miss. (Not a regression — before this branch such a line
+     was dropped entirely; now it is at least recorded.) A `lower()` sweep of those sites would
+     defeat `positions_player_idx` and both partial indexes from
      `0017`; the verifier compares `lower()` in all three of `findPendingChallenges` /
      `getVerifiedLinkId` / `cancelOtherPendingLinks` (a mis-cased claim previously matched no
      emote, so verification silently never completed); and the projector's `getPlayer` resolves
@@ -1144,10 +1155,14 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      the same raw path, both verified against postgres-js 3.4.9 and both explicitly converted in
      the code rather than cast: a JS `Date` bound as a raw parameter THROWS (only drizzle's typed
      builder serialises Dates), so the seen-at timestamp goes in as `toISOString()`; and raw
-     `RETURNING` is untyped — `id` comes back as a bigint STRING and `last_seen_at` as a string,
-     not the `number`/`Date` the query-builder path would give, so both are parsed before the row
-     is handed to the fold, which would otherwise silently receive a `PlayerRow` lying about its
-     own types.
+     `RETURNING` is untyped — `id` comes back as a bigint STRING and a timestamptz as a raw
+     Postgres string, not the `number`/`Date` the query-builder path would give, so both are
+     converted before the row is handed to the fold, which would otherwise silently receive a
+     `PlayerRow` lying about its own types. The timestamp is returned as **epoch milliseconds**
+     (`extract(epoch …) * 1000`) rather than as the timestamptz: Postgres renders one as
+     `2026-07-22 19:17:56.505482+00`, whose space separator, microsecond precision and two-digit
+     offset are all outside the Date Time String Format ECMA-262 defines, so `new Date()` on it
+     only works through V8's implementation-defined fallback parser.
      ⚠️ `players.gamertag` casing is **frozen at first sight** — `getPlayer` finds the row for any
      casing but `touchPlayer` never rewrites it. Rewriting it would desynchronise every
      denormalised copy (`bans.gamertag`, `kills.killerGamertag`, `articles.gamertag`) that those
