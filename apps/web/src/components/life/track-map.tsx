@@ -53,7 +53,7 @@ export default function TrackMap({ track }: { track: LifeTrack }) {
       // errorTileUrl blank + a dark backdrop on the container: when tiles are absent
       // (dev, or before the mirror has run) the trail still reads, instead of showing a
       // broken-tile checkerboard that looks like a broken feature.
-      L.tileLayer(`/tiles/${track.mapCodename}/terrain/{z}/{x}/{y}.webp`, {
+      L.tileLayer(`/tiles/${track.mapCodename}/topographic/{z}/{x}/{y}.webp`, {
         minZoom: 0, maxZoom: MAX_ZOOM, noWrap: true,
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==",
       }).addTo(m);

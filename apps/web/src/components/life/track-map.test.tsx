@@ -66,7 +66,7 @@ describe("TrackMap", () => {
   it("requests tiles from the mirrored DZMap layout for this map", async () => {
     render(<TrackMap track={track} />);
     await waitFor(() => expect(tileLayer).toHaveBeenCalled());
-    expect(tileLayer.mock.calls[0]![0]).toBe("/tiles/chernarusplus/terrain/{z}/{x}/{y}.webp");
+    expect(tileLayer.mock.calls[0]![0]).toBe("/tiles/chernarusplus/topographic/{z}/{x}/{y}.webp");
     // Absent tiles (dev, or before the mirror has run) must degrade to trail-on-a-dark-
     // background via errorTileUrl, not a broken-tile checkerboard — and must not wrap.
     const opts = tileLayer.mock.calls[0]![1] as { errorTileUrl?: string; noWrap?: boolean };

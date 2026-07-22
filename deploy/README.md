@@ -241,15 +241,17 @@ Mirror all three maps (`chernarusplus`, `sakhal`, `enoch`/Livonia):
 ```bash
 cd /var/www/dayzonelife.com
 ./deploy/mirror-tiles.sh              # first-time mirror
-./deploy/mirror-tiles.sh -f           # re-mirror, forcing overwrite (after a
-                                       # DayZ terrain update)
+./deploy/mirror-tiles.sh              # re-mirror (after a DayZ terrain update) —
+                                       # a bare re-run already fully re-downloads
+                                       # and replaces the destination, so there is
+                                       # no force flag needed here
 ```
 
-This populates `/var/www/tiles/<map>/terrain/<z>/<x>/<y>.webp` (override the root
-with `TILE_DIR`). DZMap's own layer vocabulary is `topographic`/`satellite`, not
-`terrain` — the script mirrors the `topographic` layer and renames it to `terrain`
-on disk so the path matches exactly what the web app requests
-(`apps/web/src/components/life/track-map.tsx`); mismatch here 404s every tile.
+This populates `/var/www/tiles/<map>/topographic/<z>/<x>/<y>.webp` (override the
+root with `TILE_DIR`). The path matches DZMap's own layer name exactly — the
+mirrored tree is DZMap's own output, unmodified — and must match what the web app
+requests (`apps/web/src/components/life/track-map.tsx`); a divergence here 404s
+every tile.
 
 Add the nginx location block (alongside the existing `dayzonelife.com` vhost
 server block):

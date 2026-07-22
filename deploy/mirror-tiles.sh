@@ -16,10 +16,13 @@
 #
 # Usage:
 #   ./deploy/mirror-tiles.sh              # first-time mirror of all three maps
-#   ./deploy/mirror-tiles.sh -f            # re-mirror forcing overwrite (after a
-#                                          # DayZ terrain update); any extra args
-#                                          # are passed straight through to
-#                                          # dzmap-loader
+#   ./deploy/mirror-tiles.sh              # re-mirror (after a DayZ terrain update) —
+#                                          # a bare re-run already fully re-downloads
+#                                          # into a fresh staging dir and replaces the
+#                                          # destination unconditionally, so there is
+#                                          # no force flag to reach for here. Any extra
+#                                          # args are passed straight through to
+#                                          # dzmap-loader.
 #
 # TILE_DIR overrides the destination (default /var/www/tiles, matching the nginx
 # `alias` in deploy/README.md).
@@ -56,7 +59,11 @@ echo "==> mirroring ${MAPS[*]} into staging dir $WORK ..."
 # re-mirror) are passed straight through to dzmap-loader.
 ( cd "$WORK" && dzmap-loader -c "$CONFIG" "${LIMIT_ARGS[@]}" --tiles-only "$@" )
 
-mkdir -p "$DEST"
+mkdir -p "$DEST" || {
+  echo "error: could not create $DEST — check that the parent directory is" >&2
+  echo "       writable by the running user, or re-run this script under sudo." >&2
+  exit 1
+}
 for m in "${MAPS[@]}"; do
   SRC="$WORK/maps/$m/topographic"
   if [[ ! -d "$SRC" ]]; then
@@ -65,16 +72,15 @@ for m in "${MAPS[@]}"; do
     continue
   fi
 
-  # The web app requests /tiles/{map}/terrain/{z}/{x}/{y}.webp verbatim (see
-  # apps/web/src/components/life/track-map.tsx), but DZMap's own layer vocabulary
-  # is "topographic"/"satellite" — there is no "terrain" layer in DZMap itself
-  # (https://github.com/WoozyMasta/dzmap#api--standards). Land the topographic
-  # pyramid under our "terrain" name so the served path matches the app exactly.
+  # The web app requests /tiles/{map}/topographic/{z}/{x}/{y}.webp verbatim (see
+  # apps/web/src/components/life/track-map.tsx) — the same "topographic" name
+  # DZMap itself uses, so the mirrored tree lands exactly as DZMap produced it,
+  # with no rename step to keep in sync.
   mkdir -p "$DEST/$m"
-  rm -rf "$DEST/$m/terrain"
-  mv "$SRC" "$DEST/$m/terrain"
-  echo "==> $m: $(find "$DEST/$m/terrain" -name '*.webp' | wc -l | tr -d ' ') tiles mirrored"
+  rm -rf "$DEST/$m/topographic"
+  mv "$SRC" "$DEST/$m/topographic"
+  echo "==> $m: $(find "$DEST/$m/topographic" -name '*.webp' | wc -l | tr -d ' ') tiles mirrored"
 done
 
 echo "==> done. Verify one tile is readable:"
-echo "    curl -sI https://<host>/tiles/chernarusplus/terrain/3/4/4.webp | head -1"
+echo "    curl -sI https://<host>/tiles/chernarusplus/topographic/3/4/4.webp | head -1"
