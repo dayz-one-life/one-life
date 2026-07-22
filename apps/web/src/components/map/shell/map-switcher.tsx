@@ -45,9 +45,13 @@ export function MapSwitcher({ slug, servers, loading }: {
               onClick={() => setOpen(false)}
               className="flex min-h-[52px] items-center justify-between gap-4 px-4 py-2 font-mono text-[15px] uppercase tracking-[.05em] text-cream-dim hover:text-paper md:min-h-[44px] md:px-3 md:text-[11px]"
             >
+              {/* NO COUNT HERE, deliberately. This used to render `friendCount` — friends
+                  SHARING A POSITION on that server — as a bare unlabelled number, which since
+                  the online list became the ☰ button's count meant the same bar showed two
+                  different counts about the same server, one of them unlabelled ("LIVONIA … 0"
+                  beside "ONLINE 12"). This menu switches maps; the count belongs where it is
+                  named. The labelled "N sharing" on the /maps picker page is untouched. */}
               {s.name}
-              {/* Loading is not zero: while `loading`, no count renders at all. */}
-              {!loading && <span className="text-paper">{s.friendCount}</span>}
             </Link>
           ))}
           {loading && (

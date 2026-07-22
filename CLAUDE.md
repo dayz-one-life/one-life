@@ -1367,6 +1367,38 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   layout, paint or stacking, and two releases shipped green-but-broken on 2026-07-22 for exactly
   that reason. It needs real mirrored tiles (a tile-less local run is explicitly not sufficient).
   The six checks are listed in the plan; run them against the deployed site.
+  **The ☰ panel is an online list, not a friends list** (spec
+  `docs/superpowers/specs/2026-07-22-map-online-list-design.md`): every player currently connected
+  to that server, friends first, with anyone sharing their position marked. This publishes
+  presence to any signed-in verified viewer **regardless of the F3 presence switches** — a
+  deliberate policy call, not an oversight: DayZ's own in-game player menu already lists everyone
+  on the server, so gating our copy of that list protects nothing and only makes it look broken.
+  **The F3 "share my status" switches now govern notifications only**, and their copy was reworded
+  in the same release to say so — the old copy implied they hid you from this list, which they
+  never did and now provably don't. **Location stays a completely separate, still consent-gated
+  disclosure**: `shouldShareLocation` (master off by default) still gates the dot on the map, and
+  the coordinate route keeps every guard it had — no subject parameter, a verified-link inner
+  join, `MARKER_MAX_AGE_SECONDS`.
+  **⚠️ Online = an open session AND `players.last_seen_at` within `ONLINE_MAX_AGE_SECONDS` (900)**
+  (`getOnlinePlayers`, `packages/read-models/src/online-players.ts`) — an open session ALONE is
+  not evidence of presence: `apps/rebooter` restarts every active server every 2 hours, so a
+  crashed client's session stays open (`disconnected_at IS NULL`) until the next even-hour reboot,
+  and a bare open-session list would show players who left up to two hours ago as if they were
+  still there. Same 900s bound the map's own markers, the presence generator, and `survivors.ts`'s
+  live-playtime cap already use. Mutation-tested — removing the bound fails a named test.
+  **`sharing` is derived from the payload's own `positions` array, never a second consent
+  lookup** — `getOnlinePlayers` takes the exact `FriendPosition[]` the route already fetched for
+  the dots and intersects against it, so the online list and the map's dots are one fact and can
+  never disagree with each other. Pinned by a route test proven red against a route that instead
+  passed `[]`.
+  **Ordering is owned by the read-model, not the component** — self → friends sharing → friends →
+  everyone else sharing → everyone else, then by gamertag (`getOnlinePlayers`'s `rank()`).
+  `OnlineList`/`FriendsMapLegend` render the array as given; sorting client-side would put the
+  rule in the surface instead of the model that owns it, and the accessible legend wants the same
+  order.
+  **`GET /me/maps/:mapSlug` gained an `online: OnlinePlayer[]` field on the existing payload** —
+  no new route, so the route's defining properties are unchanged: still no subject parameter (the
+  viewer's session is the only input), still `cache-control: no-store, private`.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
