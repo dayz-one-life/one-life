@@ -2,6 +2,7 @@
 import { useEffect, useRef } from "react";
 import { worldSize, worldToPixel } from "@/lib/dayz-projection";
 import type { LifeTrack } from "@/lib/types";
+import { staleness } from "./track-marker-list";
 // Next.js's bundler special-cases global stylesheets imported FROM node_modules: unlike an
 // app-authored global .css (which must live in the root layout), a third-party package's CSS
 // may be imported directly in the component that needs it and still gets extracted + emitted —
@@ -67,7 +68,11 @@ export default function TrackMap({ track }: { track: LifeTrack }) {
         });
         c.addTo(m);
         all.push(pt(mk.x, mk.y));
-        c.bindPopup(`${mk.kind}${mk.label ? ` — ${mk.label}` : ""} · fix ${mk.sampleAgeSeconds}s earlier`);
+        // Routed through the same `staleness` helper as the accessible marker list — for a
+        // `now` marker, `sampleAgeSeconds` is 0 by construction (the fix IS the event), so
+        // rendering it directly here would tell a living player their position is current
+        // when it may be many minutes old. The popup and the list must never disagree.
+        c.bindPopup(`${mk.kind}${mk.label ? ` — ${mk.label}` : ""} · ${staleness(mk, Date.now())}`);
       }
       if (all.length > 0) m.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
       else m.setView(pt(size / 2, size / 2), 1);

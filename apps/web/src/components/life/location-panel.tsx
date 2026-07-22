@@ -1,15 +1,18 @@
 "use client";
+import dynamic from "next/dynamic";
 import { useSession } from "@/lib/auth-client";
 import { useGamertagLinks } from "@/lib/use-gamertag-links";
 import { useLifeTrack } from "@/lib/use-life-track";
 import { WithheldBar } from "./timeline";
 import { TrackMarkerList } from "./track-marker-list";
-// A plain import, not next/dynamic: TrackMap already guards its own SSR-safety by
-// dynamically importing "leaflet" inside a useEffect (see track-map.tsx), so wrapping it
-// again here in next/dynamic({ ssr: false }) would only add an extra async Suspense tick
-// with no benefit — and would make LocationPanel's owner branch render nothing on its
-// first synchronous pass, which is observable and undesired.
-import TrackMap from "./track-map";
+// Dynamically imported with ssr:false: only the verified owner of a life ever sees this
+// component, which is the overwhelming minority of visitors to a public life-timeline
+// page. A static import would ship the TrackMap chunk AND Leaflet's stylesheet to every
+// visitor, including every signed-out one. next/dynamic renders its fallback (here, null)
+// on the first synchronous pass and resolves the real module asynchronously — callers
+// must await the render (see location-panel.test.tsx's "shows the map to the verified
+// owner" test) rather than asserting on the first synchronous tick.
+const TrackMap = dynamic(() => import("./track-map"), { ssr: false });
 
 interface Props {
   mapSlug: string;
@@ -55,10 +58,22 @@ export function LocationPanel({ mapSlug, lifeNumber, pageGamertag, alive }: Prop
 
   // A failed fetch and an empty desk are different statements and must never collapse
   // into one another (the live-data-honesty settleFeed rule).
-  if (isError || !track) {
+  if (isError) {
     return (
       <p role="status" className="mt-5 border border-hairline bg-bone px-4 py-3 font-mono text-[11px] text-red-deep">
         Couldn&apos;t load your position record. This is a fault at the desk, not an empty file.
+      </p>
+    );
+  }
+
+  // `useLifeTrack` resolves a 403 to `null` on purpose — that is the server successfully
+  // telling us we are not the owner, not a fault. The client-side `isOwner` guess above
+  // already got this wrong once (stale link cache, race), so this is a real, reachable
+  // branch, and it must say something true, not reuse the desk-fault line above.
+  if (!track) {
+    return (
+      <p className="mt-5 border border-hairline bg-bone px-4 py-3 font-mono text-[11px] text-ink-soft">
+        The desk will not release this record to you.
       </p>
     );
   }

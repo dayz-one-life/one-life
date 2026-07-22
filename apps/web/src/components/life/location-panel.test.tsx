@@ -61,7 +61,7 @@ describe("LocationPanel", () => {
     expect(screen.queryByTestId("map")).toBeNull();
   });
 
-  it("shows the map to the verified owner", () => {
+  it("shows the map to the verified owner", async () => {
     useSession.mockReturnValue({ data: { user: { id: "u1" } } });
     useGamertagLinks.mockReturnValue({ data: [{ gamertag: "Hero", status: "verified" }] });
     useLifeTrack.mockReturnValue({
@@ -69,8 +69,21 @@ describe("LocationPanel", () => {
       isPending: false, isError: false,
     });
     render(<LocationPanel {...props} />);
-    expect(screen.getByTestId("map")).toBeInTheDocument();
+    // TrackMap is loaded via next/dynamic({ ssr: false }), which renders its fallback
+    // (null) on the first synchronous pass and resolves the mocked module asynchronously
+    // — findBy* flushes that microtask inside act(), unlike a synchronous getBy* assertion.
+    expect(await screen.findByTestId("map")).toBeInTheDocument();
     expect(screen.queryByText("Positions withheld")).toBeNull();
+  });
+
+  it("shows a loading line while the fetch is pending, never the error or empty lines", () => {
+    useSession.mockReturnValue({ data: { user: { id: "u1" } } });
+    useGamertagLinks.mockReturnValue({ data: [{ gamertag: "Hero", status: "verified" }] });
+    useLifeTrack.mockReturnValue({ data: undefined, isPending: true, isError: false });
+    render(<LocationPanel {...props} />);
+    expect(screen.getByText(/pulling your fixes/i)).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText(/no fixes recorded/i)).toBeNull();
   });
 
   it("distinguishes a resolved-empty track from a failed fetch", () => {
@@ -82,6 +95,7 @@ describe("LocationPanel", () => {
     });
     render(<LocationPanel {...props} />);
     expect(screen.getByText(/no fixes recorded/i)).toBeInTheDocument();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("renders an explicit error line on a failed fetch, never an empty map", () => {
@@ -91,5 +105,19 @@ describe("LocationPanel", () => {
     render(<LocationPanel {...props} />);
     expect(screen.getByRole("status")).toHaveTextContent(/couldn't load/i);
     expect(screen.queryByText(/no fixes recorded/i)).toBeNull();
+  });
+
+  it("renders a distinct, honest line when the desk resolves to null — not a fault", () => {
+    // useLifeTrack deliberately resolves a 403 to `null`: a SUCCESSFUL answer meaning
+    // "the server says you are not the owner," not a fetch failure. This must never
+    // render the "fault at the desk" line, which is specifically false in this case.
+    useSession.mockReturnValue({ data: { user: { id: "u1" } } });
+    useGamertagLinks.mockReturnValue({ data: [{ gamertag: "Hero", status: "verified" }] });
+    useLifeTrack.mockReturnValue({ data: null, isPending: false, isError: false });
+    render(<LocationPanel {...props} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText(/will not release this record/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no fixes recorded/i)).toBeNull();
+    expect(screen.queryByText(/couldn't load/i)).toBeNull();
   });
 });

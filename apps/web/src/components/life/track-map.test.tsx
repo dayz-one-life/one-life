@@ -7,8 +7,9 @@ import type { LifeTrack } from "@/lib/types";
 // symbol the component touches — a partial mock throws inside the effect's promise as an
 // unhandled rejection, which can leave the test green while exercising nothing.
 const addTo = vi.fn();
+const bindPopup = vi.fn();
 const polyline = vi.fn((..._a: unknown[]) => ({ addTo }));
-const circleMarker = vi.fn((..._a: unknown[]) => ({ addTo, bindPopup: vi.fn() }));
+const circleMarker = vi.fn((..._a: unknown[]) => ({ addTo, bindPopup }));
 const tileLayer = vi.fn((..._a: unknown[]) => ({ addTo }));
 const fitBounds = vi.fn();
 const setView = vi.fn();
@@ -79,6 +80,24 @@ describe("TrackMap", () => {
     render(<TrackMap track={one} />);
     await waitFor(() => expect(unproject).toHaveBeenCalled());
     expect(polyline).not.toHaveBeenCalled();
+  });
+
+  it("popup text agrees with the accessible list — never a lying '0s' for a now marker", async () => {
+    // A `now` marker's sampleAgeSeconds is 0 by construction (the fix IS the event). The
+    // popup must route through the same clock-derived `staleness` helper as
+    // TrackMarkerList, not render sampleAgeSeconds directly, or a living player's popup
+    // would falsely claim their position is current.
+    const nowTrack: LifeTrack = {
+      ...track,
+      markers: [
+        { kind: "now", at: "2026-07-14T03:00:00Z", x: 7000, y: 7000, sampleAt: "2026-07-14T02:55:00Z", sampleAgeSeconds: 0, label: null },
+      ],
+    };
+    render(<TrackMap track={nowTrack} />);
+    await waitFor(() => expect(bindPopup).toHaveBeenCalled());
+    const text = bindPopup.mock.calls[0]![0] as string;
+    expect(text).not.toContain("0s");
+    expect(text).toMatch(/\d+[ms] ago/);
   });
 
   it("renders an explicit notice for a map codename we have no world size for", () => {

@@ -17,9 +17,12 @@ function span(seconds: number): string {
  * For a kill or a death, the honest statement is how long BEFORE the event the fix was
  * taken. For `now` the fix *is* the event (sampleAgeSeconds is 0 by construction), so
  * the honest statement is how old that fix is at read time — computed here, from the
- * browser clock, so it keeps ticking between the hook's 60s polls. Spec §4.5.
+ * browser clock. There is no timer: this re-evaluates on render, which in practice is
+ * essentially on every one of the hook's 60s polls — it does not tick on its own between
+ * renders. Exported so the map popup (track-map.tsx) renders the identical text instead
+ * of a competing, less honest computation. Spec §4.5.
  */
-function staleness(m: TrackMarkerDto, now: number): string {
+export function staleness(m: TrackMarkerDto, now: number): string {
   if (m.kind !== "now") return `approximate, from a fix ${span(m.sampleAgeSeconds)} before`;
   const age = Math.max(0, Math.round((now - new Date(m.sampleAt).getTime()) / 1000));
   return `last fix ${span(age)} ago`;
