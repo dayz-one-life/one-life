@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Map place names are readable at last. The previous attempt put the solid backing on the
+  wrong element, so it painted a small black dash beside each name while the name itself
+  stayed bare — and the terrain underneath is pale, not dark, so bare white lettering
+  vanished into it. Each name now sits in its own solid block.
+
 ### Security
 
 ## [0.38.1] - 2026-07-22
