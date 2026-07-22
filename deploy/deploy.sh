@@ -71,6 +71,7 @@ PNPM="$(command -v pnpm || echo /home/acab/.local/bin/pnpm)"
 read_database_url() {
   # DATABASE_URL=... in .env; strip an optional surrounding quote pair.
   DATABASE_URL="$(grep -E '^DATABASE_URL=' "$REPO_DIR/.env" | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')"
+  export DATABASE_URL
 }
 
 # ─── Service helpers ─────────────────────────────────────────────────────────
