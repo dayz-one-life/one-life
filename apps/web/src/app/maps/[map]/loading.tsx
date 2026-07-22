@@ -1,8 +1,8 @@
 export default function Loading() {
   return (
-    <div aria-busy="true" className="flex h-[calc(100dvh-7rem)] min-h-[520px] flex-col px-4 py-6">
-      <div aria-hidden className="h-9 w-32 motion-safe:animate-pulse bg-bone" />
-      <div aria-hidden className="mt-4 min-h-0 flex-1 motion-safe:animate-pulse bg-bone" />
+    <div aria-busy="true" className="flex h-full flex-col">
+      <div aria-hidden className="h-12 shrink-0 border-b border-dark-edge bg-dark" />
+      <div aria-hidden className="min-h-0 flex-1 motion-safe:animate-pulse bg-dark-well" />
     </div>
   );
 }

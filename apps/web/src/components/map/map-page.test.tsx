@@ -32,6 +32,22 @@ describe("MapPageView", () => {
     expect(screen.queryByTestId("friends-map")).toBeNull();
   });
 
+  it("renders each state as an overlay card, so the bar above it stays reachable", () => {
+    // The bar lives in MapPage, not MapPageView; what this pins is that a state does not
+    // replace the region's flow — it covers it, leaving the shell (and its only exit) intact.
+    const { container } = render(<MapPageView signedOut now={NOW} />);
+    expect(container.firstElementChild!.className).toMatch(/\babsolute\b.*\binset-0\b/);
+  });
+
+  it("writes its notes in dark-surface tokens — the shell has no paper anywhere", () => {
+    // RTL asserts the DOM, not contrast: an ink-on-dark note is present, functional and
+    // invisible, and every other test here still passes while it is.
+    render(<MapPageView unverified now={NOW} />);
+    const note = screen.getByRole("status");
+    expect(note.className).not.toMatch(/\btext-ink/);
+    expect(note.className).toMatch(/\btext-cream-dim\b/);
+  });
+
   it("renders the map once loaded", () => {
     render(<MapPageView data={data} now={NOW} />);
     expect(screen.getByTestId("friends-map")).toBeInTheDocument();

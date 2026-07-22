@@ -8,7 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The map is now a proper map application. It fills the whole screen, with one slim bar across
+  the top instead of the site's usual furniture: a way back, the map you are on (and a menu of
+  the others, each with a count of friends there), a search box, a locate button and a friends
+  list.
+- Search any town, village or landmark by name and the map flies to it — including the small
+  places that only get a label once you are close enough to see them.
+- A crosshair sits in the centre of the map with the grid reference underneath it. Tap it to
+  copy the pair, ready to send to whoever you are trying to meet.
+- The locate button recentres the map on you. If you have no live position it says so rather
+  than sitting there doing nothing, and it never claims to be loading a position that is not
+  coming — nor that you are offline when what actually happened is that the page could not
+  reach the server.
+- On a phone the search box is a magnifier that opens across the bar, so the bar itself stays
+  uncluttered and every control keeps its place at the narrowest screens.
+
 ### Changed
+
+- The list of who is sharing a position moved out from under the map and into the bar's
+  friends panel, so the map itself gets the whole screen.
 
 ### Deprecated
 
