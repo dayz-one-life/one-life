@@ -2,7 +2,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
-import type { MapServerDto } from "@/lib/types";
+
+/** Just enough of a server to switch to it. Deliberately NOT `MapServerDto` (the gated
+ *  `/me/maps` shape): the switcher is driven by the PUBLIC server list so it works signed out,
+ *  and it never showed the friend count anyway — see the note in the menu below. */
+export type SwitchableMap = { slug: string; name: string };
 
 /** Current map plus a menu of the others, with each map's friend count.
  *
@@ -10,7 +14,7 @@ import type { MapServerDto } from "@/lib/types";
  *  rail's ink tokens. A panel written in `text-ink` renders present, functional and invisible —
  *  and RTL asserts the DOM, not contrast, so only an explicit token test catches it. */
 export function MapSwitcher({ slug, servers, loading }: {
-  slug: string; servers?: MapServerDto[]; loading: boolean;
+  slug: string; servers?: readonly SwitchableMap[]; loading: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const panelRef = useModalBehavior(open, () => setOpen(false));

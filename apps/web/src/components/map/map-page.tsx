@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { getFriendMap, getMapServers } from "@/lib/api";
+import { getFriendMap, getServers } from "@/lib/api";
 import { useAccountStatus } from "@/lib/use-account-status";
-import type { FriendMap } from "@/lib/types";
+import type { FriendPositionDto, Server } from "@/lib/types";
 import { rememberMap } from "@/lib/last-map";
 import FriendsMap from "./friends-map";
 import type { MapFocus } from "./map-canvas";
@@ -24,12 +24,26 @@ const NOTE = "font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim";
 const CARD =
   "absolute inset-0 z-10 flex items-center justify-center bg-dark/80 p-6 text-center";
 
+/** The non-blocking strip. It floats at the top of the map region rather than covering it —
+ *  a card over the terrain would say "you may not look at this", which is not what is true of
+ *  any of the states that use it. */
+const STRIP =
+  "pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center p-2";
+
 export type MapPageViewProps = {
-  data?: FriendMap;
+  /** The mission codename (`chernarusplus`), from the PUBLIC server list — this is what makes
+   *  the terrain drawable without a session. Absent only while it is still resolving. */
+  mapCodename?: string;
+  /** The dots, from the session-gated payload. Empty for everyone who cannot have any. */
+  positions?: readonly FriendPositionDto[];
+  /** The MAP cannot be drawn yet / at all. Distinct from a friend-payload failure, which
+   *  leaves a perfectly good map with no dots on it. */
   loading?: boolean;
   error?: boolean;
   signedOut?: boolean;
   unverified?: boolean;
+  /** The gated payload failed. The terrain still renders; only the dots are missing. */
+  friendsError?: boolean;
   now: Date;
   /** Where the search box last asked the map to fly. */
   focus?: MapFocus | null;
@@ -37,41 +51,16 @@ export type MapPageViewProps = {
   onCenterChange?: (world: { x: number; y: number }) => void;
 };
 
-/** Presentational. Five states, never collapsed: signed out, unverified, loading, failed,
- *  loaded. A blank canvas would read as "nobody is here", which is a different claim. */
+/**
+ * Presentational.
+ *
+ * ⚠️ THE MAP ITSELF IS PUBLIC. Signing in adds the dots, the online list and Locate; it is not
+ * a condition of seeing the terrain. This used to return the sign-in card INSTEAD of the map,
+ * which meant every signed-out visitor to `/maps` got a sentence where a map should be — and
+ * once Maps went into the primary nav that became the most-clicked dead end on the site.
+ * Anything that is merely missing DOTS belongs in the strip, never in a blocking card.
+ */
 export function MapPageView(p: MapPageViewProps) {
-  if (p.signedOut) {
-    return (
-      <div className={CARD}>
-        <p role="status" className={NOTE}>
-          {/* `red-deep` is a LIGHT-surface token; on dark it fails AA. Plain red passes here. */}
-          <Link href="/login" className="font-bold text-red underline">
-            Sign in
-          </Link>{" "}
-          to see where your friends are.
-        </p>
-      </div>
-    );
-  }
-  if (p.unverified) {
-    return (
-      <div className={CARD}>
-        <p role="status" className={NOTE}>
-          Verify your gamertag to use the map.
-        </p>
-      </div>
-    );
-  }
-  if (p.loading) {
-    return (
-      <div aria-busy="true" className={CARD}>
-        <div
-          aria-hidden
-          className="h-full w-full motion-safe:animate-pulse bg-dark-well"
-        />
-      </div>
-    );
-  }
   if (p.error) {
     return (
       <div className={CARD}>
@@ -81,9 +70,53 @@ export function MapPageView(p: MapPageViewProps) {
       </div>
     );
   }
-  if (!p.data) return null;
+  if (p.loading || !p.mapCodename) {
+    return (
+      <div aria-busy="true" className={CARD}>
+        <div
+          aria-hidden
+          className="h-full w-full motion-safe:animate-pulse bg-dark-well"
+        />
+      </div>
+    );
+  }
+
+  const note = p.signedOut ? (
+    <>
+      {/* `red-deep` is a LIGHT-surface token; on dark it fails AA. Plain red passes here. */}
+      <Link href="/login" className="font-bold text-red underline">
+        Sign in
+      </Link>{" "}
+      to see where your friends are.
+    </>
+  ) : p.unverified ? (
+    "Verify your gamertag to see your friends here."
+  ) : p.friendsError ? (
+    // "Couldn't load" and "nobody is sharing" are different claims about the game; an empty
+    // map must never be allowed to stand in for the first.
+    "Couldn't load who's on the map."
+  ) : null;
+
   return (
-    <FriendsMap data={p.data} now={p.now} focus={p.focus} onCenterChange={p.onCenterChange} />
+    <>
+      <FriendsMap
+        mapCodename={p.mapCodename}
+        positions={p.positions ?? []}
+        now={p.now}
+        focus={p.focus}
+        onCenterChange={p.onCenterChange}
+      />
+      {note && (
+        <div className={STRIP}>
+          <p
+            role="status"
+            className={`pointer-events-auto border border-dark-edge bg-dark/90 px-3 py-1.5 text-center ${NOTE}`}
+          >
+            {note}
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -99,7 +132,18 @@ export function MapPage({ slug }: { slug: string }) {
   // stored unvalidated (this route renders for any segment), which is safe because the read
   // side re-checks it against the live server list; see resolveMapSlug in lib/last-map.ts.
   useEffect(() => { rememberMap(slug); }, [slug]);
-  const servers = useQuery({ queryKey: ["map-servers"], queryFn: getMapServers, enabled: verified });
+
+  // ⚠️ The PUBLIC server list, not the gated `/me/maps`. It carries `map` (the mission codename)
+  // alongside `slug`, which is the whole reason the terrain can draw for a signed-out visitor —
+  // MapCanvas needs the codename to pick its tile tree and place labels, and until this the only
+  // source of it was a session-gated payload. It also feeds the switcher, so changing maps works
+  // logged out too.
+  const servers = useQuery({ queryKey: ["servers"], queryFn: getServers });
+  const mapServers = servers.data
+    ?.filter((s): s is Server & { slug: string } => Boolean(s.slug))
+    .map((s) => ({ slug: s.slug, name: s.name }));
+  const mapCodename = servers.data?.find((s) => s.slug === slug)?.map;
+
   const q = useQuery({
     queryKey: ["friend-map", slug],
     queryFn: () => getFriendMap(slug),
@@ -114,7 +158,7 @@ export function MapPage({ slug }: { slug: string }) {
         self={q.data?.positions.find((p) => p.self)}
         loading={q.isPending}
         error={q.isError && !q.data}
-        mapCodename={q.data?.mapCodename ?? ""}
+        mapCodename={mapCodename ?? ""}
         onLocate={setFocus}
       />
       <FriendsPanel
@@ -129,10 +173,10 @@ export function MapPage({ slug }: { slug: string }) {
 
   return (
     <>
-      <TopBar slug={slug} servers={servers.data?.servers} serversLoading={servers.isPending}>
-        {/* Search needs the mission codename to look places up, and only the loaded payload
-            knows it — so the box appears with the map, not before it. */}
-        {q.data && <PlaceSearch mapCodename={q.data.mapCodename} onPick={setFocus} />}
+      <TopBar slug={slug} servers={mapServers} serversLoading={servers.isPending}>
+        {/* Search needs the mission codename to look places up, so the box appears with the
+            terrain — which now means it works for signed-out visitors too. */}
+        {mapCodename && <PlaceSearch mapCodename={mapCodename} onPick={setFocus} />}
         {/* Signed-out and unverified visitors get no controls at all: the friend query is
             disabled for them, so `isPending` never resolves and Locate would sit there
             claiming to be loading a position that is never coming. */}
@@ -150,9 +194,13 @@ export function MapPage({ slug }: { slug: string }) {
         <MapPageView
           signedOut={account.kind === "signedOut"}
           unverified={account.kind === "unlinked" || account.kind === "pending"}
-          loading={account.kind === "loading" || (verified && q.isPending)}
-          error={q.isError && !q.data}
-          data={q.data}
+          // ⚠️ The map's own loading/error come from the PUBLIC server list only. The gated
+          // friend payload must never gate the terrain — that is the bug this replaced.
+          loading={servers.isPending}
+          error={(servers.isError && !servers.data) || (Boolean(servers.data) && !mapCodename)}
+          friendsError={q.isError && !q.data}
+          mapCodename={mapCodename}
+          positions={q.data?.positions}
           focus={focus}
           onCenterChange={setWorld}
           now={new Date()}
