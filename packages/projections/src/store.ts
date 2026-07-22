@@ -6,7 +6,14 @@ import type {
 export interface ProjectionStore {
   getPlayer(gamertag: string): Promise<PlayerRow | null>;
   getPlayerById(playerId: number): Promise<PlayerRow | null>;
+  /** Resolve a player by their stable DayZ account hash. The identity lookup. */
+  getPlayerByDayzId(dayzId: string): Promise<PlayerRow | null>;
   createPlayer(gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow>;
+  /**
+   * Record that `playerId` was seen under `gamertag`, and make it their current name.
+   * Idempotent: a repeat connect under the same name only extends last_seen_at.
+   */
+  recordGamertag(playerId: number, gamertag: string, seenAt: Date): Promise<void>;
   touchPlayer(playerId: number, lastSeenAt: Date): Promise<void>;
 
   getOpenLife(serverId: number, playerId: number): Promise<LifeRow | null>;

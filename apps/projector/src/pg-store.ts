@@ -63,6 +63,25 @@ export class PgProjectionStore implements ProjectionStore {
   async touchPlayer(playerId: number, lastSeenAt: Date): Promise<void> {
     await this.tx.update(players).set({ lastSeenAt }).where(eq(players.id, playerId));
   }
+  async getPlayerByDayzId(dayzId: string): Promise<PlayerRow | null> {
+    const r = await this.tx.select().from(players).where(eq(players.dayzId, dayzId)).limit(1);
+    return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
+  }
+  async recordGamertag(playerId: number, gamertag: string, seenAt: Date): Promise<void> {
+    // Raw SQL for the same reason as createPlayer: drizzle 0.36.4 types IndexColumn = PgColumn,
+    // so an expression conflict target (lower(gamertag)) cannot be expressed through the
+    // query builder, and a column target fails at RUNTIME rather than compile time.
+    // Same Date hazard as createPlayer: a JS Date bound as a raw parameter throws, hence
+    // toISOString(); the ::timestamptz casts stop GREATEST() seeing an unknown-typed literal.
+    const at = seenAt.toISOString();
+    await this.tx.execute(sql`
+      INSERT INTO player_gamertags (player_id, gamertag, first_seen_at, last_seen_at)
+      VALUES (${playerId}, ${gamertag}, ${at}::timestamptz, ${at}::timestamptz)
+      ON CONFLICT (player_id, lower(gamertag))
+      DO UPDATE SET last_seen_at = GREATEST(player_gamertags.last_seen_at, ${at}::timestamptz)
+    `);
+    await this.tx.update(players).set({ gamertag }).where(eq(players.id, playerId));
+  }
   async getOpenLife(serverId: number, playerId: number): Promise<LifeRow | null> {
     const r = await this.tx.select().from(lives)
       .where(and(eq(lives.serverId, serverId), eq(lives.playerId, playerId), isNull(lives.endedAt)));

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, sessions, positions } from "@onelife/db";
+import { servers, players, lives, sessions, positions, playerGamertags } from "@onelife/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { applyEvent } from "@onelife/projections";
 import { PgProjectionStore } from "../src/pg-store.js";
@@ -20,7 +20,7 @@ afterAll(async () => {
   await db.delete(positions).where(eq(positions.serverId, serverId));
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(inArray(players.gamertag, ["PG", "CAP", "FLA", "STATS", "Zed"]));
+  await db.delete(players).where(inArray(players.gamertag, ["PG", "CAP", "FLA", "STATS", "Zed", "IDN-New", "IDN-Recycled"]));
   await sql.end();
 });
 
@@ -116,5 +116,52 @@ describe("PgProjectionStore", () => {
     expect(found).not.toBeNull();
     expect(found!.gamertag).toBe(tag); // the stored casing is returned, not the queried one
     await db.delete(players).where(eq(players.gamertag, tag));
+  });
+
+  it("resolves by dayz_id and records every gamertag the player is seen under", async () => {
+    // Exercises the RAW-SQL upsert against real Postgres: an expression conflict target
+    // (player_id, lower(gamertag)) is only reachable this way, and a wrong target fails at
+    // RUNTIME with "no unique or exclusion constraint matching the ON CONFLICT specification".
+    // NOTE: rollback-scoped. `.rejects.toThrow(/rollback/i)` rather than a bare catch — a
+    // swallowed rejection would let an assertion failure inside the transaction pass silently.
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const p = await store.createPlayer("IDN-Old", "IDN=", new Date("2026-07-06T12:00:00Z"));
+      await store.recordGamertag(p.id, "IDN-Old", new Date("2026-07-06T12:00:00Z"));
+
+      expect(await store.getPlayerByDayzId("IDN=")).toMatchObject({ id: p.id });
+      expect(await store.getPlayerByDayzId("NOPE=")).toBeNull();
+
+      // a rename: same player row, current name follows, both aliases retained
+      await store.recordGamertag(p.id, "IDN-New", new Date("2026-07-08T12:00:00Z"));
+      expect((await store.getPlayerById(p.id))!.gamertag).toBe("IDN-New");
+
+      // idempotent + GREATEST: repeat, then an out-of-order replay that must not rewind
+      await store.recordGamertag(p.id, "IDN-New", new Date("2026-07-09T12:00:00Z"));
+      await store.recordGamertag(p.id, "idn-new", new Date("2026-07-01T12:00:00Z"));
+      const rows = await tx.select().from(playerGamertags)
+        .where(eq(playerGamertags.playerId, p.id)).orderBy(playerGamertags.firstSeenAt);
+      expect(rows.map((r) => r.gamertag)).toEqual(["IDN-Old", "IDN-New"]);
+      const renamed = rows[1]!;
+      expect(renamed.firstSeenAt.toISOString()).toBe("2026-07-08T12:00:00.000Z");
+      expect(renamed.lastSeenAt.toISOString()).toBe("2026-07-09T12:00:00.000Z");
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
+  });
+
+  it("a recycled gamertag under a different hash resolves to a different player", async () => {
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const a = await store.createPlayer("IDN-Recycled", "RECA=", new Date("2026-07-06T12:00:00Z"));
+      await store.recordGamertag(a.id, "IDN-Recycled", new Date("2026-07-06T12:00:00Z"));
+      // the first owner renames away, freeing the name
+      await store.recordGamertag(a.id, "IDN-Moved", new Date("2026-07-07T12:00:00Z"));
+      const b = await store.createPlayer("IDN-Recycled", "RECB=", new Date("2026-07-08T12:00:00Z"));
+      await store.recordGamertag(b.id, "IDN-Recycled", new Date("2026-07-08T12:00:00Z"));
+      expect(b.id).not.toBe(a.id);
+      expect(await store.getPlayerByDayzId("RECA=")).toMatchObject({ id: a.id });
+      expect(await store.getPlayerByDayzId("RECB=")).toMatchObject({ id: b.id });
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
   });
 });

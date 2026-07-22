@@ -25,6 +25,7 @@ export class MemoryStore implements ProjectionStore {
   hits: HitInput[] = [];
   builds: BuildInput[] = [];
   positions: PositionInput[] = [];
+  aliases: { playerId: number; gamertag: string; firstSeenAt: Date; lastSeenAt: Date }[] = [];
   private seq = 1;
 
   async getPlayer(gamertag: string): Promise<PlayerRow | null> {
@@ -38,6 +39,24 @@ export class MemoryStore implements ProjectionStore {
     const row = { id: this.seq++, gamertag, dayzId, firstSeenAt: seenAt, lastSeenAt: seenAt };
     this.players.push(row);
     return row;
+  }
+  async getPlayerByDayzId(dayzId: string): Promise<PlayerRow | null> {
+    return this.players.find((p) => p.dayzId === dayzId) ?? null;
+  }
+  async recordGamertag(playerId: number, gamertag: string, seenAt: Date): Promise<void> {
+    const want = gamertag.toLowerCase();
+    const row = this.aliases.find((a) => a.playerId === playerId && a.gamertag.toLowerCase() === want);
+    // GREATEST() in the Postgres implementation — an out-of-order replay must not rewind.
+    if (row) { if (seenAt > row.lastSeenAt) row.lastSeenAt = seenAt; }
+    else this.aliases.push({ playerId, gamertag, firstSeenAt: seenAt, lastSeenAt: seenAt });
+    const p = this.players.find((x) => x.id === playerId);
+    if (p) p.gamertag = gamertag;
+  }
+  /** Test helper — names in first-seen order. Not part of ProjectionStore. */
+  async gamertagsFor(playerId: number): Promise<string[]> {
+    return this.aliases.filter((a) => a.playerId === playerId)
+      .sort((x, y) => x.firstSeenAt.getTime() - y.firstSeenAt.getTime())
+      .map((a) => a.gamertag);
   }
   async touchPlayer(playerId: number, lastSeenAt: Date): Promise<void> {
     const p = this.players.find((x) => x.id === playerId); if (p) p.lastSeenAt = lastSeenAt;
