@@ -1171,6 +1171,69 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   gate** (no worker is involved), so the endpoint is live on deploy — but **inert**: every master
   switch starts `false`, so the map shows the viewer's own dot and nobody else's until people opt
   in. Live-but-inert rather than dark.
+- **M1 — Map tool shell** ✅ (spec `docs/superpowers/specs/2026-07-22-m1-map-tool-shell-design.md`,
+  plan `docs/superpowers/plans/2026-07-22-m1-map-tool-shell.md`): `/maps/[map]` becomes a
+  full-viewport map application — one bar of chrome, place search, a locate control, a friends
+  panel, and a live grid-reference readout. **Presentation only**: no migration, no new API route,
+  no env var, no worker. Deploys with a plain `./deploy/deploy.sh`.
+  **⚠️ `app/(site)/` is a route group, and route groups are NOT path segments.** Every page except
+  `/maps` lives in it and renders the site chrome (masthead, controls rail, footer, the
+  `xl:grid-cols-[minmax(0,1fr)_380px]` shell) from `app/(site)/layout.tsx`; the root layout now
+  holds only `<html>`, the fonts, `QueryProvider` and the skip link. **Nothing changed URL.**
+  A consequence that has already bitten twice: the root layout no longer renders
+  `#main-content`, so **every route outside `(site)` must supply that id itself** — `not-found.tsx`,
+  `error.tsx` and the map shell (`MapPage`, on the map region, not the bar the link exists to skip)
+  each do, and each is pinned by a test.
+  **⚠️ The whole shell is DARK — there is no paper anywhere on `/maps`.** `MapPageView`'s state
+  notes, the friends legend, the switcher, the search box, the locate button and the friends panel
+  all carry cream/paper tokens, and each swap has its own test: RTL asserts the DOM, not contrast,
+  so ink-on-dark renders present, functional and invisible with the suite green (the v0.26.0
+  notifications-panel failure). The map's sign-in link uses plain `red`, never `red-deep` — that
+  token is light-surface only.
+  **⚠️ On `/maps` the TOP BAR is the z-40 occupant**, because the route has no masthead; the
+  friends panel is the z-50 overlay. Same three altitudes as everywhere else (LAYER LEGEND in
+  `header.tsx`), different occupant — `top-bar.test.tsx` pins the number.
+  **Leaflet stays sealed in `map-canvas.tsx`.** Consumers never receive the map instance: they pass
+  **`focus?: MapFocus`** (`{lat,lng,zoom,nonce}`) and receive **`onCenterChange(world)`** in world
+  metres. The **`nonce` is load-bearing** — picking the same search result twice is a real
+  interaction, so the fly is keyed on it and never on the target's identity, and a parent re-render
+  must not yank the view out from under someone mid-pan. `runFocus()` also runs once at map
+  creation, since a focus set before the dynamic import resolves has no map to fly. Centre
+  reporting is rAF-throttled (Leaflet's `move` fires many times per drag frame) and the pending
+  frame is cancelled on teardown.
+  **A consumer that needs to NAME a point without a map instance uses `worldToLatLng`**
+  (`@/lib/dayz-projection`) plus `MapCanvas`'s exported `CANVAS_PX`/`MAX_ZOOM` — never restated
+  arithmetic, which drifts silently. Its test checks our metres→`CRS.Simple` conversion against the
+  coordinates **DZMap itself produced** for Chernogorsk, the one independent check on this
+  projection.
+  **`searchPlaces` ranks an exact name match ABOVE a bigger place containing it.** Size breaks ties
+  only within a match kind. Real Chernarus collisions — `Bor` inside Stary Sobor, `Rog` inside
+  Severograd — otherwise make those places **unreachable by typing their own name**, because
+  `PlaceSearch` detects a pick by comparing the typed text to the top hit. For the same reason
+  `PlaceSearch` fires once per intent: a click arrives as an `onChange` carrying the same text the
+  last keystroke already resolved, so consecutive identical values fly once (a different value
+  resets, so clearing and re-picking is still two flights).
+  **`GamertagAutocomplete` has no light variant and needs none** — it ships no default input
+  styling at all and all four call sites are dark. Do not add an `onDark` prop; pass
+  `inputClassName`.
+  **Loading is never an authoritative zero:** the switcher renders no count while fetching, the
+  friends panel renders no count, and `LocateButton` has three states — ready, loading, and
+  genuinely-no-position — with the disabled states carrying a `sr-only` reason (a disabled control
+  with no stated reason is indistinguishable from a broken one). The controls only render for a
+  **verified** viewer: everyone else has the friend query disabled, so `isPending` never resolves
+  and Locate would sit claiming to load a position that is never coming.
+  **The `CoordChip` is deliberately NOT a live region** — it updates every animation frame of a
+  pan, and a polite region would read a new coordinate continuously; the value reaches assistive
+  tech through the copy button's accessible name. **`FriendsMapLegend` is no longer rendered under
+  the map** — the bar's `FriendsPanel` is its only home, and it stays reachable by a real button in
+  the tab order because it is the screen-reader companion to a canvas with no text.
+  **⚠️ Any Leaflet double in a test that renders `FriendsMap` needs `flyTo`/`project`/`getCenter`.**
+  A partial double throws inside the rAF as an **unhandled** error, which vitest reports separately
+  from the assertions — the file stays green while exercising a component that crashed.
+  **⚠️ Task 9 of the plan — the browser verification pass — is OUTSTANDING.** jsdom cannot observe
+  layout, paint or stacking, and two releases shipped green-but-broken on 2026-07-22 for exactly
+  that reason. It needs real mirrored tiles (a tile-less local run is explicitly not sufficient).
+  The six checks are listed in the plan; run them against the deployed site.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
