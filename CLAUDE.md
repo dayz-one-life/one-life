@@ -1260,6 +1260,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   live `GET /servers` list on every read** — that endpoint returns active servers only, so a
   slug that has since gone away falls back to the default rather than redirecting to a 404. The
   old `ServerPicker` + its page body are deleted; the map's own switcher covers choosing a map.
+  **⚠️ The re-validation has NO exception, including the API-outage path.** When `getServers()`
+  throws, the route does NOT redirect on the raw cookie — it falls to the honest "couldn't load
+  the maps" render. A stale slug during an outage lands on a broken map card anyway (the map
+  page fetches `/servers` too), so trusting the unchecked cookie buys nothing and breaks the
+  invariant. **⚠️ A directly-linkable public map makes `/maps/<typo>` reachable** — `MapPage`
+  calls `notFound()` when the loaded list has no matching slug, and that call sits **after every
+  hook** (a conditional throw above a hook skips it on the 404 render — a rules-of-hooks
+  violation). A bad slug is never written to the cookie (`rememberMap` is gated on a resolved
+  `mapCodename`), and the gated friend query is disabled for it.
   **⚠️ `redirect()` throws (`NEXT_REDIRECT`), so it MUST stay outside the try/catch around
   `getServers()`** — inside it, the catch swallows the redirect and every visitor gets the
   error page. The one rendered branch (no cookie AND the server fetch failed → no slug) is why
