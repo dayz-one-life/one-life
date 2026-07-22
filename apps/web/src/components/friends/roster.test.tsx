@@ -156,7 +156,7 @@ describe("RosterView", () => {
         {...actions}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /tell friends when i come online/i })).toBeChecked();
   });
 
   // A user with only pending requests (no accepted friends yet) can still set their global
@@ -169,7 +169,7 @@ describe("RosterView", () => {
         {...actions}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /tell friends when i come online/i })).toBeInTheDocument();
   });
 
   it("renders the master switch with only outgoing requests, no friends yet", () => {
@@ -179,12 +179,12 @@ describe("RosterView", () => {
         {...actions}
       />,
     );
-    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /tell friends when i come online/i })).toBeInTheDocument();
   });
 
   it("does not render the master switch with a genuinely empty roster", () => {
     render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }} {...actions} />);
-    expect(screen.queryByRole("checkbox", { name: /share my status with friends/i })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /tell friends when i come online/i })).toBeNull();
   });
 
   it("shows per-friend presence toggles on friend rows, but not on incoming or outgoing rows", () => {
@@ -198,7 +198,7 @@ describe("RosterView", () => {
       />,
     );
     const friends = screen.getByRole("list", { name: /friends/i });
-    expect(within(friends).getByRole("checkbox", { name: /share my status/i })).toBeInTheDocument();
+    expect(within(friends).getByRole("checkbox", { name: /tell them when i come online/i })).toBeInTheDocument();
     expect(within(friends).getByRole("checkbox", { name: /notify me/i })).toBeInTheDocument();
 
     const incoming = screen.getByRole("list", { name: /requests/i });
@@ -229,7 +229,7 @@ describe("RosterView", () => {
         onSharePresenceChange={onSharePresenceChange}
       />,
     );
-    screen.getByRole("checkbox", { name: /share my status with friends/i }).click();
+    screen.getByRole("checkbox", { name: /tell friends when i come online/i }).click();
     expect(onSharePresenceChange).toHaveBeenCalledWith(true);
   });
 
@@ -280,11 +280,12 @@ describe("RosterView", () => {
   });
 });
 
-const { mockAccount, getFriends, acceptFriendRequest, patchFriendPresence } = vi.hoisted(() => ({
+const { mockAccount, getFriends, acceptFriendRequest, patchFriendPresence, patchPreferences } = vi.hoisted(() => ({
   mockAccount: { value: null as unknown },
   getFriends: vi.fn(),
   acceptFriendRequest: vi.fn(),
   patchFriendPresence: vi.fn(),
+  patchPreferences: vi.fn(),
 }));
 
 vi.mock("@/lib/use-account-status", () => ({
@@ -302,7 +303,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     declineFriendRequest: vi.fn(),
     deleteFriendship: vi.fn(),
     patchFriendPresence: (...a: unknown[]) => patchFriendPresence(...a),
-    patchPreferences: vi.fn(),
+    patchPreferences: (...a: unknown[]) => patchPreferences(...a),
   };
 });
 
@@ -411,6 +412,28 @@ describe("Roster container", () => {
     // section with no way back.
     await screen.findByRole("link", { name: "Friend1" });
     expect(screen.queryByText(/no friends yet/i)).toBeNull();
+  });
+
+  // The master switch no longer controls visibility — the map lists everyone online
+  // regardless — so its announcement must describe what it actually does (notify friends),
+  // never "sharing your status", which is the same lie the visible copy was fixed to drop.
+  it("announces what the master switch actually does — notification, not visibility", async () => {
+    mockAccount.value = {
+      kind: "verified",
+      link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+    };
+    getFriends.mockResolvedValue({
+      friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false, shareLocation: false,
+    });
+    patchPreferences.mockResolvedValue({});
+    wrap(<Roster />);
+
+    const masterSwitch = await screen.findByRole("checkbox", { name: /tell friends when i come online/i });
+    masterSwitch.click();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/friends will be told when you come online/i));
+    expect(screen.queryByText(/sharing your status/i)).toBeNull();
   });
 
   it("does not announce success on a failed presence write, and surfaces the mapped error text", async () => {

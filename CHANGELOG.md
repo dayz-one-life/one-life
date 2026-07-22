@@ -18,6 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.41.0] - 2026-07-22
+
+### Changed
+
+- The map's friends panel is now an online list: everyone currently on that server, with your
+  friends at the top and anyone sharing their position marked. The count on the button changes
+  meaning to match — it was friends sharing a position, it is now players online.
+- The "share my status" switches are now labelled for what they do: they control whether friends
+  are told when you come online. Being listed as online on a map is not something they hide —
+  the game's own player menu already shows it. Where you are is still yours alone to share.
+- The map menu no longer shows a number beside each map. It counted friends sharing a position
+  there, which sat confusingly beside the new count of players online — two numbers about the
+  same server, meaning different things. The map list on the Maps page still spells its number
+  out in full.
+
 ## [0.40.2] - 2026-07-22
 
 ### Changed

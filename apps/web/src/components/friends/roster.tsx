@@ -266,7 +266,9 @@ export function Roster() {
       onPresenceChange={(id, patch) =>
         a.setPresence(id, patch, settle("Presence updated"))}
       onSharePresenceChange={(value) =>
-        a.setSharePresence(value, settle(value ? "Sharing your status" : "No longer sharing your status"))}
+        a.setSharePresence(value, settle(value
+          ? "Friends will be told when you come online"
+          : "Friends will not be told when you come online"))}
       onLocationChange={(id, share) =>
         a.setLocation(id, share, settle("Location updated"))}
       onShareLocationChange={(value) =>
