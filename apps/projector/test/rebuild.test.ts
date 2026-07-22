@@ -34,6 +34,9 @@ describe("rebuildAll", () => {
       playerId: p!.id, gamertag: p!.gamertag, firstSeenAt: new Date(), lastSeenAt: new Date(),
     });
     await rebuildAll(db, `rb-test-${p!.id}`);
+    // Note: this assertion proves rows are gone, but TRUNCATE ... CASCADE on players
+    // reaches this table through its FK regardless of the explicit list entry.
+    // The entry is kept deliberately in case FK cascade behavior ever changes.
     const rows = await db.select().from(playerGamertags);
     expect(rows).toHaveLength(0);
   });
