@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError, getFriends, getFriendStatus,
@@ -50,6 +51,8 @@ export function useFriends(): { data: FriendsFeed | null; loading: boolean; erro
  * any mounted profile control describe the same relationship and must never disagree.
  * Same discipline as SelfUnbanButton invalidating ["tokens"] + ["player-page"].
  */
+type FriendAction = "send" | "accept" | "decline" | "remove";
+
 export function useFriendActions() {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -63,13 +66,23 @@ export function useFriendActions() {
   const dec = useMutation({ mutationFn: (id: number) => declineFriendRequest(id), ...opts });
   const del = useMutation({ mutationFn: (id: number) => deleteFriendship(id), ...opts });
   const all = [send, acc, dec, del];
-  const failed = all.find((m) => m.isError);
+
+  // errorCode must describe only the most recently invoked action — TanStack Query does
+  // not clear one mutation's isError when a *different* mutation succeeds, so without this
+  // tracking a stale failure from an earlier action would outlive a later, successful one.
+  const [lastAction, setLastAction] = useState<FriendAction | null>(null);
+  const lastMutation = lastAction === "send" ? send
+    : lastAction === "accept" ? acc
+    : lastAction === "decline" ? dec
+    : lastAction === "remove" ? del
+    : null;
+  const failed = lastMutation?.isError ? lastMutation : undefined;
 
   return {
-    sendRequest: (gamertag: string) => send.mutate(gamertag),
-    acceptRequest: (id: number) => acc.mutate(id),
-    declineRequest: (id: number) => dec.mutate(id),
-    removeFriend: (id: number) => del.mutate(id),
+    sendRequest: (gamertag: string) => { setLastAction("send"); send.mutate(gamertag); },
+    acceptRequest: (id: number) => { setLastAction("accept"); acc.mutate(id); },
+    declineRequest: (id: number) => { setLastAction("decline"); dec.mutate(id); },
+    removeFriend: (id: number) => { setLastAction("remove"); del.mutate(id); },
     pending: all.some((m) => m.isPending),
     errorCode: failed?.error instanceof ApiError ? failed.error.code : (failed ? "http_error" : null),
   };
