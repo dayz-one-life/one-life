@@ -154,36 +154,36 @@ only in the systemd env is too late — the wrong values are already frozen in t
 
 ## Rebuild / redeploy
 
-### ⚠️ One-time bootstrap when upgrading TO v0.37.3 (or from any older tag)
+### ⚠️ A change to `deploy.sh` never applies to the deploy that installs it
 
-`deploy.sh` checks out the new release tag while bash is still reading `deploy.sh` — so
-whenever a release **changes that file**, the running process executes a splice of the old
-and new text. v0.37.3 fixes this permanently by re-exec'ing from a copy git cannot reach,
-but the deploy that *installs* v0.37.3 is still driven by the old, unfixed script.
+**This is permanent and unfixable, not a bug to be patched.** `deploy.sh` deploys the repo it
+lives in: the operator invokes the *currently checked-out* script, which then checks out the
+new tag and carries on to the end. So the release that ships a `deploy.sh` fix is deployed
+**by the previous release's script**, still containing the flaw. The fix only takes effect
+from the *next* deploy onward.
 
-Two real consequences, both observed: v0.37.2's migrate fix silently did not apply (the old
-migrate line ran, without `DATABASE_URL`), and a replacement file shorter than the original
-makes bash hit EOF early and **exit 0, skipping every remaining phase** — a deploy that
-stopped, migrated and restarted nothing, reporting success.
+(A running bash process is unaffected by the checkout itself — `git checkout` unlinks and
+recreates, so the process keeps reading the original inode. Verified: a 236 KB script that
+checks out a 42-byte replacement of itself mid-run completes every phase. Do not add
+machinery to defend against a mid-run rewrite; it does not happen here.)
 
-So run the *new* script from a path the checkout will not overwrite. Keep it inside
-`deploy/` — `REPO_DIR` is resolved relative to the script, so `/tmp` would break it:
+**What this means in practice:** when a release changes `deploy.sh`, read the changelog entry
+and compensate manually for that one deploy.
+
+**Concretely, for v0.37.2** — which fixed the migrate and `--rebuild` phases to pass
+`DATABASE_URL` explicitly — the v0.37.1 script that installs it still runs the bare
+invocation, and dies in the MIGRATE phase (after the fleet has been stopped; the ERR trap
+rolls back and restarts on the old tag). Export the variable once, so the old script's child
+processes inherit it:
 
 ```bash
 cd /var/www/dayzonelife.com
-git fetch --tags origin
-git show v0.37.3:deploy/deploy.sh > deploy/deploy-bootstrap.sh
-chmod +x deploy/deploy-bootstrap.sh
-
-# belt-and-braces for the migrate phase, harmless once the fix is in
 export DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')"
-
-./deploy/deploy-bootstrap.sh          # add --rebuild if the release needs it
-rm -f deploy/deploy-bootstrap.sh
+./deploy/deploy.sh          # add --rebuild if the release needs it
 ```
 
-It is untracked, so the checkout leaves it alone. **From v0.37.3 onward this is unnecessary**
-— plain `./deploy/deploy.sh` is safe against its own replacement.
+Needed **once**. From v0.37.2 onward the script passes `DATABASE_URL` to those children
+itself, and a plain `./deploy/deploy.sh` is enough.
 
 ### Normal deploys
 

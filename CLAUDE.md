@@ -1262,17 +1262,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   list, or the suite gains the ability to report success it did not earn.
   `.gitignore` covers OS cruft (`.DS_Store`); prefer `git add -p`/explicit paths over `git add -A`
   at the repo root so stray untracked files don't ride into a commit.
-- **⚠️ `deploy/deploy.sh` re-execs itself from an unlinked temp copy before touching the working
-  tree — DO NOT REMOVE that block.** The script `git checkout`s the new tag while bash is still
-  reading it, and bash reads scripts incrementally by byte offset, so the running process
-  otherwise continues into the replaced file: a splice of old and new text. A longer replacement
-  runs the wrong version of a later phase (this is exactly why v0.37.2's migrate fix did not
-  apply to the deploy that installed it); a **shorter** one makes bash hit EOF and **exit 0,
-  silently skipping every remaining phase** — no stop, no migrate, no restart, reported as
-  success. `$ONELIFE_DEPLOY_SELF` carries the original path across the exec because `REPO_DIR`
-  derives from the script's location; anything else needing the script's own path (e.g. `--help`
-  sed-ing its header) must use that variable, never `$BASH_SOURCE`, which after the exec points
-  at a file that has been unlinked.
+- **⚠️ A change to `deploy/deploy.sh` NEVER applies to the deploy that installs it.** The
+  operator invokes the currently-checked-out script, which checks out the new tag and runs to
+  completion — so a release shipping a `deploy.sh` fix is deployed *by the previous release's
+  script*, flaw included; the fix takes effect from the next deploy onward. This is inherent to
+  a deploy script that deploys its own repo. Compensate manually for that one deploy (v0.37.2's
+  `DATABASE_URL` fix needed a one-time `export`; see `deploy/README.md`).
+  **Do NOT add machinery to defend against a mid-run rewrite.** It was tried and reverted: bash
+  is *not* affected by the checkout, because `git checkout` unlinks and recreates rather than
+  writing in place, so the running process keeps reading the original inode (verified — a 236 KB
+  script that checks out a 42-byte replacement of itself completes every phase). A self-re-exec
+  guard bought nothing and introduced a way to delete `deploy.sh` from the working tree.
 - **Any child process of `deploy.sh` that needs `DATABASE_URL` must be passed it EXPLICITLY.**
   The script reads it out of `.env` into a plain shell variable and never exports it; the
   migrate and `--rebuild` phases each prefix `DATABASE_URL="$DATABASE_URL"` for this reason.
