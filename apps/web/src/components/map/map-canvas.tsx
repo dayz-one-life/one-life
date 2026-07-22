@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { worldSize, worldToPixel } from "@/lib/dayz-projection";
+import { pixelToWorld, worldSize, worldToPixel } from "@/lib/dayz-projection";
 import { placesFor, placeWeight } from "@/lib/map-places";
 // Next.js's bundler special-cases global stylesheets imported FROM node_modules: unlike an
 // app-authored global .css (which must live in the root layout), a third-party package's CSS
@@ -45,6 +45,9 @@ export interface LeafletMap {
   unproject: (p: [number, number], zoom: number) => unknown;
   fitBounds: (bounds: unknown, opts?: unknown) => void;
   setView: (center: unknown, zoom: number) => void;
+  flyTo: (latlng: unknown, zoom: number) => void;
+  project: (latlng: unknown, zoom: number) => { x: number; y: number };
+  getCenter: () => unknown;
   remove: () => void;
   getZoom: () => number | undefined;
   on: (event: string, handler: () => void) => void;
@@ -80,6 +83,10 @@ export interface DrawContext {
 /** Draws into the supplied group and returns the points the shell should fit on first draw. */
 export type DrawFn = (ctx: DrawContext) => unknown[];
 
+/** A place to fly to. `nonce` must change on every request — choosing the same search result
+ *  twice is a real interaction, and comparing lat/lng alone would silently ignore the second. */
+export type MapFocus = { lat: number; lng: number; zoom: number; nonce: number };
+
 /**
  * The Leaflet shell: lifecycle, tiles, projection, first-fit and failure states.
  *
@@ -88,11 +95,15 @@ export type DrawFn = (ctx: DrawContext) => unknown[];
  * (map lifecycle vs. redraw split, the first-fit latch, the LayerGroup pattern, the dynamic
  * import, the error/unmapped-terrain states, the stacking context) lives here.
  */
-export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
+export default function MapCanvas({ mapCodename, draw, drawKey, className, focus, onCenterChange }: {
   mapCodename: string;
   draw: DrawFn;
   /** Changes whenever the data to draw changes; drives the redraw effect. */
   drawKey: unknown;
+  /** Where to fly next. Declarative: the consumer never touches the map instance. */
+  focus?: MapFocus | null;
+  /** The map centre in world metres, on every pan/zoom (rAF-throttled). */
+  onCenterChange?: (world: { x: number; y: number }) => void;
   /** Sizing only — the container's own box. Defaults to the life-trail's fixed panel; the
    *  friends map passes `h-full w-full` to fill a flex parent. Leaflet reads the element's
    *  computed size on creation, so a parent chain with no definite height collapses it to 0. */
@@ -200,6 +211,38 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
     }
   }
 
+  // Fly on a NEW focus request only. Keyed on the nonce, never on the object identity — a
+  // parent re-render must not yank the view out from under someone mid-pan.
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const flownRef = useRef<number | null>(null);
+  function runFocus() {
+    const L = leafletRef.current;
+    const m = mapRef.current;
+    const f = focusRef.current;
+    if (!L || !m || !f || flownRef.current === f.nonce) return;
+    flownRef.current = f.nonce;
+    m.flyTo(L.latLng(f.lat, f.lng), f.zoom);
+  }
+  useEffect(runFocus, [focus]);
+
+  // Centre reporting, rAF-throttled: Leaflet's `move` fires many times per drag frame, and the
+  // consumer re-renders a text chip on every call.
+  const centerCbRef = useRef(onCenterChange);
+  centerCbRef.current = onCenterChange;
+  const rafRef = useRef<number | null>(null);
+  function reportCenter() {
+    const m = mapRef.current;
+    const cb = centerCbRef.current;
+    if (!m || !cb || size === null || rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const px = m.project(m.getCenter(), MAX_ZOOM);
+      const [x, y] = pixelToWorld(px.x, px.y, size, CANVAS_PX);
+      cb({ x, y });
+    });
+  }
+
   // Effect 1: create the map. Keyed ONLY on `size` — not on the data, whose identity changes
   // every poll. Re-running this per poll destroyed and rebuilt the map, snapping the view and
   // closing popups with no user input.
@@ -243,6 +286,11 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
         runPlaces();
         // The whole point of the tiering: labels appear and disappear as the reader zooms.
         m.on("zoomend", runPlaces);
+        // A focus set before Leaflet resolved has no map to fly; apply it now, once, and
+        // report the starting centre so the readout is never blank before the first drag.
+        runFocus();
+        m.on("move", reportCenter);
+        reportCenter();
       })
       .catch(() => {
         // A chunk 404 (realistic mid-deploy) or any other load failure must surface honestly,
@@ -252,6 +300,8 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
 
     return () => {
       cancelled = true;
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       layerGroupRef.current = null;
