@@ -150,10 +150,14 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
         keyboard: false,
         icon: L.divIcon({
           className: `map-place map-place-${placeWeight(p.kind)}`,
-          html: escapeHtml(p.name),
-          // Zero-sized so the label centres on the place rather than hanging off it; the
-          // text itself overflows the icon box, which is what `white-space: nowrap` in the
-          // stylesheet is for.
+          // ⚠️ THE VISIBLE LABEL IS THE INNER SPAN, AND IT HAS TO BE. `iconSize: [0, 0]`
+          // makes Leaflet write `width: 0px; height: 0px` as an INLINE style on this root
+          // element, and an inline style beats any class rule — so a background/padding
+          // applied to the root paints an 8x2px black dash at the anchor while the text
+          // overflows it unbacked. That shipped: v0.38.1's "solid background" was invisible
+          // on the real map and left a dash artefact beside every name. The root stays
+          // zero-sized (it is the anchor); the span carries the box and centres itself.
+          html: `<span class="map-place-chip">${escapeHtml(p.name)}</span>`,
           iconSize: [0, 0],
         }),
       }).addTo(placeGroupRef.current);

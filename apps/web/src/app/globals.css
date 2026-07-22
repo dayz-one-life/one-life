@@ -42,23 +42,34 @@
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 
 /* Town / landmark labels on both maps (see `runPlaces` in components/map/map-canvas.tsx).
-   ⚠️ SOLID BACKGROUND, NOT A TEXT SHADOW. These shipped as paper-on-dark with a blurred
-   shadow, which failed on the terrain they actually sit on: a topographic tile is busy and
-   mid-value, so a soft halo left the two small tiers unreadable at their own zoom — i.e.
-   exactly the labels that only appear when you have zoomed in to read them. A solid box is
-   the only treatment that holds over arbitrary tile content. The earlier worry that a box
-   would compete with the dots is handled instead by the `places` pane (z-index 350), which
-   keeps every label UNDER the markers regardless of how opaque it is.
-   `transform` re-centres the text on a zero-sized divIcon. */
+
+   ⚠️ THE BOX GOES ON `.map-place-chip`, NEVER ON `.map-place`. The root is Leaflet's marker
+   icon and carries an INLINE `width: 0; height: 0` from `iconSize: [0, 0]`, which no class
+   rule can override — a background there paints an 8x2px dash while the text overflows it
+   unbacked. That is exactly what v0.38.1 shipped.
+
+   ⚠️ AND THE TILES ARE LIGHT, NOT DARK. Chernarus topographic is pale green and bone; the
+   original "paper text on dark tiles" premise behind the text-shadow treatment was simply
+   wrong about the terrain, which is why white-on-halo was marginal and why removing the halo
+   made it worse. Dark chip, light text: the one combination that holds over pale terrain,
+   dark forest and blue water alike.
+
+   The dots stay on top regardless of how opaque this is — the `places` pane sits at z-index
+   350, below the overlay pane that draws the markers. */
 .map-place {
+  pointer-events: none; /* belt to `interactive: false`'s braces */
+}
+.map-place-chip {
   background: rgb(var(--dark));
   color: rgb(var(--paper));
   font-family: var(--font-display), sans-serif;
+  left: 0;
   letter-spacing: 0.06em;
-  padding: 1px 4px;
-  pointer-events: none; /* belt to `interactive: false`'s braces */
+  padding: 1px 5px;
+  position: absolute; /* resolves against the marker root, which Leaflet positions */
   text-transform: uppercase;
-  transform: translate(-50%, -50%);
+  top: 0;
+  transform: translate(-50%, -50%); /* centre the chip on the place, not beside it */
   white-space: nowrap;
   width: max-content;
 }
@@ -66,9 +77,9 @@ body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
    background (`cream-dim`/`cream-muted`), which is the other half of why the small ones
    were illegible — a 10px label is where contrast matters most, not least. Every tier is
    now full-strength paper on solid ink. */
-.map-place-major { font-size: 13px; font-weight: 600; }
-.map-place-minor { font-size: 11px; }
-.map-place-faint { font-size: 10px; letter-spacing: 0.04em; opacity: 0.85; }
+.map-place-major > .map-place-chip { font-size: 13px; font-weight: 600; }
+.map-place-minor > .map-place-chip { font-size: 11px; }
+.map-place-faint > .map-place-chip { font-size: 10px; letter-spacing: 0.04em; opacity: 0.9; }
 
 /* Permanent gamertag labels on the friends map. Leaflet's own tooltip is a white bubble with a
    drop shadow and an arrow; on a dark tile canvas that reads as a UI popup rather than a map

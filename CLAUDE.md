@@ -1144,6 +1144,14 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      a dedicated `places` pane at z-index 350**, because Leaflet puts every `L.marker` at 600,
      *above* the overlay pane (400) holding our dots and trails — a LayerGroup cannot fix
      this, and without the pane a town name covers the friend you opened the map to find.
+     **⚠️ The visible label is the inner `.map-place-chip` span — the box may NEVER be styled
+     on `.map-place` itself.** That root is Leaflet's marker icon and carries an INLINE
+     `width: 0; height: 0` from `iconSize: [0,0]`; an inline style beats any class rule, so a
+     background there paints an 8x2px dash at the anchor while the text overflows it unbacked
+     (shipped as v0.38.1, verified in a browser as a black dash beside every name).
+     **⚠️ And the tiles are LIGHT** — Chernarus topographic is pale green/bone, so the original
+     "paper text on dark tiles" premise was wrong about the terrain; a dark chip with light
+     text is what holds over pale terrain, forest and water alike.
      **⚠️ Labels carry a SOLID `--dark` background, not a text shadow** — the shipped halo
      treatment left the 10px/11px tiers unreadable over real topographic tiles (busy,
      mid-value terrain), which is precisely the content they appear over; and the tiers
