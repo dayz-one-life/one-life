@@ -15,6 +15,9 @@ const setMinZoom = vi.fn();
 const setMaxBounds = vi.fn();
 let boundsZoom = 2;
 const getBoundsZoom = vi.fn((_b: unknown, _inside?: boolean) => boundsZoom);
+/** Call order across the double, for assertions about sequencing. */
+const calls: string[] = [];
+const mapFn = vi.fn((_el: unknown, _opts: Record<string, unknown>) => mapObj);
 const getCenter = vi.fn(() => ({ lat: -64, lng: 128 }));
 const handlers: Record<string, Array<() => void>> = {};
 const mapObj = {
@@ -25,9 +28,9 @@ const mapObj = {
   project,
   getCenter,
   getZoom: () => 3,
-  setMinZoom,
+  setMinZoom: (z: number) => { calls.push(`setMinZoom:${z}`); setMinZoom(z); },
   setMaxBounds,
-  getBoundsZoom,
+  getBoundsZoom: (b: unknown, inside?: boolean) => { calls.push("getBoundsZoom"); return getBoundsZoom(b, inside); },
   remove: vi.fn(),
   on: (evt: string, fn: () => void) => {
     (handlers[evt] ??= []).push(fn);
@@ -37,7 +40,7 @@ const mapObj = {
 vi.mock("leaflet", () => ({
   default: {
     CRS: { Simple: "SIMPLE" },
-    map: () => mapObj,
+    map: (el: unknown, opts: Record<string, unknown>) => mapFn(el, opts),
     tileLayer: () => ({ addTo }),
     polyline: () => ({ addTo }),
     circleMarker: () => ({ addTo, bindPopup: vi.fn(), bindTooltip: vi.fn() }),
@@ -76,6 +79,7 @@ beforeEach(() => {
   });
   vi.stubGlobal("cancelAnimationFrame", (h: number) => { cancelled.push(h); });
   boundsZoom = 2;
+  calls.length = 0;
 });
 
 describe("MapCanvas world bounds", () => {
@@ -97,10 +101,34 @@ describe("MapCanvas world bounds", () => {
     // A phone rotating, or a desktop window widening, changes which zoom covers the view; a
     // floor computed once leaves blank space at the new size.
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
-    await waitFor(() => expect(setMinZoom).toHaveBeenCalledTimes(1));
+    // Not a call COUNT: each pass also resets the floor to 0 before measuring, so counting
+    // calls measures the reset rather than the floor.
+    await waitFor(() => expect(setMinZoom).toHaveBeenLastCalledWith(2));
     boundsZoom = 3;
     handlers.resize![0]!();
     expect(setMinZoom).toHaveBeenLastCalledWith(3);
+  });
+
+  it("allows a fractional floor, so it stops exactly where grey would start", async () => {
+    // Leaflet's getBoundsZoom rounds an `inside` result UP to the next whole level
+    // (`Math.ceil(zoom / snap) * snap`, and zoomSnap defaults to 1), so the floor lands up to
+    // a full step short of the real edge — the map refuses to zoom out while the terrain
+    // still covers the view. zoomSnap: 0 disables the rounding entirely.
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(mapFn).toHaveBeenCalled());
+    expect(mapFn.mock.calls[0]![1]).toMatchObject({ zoomSnap: 0 });
+  });
+
+  it("re-measures from a clean floor, so a shrinking viewport can zoom out again", async () => {
+    // getBoundsZoom returns `Math.max(currentMinZoom, ...)`, so a floor raised once becomes a
+    // latch: narrow the window afterwards and the map stays clamped at the wider view's floor,
+    // unable to zoom out to its own edge. Reset to 0 before measuring.
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(calls).toContain("getBoundsZoom"));
+    // Assert PRESENCE before order: indexOf returns -1 when absent, which is trivially less
+    // than any real index, so an order-only assertion passes when the reset does not happen.
+    expect(calls).toContain("setMinZoom:0");
+    expect(calls.indexOf("setMinZoom:0")).toBeLessThan(calls.indexOf("getBoundsZoom"));
   });
 
   it("ignores a nonsense floor rather than locking the map at it", async () => {
@@ -109,7 +137,10 @@ describe("MapCanvas world bounds", () => {
     boundsZoom = Infinity;
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
     await waitFor(() => expect(setMaxBounds).toHaveBeenCalled());
-    expect(setMinZoom).not.toHaveBeenCalled();
+    // The pre-measurement reset to 0 is fine and expected; what must never be applied is the
+    // nonsense value itself.
+    expect(setMinZoom).not.toHaveBeenCalledWith(Infinity);
+    expect(setMinZoom.mock.calls.every(([z]) => Number.isFinite(z))).toBe(true);
   });
 
   it("opens on the whole world, not a hardcoded zoom", async () => {
