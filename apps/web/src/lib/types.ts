@@ -419,4 +419,7 @@ export type FriendMap = {
   positions: FriendPositionDto[];
   online: OnlinePlayerDto[];
 };
+/** The gated `GET /me/maps` list shape. ⚠️ NOTHING IN THE WEB READS THIS ANY MORE — the map
+ *  shell switched to the public `GET /servers` so the switcher works signed out. Kept as the
+ *  documented shape of a route the API still serves. */
 export type MapServerDto = { slug: string; name: string; map: string; friendCount: number };

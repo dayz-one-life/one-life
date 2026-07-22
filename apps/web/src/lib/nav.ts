@@ -3,6 +3,10 @@ export const NAV_ITEMS = [
   { key: "obituaries", href: "/obituaries", label: "Obituaries" },
   { key: "fresh-spawns", href: "/fresh-spawns", label: "Fresh Spawns" },
   { key: "survivors", href: "/survivors", label: "Survivors" },
+  // `/maps` is a redirect that resolves the viewer's last-opened map — see lib/last-map.ts.
+  // The item is deliberately a plain static href: the nav renders in two places (the desktop
+  // row and the mobile menu) and a stateful item would have to be threaded through both.
+  { key: "maps", href: "/maps", label: "Maps" },
   { key: "about", href: "/about", label: "About" },
 ] as const;
 
@@ -16,6 +20,7 @@ export function activeNavKey(pathname: string): NavKey | null {
   if (inSection(pathname, "/obituaries")) return "obituaries";
   if (inSection(pathname, "/fresh-spawns")) return "fresh-spawns";
   if (inSection(pathname, "/survivors") || inSection(pathname, "/players")) return "survivors";
+  if (inSection(pathname, "/maps")) return "maps";
   if (inSection(pathname, "/about")) return "about";
   return null;
 }

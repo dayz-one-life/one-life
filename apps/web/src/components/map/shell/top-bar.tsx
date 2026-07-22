@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { MapServerDto } from "@/lib/types";
+import type { SwitchableMap } from "./map-switcher";
 import { MapSwitcher } from "./map-switcher";
 
 /** The map application's only chrome.
@@ -13,7 +13,7 @@ import { MapSwitcher } from "./map-switcher";
  *  only way off the map. */
 export function TopBar({ slug, servers, serversLoading, children }: {
   slug: string;
-  servers?: MapServerDto[];
+  servers?: readonly SwitchableMap[];
   serversLoading: boolean;
   children?: ReactNode;
 }) {
