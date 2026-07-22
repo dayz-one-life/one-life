@@ -92,4 +92,12 @@ describe("banNames", () => {
   it("banNames omits an empty-string id", () => {
     expect(banNames({ dayzId: "", gamertag: "Ronald" })).toEqual(["Ronald"]);
   });
+
+  it("banNames omits a whitespace-only id", () => {
+    expect(banNames({ dayzId: "   ", gamertag: "Ronald" })).toEqual(["Ronald"]);
+  });
+
+  it("banNames trims a padded id", () => {
+    expect(banNames({ dayzId: " ABC123 ", gamertag: "Ronald" })).toEqual(["ABC123", "Ronald"]);
+  });
 });

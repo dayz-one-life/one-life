@@ -75,5 +75,7 @@ export function planExpiries(applied: { id: number; expiresAt: Date | null }[], 
  * which would otherwise land as a stray blank line in the ban list.
  */
 export function banNames(b: { dayzId: string | null; gamertag: string }): string[] {
-  return [b.dayzId, b.gamertag].filter((n): n is string => typeof n === "string" && n.trim() !== "");
+  return [b.dayzId, b.gamertag]
+    .filter((n): n is string => typeof n === "string" && n.trim() !== "")
+    .map((n) => n.trim());
 }

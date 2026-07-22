@@ -81,20 +81,46 @@ describe("enforcerTick", () => {
     expect(row!.status).toBe("applied");
   });
 
-  it("expire removes the id and the gamertag in a single call per ban", async () => {
+  it("expires the ban after 24h, removing it from Nitrado", async () => {
     const fake = fakeNitrado();
-    // ENDED + 24h has passed, so the applied bans are due.
-    await enforcerTick(db, {
+    // ENDED (2026-07-11T12:00:00Z) + 24h = 2026-07-12T12:00:00Z. now is 30 minutes past that
+    // boundary, so both bans applied by the previous test (Steveo12491, NoIdPlayer) are due.
+    const r = await enforcerTick(db, {
       nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24,
-      now: new Date("2026-07-13T12:00:00Z"), log,
+      now: new Date("2026-07-12T12:30:00Z"), log,
     });
-    expect(fake.calls.remove).toContainEqual(["ABC123", "Steveo12491"]);
-    expect(fake.calls.remove).toContainEqual(["NoIdPlayer"]);
+    expect(fake.calls.remove).toEqual([["ABC123", "Steveo12491"], ["NoIdPlayer"]]);
+    expect(r.expired).toBe(2);
+    const [row] = await db.select().from(bans).where(eq(bans.gamertag, "Steveo12491"));
+    expect(row!.status).toBe("expired");
+  });
+
+  it("expire removes the id and the gamertag in a single call per ban", async () => {
+    // Self-contained: seeds its own already-applied ban rather than relying on state left by
+    // an earlier test, so this test's outcome can't be made vacuous by reordering elsewhere.
+    const life3Started = new Date("2026-07-15T10:00:00Z");
+    const life3Ended = new Date("2026-07-15T12:00:00Z");
+    await db.insert(players).values({ gamertag: "ExpireGuy", dayzId: "EXP123" });
+    await db.insert(bans).values({
+      serverId, gamertag: "ExpireGuy", dayzId: "EXP123",
+      lifeStartedAt: life3Started, reason: "qualified_death", bannedAt: life3Ended,
+      expiresAt: new Date(life3Ended.getTime() + 24 * 3600_000), status: "applied", dryRun: false,
+    });
+    const fake = fakeNitrado();
+    // Well past life3's expiry (2026-07-16T12:00:00Z); no other applied bans remain at this
+    // point in the sequence (the previous test already expired Steveo12491/NoIdPlayer).
+    const r = await enforcerTick(db, {
+      nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24,
+      now: new Date("2026-07-16T13:00:00Z"), log,
+    });
+    expect(fake.calls.remove).toEqual([["EXP123", "ExpireGuy"]]);
+    expect(r.expired).toBe(1);
+    const [row] = await db.select().from(bans).where(eq(bans.gamertag, "ExpireGuy"));
+    expect(row!.status).toBe("expired");
   });
 
   it("lift removes the id and the gamertag in a single call", async () => {
-    const [p] = await db.insert(players)
-      .values({ gamertag: "Redeemer", dayzId: "XYZ789" }).returning();
+    await db.insert(players).values({ gamertag: "Redeemer", dayzId: "XYZ789" });
     await db.insert(bans).values({
       serverId, gamertag: "Redeemer", dayzId: "XYZ789",
       lifeStartedAt: STARTED, reason: "qualified_death", bannedAt: ENDED,
@@ -106,22 +132,6 @@ describe("enforcerTick", () => {
       now: new Date("2026-07-13T13:00:00Z"), log,
     });
     expect(fake.calls.remove).toContainEqual(["XYZ789", "Redeemer"]);
-    void p;
-  });
-
-  it("expires the ban after 24h, removing it from Nitrado", async () => {
-    const fake = fakeNitrado();
-    const r = await enforcerTick(db, {
-      nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24,
-      now: new Date("2026-07-12T12:30:00Z"), log,
-    });
-    // The earlier "expire removes..." test already expired Steveo12491's and NoIdPlayer's
-    // applied bans (at now=2026-07-13T12:00:00Z, which was already past their due date), so no
-    // bans remain applied by the time this runs — nothing left to remove or expire here.
-    expect(fake.calls.remove).toEqual([]);
-    expect(r.expired).toBe(0);
-    const [row] = await db.select().from(bans).where(eq(bans.gamertag, "Steveo12491"));
-    expect(row!.status).toBe("expired");
   });
 });
 
