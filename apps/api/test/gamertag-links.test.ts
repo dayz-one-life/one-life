@@ -265,13 +265,20 @@ describe("POST /me/gamertag-links — case-insensitivity", () => {
     // reuses it; it must come back out canonical, or redeem.ts's strict === against
     // bans.gamertag never matches and the player cannot spend a token to unban themselves.
     const first = (await claim({ gamertag: "Sasha" })).json();
-    await db.update(gamertagLinks).set({ gamertag: "sasha" }).where(eq(gamertagLinks.id, first.linkId));
+    // A pending row can never actually hold a non-null verifiedAt through current application
+    // code (verifiedAt is only ever set alongside status:"verified"). We seed one directly here
+    // solely to pin the invariant that the pending branch must NOT touch verifiedAt — it is not
+    // a realistic fixture.
+    const seededVerifiedAt = new Date("2020-01-01T00:00:00.000Z");
+    await db.update(gamertagLinks).set({ gamertag: "sasha", verifiedAt: seededVerifiedAt })
+      .where(eq(gamertagLinks.id, first.linkId));
     const res = await claim({ gamertag: "sasha" });
     expect(res.statusCode).toBe(201);
-    const rows = await db.select({ g: gamertagLinks.gamertag, s: gamertagLinks.status })
+    const rows = await db.select({ g: gamertagLinks.gamertag, s: gamertagLinks.status, v: gamertagLinks.verifiedAt })
       .from(gamertagLinks).where(eq(gamertagLinks.id, first.linkId));
     expect(rows[0]!.g).toBe("Sasha");
     expect(rows[0]!.s).toBe("pending");
+    expect(rows[0]!.v).toEqual(seededVerifiedAt);
   });
 
   it("repairs a mis-cased CANCELLED row on reactivation", async () => {

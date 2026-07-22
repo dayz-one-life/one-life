@@ -86,6 +86,10 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     try {
       const result = await db.transaction(async (tx) => {
         // Upsert the caller's link for (user, gamertag) to pending.
+        // No orderBy/limit on this case-folded lookup, so existing[0] is an arbitrary pick if two
+        // rows ever differed only in case. Safe: migration 0024's third precheck aborts the
+        // deploy on exactly that state, and it cannot recur afterward because players.gamertag is
+        // frozen at first sight, so `canonical` is stable and every write path now stores it.
         const existing = await tx.select().from(gamertagLinks)
           .where(and(eq(gamertagLinks.userId, userId), dsql`lower(${gamertagLinks.gamertag}) = lower(${canonical})`));
         let id: number;
