@@ -57,14 +57,17 @@ export async function dossierForLife(db: Database, gamertag: string, life: Dossi
   // Filter builds by life FK directly — correct for both open and ended lives.
   const builds = await db.select({ id: buildEvents.id }).from(buildEvents).where(eq(buildEvents.lifeId, life.id));
 
-  // Hits on this player within the life window (hit_events is keyed by gamertag, not life id).
-  const hits = await db.select({
+  // Hits on this player within the life window (hit_events has no life id). Match on the player
+  // FK (the identity), not the name, so hits taken under a former gamertag still count; resolve
+  // the id once from the caller's gamertag. A miss (no players row) means no hits.
+  const p = (await db.select({ id: players.id }).from(players).where(eq(players.gamertag, gamertag)))[0];
+  const hits = p ? await db.select({
     attackerType: hitEvents.attackerType, attackerLabel: hitEvents.attackerLabel,
     victimHp: hitEvents.victimHp, occurredAt: hitEvents.occurredAt,
   }).from(hitEvents).where(and(
-    eq(hitEvents.serverId, life.serverId), eq(hitEvents.victimGamertag, gamertag),
+    eq(hitEvents.serverId, life.serverId), eq(hitEvents.victimPlayerId, p.id),
     gte(hitEvents.occurredAt, life.startedAt), lte(hitEvents.occurredAt, windowEnd),
-  ));
+  )) : [];
 
   const isFire = (h: { attackerLabel: string | null }) => (h.attackerLabel ?? "").toLowerCase().includes("fire");
   const ms = (h: { occurredAt: Date }) => h.occurredAt.getTime();

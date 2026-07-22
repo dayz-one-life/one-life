@@ -24,7 +24,12 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
         eq(bans.lifeStartedAt, lives.startedAt),
       ),
     )
-    .where(and(isNotNull(lives.endedAt), isNull(bans.id)));
+    .where(and(isNotNull(lives.endedAt), isNull(bans.id)))
+    // Deterministic: bans are inserted in this order, so `bans.id` — and therefore the order
+    // pendingBans() applies them to Nitrado — follows it. Without an ORDER BY the join plan
+    // decides, and it flips with table statistics, which made the apply-order assertions in
+    // apps/enforcer/test/tick.ts pass alone and fail after other suites had touched the tables.
+    .orderBy(lives.id);
 
   const out: EndedLife[] = [];
   for (const r of rows) {

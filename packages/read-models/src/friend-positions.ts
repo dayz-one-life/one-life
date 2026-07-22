@@ -42,12 +42,12 @@ export async function getFriendPositions(
   //
   // The join folds case because `gamertag_links` and `players` are independently-cased text
   // columns for one identity; that is safe precisely because it is scoped by a verified link,
-  // never used as a bare directory lookup. Since migration 0024 `players_gamertag_uniq` is on
-  // lower(gamertag), so "Sasha" and "sasha" can no longer BE two rows and this join matches at
-  // most one — but the ordering below (most-recently-seen wins, deterministically) and the
-  // `limit(1)` are retained as defence in depth, exactly as the two per-friend guards further
-  // down are: a restore from a pre-0024 dump or a hand-run backfill reintroduces the input, and
-  // the failure mode is two dots for one identity rather than an error.
+  // never used as a bare directory lookup. Migration 0024 put `players_gamertag_uniq` on
+  // lower(gamertag), so "Sasha" and "sasha" could no longer be two rows for the SAME identity —
+  // but migration 0025 dropped that index entirely (gamertag is a current label now; identity is
+  // dayz_id), so two DIFFERENT identities can once again hold the same name. The ordering below
+  // (most-recently-seen wins, deterministically) and the `limit(1)` are load-bearing, not merely
+  // defensive, and match the two per-friend guards further down.
   const [viewer] = await db
     .select({
       gamertag: gamertagLinks.gamertag,
@@ -114,10 +114,10 @@ export async function getFriendPositions(
 
   // ⚠️ One friend, one dot. The lower(gamertag) join above can match several `players` rows for
   // a single link whenever the ingest holds "Sasha" and "sasha" as distinct rows for what is
-  // really one Xbox identity. Since migration 0024 `players_gamertag_uniq` is on lower(gamertag),
-  // so the database no longer PERMITS that pair — this collapse is retained as defence in depth,
-  // not because a live query can still hit it. Keep it: a later index change, a hand-run
-  // backfill, or a restore from a pre-0024 dump reintroduces the input, and the failure mode is
+  // really one Xbox identity — or, since migration 0025 dropped `players_gamertag_uniq`
+  // altogether (gamertag is a current LABEL now; identity is dayz_id), for two genuinely
+  // different identities that have held the same name. The database permits that state again,
+  // so this collapse is load-bearing and not merely defensive. The failure mode without it is
   // TWO markers, both labelled with the same callsign, in two different places — a friend
   // appearing to be in two locations at once is worse than being absent, and it throws nothing.
   // Collapse to the FIRST row per friend, which the `orderBy` above has already made the

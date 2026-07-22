@@ -55,12 +55,12 @@ beforeAll(async () => {
     { serverId, playerId: pid, lifeId: l1!.id, connectedAt: mins(60), disconnectedAt: mins(120), durationSeconds: 3600, closeReason: "death" },
   ]);
   await db.insert(kills).values({
-    serverId, killerGamertag: tag, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(70),
+    serverId, killerGamertag: tag, killerPlayerId: pid, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(70),
   });
   // A kill by the OTHER player in the same server/time window — must never bleed into
-  // the subject's track via a missing killerGamertag predicate.
+  // the subject's track via a missing killer_player_id predicate.
   await db.insert(kills).values({
-    serverId, killerGamertag: other, victimGamertag: "OtherVictim", weapon: "KAS-74U", distance: 10, occurredAt: mins(75),
+    serverId, killerGamertag: other, killerPlayerId: otherPid, victimGamertag: "OtherVictim", weapon: "KAS-74U", distance: 10, occurredAt: mins(75),
   });
   // Fixes: two in session 1 (far apart so neither is thinned), two in session 2.
   await db.insert(positions).values([
@@ -175,7 +175,7 @@ describe("getLifeTrack", () => {
     // Kill at mins(451) — 60s after the dense fix at mins(450) (i=50, x=100), and ~2.5h
     // after the dense run's first kept point (mins(300)).
     await db.insert(kills).values({
-      serverId, killerGamertag: tag, victimGamertag: "BaseVictim", weapon: "KAS-74U", distance: 40,
+      serverId, killerGamertag: tag, killerPlayerId: pid, victimGamertag: "BaseVictim", weapon: "KAS-74U", distance: 40,
       occurredAt: mins(451),
     });
 

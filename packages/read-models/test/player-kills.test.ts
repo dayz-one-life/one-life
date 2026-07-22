@@ -13,11 +13,12 @@ const end = new Date("2026-07-14T14:00:00Z");
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "rm-kills" }).returning();
   serverId = s!.id;
-  await db.insert(players).values({ gamertag: "Sniper", firstSeenAt: start, lastSeenAt: end });
+  const [sniper] = await db.insert(players).values({ gamertag: "Sniper", firstSeenAt: start, lastSeenAt: end }).returning();
+  const sid = sniper!.id;
   await db.insert(kills).values([
-    { serverId, killerGamertag: "Sniper", victimGamertag: "early", weapon: "Mosin", distance: 50, occurredAt: new Date("2026-07-14T09:00:00Z") }, // before window
-    { serverId, killerGamertag: "Sniper", victimGamertag: "a", weapon: "SVD", distance: 312, occurredAt: new Date("2026-07-14T11:00:00Z") },
-    { serverId, killerGamertag: "Sniper", victimGamertag: "b", weapon: "M4A1", distance: 45, occurredAt: new Date("2026-07-14T13:00:00Z") },
+    { serverId, killerGamertag: "Sniper", killerPlayerId: sid, victimGamertag: "early", weapon: "Mosin", distance: 50, occurredAt: new Date("2026-07-14T09:00:00Z") }, // before window
+    { serverId, killerGamertag: "Sniper", killerPlayerId: sid, victimGamertag: "a", weapon: "SVD", distance: 312, occurredAt: new Date("2026-07-14T11:00:00Z") },
+    { serverId, killerGamertag: "Sniper", killerPlayerId: sid, victimGamertag: "b", weapon: "M4A1", distance: 45, occurredAt: new Date("2026-07-14T13:00:00Z") },
     { serverId, killerGamertag: "Other", victimGamertag: "c", weapon: "KA-M", distance: 10, occurredAt: new Date("2026-07-14T12:00:00Z") }, // other killer
   ]);
 });

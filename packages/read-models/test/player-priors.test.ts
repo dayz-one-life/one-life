@@ -39,9 +39,9 @@ beforeAll(async () => {
   ]);
 
   await db.insert(kills).values([
-    { serverId: sakh, killerGamertag: tag, victimGamertag: "V1", weapon: "M4", distance: 40, occurredAt: hoursAgo(85) },   // prior
-    { serverId: chern, killerGamertag: tag, victimGamertag: "V2", weapon: "AK", distance: 60, occurredAt: hoursAgo(65) },   // prior
-    { serverId: chern, killerGamertag: tag, victimGamertag: "V3", weapon: "SVD", distance: 300, occurredAt: hoursAgo(5) },  // current life → excluded
+    { serverId: sakh, killerGamertag: tag, killerPlayerId: p!.id, victimGamertag: "V1", weapon: "M4", distance: 40, occurredAt: hoursAgo(85) },   // prior
+    { serverId: chern, killerGamertag: tag, killerPlayerId: p!.id, victimGamertag: "V2", weapon: "AK", distance: 60, occurredAt: hoursAgo(65) },   // prior
+    { serverId: chern, killerGamertag: tag, killerPlayerId: p!.id, victimGamertag: "V3", weapon: "SVD", distance: 300, occurredAt: hoursAgo(5) },  // current life → excluded
   ]);
 });
 afterAll(async () => {

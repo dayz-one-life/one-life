@@ -28,12 +28,23 @@ async function closeOpen(store: ProjectionStore, session: SessionRow, at: Date, 
 async function onConnected(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
   const gamertag = String(e.payload.gamertag);
   const dayzId = e.payload.dayzId != null ? String(e.payload.dayzId) : null;
-  let player = await store.getPlayer(gamertag);
+  // Identity is the account hash, not the name. A rename must resolve to the existing row;
+  // a RECYCLED gamertag must resolve to a different person.
+  //
+  // ⚠️ When the event CARRIES a hash the name is never consulted, not even as a fallback. A
+  // fallback there re-introduces exactly the bug this feature exists to fix: the recycled name
+  // is still held by its previous owner, so the hash miss would land on THAT identity and hand
+  // the new human the old one's lives. A hash we have never seen is a new identity, full stop.
+  // Every `player.connected` line carries one — parseConnected types dayzId as non-optional, so
+  // a hash-less connect does not parse at all — and the hash-less branch stands only for the
+  // hit/build events, which look players up by name and never create them.
+  let player = dayzId ? await store.getPlayerByDayzId(dayzId) : await store.getPlayer(gamertag);
   // capture BEFORE touchPlayer: the superseded cap must be the heartbeat as of the crash,
   // not this reconnect (and MemoryStore returns its row by reference, so touch would alias it)
   const lastSeenBefore = player?.lastSeenAt ?? null;
   if (!player) player = await store.createPlayer(gamertag, dayzId, e.occurredAt);
   else await store.touchPlayer(player.id, e.occurredAt);
+  await store.recordGamertag(player.id, gamertag, e.occurredAt);
 
   const open = await store.getOpenSession(e.serverId, player.id);
   if (open) await closeOpen(store, open, e.occurredAt, "superseded", lastSeenBefore);

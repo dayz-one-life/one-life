@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, sessions, positions } from "@onelife/db";
+import { servers, players, lives, sessions, positions, playerGamertags } from "@onelife/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { applyEvent } from "@onelife/projections";
 import { PgProjectionStore } from "../src/pg-store.js";
@@ -20,7 +20,7 @@ afterAll(async () => {
   await db.delete(positions).where(eq(positions.serverId, serverId));
   await db.delete(sessions).where(eq(sessions.serverId, serverId));
   await db.delete(lives).where(eq(lives.serverId, serverId));
-  await db.delete(players).where(inArray(players.gamertag, ["PG", "CAP", "FLA", "STATS", "Zed"]));
+  await db.delete(players).where(inArray(players.gamertag, ["PG", "CAP", "FLA", "STATS", "Zed", "IDN-New", "IDN-Recycled"]));
   await sql.end();
 });
 
@@ -36,14 +36,21 @@ describe("PgProjectionStore", () => {
     });
   });
 
-  it("getPlayer/createPlayer are keyed by gamertag alone", async () => {
-    await db.transaction(async (tx) => {
+  // Superseded by identity-by-hash: createPlayer no longer upserts on the gamertag, so a
+  // second call under the same name is a second identity. getPlayer is a LABEL lookup and
+  // resolves to the MOST RECENTLY SEEN holder (id ascending as a stable tie-break); identity
+  // resolution is getPlayerByDayzId. Resolving to the oldest holder instead is the split-brain
+  // bug: every subsequent label-resolved event for a recycled name (disconnect, death, kill,
+  // hit, build, position) would attribute forever to the departed account.
+  it("createPlayer is unconditional; getPlayer resolves the label to the most-recently-seen row", async () => {
+    await expect(db.transaction(async (tx) => {
       const store = new PgProjectionStore(tx as any);
-      const a = await store.createPlayer("Zed", null, new Date("2026-07-01"));
-      const b = await store.createPlayer("Zed", null, new Date("2026-07-02")); // upsert, not a 2nd row
-      expect(b.id).toBe(a.id);
-      expect((await store.getPlayer("Zed"))?.id).toBe(a.id);
-    });
+      const a = await store.createPlayer("Zed", "ZEDA=", new Date("2026-07-01"));
+      const b = await store.createPlayer("Zed", "ZEDB=", new Date("2026-07-02"));
+      expect(b.id).not.toBe(a.id);
+      expect((await store.getPlayer("Zed"))?.id).toBe(b.id);
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
   });
 
   // The superseded/reboot close cap reads the player's last_seen_at through the store —
@@ -116,5 +123,90 @@ describe("PgProjectionStore", () => {
     expect(found).not.toBeNull();
     expect(found!.gamertag).toBe(tag); // the stored casing is returned, not the queried one
     await db.delete(players).where(eq(players.gamertag, tag));
+  });
+
+  it("resolves by dayz_id and records every gamertag the player is seen under", async () => {
+    // Exercises the RAW-SQL upsert against real Postgres: an expression conflict target
+    // (player_id, lower(gamertag)) is only reachable this way, and a wrong target fails at
+    // RUNTIME with "no unique or exclusion constraint matching the ON CONFLICT specification".
+    // NOTE: rollback-scoped. `.rejects.toThrow(/rollback/i)` rather than a bare catch — a
+    // swallowed rejection would let an assertion failure inside the transaction pass silently.
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const p = await store.createPlayer("IDN-Old", "IDN=", new Date("2026-07-06T12:00:00Z"));
+      await store.recordGamertag(p.id, "IDN-Old", new Date("2026-07-06T12:00:00Z"));
+
+      expect(await store.getPlayerByDayzId("IDN=")).toMatchObject({ id: p.id });
+      expect(await store.getPlayerByDayzId("NOPE=")).toBeNull();
+
+      // a rename: same player row, current name follows, both aliases retained
+      await store.recordGamertag(p.id, "IDN-New", new Date("2026-07-08T12:00:00Z"));
+      expect((await store.getPlayerById(p.id))!.gamertag).toBe("IDN-New");
+
+      // idempotent + GREATEST: repeat, then an out-of-order replay that must not rewind
+      await store.recordGamertag(p.id, "IDN-New", new Date("2026-07-09T12:00:00Z"));
+      await store.recordGamertag(p.id, "idn-new", new Date("2026-07-01T12:00:00Z"));
+      const rows = await tx.select().from(playerGamertags)
+        .where(eq(playerGamertags.playerId, p.id)).orderBy(playerGamertags.firstSeenAt);
+      expect(rows.map((r) => r.gamertag)).toEqual(["IDN-Old", "IDN-New"]);
+      const renamed = rows[1]!;
+      expect(renamed.firstSeenAt.toISOString()).toBe("2026-07-08T12:00:00.000Z");
+      expect(renamed.lastSeenAt.toISOString()).toBe("2026-07-09T12:00:00.000Z");
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
+  });
+
+  // players.gamertag is a CURRENT LABEL, not an identity. The recycling end state is two
+  // identities whose current label is the same string — legal only once players_gamertag_uniq
+  // is gone (migration 0025 replaces it with the non-unique players_gamertag_idx). Against the
+  // unique index this raises 23505.
+  it("two players with different hashes may both hold the same current gamertag", async () => {
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const a = await store.createPlayer("DUP-Label", "DUPA=", new Date("2026-07-06T12:00:00Z"));
+      const b = await store.createPlayer("DUP-Other", "DUPB=", new Date("2026-07-08T12:00:00Z"));
+      // b is recycled onto the name a still carries
+      await store.recordGamertag(b.id, "dup-label", new Date("2026-07-09T12:00:00Z"));
+      expect(b.id).not.toBe(a.id);
+      expect((await store.getPlayerById(a.id))!.gamertag).toBe("DUP-Label");
+      expect((await store.getPlayerById(b.id))!.gamertag).toBe("dup-label");
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
+  });
+
+  // The silent-merge defect: with ON CONFLICT (lower(gamertag)) DO UPDATE … RETURNING, a NEW
+  // account hash first seen under a name someone still holds returned the INCUMBENT's row, and
+  // every life, kill and position of the new player was attributed to the previous owner.
+  it("createPlayer for a new hash under an existing name creates a NEW player", async () => {
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const incumbent = await store.createPlayer("NEWHASH", "NHA=", new Date("2026-07-06T12:00:00Z"));
+      const fresh = await store.createPlayer("NEWHASH", "NHB=", new Date("2026-07-08T12:00:00Z"));
+      expect(fresh.id).not.toBe(incumbent.id);
+      expect(fresh.gamertag).toBe("NEWHASH");
+      expect(fresh.lastSeenAt).toEqual(new Date("2026-07-08T12:00:00Z"));
+      // the incumbent is untouched — not even its last_seen_at was bumped by the DO UPDATE
+      expect((await store.getPlayerById(incumbent.id))!.lastSeenAt)
+        .toEqual(new Date("2026-07-06T12:00:00Z"));
+      expect(await store.getPlayerByDayzId("NHA=")).toMatchObject({ id: incumbent.id });
+      expect(await store.getPlayerByDayzId("NHB=")).toMatchObject({ id: fresh.id });
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
+  });
+
+  it("a recycled gamertag under a different hash resolves to a different player", async () => {
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const a = await store.createPlayer("IDN-Recycled", "RECA=", new Date("2026-07-06T12:00:00Z"));
+      await store.recordGamertag(a.id, "IDN-Recycled", new Date("2026-07-06T12:00:00Z"));
+      // the first owner renames away, freeing the name
+      await store.recordGamertag(a.id, "IDN-Moved", new Date("2026-07-07T12:00:00Z"));
+      const b = await store.createPlayer("IDN-Recycled", "RECB=", new Date("2026-07-08T12:00:00Z"));
+      await store.recordGamertag(b.id, "IDN-Recycled", new Date("2026-07-08T12:00:00Z"));
+      expect(b.id).not.toBe(a.id);
+      expect(await store.getPlayerByDayzId("RECA=")).toMatchObject({ id: a.id });
+      expect(await store.getPlayerByDayzId("RECB=")).toMatchObject({ id: b.id });
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
   });
 });

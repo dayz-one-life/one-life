@@ -176,6 +176,13 @@
       "when": 1785400000000,
       "tag": "0024_gamertag_case_insensitive",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785500000000,
+      "tag": "0025_player_identity",
+      "breakpoints": true
     }
   ]
 }

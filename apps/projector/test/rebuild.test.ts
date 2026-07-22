@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, admFiles } from "@onelife/db";
+import { servers, players, lives, admFiles, playerGamertags } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getCursor, setCursor, appendEvent } from "@onelife/event-log";
 import { rebuildAll } from "../src/rebuild.js";
@@ -26,6 +26,21 @@ describe("rebuildAll", () => {
     expect(await getCursor(db, "projector")).toBe(0);
   });
 
+  it("truncates player_gamertags — it is a projection, not durable data", async () => {
+    const [p] = await db.insert(players)
+      .values({ gamertag: `RB${Date.now()}`, dayzId: `RB=${Date.now()}`, firstSeenAt: new Date(), lastSeenAt: new Date() })
+      .returning();
+    await db.insert(playerGamertags).values({
+      playerId: p!.id, gamertag: p!.gamertag, firstSeenAt: new Date(), lastSeenAt: new Date(),
+    });
+    await rebuildAll(db, `rb-test-${p!.id}`);
+    // Note: this assertion proves rows are gone, but TRUNCATE ... CASCADE on players
+    // reaches this table through its FK regardless of the explicit list entry.
+    // The entry is kept deliberately in case FK cascade behavior ever changes.
+    const rows = await db.select().from(playerGamertags);
+    expect(rows).toHaveLength(0);
+  });
+
   it("after a rebuild + re-fold, one gamertag on two servers yields one global player with a per-server life", async () => {
     const svc2 = Math.floor(Math.random() * 1e8) + 8e8;
     const consumer = `rebuild-multi-${svc2}`;
@@ -39,12 +54,16 @@ describe("rebuildAll", () => {
     await appendEvent(db, {
       serverId: serverA!.id, admFileId: fileA!.id, lineIndex: 0, subIndex: 0,
       type: "player.connected", occurredAt: new Date("2026-07-06T12:00:00Z"),
-      payload: { gamertag, dayzId: `${svc2}-A=` },
+      // ONE account hash across both servers — identity is the DayZ account, which does not
+      // change per server. (This fixture used to mint a distinct hash per server; that only
+      // folded to one row because players_gamertag_uniq merged them by name, which is the
+      // silent merge migration 0025 removes.)
+      payload: { gamertag, dayzId: `${svc2}-ONE=` },
     });
     await appendEvent(db, {
       serverId: serverB!.id, admFileId: fileB!.id, lineIndex: 0, subIndex: 0,
       type: "player.connected", occurredAt: new Date("2026-07-06T12:01:00Z"),
-      payload: { gamertag, dayzId: `${svc2}-B=` },
+      payload: { gamertag, dayzId: `${svc2}-ONE=` },
     });
 
     await setCursor(db, consumer, 0);
