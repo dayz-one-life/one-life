@@ -26,6 +26,11 @@ CI (`.github/workflows/changelog.yml`) — see
 `docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` §9 for the full reasoning and the
 two open paths.
 
+**⚠️ `.github/workflows/changelog.yml` and `scripts/check_changelog.py` are vendored verbatim** from
+keel's own templates (`plugins/keel/templates/` in the Shipyard repo). They are not authored here.
+Do not edit them in place — a local "improvement" silently forks them from upstream and is lost on
+the next re-vendor. Fix the template in Shipyard, then re-copy both files.
+
 **Contributors:** the plugins are declared in the repo, but each person approves a one-time install
 prompt on their first session. See `CONTRIBUTING.md`.
 

@@ -1,7 +1,8 @@
 # Retire the template workflow; adopt Shipyard as a repo-level plugin suite
 
 **Date:** 2026-07-21
-**Status:** Approved, not yet implemented
+**Status:** Implemented on `feature/shipyard-plugins`. Corrected twice during implementation —
+`rigging` dropped before work began (§9), `hull` and `bosun` dropped at final review (§3).
 
 ## 1. Problem
 
@@ -37,7 +38,13 @@ Two of Shipyard's six plugins:
 | `keel` | git lifecycle | `.keel.json` | lifecycle artifacts + a `PreToolUse` guard |
 | `stow` | baseline repo files | `.stow.json` | `.gitignore` (managed blocks) |
 
-**`hull` and `bosun` were evaluated and deferred.** `hull` renders a gitleaks Action that calls
+**`hull` and `bosun` were evaluated and deferred — this is a late correction, like §9.** Both were
+originally in scope, and both were actually scaffolded and committed during implementation
+(`.hull.json` + `.github/workflows/security.yml`, `.bosun.json` + `.github/dependabot.yml`) before
+the final whole-branch review caught the problems below and they were deleted. The reasoning is kept
+here rather than quietly dropped, so the record shows what was tried.
+
+`hull` renders a gitleaks Action that calls
 `process.exit(1)` whenever the repo owner is a GitHub Organization and `GITLEAKS_LICENSE` is
 unset; `dayz-one-life/one-life` is an organization, and hull's config schema has no slot to emit
 that variable, so the rendered workflow would be permanently red. `bosun`'s config cannot express

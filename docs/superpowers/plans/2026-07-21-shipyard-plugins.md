@@ -1,5 +1,32 @@
 # Shipyard Plugin Adoption Implementation Plan
 
+> ## ⚠️ Partly superseded — read this before following any step
+>
+> This plan was executed, but **two of its four plugins were reversed during the final review**
+> and never shipped. Where this document and
+> `docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` disagree, **the spec is correct**.
+>
+> What actually shipped: **`keel` + `stow` only**, plus keel's changelog CI gate
+> (`.github/workflows/changelog.yml` + `scripts/check_changelog.py`). `hull`, `bosun`, `rigging`,
+> and `ballast` are all explicitly disabled in `.claude/settings.json`.
+>
+> Specifically reversed:
+> - **Task 1 Step 5 (`hull:init`) — reversed.** gitleaks-action v3 calls `process.exit(1)` when the
+>   repo owner is a GitHub Organization and `GITLEAKS_LICENSE` is unset. `dayz-one-life/one-life` is
+>   an organization and hull's config schema has no slot to emit that variable, so `security.yml`
+>   would have been permanently red. `.hull.json` and `security.yml` were deleted.
+> - **Task 1 Step 6 (`bosun:init`) — reversed.** `dependabot.yml` has no `target-branch` and bosun
+>   cannot express one, so weekly PRs would have landed on `main` (production), bypassing `develop`
+>   and the changelog convention. `.bosun.json` and `dependabot.yml` were deleted.
+> - **Task 5 Step 6 (watch the security workflow) — void.** There is no `security.yml`.
+> - **Added, not in this plan:** keel's changelog CI gate, vendored verbatim from the plugin's
+>   templates.
+>
+> Anything below describing `.hull.json`, `.bosun.json`, `security.yml`, `dependabot.yml`, gitleaks,
+> or Dependabot is the historical plan, not the current state of the repo. The rest of the plan —
+> the removal of the template tooling, the settings declaration, and the documentation work — shipped
+> as written.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove the committed template workflow (hooks, seven skills, `workflow.json`) and replace it with the `submtd/shipyard` plugin suite — `keel`, `stow`, `hull`, `bosun` — declared at repository level so every contributor picks it up from a clone.
