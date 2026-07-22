@@ -7,10 +7,12 @@ import { RosterView, Roster } from "./roster";
 const entry = (id: number, gamertag: string) => ({
   id, gamertag, slug: gamertag.toLowerCase(), status: "friends" as const,
   since: "2026-07-01T00:00:00Z", sharesPresence: false, notifyPresence: false,
+  sharesLocation: false, theyShareLocation: false,
 });
 const actions = { onAccept: () => {}, onDecline: () => {}, onRemove: () => {}, onCancel: () => {} };
 
 const withPresence = { ...entry(2, "FriendOne"), sharesPresence: true, notifyPresence: false };
+const withLocation = { ...entry(2, "FriendOne"), sharesLocation: true, theyShareLocation: true };
 
 describe("RosterView", () => {
   it("shows a skeleton while loading, never an empty roster", () => {
@@ -26,14 +28,14 @@ describe("RosterView", () => {
   });
 
   it("says so plainly when the roster really is empty", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }} {...actions} />);
     expect(screen.getByText(/no friends yet/i)).toBeInTheDocument();
   });
 
   it("lists incoming requests with Accept and Decline", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
       />,
     );
@@ -49,7 +51,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [entry(2, "FriendOne")], incoming: [],
-          outgoing: [entry(3, "PendingOne")], total: 1, page: 1, pageSize: 25, sharePresence: false,
+          outgoing: [entry(3, "PendingOne")], total: 1, page: 1, pageSize: 25, sharePresence: false, shareLocation: false,
         }}
         {...actions}
       />,
@@ -68,7 +70,7 @@ describe("RosterView", () => {
     const onCancel = vi.fn();
     render(
       <RosterView
-        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
         onRemove={onRemove}
         onCancel={onCancel}
@@ -80,14 +82,14 @@ describe("RosterView", () => {
   });
 
   it("announces the last completed action", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} announcement="Friend request accepted" {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }} announcement="Friend request accepted" {...actions} />);
     expect(screen.getByRole("status")).toHaveTextContent("Friend request accepted");
   });
 
   it("uses role=\"list\" so Tailwind preflight's list-style:none can't strip the implicit list role", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
       />,
     );
@@ -97,7 +99,7 @@ describe("RosterView", () => {
   it("disables row controls while a mutation is pending", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         pending
         {...actions}
       />,
@@ -107,7 +109,7 @@ describe("RosterView", () => {
   });
 
   it("requires a confirm step before removing a friend", () => {
-    const data = { friends: [entry(2, "FriendOne")], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false };
+    const data = { friends: [entry(2, "FriendOne")], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false, shareLocation: false };
     const { rerender } = render(<RosterView data={data} {...actions} />);
     expect(screen.getByRole("button", { name: /^remove$/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /remove friend/i })).toBeNull();
@@ -120,7 +122,7 @@ describe("RosterView", () => {
     const friends = Array.from({ length: 25 }, (_, i) => entry(i + 1, `Friend${i + 1}`));
     render(
       <RosterView
-        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
       />,
     );
@@ -133,7 +135,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [], incoming: [entry(1, "InOne")], outgoing: [entry(2, "OutOne")],
-          total: 0, page: 1, pageSize: 25, sharePresence: false,
+          total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false,
         }}
         {...actions}
       />,
@@ -150,7 +152,7 @@ describe("RosterView", () => {
   it("renders the master share switch from data.sharePresence, when there is a friend", () => {
     render(
       <RosterView
-        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true }}
         {...actions}
       />,
     );
@@ -163,7 +165,7 @@ describe("RosterView", () => {
   it("renders the master switch with only incoming requests, no friends yet", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
       />,
     );
@@ -173,7 +175,7 @@ describe("RosterView", () => {
   it("renders the master switch with only outgoing requests, no friends yet", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
       />,
     );
@@ -181,7 +183,7 @@ describe("RosterView", () => {
   });
 
   it("does not render the master switch with a genuinely empty roster", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }} {...actions} />);
     expect(screen.queryByRole("checkbox", { name: /share my status with friends/i })).toBeNull();
   });
 
@@ -190,7 +192,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [withPresence], incoming: [entry(1, "IncomingOne")], outgoing: [entry(3, "PendingOne")],
-          total: 1, page: 1, pageSize: 25, sharePresence: true,
+          total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true,
         }}
         {...actions}
       />,
@@ -209,7 +211,7 @@ describe("RosterView", () => {
     const onPresenceChange = vi.fn();
     render(
       <RosterView
-        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true }}
         {...actions}
         onPresenceChange={onPresenceChange}
       />,
@@ -222,13 +224,59 @@ describe("RosterView", () => {
     const onSharePresenceChange = vi.fn();
     render(
       <RosterView
-        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false }}
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
         {...actions}
         onSharePresenceChange={onSharePresenceChange}
       />,
     );
     screen.getByRole("checkbox", { name: /share my status with friends/i }).click();
     expect(onSharePresenceChange).toHaveBeenCalledWith(true);
+  });
+
+  it("shows the location controls on friend rows only, not incoming or outgoing rows", () => {
+    render(
+      <RosterView
+        data={{
+          friends: [withLocation], incoming: [entry(1, "IncomingOne")], outgoing: [entry(3, "PendingOne")],
+          total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true,
+        }}
+        {...actions}
+      />,
+    );
+    const friends = screen.getByRole("list", { name: /friends/i });
+    expect(within(friends).getByRole("checkbox", { name: /share my location/i })).toBeInTheDocument();
+    expect(within(friends).getByText("Sharing with you")).toBeInTheDocument();
+
+    const incoming = screen.getByRole("list", { name: /requests/i });
+    expect(within(incoming).queryByRole("checkbox")).toBeNull();
+    const outgoing = screen.getByRole("list", { name: /sent/i });
+    expect(within(outgoing).queryByRole("checkbox")).toBeNull();
+  });
+
+  it("reports a location change through onLocationChange", () => {
+    const onLocationChange = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [withLocation], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true }}
+        {...actions}
+        onLocationChange={onLocationChange}
+      />,
+    );
+    screen.getByRole("checkbox", { name: "Share my location" }).click();
+    expect(onLocationChange).toHaveBeenCalledWith(2, false);
+  });
+
+  it("reports a master location switch change through onShareLocationChange", () => {
+    const onShareLocationChange = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [withLocation], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }}
+        {...actions}
+        onShareLocationChange={onShareLocationChange}
+      />,
+    );
+    screen.getByRole("checkbox", { name: /share my location with friends/i }).click();
+    expect(onShareLocationChange).toHaveBeenCalledWith(true);
   });
 });
 
@@ -264,7 +312,7 @@ describe("Roster container", () => {
     return { ...render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>), qc };
   }
 
-  const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false };
+  const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false, shareLocation: false };
 
   it("announces success only after a successful accept resolves — never at click time", async () => {
     mockAccount.value = {
@@ -345,8 +393,8 @@ describe("Roster container", () => {
     getFriends.mockImplementation((page: number) =>
       Promise.resolve(
         page === 1
-          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25, sharePresence: false }
-          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25, sharePresence: false },
+          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25, sharePresence: false, shareLocation: false }
+          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25, sharePresence: false, shareLocation: false },
       ),
     );
     const { qc } = wrap(<Roster />);
@@ -357,7 +405,7 @@ describe("Roster container", () => {
 
     // Simulate the server-side effect of removing that last friend on page 2: total drops to
     // 25 (one full page), and page 2 now has no rows.
-    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25, sharePresence: false });
+    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25, sharePresence: false, shareLocation: false });
 
     // The roster clamps back to page 1 (already cached) rather than rendering an empty
     // section with no way back.
@@ -371,7 +419,7 @@ describe("Roster container", () => {
       link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
     };
     getFriends.mockResolvedValue({
-      friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true,
+      friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true,
     });
     const { ApiError } = await import("@/lib/api");
     patchFriendPresence.mockRejectedValue(new ApiError(404, "not_found"));
@@ -382,5 +430,24 @@ describe("Roster container", () => {
 
     await waitFor(() => expect(screen.getByText(/not found|couldn't|went wrong/i)).toBeInTheDocument());
     expect(screen.queryByText(/presence updated/i)).toBeNull();
+  });
+
+  it("does not announce success on a failed location write, and surfaces the mapped error text", async () => {
+    mockAccount.value = {
+      kind: "verified",
+      link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+    };
+    getFriends.mockResolvedValue({
+      friends: [withLocation], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true, shareLocation: true,
+    });
+    const { ApiError } = await import("@/lib/api");
+    patchFriendPresence.mockRejectedValue(new ApiError(404, "not_found"));
+    wrap(<Roster />);
+
+    const locationBox = await screen.findByRole("checkbox", { name: "Share my location" });
+    locationBox.click();
+
+    await waitFor(() => expect(screen.getByText(/not found|couldn't|went wrong/i)).toBeInTheDocument());
+    expect(screen.queryByText(/location updated/i)).toBeNull();
   });
 });

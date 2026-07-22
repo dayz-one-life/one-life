@@ -239,10 +239,11 @@ export const declineFriendRequest = (id: number) =>
 // this must not pass one — Fastify rejects an empty JSON body with a 400.
 export const deleteFriendship = (id: number) =>
   apiSend<{ ok: true }>("DELETE", `/api/me/friends/${id}`);
-export const patchFriendPresence = (id: number, body: { share?: boolean; notify?: boolean }) =>
-  apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
-export const patchPreferences = (body: { sharePresence?: boolean }) =>
-  apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);
+export const patchFriendPresence = (
+  id: number, body: { share?: boolean; notify?: boolean; shareLocation?: boolean },
+) => apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
+export const patchPreferences = (body: { sharePresence?: boolean; shareLocation?: boolean }) =>
+  apiSend<{ sharePresence: boolean; shareLocation: boolean }>("PATCH", "/api/me/preferences", body);
 
 export const getFriendMap = (slug: string) =>
   apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);

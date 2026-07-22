@@ -222,4 +222,54 @@ describe("friend routes", () => {
     expect((await get(cookieA, "/me/preferences")).json().sharePresence).toBe(true);
     expect((await get(cookieA, "/me/friends")).json().sharePresence).toBe(true);
   });
+
+  it("patches shareLocation on a friendship the caller is a party to, reflected in the feed", async () => {
+    const emailG = `frG${svc}@example.com`;
+    const emailH = `frH${svc}@example.com`;
+    const tagG = `FriendGolf${svc}`;
+    const tagH = `FriendHotel${svc}`;
+    const cookieG = await signIn(emailG);
+    const cookieH = await signIn(emailH);
+    const [ug] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailG.toLowerCase()));
+    const [uh] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailH.toLowerCase()));
+    await db.insert(gamertagLinks).values([
+      { userId: ug!.id, gamertag: tagG, status: "verified", verifiedAt: new Date() },
+      { userId: uh!.id, gamertag: tagH, status: "verified", verifiedAt: new Date() },
+    ]);
+
+    await post(cookieG, "/me/friends/requests", { toGamertag: tagH });
+    const id = (await get(cookieH, "/me/friends")).json().incoming[0].id;
+    await post(cookieH, `/me/friends/${id}/accept`);
+
+    expect((await patch(cookieG, `/me/friends/${id}/presence`, { shareLocation: false })).statusCode).toBe(200);
+
+    const g = (await get(cookieG, "/me/friends")).json().friends[0];
+    expect(g.sharesLocation).toBe(false);
+  });
+
+  it("404s a shareLocation patch on a friendship the caller is not party to", async () => {
+    const emailI = `frI${svc}@example.com`;
+    const emailJ = `frJ${svc}@example.com`;
+    const tagI = `FriendIndia${svc}`;
+    const tagJ = `FriendJuliet${svc}`;
+    const cookieI = await signIn(emailI);
+    const cookieJ = await signIn(emailJ);
+    const [ui] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailI.toLowerCase()));
+    const [uj] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailJ.toLowerCase()));
+    await db.insert(gamertagLinks).values([
+      { userId: ui!.id, gamertag: tagI, status: "verified", verifiedAt: new Date() },
+      { userId: uj!.id, gamertag: tagJ, status: "verified", verifiedAt: new Date() },
+    ]);
+
+    await post(cookieI, "/me/friends/requests", { toGamertag: tagJ });
+    const id = (await get(cookieJ, "/me/friends")).json().incoming[0].id;
+    await post(cookieJ, `/me/friends/${id}/accept`);
+
+    expect((await patch(cookieA, `/me/friends/${id}/presence`, { shareLocation: true })).statusCode).toBe(404);
+  });
+
+  it("round-trips PATCH /me/preferences { shareLocation: true }", async () => {
+    expect((await patch(cookieA, "/me/preferences", { shareLocation: true })).json().shareLocation).toBe(true);
+    expect((await get(cookieA, "/me/preferences")).json().shareLocation).toBe(true);
+  });
 });

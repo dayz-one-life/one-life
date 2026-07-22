@@ -63,7 +63,8 @@ export function useFriends(page = 1): { data: FriendsFeed | null; loading: boole
  * any mounted profile control describe the same relationship and must never disagree.
  * Same discipline as SelfUnbanButton invalidating ["tokens"] + ["player-page"].
  */
-type FriendAction = "send" | "accept" | "decline" | "remove" | "presence" | "master";
+type FriendAction = "send" | "accept" | "decline" | "remove" | "presence" | "master"
+  | "location" | "masterLocation";
 
 export function useFriendActions() {
   const qc = useQueryClient();
@@ -86,7 +87,16 @@ export function useFriendActions() {
     mutationFn: (sharePresence: boolean) => patchPreferences({ sharePresence }),
     ...opts,
   });
-  const all = [send, acc, dec, del, pres, master];
+  const loc = useMutation({
+    mutationFn: (v: { id: number; share: boolean }) =>
+      patchFriendPresence(v.id, { shareLocation: v.share }),
+    ...opts,
+  });
+  const masterLoc = useMutation({
+    mutationFn: (shareLocation: boolean) => patchPreferences({ shareLocation }),
+    ...opts,
+  });
+  const all = [send, acc, dec, del, pres, master, loc, masterLoc];
 
   // errorCode must describe only the most recently invoked action — TanStack Query does
   // not clear one mutation's isError when a *different* mutation succeeds, so without this
@@ -98,6 +108,8 @@ export function useFriendActions() {
     : lastAction === "remove" ? del
     : lastAction === "presence" ? pres
     : lastAction === "master" ? master
+    : lastAction === "location" ? loc
+    : lastAction === "masterLocation" ? masterLoc
     : null;
   const failed = lastMutation?.isError ? lastMutation : undefined;
 
@@ -150,6 +162,20 @@ export function useFriendActions() {
     setSharePresence: (value: boolean, onSettled?: Settled) => {
       setLastAction("master");
       master.mutate(value, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    setLocation: (id: number, share: boolean, onSettled?: Settled) => {
+      setLastAction("location");
+      loc.mutate({ id, share }, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    setShareLocation: (value: boolean, onSettled?: Settled) => {
+      setLastAction("masterLocation");
+      masterLoc.mutate(value, {
         onSuccess: () => onSettled?.(true, null),
         onError: (err) => onSettled?.(false, codeOf(err)),
       });
