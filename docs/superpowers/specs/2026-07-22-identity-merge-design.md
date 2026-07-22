@@ -149,8 +149,9 @@ deferred to a later sub-project (§9).
 `players.dayz_id` **cannot** become unique in the migration that ships this, because the duplicates
 still exist when it runs: `deploy.sh` executes the migrate phase *before* the rebuild phase.
 
-- **This release:** migration `0025` creates `player_gamertags` and a **non-unique** index on
-  `players.dayz_id`. Deploy with `./deploy/deploy.sh --rebuild`.
+- **This release:** migration `0025` creates `player_gamertags`, adds a **non-unique** index on
+  `players.dayz_id`, and **drops `players_gamertag_uniq`**, replacing it with a non-unique index.
+  Deploy with `./deploy/deploy.sh --rebuild`.
 - **The following release:** migration `0026` promotes `players.dayz_id` to unique, once the
   rebuild has demonstrably collapsed the duplicates. Verify first:
   `SELECT dayz_id, count(*) FROM players GROUP BY 1 HAVING count(*) > 1;` must return zero rows.
@@ -159,6 +160,28 @@ The rejected alternative was performing the collapse in hand-written SQL inside 
 constraint could land immediately. That means writing a merge that duplicates what the fold
 already does correctly, and trusting it against live data on its first and only run. Letting the
 event log be the source of truth is worth one extra release.
+
+### 7.1 Why `players_gamertag_uniq` must go in the SAME release
+
+`0024` made `players_gamertag_uniq` UNIQUE on `lower(gamertag)`, when the gamertag *was* the
+identity. It no longer is, and leaving that constraint in place for one release produces a state
+where the schema contradicts the identity model. Two concrete failures, both requiring gamertag
+recycling and therefore latent rather than live:
+
+- `createPlayer`'s `ON CONFLICT (lower(gamertag)) … RETURNING` returns **another identity's row**
+  when a new account hash first appears under a name someone still holds — silently attributing
+  the new player's lives, kills and positions to the previous owner.
+- `recordGamertag`'s `UPDATE players SET gamertag` can raise 23505 on that index **inside the fold
+  transaction**, and an event-log fold retries the same event forever, stalling every projection.
+
+So `0025` drops it and replaces it with a non-unique index (slug resolution still needs one), and
+`createPlayer` becomes a plain `INSERT … RETURNING`. That is safe because the projector is
+single-instance, the fold is transactional, and `onConnected` resolves by hash before ever calling
+`createPlayer` — it cannot race itself.
+
+The interim therefore has **no unique constraint on `players` at all**, until `0026` adds it on
+`dayz_id`. That is looser than today, and it is the deliberate trade: a missing constraint is
+recoverable, whereas a constraint that contradicts the identity model silently merges two people.
 
 ## 8. Testing
 

@@ -54,12 +54,16 @@ describe("rebuildAll", () => {
     await appendEvent(db, {
       serverId: serverA!.id, admFileId: fileA!.id, lineIndex: 0, subIndex: 0,
       type: "player.connected", occurredAt: new Date("2026-07-06T12:00:00Z"),
-      payload: { gamertag, dayzId: `${svc2}-A=` },
+      // ONE account hash across both servers — identity is the DayZ account, which does not
+      // change per server. (This fixture used to mint a distinct hash per server; that only
+      // folded to one row because players_gamertag_uniq merged them by name, which is the
+      // silent merge migration 0025 removes.)
+      payload: { gamertag, dayzId: `${svc2}-ONE=` },
     });
     await appendEvent(db, {
       serverId: serverB!.id, admFileId: fileB!.id, lineIndex: 0, subIndex: 0,
       type: "player.connected", occurredAt: new Date("2026-07-06T12:01:00Z"),
-      payload: { gamertag, dayzId: `${svc2}-B=` },
+      payload: { gamertag, dayzId: `${svc2}-ONE=` },
     });
 
     await setCursor(db, consumer, 0);

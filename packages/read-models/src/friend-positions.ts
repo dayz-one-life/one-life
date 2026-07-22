@@ -114,10 +114,10 @@ export async function getFriendPositions(
 
   // ⚠️ One friend, one dot. The lower(gamertag) join above can match several `players` rows for
   // a single link whenever the ingest holds "Sasha" and "sasha" as distinct rows for what is
-  // really one Xbox identity. Since migration 0024 `players_gamertag_uniq` is on lower(gamertag),
-  // so the database no longer PERMITS that pair — this collapse is retained as defence in depth,
-  // not because a live query can still hit it. Keep it: a later index change, a hand-run
-  // backfill, or a restore from a pre-0024 dump reintroduces the input, and the failure mode is
+  // really one Xbox identity — or, since migration 0025 dropped `players_gamertag_uniq`
+  // altogether (gamertag is a current LABEL now; identity is dayz_id), for two genuinely
+  // different identities that have held the same name. The database permits that state again,
+  // so this collapse is load-bearing and not merely defensive. The failure mode without it is
   // TWO markers, both labelled with the same callsign, in two different places — a friend
   // appearing to be in two locations at once is worse than being absent, and it throws nothing.
   // Collapse to the FIRST row per friend, which the `orderBy` above has already made the

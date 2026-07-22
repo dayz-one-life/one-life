@@ -71,11 +71,12 @@ export const players = pgTable("players", {
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 }, (t) => ({
-  // Expression index (migration 0024): Xbox reserves gamertags case-insensitively, so a re-cased
-  // name is the same human and must not become a second row. NOTE this makes the index
-  // unaddressable as an ON CONFLICT target through drizzle's query builder — see createPlayer in
-  // apps/projector/src/pg-store.ts.
-  uniq: uniqueIndex("players_gamertag_uniq").on(sql`lower(${t.gamertag})`),
+  // NOT unique (migration 0025 dropped players_gamertag_uniq): gamertag is a current LABEL, not
+  // an identity — identity is dayz_id, and the alias history lives in player_gamertags. Two
+  // identities may legitimately carry the same current label once a gamertag is recycled, and a
+  // unique here would 23505 inside the fold transaction on a rename. Kept as a plain expression
+  // index because slug/case-insensitive resolution still reads by lower(gamertag).
+  byGamertag: index("players_gamertag_idx").on(sql`lower(${t.gamertag})`),
   // No unique here — the duplicates still exist at migrate time (deploy.sh migrates
   // before it rebuilds). Promoting this to unique is migration 0026, next release.
   byDayzId: index("players_dayz_id_idx").on(t.dayzId),

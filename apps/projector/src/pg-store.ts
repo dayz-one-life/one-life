@@ -12,11 +12,12 @@ export class PgProjectionStore implements ProjectionStore {
 
   async getPlayer(gamertag: string): Promise<PlayerRow | null> {
     // Case-insensitive: Xbox reserves gamertags case-insensitively, so a re-cased name is
-    // the same human. Under players_gamertag_uniq on lower(gamertag) a bare eq() here would
-    // miss, fall through to createPlayer, and 23505 inside the fold transaction — which an
-    // event-log fold retries forever.
+    // the same human and a bare eq() would miss it and mint a second identity. This is a
+    // label lookup, not an identity lookup — identity is getPlayerByDayzId — and since
+    // migration 0025 lower(gamertag) is no longer unique, so limit to the first match.
     const r = await this.tx.select().from(players)
-      .where(sql`lower(${players.gamertag}) = lower(${gamertag})`);
+      .where(sql`lower(${players.gamertag}) = lower(${gamertag})`)
+      .orderBy(players.id).limit(1);
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {
@@ -24,12 +25,20 @@ export class PgProjectionStore implements ProjectionStore {
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async createPlayer(gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow> {
-    // Raw SQL because drizzle 0.36.4's onConflict target accepts columns only (IndexColumn =
-    // PgColumn), and players_gamertag_uniq is now an expression index on lower(gamertag).
-    // A column target here raises "no unique or exclusion constraint matching the ON CONFLICT
-    // specification" at RUNTIME — nothing about it fails to compile.
+    // A PLAIN INSERT — deliberately no ON CONFLICT. Migration 0025 dropped
+    // players_gamertag_uniq (gamertag is a current label, not an identity), so
+    // `ON CONFLICT (lower(gamertag))` no longer names any unique index and would fail at
+    // RUNTIME with "no unique or exclusion constraint matching the ON CONFLICT specification".
+    // The old DO UPDATE … RETURNING was worse than merely unsupported: a NEW account hash first
+    // seen under a name someone still held returned the INCUMBENT's row, silently attributing
+    // the new player's lives, kills and positions to the previous owner.
     //
-    // Two things the raw path does NOT do for you, both verified against postgres-js 3.4.9:
+    // Unconditional insert is safe here: the projector is single-instance, the fold runs inside
+    // a transaction, and onConnected resolves by dayz_id (getPlayerByDayzId) before it ever
+    // calls createPlayer — so this cannot race itself into a duplicate identity.
+    //
+    // Raw SQL is retained (rather than the query builder) for the RETURNING shape below. Two
+    // things the raw path does NOT do for you, both verified against postgres-js 3.4.9:
     //   1. A `Date` bound as a raw parameter THROWS ("The 'string' argument must be of type
     //      string ... Received an instance of Date") — the driver only serialises Dates through
     //      drizzle's typed builder. Hence toISOString(); the column is timestamptz and Postgres
@@ -50,7 +59,6 @@ export class PgProjectionStore implements ProjectionStore {
     const rows = await this.tx.execute(sql`
       INSERT INTO players (gamertag, dayz_id, first_seen_at, last_seen_at)
       VALUES (${gamertag}, ${dayzId}, ${at}, ${at})
-      ON CONFLICT (lower(gamertag)) DO UPDATE SET last_seen_at = ${at}
       RETURNING id, gamertag, (extract(epoch from last_seen_at) * 1000)::bigint AS last_seen_ms
     `);
     const row = (rows as unknown as Array<{ id: string; gamertag: string; last_seen_ms: string | null }>)[0]!;
@@ -68,9 +76,10 @@ export class PgProjectionStore implements ProjectionStore {
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async recordGamertag(playerId: number, gamertag: string, seenAt: Date): Promise<void> {
-    // Raw SQL for the same reason as createPlayer: drizzle 0.36.4 types IndexColumn = PgColumn,
-    // so an expression conflict target (lower(gamertag)) cannot be expressed through the
-    // query builder, and a column target fails at RUNTIME rather than compile time.
+    // Raw SQL because drizzle 0.36.4 types IndexColumn = PgColumn, so an expression conflict
+    // target — player_gamertags_player_name_uniq is on (player_id, lower(gamertag)) — cannot be
+    // expressed through the query builder, and a column target fails at RUNTIME rather than
+    // compile time.
     // Same Date hazard as createPlayer: a JS Date bound as a raw parameter throws, hence
     // toISOString(); the ::timestamptz casts stop GREATEST() seeing an unknown-typed literal.
     const at = seenAt.toISOString();

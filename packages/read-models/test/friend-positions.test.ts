@@ -126,22 +126,32 @@ describe("getFriendPositions", () => {
     expect(out.map((p) => p.gamertag)).toEqual(["FriendBravo"]);
   });
 
-  // ⚠️ `players_gamertag_uniq` is on lower(gamertag) as of migration 0024, so the state this
-  // test used to construct — "FriendBravo" and "friendbravo" as two rows for one Xbox identity —
-  // is now rejected by the database. This test therefore asserts the REJECTION: it is the
-  // regression guard on the expression index itself, and it fails loudly if a later migration
-  // moves the index back onto the bare column.
-  //
-  // `getFriendPositions`' per-friend collapse (the lower() join can match several rows, so it
-  // keeps the most-recently-seen one) is deliberately RETAINED as defence in depth even though
-  // the database can no longer produce the input. Deleting it would mean a future index change,
-  // a hand-run backfill, or a restore from a pre-0024 dump silently renders one friend as two
-  // dots in two different places — the failure mode is a map that lies, not an exception.
-  it("rejects a case-variant duplicate players row", async () => {
-    await expect(
-      db.insert(players)
-        .values({ gamertag: "friendbravo", lastSeenAt: new Date("2026-07-22T11:59:00Z") }),
-    ).rejects.toThrow(/players_gamertag_uniq/);
+  // ⚠️ Migration 0024 made `players_gamertag_uniq` an index on lower(gamertag), and migration
+  // 0025 DROPPED it entirely — `players.gamertag` is a current label, not an identity, and two
+  // identities may legitimately hold the same one. So the state this test constructs is
+  // producible by the database again, and the per-friend collapse is load-bearing rather than
+  // merely defensive: without it one friend renders as TWO markers, same callsign, two places.
+  // The failure mode is a map that lies, which is worse than an exception.
+  it("collapses case-variant players rows to one dot for one friend", async () => {
+    const [dupe] = await db.insert(players)
+      .values({ gamertag: "friendbravo", lastSeenAt: new Date("2026-07-22T11:00:00Z") }) // seen earlier
+      .returning();
+    const [dupeLife] = await db.insert(lives)
+      .values({ serverId, playerId: dupe!.id, lifeNumber: 1, startedAt: new Date("2026-07-22T10:00:00Z") })
+      .returning();
+    await db.insert(sessions).values({
+      serverId, playerId: dupe!.id, lifeId: dupeLife!.id,
+      connectedAt: new Date("2026-07-22T11:00:00Z"), disconnectedAt: null,
+    });
+    await db.insert(positions).values({
+      serverId, playerId: dupe!.id, gamertag: "friendbravo",
+      x: 9999, y: 9999, recordedAt: new Date("2026-07-22T11:59:00Z"),
+    });
+
+    const out = await call();
+    expect(out.map((p) => p.gamertag).sort()).toEqual(["FriendBravo", "ViewerAlpha"]);
+    // the most-recently-seen row wins, deterministically — not the newer position
+    expect(out.find((p) => p.gamertag === "FriendBravo")!.x).toBe(2000);
   });
 
   // ⚠️ `gamertag_links_verified_uniq` is on lower(gamertag) as of migration 0024 too, so two

@@ -36,14 +36,18 @@ describe("PgProjectionStore", () => {
     });
   });
 
-  it("getPlayer/createPlayer are keyed by gamertag alone", async () => {
-    await db.transaction(async (tx) => {
+  // Superseded by identity-by-hash: createPlayer no longer upserts on the gamertag, so a
+  // second call under the same name is a second identity. getPlayer is a LABEL lookup and
+  // resolves to the earliest holder; identity resolution is getPlayerByDayzId.
+  it("createPlayer is unconditional; getPlayer resolves the label to one row", async () => {
+    await expect(db.transaction(async (tx) => {
       const store = new PgProjectionStore(tx as any);
-      const a = await store.createPlayer("Zed", null, new Date("2026-07-01"));
-      const b = await store.createPlayer("Zed", null, new Date("2026-07-02")); // upsert, not a 2nd row
-      expect(b.id).toBe(a.id);
+      const a = await store.createPlayer("Zed", "ZEDA=", new Date("2026-07-01"));
+      const b = await store.createPlayer("Zed", "ZEDB=", new Date("2026-07-02"));
+      expect(b.id).not.toBe(a.id);
       expect((await store.getPlayer("Zed"))?.id).toBe(a.id);
-    });
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
   });
 
   // The superseded/reboot close cap reads the player's last_seen_at through the store —
@@ -145,6 +149,44 @@ describe("PgProjectionStore", () => {
       const renamed = rows[1]!;
       expect(renamed.firstSeenAt.toISOString()).toBe("2026-07-08T12:00:00.000Z");
       expect(renamed.lastSeenAt.toISOString()).toBe("2026-07-09T12:00:00.000Z");
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
+  });
+
+  // players.gamertag is a CURRENT LABEL, not an identity. The recycling end state is two
+  // identities whose current label is the same string — legal only once players_gamertag_uniq
+  // is gone (migration 0025 replaces it with the non-unique players_gamertag_idx). Against the
+  // unique index this raises 23505.
+  it("two players with different hashes may both hold the same current gamertag", async () => {
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const a = await store.createPlayer("DUP-Label", "DUPA=", new Date("2026-07-06T12:00:00Z"));
+      const b = await store.createPlayer("DUP-Other", "DUPB=", new Date("2026-07-08T12:00:00Z"));
+      // b is recycled onto the name a still carries
+      await store.recordGamertag(b.id, "dup-label", new Date("2026-07-09T12:00:00Z"));
+      expect(b.id).not.toBe(a.id);
+      expect((await store.getPlayerById(a.id))!.gamertag).toBe("DUP-Label");
+      expect((await store.getPlayerById(b.id))!.gamertag).toBe("dup-label");
+      tx.rollback();
+    })).rejects.toThrow(/rollback/i);
+  });
+
+  // The silent-merge defect: with ON CONFLICT (lower(gamertag)) DO UPDATE … RETURNING, a NEW
+  // account hash first seen under a name someone still holds returned the INCUMBENT's row, and
+  // every life, kill and position of the new player was attributed to the previous owner.
+  it("createPlayer for a new hash under an existing name creates a NEW player", async () => {
+    await expect(db.transaction(async (tx) => {
+      const store = new PgProjectionStore(tx as any);
+      const incumbent = await store.createPlayer("NEWHASH", "NHA=", new Date("2026-07-06T12:00:00Z"));
+      const fresh = await store.createPlayer("NEWHASH", "NHB=", new Date("2026-07-08T12:00:00Z"));
+      expect(fresh.id).not.toBe(incumbent.id);
+      expect(fresh.gamertag).toBe("NEWHASH");
+      expect(fresh.lastSeenAt).toEqual(new Date("2026-07-08T12:00:00Z"));
+      // the incumbent is untouched — not even its last_seen_at was bumped by the DO UPDATE
+      expect((await store.getPlayerById(incumbent.id))!.lastSeenAt)
+        .toEqual(new Date("2026-07-06T12:00:00Z"));
+      expect(await store.getPlayerByDayzId("NHA=")).toMatchObject({ id: incumbent.id });
+      expect(await store.getPlayerByDayzId("NHB=")).toMatchObject({ id: fresh.id });
       tx.rollback();
     })).rejects.toThrow(/rollback/i);
   });
