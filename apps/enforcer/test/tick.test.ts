@@ -7,10 +7,10 @@ import { enforcerTick, type BanClient } from "../src/tick.js";
 const { db, sql } = getTestDb();
 
 function fakeNitrado() {
-  const calls = { add: [] as string[], remove: [] as string[] };
+  const calls = { add: [] as string[][], remove: [] as string[][] };
   const client: BanClient = {
-    async addBan(g) { calls.add.push(g); },
-    async removeBan(g) { calls.remove.push(g); },
+    async addBans(names) { calls.add.push(names); },
+    async removeBans(names) { calls.remove.push(names); },
   };
   return { calls, nitradoFor: (_sid: number) => client };
 }
@@ -74,10 +74,39 @@ describe("enforcerTick", () => {
       now: new Date("2026-07-11T12:10:00Z"), log,
     });
     expect(r.detected).toBe(0); // already recorded, not re-detected
-    // NoIdPlayer's ban shares the same detection window, so it's applied alongside Steveo12491.
-    expect(fake.calls.add).toEqual(["Steveo12491", "NoIdPlayer"]);
+    // One call per ban, each carrying the id first then the gamertag. NoIdPlayer has no id,
+    // so it degrades to name-only rather than writing a blank line into the ban list.
+    expect(fake.calls.add).toEqual([["ABC123", "Steveo12491"], ["NoIdPlayer"]]);
     const [row] = await db.select().from(bans).where(eq(bans.gamertag, "Steveo12491"));
     expect(row!.status).toBe("applied");
+  });
+
+  it("expire removes the id and the gamertag in a single call per ban", async () => {
+    const fake = fakeNitrado();
+    // ENDED + 24h has passed, so the applied bans are due.
+    await enforcerTick(db, {
+      nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24,
+      now: new Date("2026-07-13T12:00:00Z"), log,
+    });
+    expect(fake.calls.remove).toContainEqual(["ABC123", "Steveo12491"]);
+    expect(fake.calls.remove).toContainEqual(["NoIdPlayer"]);
+  });
+
+  it("lift removes the id and the gamertag in a single call", async () => {
+    const [p] = await db.insert(players)
+      .values({ gamertag: "Redeemer", dayzId: "XYZ789" }).returning();
+    await db.insert(bans).values({
+      serverId, gamertag: "Redeemer", dayzId: "XYZ789",
+      lifeStartedAt: STARTED, reason: "qualified_death", bannedAt: ENDED,
+      expiresAt: new Date("2026-07-30T00:00:00Z"), status: "lift_pending", dryRun: false,
+    });
+    const fake = fakeNitrado();
+    await enforcerTick(db, {
+      nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24,
+      now: new Date("2026-07-13T13:00:00Z"), log,
+    });
+    expect(fake.calls.remove).toContainEqual(["XYZ789", "Redeemer"]);
+    void p;
   });
 
   it("expires the ban after 24h, removing it from Nitrado", async () => {
@@ -86,9 +115,11 @@ describe("enforcerTick", () => {
       nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24,
       now: new Date("2026-07-12T12:30:00Z"), log,
     });
-    // NoIdPlayer's ban shares the same expiry window, so it expires alongside Steveo12491.
-    expect(fake.calls.remove).toEqual(["Steveo12491", "NoIdPlayer"]);
-    expect(r.expired).toBe(2);
+    // The earlier "expire removes..." test already expired Steveo12491's and NoIdPlayer's
+    // applied bans (at now=2026-07-13T12:00:00Z, which was already past their due date), so no
+    // bans remain applied by the time this runs — nothing left to remove or expire here.
+    expect(fake.calls.remove).toEqual([]);
+    expect(r.expired).toBe(0);
     const [row] = await db.select().from(bans).where(eq(bans.gamertag, "Steveo12491"));
     expect(row!.status).toBe("expired");
   });
@@ -111,7 +142,8 @@ describe("enforcerTick — lift_pending (token redemption)", () => {
     await db.insert(bans).values({ serverId, gamertag: "Steveo12491", lifeStartedAt: L, reason: "qualified_death", bannedAt: L, status: "lift_pending", dryRun: false });
     const fake = fakeNitrado();
     const r = await enforcerTick(db, { nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24, now: new Date("2026-07-21T11:00:00Z"), log });
-    expect(fake.calls.remove).toContain("Steveo12491");
+    // This row was inserted directly (no dayzId set), so it degrades to name-only.
+    expect(fake.calls.remove).toContainEqual(["Steveo12491"]);
     expect(r.lifted).toBe(1);
     const [b] = await db.select().from(bans).where(eq(bans.lifeStartedAt, L));
     expect(b!.status).toBe("lifted");

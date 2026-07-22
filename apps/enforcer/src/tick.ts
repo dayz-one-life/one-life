@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { planBans, planExpiries } from "./decide.js";
+import { planBans, planExpiries, banNames } from "./decide.js";
 import {
   findEndedUnbannedLives, insertBan, pendingBans, appliedBans, liftPendingBans,
   markApplied, markError, markExpired, markLifted, serverServiceId,
@@ -7,8 +7,8 @@ import {
 
 /** Minimal Nitrado surface the enforcer needs — real client or a fake in tests. */
 export interface BanClient {
-  addBan(gamertag: string): Promise<void>;
-  removeBan(gamertag: string): Promise<void>;
+  addBans(names: string[]): Promise<void>;
+  removeBans(names: string[]): Promise<void>;
 }
 
 export type EnforcerDeps = {
@@ -39,7 +39,7 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
     }
     try {
       const sid = await serverServiceId(db, b.serverId);
-      await deps.nitradoFor(sid).addBan(b.gamertag);
+      await deps.nitradoFor(sid).addBans(banNames(b));
       await markApplied(db, b.id, deps.now);
       applied++;
     } catch (e) {
@@ -60,7 +60,7 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
     }
     try {
       const sid = await serverServiceId(db, b.serverId);
-      await deps.nitradoFor(sid).removeBan(b.gamertag);
+      await deps.nitradoFor(sid).removeBans(banNames(b));
       await markExpired(db, b.id, deps.now);
       expired++;
     } catch (e) {
@@ -79,7 +79,7 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
     }
     try {
       const sid = await serverServiceId(db, b.serverId);
-      await deps.nitradoFor(sid).removeBan(b.gamertag);
+      await deps.nitradoFor(sid).removeBans(banNames(b));
       await markLifted(db, b.id, deps.now);
       lifted++;
     } catch (e) {

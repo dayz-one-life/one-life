@@ -65,3 +65,15 @@ export function planExpiries(applied: { id: number; expiresAt: Date | null }[], 
     .filter((b) => b.expiresAt !== null && b.expiresAt.getTime() <= now.getTime())
     .map((b) => b.id);
 }
+
+/**
+ * What goes on the Nitrado ban list for one ban. Pure.
+ *
+ * The ID is load-bearing — it is the only entry that survives a gamertag rename, which is
+ * the whole point of this feature. The gamertag is belt-and-braces at the cost of one line
+ * in a text field. A null/blank id degrades to name-only rather than writing an empty entry,
+ * which would otherwise land as a stray blank line in the ban list.
+ */
+export function banNames(b: { dayzId: string | null; gamertag: string }): string[] {
+  return [b.dayzId, b.gamertag].filter((n): n is string => typeof n === "string" && n.trim() !== "");
+}

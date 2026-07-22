@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planBans, planExpiries, type EndedLife } from "../src/decide.js";
+import { planBans, planExpiries, banNames, type EndedLife } from "../src/decide.js";
 
 const base: EndedLife = {
   serverId: 1,
@@ -77,5 +77,19 @@ describe("planExpiries", () => {
       now,
     );
     expect(ids).toEqual([1, 2]);
+  });
+});
+
+describe("banNames", () => {
+  it("banNames lists the id first, then the gamertag", () => {
+    expect(banNames({ dayzId: "ABC123", gamertag: "Ronald" })).toEqual(["ABC123", "Ronald"]);
+  });
+
+  it("banNames omits a null id rather than emitting a blank entry", () => {
+    expect(banNames({ dayzId: null, gamertag: "Ronald" })).toEqual(["Ronald"]);
+  });
+
+  it("banNames omits an empty-string id", () => {
+    expect(banNames({ dayzId: "", gamertag: "Ronald" })).toEqual(["Ronald"]);
   });
 });
