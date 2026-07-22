@@ -126,50 +126,38 @@ describe("getFriendPositions", () => {
     expect(out.map((p) => p.gamertag)).toEqual(["FriendBravo"]);
   });
 
-  // ⚠️ `players_gamertag_uniq` is case-SENSITIVE, so the ingest can hold "FriendBravo" and
-  // "friendbravo" as two rows for one Xbox identity. The lower() join matches both; without a
-  // per-friend collapse that renders the same callsign twice, in two different places.
-  it("renders one dot for a friend with case-variant duplicate player rows", async () => {
-    // The duplicate is the more-recently-seen row, so it is the one that must win.
-    await db.update(players)
-      .set({ lastSeenAt: new Date("2026-07-22T11:00:00Z") })
-      .where(eq(players.gamertag, "FriendBravo"));
-    const [dupe] = await db.insert(players)
-      .values({ gamertag: "friendbravo", lastSeenAt: new Date("2026-07-22T11:59:00Z") })
-      .returning();
-    const [life] = await db.insert(lives)
-      .values({ serverId, playerId: dupe!.id, lifeNumber: 1, startedAt: new Date("2026-07-22T10:00:00Z") })
-      .returning();
-    await db.insert(sessions).values({
-      serverId, playerId: dupe!.id, lifeId: life!.id,
-      connectedAt: new Date("2026-07-22T11:00:00Z"), disconnectedAt: null,
-    });
-    await db.insert(positions).values({
-      serverId, playerId: dupe!.id, gamertag: "friendbravo",
-      x: 9999, y: 9999, recordedAt: new Date("2026-07-22T11:59:00Z"),
-    });
-
-    const out = await call();
-    expect(out.filter((p) => p.gamertag.toLowerCase() === "friendbravo")).toHaveLength(1);
-    // Most-recently-seen row wins, deterministically.
-    expect(out.find((p) => p.gamertag.toLowerCase() === "friendbravo")!.x).toBe(9999);
+  // ⚠️ `players_gamertag_uniq` is on lower(gamertag) as of migration 0024, so the state this
+  // test used to construct — "FriendBravo" and "friendbravo" as two rows for one Xbox identity —
+  // is now rejected by the database. This test therefore asserts the REJECTION: it is the
+  // regression guard on the expression index itself, and it fails loudly if a later migration
+  // moves the index back onto the bare column.
+  //
+  // `getFriendPositions`' per-friend collapse (the lower() join can match several rows, so it
+  // keeps the most-recently-seen one) is deliberately RETAINED as defence in depth even though
+  // the database can no longer produce the input. Deleting it would mean a future index change,
+  // a hand-run backfill, or a restore from a pre-0024 dump silently renders one friend as two
+  // dots in two different places — the failure mode is a map that lies, not an exception.
+  it("rejects a case-variant duplicate players row", async () => {
+    await expect(
+      db.insert(players)
+        .values({ gamertag: "friendbravo", lastSeenAt: new Date("2026-07-22T11:59:00Z") }),
+    ).rejects.toThrow(/players_gamertag_uniq/);
   });
 
-  // ⚠️ `gamertag_links_verified_uniq` is case-SENSITIVE too, so two users can hold verified
-  // links that fold to the same `players` row. The reverse map is keyed by player id, so
-  // without a claim guard the last writer wins and the marker renders with the FRIEND's
-  // callsign while still carrying the viewer's `self` flag — a dot that is simultaneously
-  // "you" and someone else. The viewer must claim their row first.
-  it("keeps the viewer's own label when a friend's link folds onto the same player row", async () => {
-    await db.update(gamertagLinks)
-      .set({ gamertag: "vieweralpha" })
-      .where(eq(gamertagLinks.userId, "vb"));
-
-    const out = await call();
-    const mine = out.filter((p) => p.gamertag.toLowerCase() === "vieweralpha");
-    expect(mine).toHaveLength(1);
-    expect(mine[0]!.gamertag).toBe("ViewerAlpha");
-    expect(mine[0]!.self).toBe(true);
+  // ⚠️ `gamertag_links_verified_uniq` is on lower(gamertag) as of migration 0024 too, so two
+  // users can no longer hold VERIFIED links that differ only in case and fold onto the same
+  // `players` row. As above, this test now asserts the rejection.
+  //
+  // The `claim()` guard in `getFriendPositions` (viewer-first, so a marker can never be flagged
+  // `self` while carrying a friend's callsign) is likewise RETAINED. It costs nothing, and the
+  // thing it prevents — one dot that is simultaneously "you" and someone else — is exactly the
+  // kind of defect that is invisible until someone is ambushed at it.
+  it("rejects a second verified gamertag link differing only in case", async () => {
+    await expect(
+      db.update(gamertagLinks)
+        .set({ gamertag: "vieweralpha" })
+        .where(eq(gamertagLinks.userId, "vb")),
+    ).rejects.toThrow(/gamertag_links_verified_uniq/);
   });
 
   // Every other test in this file seeds the viewer as side A ("va" < "vb"), so the ternary in

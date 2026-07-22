@@ -1122,17 +1122,61 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      alone leaves stale `true` flags that go live on re-verification; the reset alone dies to any
      query that forgets the join. **The reset is one-directional** — it clears the re-verifying
      user's *outbound* sharing, not their friends' inbound flags toward them.
-  6. **⚠️ OPEN BACKLOG ITEM — `gamertag_links_verified_uniq` is case-SENSITIVE.** So is
-     `players_gamertag_uniq`, and so is the `already_verified` precheck in
-     `apps/api/src/routes/gamertag-links.ts`. Two users can therefore hold verified links to
-     `Sasha` and `sasha` and fold onto one `players` row. `getFriendPositions` guards the
-     *labelling* consequence (a `claim()`/`claimed` set, viewer-first, so a marker can never be
-     flagged `self` while carrying a friend's callsign) — it does **not** close the hole: a
-     viewer whose link folds onto another player's row still receives that row's coordinates as
-     their own dot, and the viewer's own subject is unconditional by design. The durable fix is
-     upstream and needs a migration: make the verified-link unique index `lower(gamertag)` and
-     change that precheck to a `lower()` comparison (`verified-gamertag.ts` already does).
-     Not absorbed by the read-model guard — still open.
+  6. **Gamertag identity is case-insensitive (RESOLVED — was an open backlog item).** Migration
+     `0024` moved `players_gamertag_uniq` and `gamertag_links_verified_uniq` onto
+     `lower(gamertag)`, closing the hole where two users could verify `Sasha`/`sasha`, fold onto
+     one `players` row, and have one receive the other's coordinates as their own dot. Three
+     code paths had to change with it, and **each is load-bearing, not tidy-up**:
+     the claim route resolves the submitted gamertag to the canonical `players.gamertag` casing
+     and stores THAT (`apps/api/src/routes/gamertag-links.ts`) — **on the INSERT path and on the
+     reuse path**, since a pre-`0024` row found by the case-folded lookup and merely re-activated
+     would keep its typed casing; migration `0024` canonicalizes the existing corpus the same way
+     (a guarded `UPDATE`, reported as a `NOTICE`), so the invariant is true at deploy time rather
+     than assumed. **That keeps the ~35 bare `eq(x.gamertag, …)` comparisons correct wherever
+     both sides derive from `players.gamertag` or a `gamertag_links` row** — notably
+     `redeem.ts`'s link↔`bans.gamertag` match and `player-page.ts`'s Verified stamp, where a
+     mis-cased link silently cost the player their self-unban. It does **NOT** extend to
+     ADM-sourced denormalised columns: `kills.killer_gamertag` and `hit_events.victim_gamertag`
+     are written by `packages/projections/src/fold.ts` from the raw event payload, not from
+     `players.gamertag`, so a re-cased log line still writes a differently-cased value there and
+     bare `eq()` against it can still miss. (Not a regression — before this branch such a line
+     was dropped entirely; now it is at least recorded.) A `lower()` sweep of those sites would
+     defeat `positions_player_idx` and both partial indexes from
+     `0017`; the verifier compares `lower()` in all three of `findPendingChallenges` /
+     `getVerifiedLinkId` / `cancelOtherPendingLinks` (a mis-cased claim previously matched no
+     emote, so verification silently never completed); and the projector's `getPlayer` resolves
+     `lower()` — **without which the new index turns a duplicate row into a 23505 inside the
+     fold transaction, which an event-log fold retries forever, stalling every projection.**
+     ⚠️ `createPlayer` (`apps/projector/src/pg-store.ts`) must keep its **raw-SQL**
+     `ON CONFLICT (lower(gamertag))`: drizzle 0.36.4 types `IndexColumn = PgColumn`, so an
+     expression conflict target is not expressible through the query builder, and a column
+     target (`target: [players.gamertag]`) fails at RUNTIME ("no unique or exclusion constraint
+     matching the ON CONFLICT specification"), not at compile time. Two more hazards ride along
+     the same raw path, both verified against postgres-js 3.4.9 and both explicitly converted in
+     the code rather than cast: a JS `Date` bound as a raw parameter THROWS (only drizzle's typed
+     builder serialises Dates), so the seen-at timestamp goes in as `toISOString()`; and raw
+     `RETURNING` is untyped — `id` comes back as a bigint STRING and a timestamptz as a raw
+     Postgres string, not the `number`/`Date` the query-builder path would give, so both are
+     converted before the row is handed to the fold, which would otherwise silently receive a
+     `PlayerRow` lying about its own types. The timestamp is returned as **epoch milliseconds**
+     (`extract(epoch …) * 1000`) rather than as the timestamptz: Postgres renders one as
+     `2026-07-22 19:17:56.505482+00`, whose space separator, microsecond precision and two-digit
+     offset are all outside the Date Time String Format ECMA-262 defines, so `new Date()` on it
+     only works through V8's implementation-defined fallback parser.
+     ⚠️ `players.gamertag` casing is **frozen at first sight** — `getPlayer` finds the row for any
+     casing but `touchPlayer` never rewrites it. Rewriting it would desynchronise every
+     denormalised copy (`bans.gamertag`, `kills.killerGamertag`, `articles.gamertag`) that those
+     bare `eq()` sites read.
+     This does NOT merge renames: `players` is still keyed by gamertag, so a genuine rename still
+     mints a second row (2 `dayz_id` values span 5 gamertags in production). That is the separate
+     identity-merge sub-project, which needs `--rebuild`.
+     **`getFriendPositions`' two defensive collapses (one-friend-one-dot, one-player-row-one-subject)
+     were deliberately RETAINED, not removed, even though `0024` makes their triggering inputs
+     unwritable through any public path today** — kept as defence in depth because the failure
+     mode is a silent privacy leak (a marker simultaneously labelled as two different callsigns,
+     or a viewer's own dot silently relabelled as a friend's), and the inputs return the moment the
+     index is altered, hand-backfilled around, or restored from a pre-`0024` dump. See the two
+     `⚠️` comments in `packages/read-models/src/friend-positions.ts`.
   7. **The positions lookup filters on `player_id`, never `lower(gamertag)`.** Only the former can
      be served by `positions_player_idx (server_id, player_id, recorded_at)`; the gamertag shape
      seq-scans the largest table in the system, on a 30s poll per viewer and once per server on

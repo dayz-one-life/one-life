@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { servers, players, gamertagLinks, verificationChallenges, user } from "@onelife/db";
 import { eq, inArray, sql as sqlExpr } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
@@ -40,16 +40,17 @@ beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "gl-test" }).returning();
   serverId = s!.id;
   await db.insert(players).values({ gamertag: "Alice", dayzId: "A=" });
+  await db.insert(players).values({ gamertag: "Sasha", dayzId: `S=${svc}` });
   await db.insert(user).values({ id: "someone-else", name: "x", email: `se${svc}@x.com` });
   await signIn();
 });
 
 afterAll(async () => {
   await db.delete(verificationChallenges).where(
-    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE gamertag IN ('Alice', 'Verified', 'Foreign', 'Bob'))`);
-  await db.delete(gamertagLinks).where(inArray(gamertagLinks.gamertag, ["Alice", "Verified", "Foreign", "Bob"]));
+    sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE gamertag IN ('Alice', 'Verified', 'Foreign', 'Bob', 'Sasha'))`);
+  await db.delete(gamertagLinks).where(inArray(gamertagLinks.gamertag, ["Alice", "Verified", "Foreign", "Bob", "Sasha"]));
   await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "someone-else"));
-  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Verified", "Bob"]));
+  await db.delete(players).where(inArray(players.gamertag, ["Alice", "Verified", "Bob", "Sasha"]));
   await sql`DELETE FROM "session" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "account" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${email})`;
   await sql`DELETE FROM "verification" WHERE identifier LIKE ${"%" + email + "%"}`;
@@ -225,5 +226,78 @@ describe("one active gamertag link per user", () => {
 
     await db.delete(verificationChallenges).where(eq(verificationChallenges.gamertagLinkId, winner.json().linkId));
     await db.delete(gamertagLinks).where(eq(gamertagLinks.id, winner.json().linkId));
+  });
+});
+
+describe("POST /me/gamertag-links — case-insensitivity", () => {
+  beforeEach(async () => {
+    // gamertag_links_user_active_uniq permits one active link per user; clear ours.
+    await db.delete(verificationChallenges).where(
+      sqlExpr`${verificationChallenges.gamertagLinkId} IN (SELECT id FROM gamertag_links WHERE gamertag ILIKE 'sasha')`);
+    await db.delete(gamertagLinks).where(sqlExpr`gamertag ILIKE 'sasha'`);
+  });
+
+  it("stores the canonical players casing, not what the user typed", async () => {
+    const res = await claim({ gamertag: "sasha" });
+    expect(res.statusCode).toBe(201);
+    const rows = await db.select({ g: gamertagLinks.gamertag }).from(gamertagLinks)
+      .where(sqlExpr`gamertag ILIKE 'sasha'`);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.g).toBe("Sasha");
+  });
+
+  it("409 already_verified when another user holds the gamertag in different casing", async () => {
+    await db.insert(gamertagLinks)
+      .values({ userId: "someone-else", gamertag: "Sasha", status: "verified" });
+    const res = await claim({ gamertag: "sasha" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("already_verified");
+  });
+
+  it("still 422 for a gamertag never seen, whatever the casing", async () => {
+    const res = await claim({ gamertag: "nobodyhaseverbeencalledthis" });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe("gamertag_not_seen");
+  });
+
+  it("repairs a mis-cased PENDING row on reuse", async () => {
+    // A pre-0024 row stored with the user's typed casing. The case-folded lookup finds it and
+    // reuses it; it must come back out canonical, or redeem.ts's strict === against
+    // bans.gamertag never matches and the player cannot spend a token to unban themselves.
+    const first = (await claim({ gamertag: "Sasha" })).json();
+    // A pending row can never actually hold a non-null verifiedAt through current application
+    // code (verifiedAt is only ever set alongside status:"verified"). We seed one directly here
+    // solely to pin the invariant that the pending branch must NOT touch verifiedAt — it is not
+    // a realistic fixture.
+    const seededVerifiedAt = new Date("2020-01-01T00:00:00.000Z");
+    await db.update(gamertagLinks).set({ gamertag: "sasha", verifiedAt: seededVerifiedAt })
+      .where(eq(gamertagLinks.id, first.linkId));
+    const res = await claim({ gamertag: "sasha" });
+    expect(res.statusCode).toBe(201);
+    const rows = await db.select({ g: gamertagLinks.gamertag, s: gamertagLinks.status, v: gamertagLinks.verifiedAt })
+      .from(gamertagLinks).where(eq(gamertagLinks.id, first.linkId));
+    expect(rows[0]!.g).toBe("Sasha");
+    expect(rows[0]!.s).toBe("pending");
+    expect(rows[0]!.v).toEqual(seededVerifiedAt);
+  });
+
+  it("repairs a mis-cased CANCELLED row on reactivation", async () => {
+    const first = (await claim({ gamertag: "Sasha" })).json();
+    await db.update(gamertagLinks).set({ gamertag: "sasha", status: "cancelled" })
+      .where(eq(gamertagLinks.id, first.linkId));
+    const res = await claim({ gamertag: "SASHA" });
+    expect(res.statusCode).toBe(201);
+    const rows = await db.select({ g: gamertagLinks.gamertag, s: gamertagLinks.status })
+      .from(gamertagLinks).where(eq(gamertagLinks.id, first.linkId));
+    expect(rows[0]!.g).toBe("Sasha");
+    expect(rows[0]!.s).toBe("pending");
+  });
+
+  it("re-claiming your own pending link in different casing is idempotent", async () => {
+    const first = await claim({ gamertag: "Sasha" });
+    expect(first.statusCode).toBe(201);
+    const second = await claim({ gamertag: "SASHA" });
+    expect(second.statusCode).toBe(201);
+    expect(second.json().linkId).toBe(first.json().linkId);
   });
 });

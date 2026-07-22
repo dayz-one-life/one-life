@@ -250,6 +250,13 @@ cd /var/www/dayzonelife.com
   (e.g. v0.3.0's `0005`/`0006`). The player-notifications release is **not** one of them — it adds
   only new tables. If a plain deploy's `db:migrate` aborts on a
   projection-table constraint, that's the signal to re-run with `--rebuild`.
+- **⚠️ The gamertag case-insensitivity release (`0024`) is one-way for a HAND rollback.** `0024`
+  moves `players_gamertag_uniq` onto `lower(gamertag)`; the older release's `createPlayer` uses
+  `ON CONFLICT (gamertag)`, which then matches no constraint and raises inside the fold
+  transaction — the projector retries it forever and every projection stalls. `deploy.sh` will
+  not do this to you (it refuses to auto-revert once the migrate phase has succeeded), so this
+  only bites a manual `git checkout <older-tag>`; restore the pre-deploy dump instead, or
+  recreate `players_gamertag_uniq` on the bare column first.
 
 <details><summary>Manual equivalent (fallback)</summary>
 
