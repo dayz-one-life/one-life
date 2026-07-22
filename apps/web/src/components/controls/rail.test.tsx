@@ -6,6 +6,10 @@ import { useControls, useControlsActions } from "./use-controls";
 
 vi.mock("./use-controls", () => ({ useControls: vi.fn(), useControlsActions: vi.fn() }));
 vi.mock("@/lib/auth-client", () => ({ signOut: vi.fn(async () => {}) }));
+// FriendsPanelContainer reads useFriends directly (unlike the other rail panels, which are
+// props-only and driven by useControls) — stub it so this file's plain useControls mock
+// doesn't have to also satisfy useFriends' own useSession/useGamertagLinks chain.
+vi.mock("@/lib/use-friends", () => ({ useFriends: () => ({ data: null, loading: false, error: false }) }));
 // Sign-out must go through the shared helper, which tears the push subscription down before
 // the session dies. A bare signOut() here leaves a shared browser delivering this user's
 // notifications to whoever signs in next.

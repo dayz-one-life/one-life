@@ -337,3 +337,29 @@ export type SitemapData = {
   lives: { gamertag: string; mapSlug: string; n: number; lastmod: string }[];
   articles: { kind: string; slug: string; lastmod: string }[];
 };
+
+export type FriendStatusValue = "none" | "outgoing" | "incoming" | "friends" | "cooldown";
+
+export type FriendEntryDto = {
+  id: number;
+  gamertag: string;
+  slug: string;
+  status: FriendStatusValue;
+  since: string;
+};
+
+export type FriendsFeed = {
+  friends: FriendEntryDto[];
+  incoming: FriendEntryDto[];
+  outgoing: FriendEntryDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type FriendStatusDto = {
+  status: FriendStatusValue;
+  friendshipId: number | null;
+  /** ISO-8601. Set only when status is "cooldown". */
+  cooldownUntil: string | null;
+};

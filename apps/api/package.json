@@ -13,6 +13,7 @@
     "@onelife/auth": "workspace:^",
     "@onelife/db": "workspace:*",
     "@onelife/domain": "workspace:*",
+    "@onelife/friends": "workspace:*",
     "@onelife/read-models": "workspace:*",
     "@onelife/tokens": "workspace:*",
     "@onelife/verification": "workspace:*",

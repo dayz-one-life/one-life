@@ -1,0 +1,180 @@
+"use client";
+import { useState } from "react";
+import { useFriendActions, useFriendStatus } from "@/lib/use-friends";
+import { useAccountStatus } from "@/lib/use-account-status";
+import { friendErrorMessage } from "@/components/friends/format";
+import { SrStatus } from "@/components/shared/sr-status";
+import type { FriendStatusValue } from "@/lib/types";
+
+const DAY_MS = 86_400_000;
+
+/** Whole days remaining, rounded UP — rounding down understates the wait (a 1-day-6-hour
+ *  cooldown must never read "in 1 day", or the user retries ~6h early and the server refuses
+ *  them). Returns "" once the cooldown has actually expired — same rule as `banCountdown`
+ *  returning `null` past expiry rather than a clamped "0h 0m": a page left open past expiry
+ *  must not keep reading "in 1 day" forever. Callers branch on the empty string to a terminal
+ *  state (the real action), not a dead-looking disabled control. */
+export function friendButtonLabel(
+  status: FriendStatusValue, cooldownUntil: string | null, now: Date,
+): string {
+  if (status !== "cooldown" || !cooldownUntil) return "";
+  const msLeft = new Date(cooldownUntil).getTime() - now.getTime();
+  if (msLeft <= 0) return "";
+  const days = Math.max(1, Math.ceil(msLeft / DAY_MS));
+  return `You can send another request in ${days} ${days === 1 ? "day" : "days"}`;
+}
+
+const BTN = "font-mono text-[11px] uppercase tracking-[.05em] border border-ink px-3 py-1.5 " +
+  "hover:bg-ink hover:text-paper disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-ink";
+
+export type FriendViewProps = {
+  /** Absent means "nothing to show" — the control renders nothing at all. */
+  status?: FriendStatusValue;
+  cooldownUntil?: string | null;
+  now?: Date;
+  loading?: boolean;
+  error?: boolean;
+  pending?: boolean;
+  confirming?: boolean;
+  /** Code from the most recently failed action mutation, if any. Mapped through
+   *  friendErrorMessage — never rendered raw. */
+  errorCode?: string | null;
+  onAdd: () => void;
+  onAccept: () => void;
+  onDecline: () => void;
+  onRemove: () => void;
+  onConfirmToggle?: () => void;
+};
+
+function renderControl(p: FriendViewProps) {
+  if (p.status === "cooldown") {
+    const label = friendButtonLabel(p.status, p.cooldownUntil ?? null, p.now ?? new Date());
+    // An empty label means the cooldown has actually expired (see friendButtonLabel) — offer
+    // the real action instead of a stale disabled control that never re-enables itself.
+    if (!label) {
+      return <button type="button" onClick={p.onAdd} disabled={p.pending} className={BTN}>Add friend</button>;
+    }
+    return <button type="button" disabled className={BTN}>{label}</button>;
+  }
+  if (p.status === "incoming") {
+    return (
+      <div className="flex gap-2">
+        <button type="button" onClick={p.onAccept} disabled={p.pending} className={BTN}>Accept</button>
+        <button type="button" onClick={p.onDecline} disabled={p.pending} className={BTN}>Decline</button>
+      </div>
+    );
+  }
+  if (p.status === "outgoing") {
+    return (
+      <button type="button" onClick={p.onRemove} disabled={p.pending} className={BTN}>Cancel request</button>
+    );
+  }
+  if (p.status === "friends") {
+    // Two steps, because in a follow-up sub-project removing a friend silently revokes
+    // location-sharing consent — this is deliberate friction, not an oversight. The confirm
+    // step still needs a way back out short of navigating away, so Cancel reuses the same
+    // toggle that opened it.
+    return p.confirming ? (
+      <div className="flex gap-2">
+        <button type="button" onClick={p.onRemove} disabled={p.pending} className={`${BTN} text-red-deep border-red-deep`}>
+          Remove friend
+        </button>
+        <button type="button" onClick={p.onConfirmToggle} className={BTN}>Cancel</button>
+      </div>
+    ) : (
+      <button type="button" onClick={p.onConfirmToggle} className={BTN}>Friends ✓</button>
+    );
+  }
+  return <button type="button" onClick={p.onAdd} disabled={p.pending} className={BTN}>Add friend</button>;
+}
+
+/**
+ * Presentational. Loading and error are NEVER rendered as an authoritative "not friends" —
+ * the live-data-honesty invariant. A skeleton and a status line are honest; a default
+ * "Add friend" against an unknown relationship is not.
+ */
+export function FriendView(p: FriendViewProps) {
+  if (p.loading) {
+    // Exposed (not aria-hidden) so the busy state is actually announced — aria-hidden would
+    // remove the node from the accessibility tree and make aria-busy pointless. Matches the
+    // rail.tsx skeleton pattern: the busy wrapper is exposed, only its decorative inner
+    // pulses (none here) would be aria-hidden.
+    return <div aria-busy="true" className="h-7 w-28 motion-safe:animate-pulse bg-bone" />;
+  }
+  if (p.error) {
+    return (
+      <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+        Couldn&apos;t load friend status
+      </p>
+    );
+  }
+  if (!p.status) return null;
+
+  const message = friendErrorMessage(p.errorCode);
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {renderControl(p)}
+      {message && (
+        <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-red-deep">
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Container. Renders nothing for a signed-out, unlinked or pending viewer (useFriendStatus
+ * only fetches when verified), and nothing on the viewer's own profile — compared
+ * case-insensitively against the viewer's own verified gamertag, the only place that
+ * identity is available. Whether the TARGET has a verified link is gated at the mount
+ * site (player-hero.tsx already carries that flag on the page DTO); this component has no
+ * way to distinguish "unverified target" from "ordinary stranger" itself, since the backend
+ * deliberately collapses both into status "none".
+ */
+export function FriendButton({ gamertag }: { gamertag: string }) {
+  const account = useAccountStatus();
+  const isSelf = account.kind === "verified" &&
+    account.link.gamertag.toLowerCase() === gamertag.toLowerCase();
+  const { data, loading, error } = useFriendStatus(isSelf ? null : gamertag);
+  const a = useFriendActions();
+  const [confirming, setConfirming] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+
+  if (isSelf) return null;
+
+  // Announce only once the mutation has actually settled successfully — never at click time,
+  // and never on failure (a.errorCode already surfaces the failure as a visible status line
+  // via FriendView, same friendErrorMessage mapper the Roster uses). Same discipline as
+  // Roster's settle(), so the two surfaces that perform these same four actions announce
+  // their outcomes identically.
+  const settle = (successMessage: string) => (ok: boolean) => {
+    if (ok) setAnnouncement(successMessage);
+  };
+
+  return (
+    <>
+      <SrStatus>{announcement}</SrStatus>
+      <FriendView
+        status={data?.status}
+        cooldownUntil={data?.cooldownUntil ?? null}
+        loading={loading}
+        error={error}
+        pending={a.pending}
+        confirming={confirming}
+        errorCode={a.errorCode}
+        onConfirmToggle={() => setConfirming((c) => !c)}
+        onAdd={() => a.sendRequest(gamertag, settle("Friend request sent"))}
+        onAccept={() => data?.friendshipId && a.acceptRequest(data.friendshipId, settle("Friend request accepted"))}
+        onDecline={() => data?.friendshipId && a.declineRequest(data.friendshipId, settle("Friend request declined"))}
+        onRemove={() => {
+          if (data?.friendshipId) {
+            const message = data.status === "outgoing" ? "Friend request canceled" : "Removed";
+            a.removeFriend(data.friendshipId, settle(message));
+          }
+          setConfirming(false);
+        }}
+      />
+    </>
+  );
+}

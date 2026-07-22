@@ -1,7 +1,15 @@
 import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, test } from "vitest";
 import { PlayerProfile } from "./player-profile";
 import type { PlayerPage, ServerStanding, PastLife } from "@/lib/types";
+
+// PlayerProfile renders PlayerHero, which mounts FriendButton (a TanStack Query
+// consumer) — same wrapper as player-hero.test.tsx / standing-card.test.tsx.
+function renderProfile(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 const standing = (serverId: number, state: ServerStanding["state"] = "alive"): ServerStanding => ({
   serverId,
@@ -55,7 +63,7 @@ const NOW = new Date("2026-07-20T12:00:00Z");
 
 describe("PlayerProfile", () => {
   test("Current standing is a list — one listitem per card, grid classes + list-none preserved", () => {
-    render(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
+    renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
     const heading = screen.getByRole("heading", { name: "Current standing" });
     const section = heading.closest("section")!;
     const list = within(section).getByRole("list");
@@ -73,7 +81,7 @@ describe("PlayerProfile", () => {
   });
 
   test("Past lives is a separate list — one listitem per funeral card, grid classes + list-none preserved", () => {
-    render(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
+    renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
     const heading = screen.getByRole("heading", { name: /Past lives/ });
     const section = heading.closest("section")!;
     const list = within(section).getByRole("list");
@@ -89,12 +97,12 @@ describe("PlayerProfile", () => {
   });
 
   test("Current standing section is omitted when everyone is idle — no stray list", () => {
-    render(<PlayerProfile page={page({ standing: [standing(1, "idle")] })} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
+    renderProfile(<PlayerProfile page={page({ standing: [standing(1, "idle")] })} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
     expect(screen.queryByRole("heading", { name: "Current standing" })).not.toBeInTheDocument();
   });
 
   test("In The Paper mounts between current standing and past lives, and its pagination preserves the past-lives page", () => {
-    render(
+    renderProfile(
       <PlayerProfile
         page={page()}
         now={NOW}
@@ -131,7 +139,11 @@ describe("PlayerProfile", () => {
   });
 
   test("a failed articles fetch renders the status line, not an empty section", () => {
-    render(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed articlesPage={1} />);
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed articlesPage={1} />);
+    // FriendButton's own (usually-empty) SrStatus announcer is an always-present sibling
+    // (same idiom as VerificationAnnouncer), so more than one role="status" node can
+    // legitimately coexist — the assertion is about the one with actual text.
+    const nonEmpty = screen.getAllByRole("status").filter((el) => el.textContent !== "");
+    expect(nonEmpty.length).toBeGreaterThan(0);
   });
 });

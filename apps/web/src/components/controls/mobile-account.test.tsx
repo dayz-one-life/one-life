@@ -9,6 +9,10 @@ import { signOutAndTeardownPush } from "@/lib/push";
 vi.mock("./use-controls", () => ({ useControls: vi.fn(), useControlsActions: vi.fn() }));
 vi.mock("@/lib/push", () => ({ signOutAndTeardownPush: vi.fn(async () => {}) }));
 vi.mock("@/lib/auth-client", () => ({ signOut: vi.fn(async () => {}) }));
+// FriendsPanelContainer reads useFriends directly (unlike the other sheet panels, which are
+// props-only and driven by useControls) — stub it so this file's plain useControls mock
+// doesn't have to also satisfy useFriends' own useSession/useGamertagLinks chain.
+vi.mock("@/lib/use-friends", () => ({ useFriends: () => ({ data: null, loading: false, error: false }) }));
 
 const mut = () => ({ mutate: vi.fn(), isPending: false, isError: false, isSuccess: false, error: null });
 const base = {
