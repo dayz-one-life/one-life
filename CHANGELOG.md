@@ -16,10 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.41.3] - 2026-07-22
+
+### Fixed
+
 - The map can be zoomed all the way out again. The previous release stopped it a level short on
   most window sizes — the control was there and simply did nothing when clicked.
-
-### Security
 
 ## [0.41.2] - 2026-07-22
 
