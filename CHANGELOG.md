@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.37.1] - 2026-07-22
+
+### Changed
+
+- The friends map now fills the page instead of sitting in a small panel, and every dot
+  carries its gamertag on the map itself rather than hiding it behind a click.
+
 ## [0.37.0] - 2026-07-22
 
 ### Added

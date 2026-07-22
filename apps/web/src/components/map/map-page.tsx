@@ -33,8 +33,8 @@ export function MapPageView(p: MapPageViewProps) {
   }
   if (p.loading) {
     return (
-      <div aria-busy="true">
-        <div aria-hidden className="h-[420px] w-full motion-safe:animate-pulse bg-bone" />
+      <div aria-busy="true" className="h-full">
+        <div aria-hidden className="h-full min-h-[420px] w-full motion-safe:animate-pulse bg-bone" />
       </div>
     );
   }

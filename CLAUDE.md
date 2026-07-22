@@ -1102,7 +1102,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      extracted from `TrackMap`. Nearly every comment in it documents a fixed bug (the two-effect
      split, the first-draw fit latch, the created-then-added LayerGroup, the SSR-avoiding dynamic
      import, the `isolate` stacking context). Consumers supply a `draw` function and nothing else;
-     do not grow a second copy.
+     do not grow a second copy. Its optional **`className` is SIZING ONLY** (default
+     `h-[420px] w-full`, the life-trail panel): `/maps/[map]` is a fixed-height flex column and
+     passes `h-full w-full` so the canvas fills it — Leaflet measures the element on creation, so
+     a parent chain with no definite height collapses the map to zero. The `isolate`/border/
+     background classes are NOT overridable, because `isolate` is the stacking-context rail above.
+  8. **Friend dots carry a PERMANENT gamertag label** (a Leaflet tooltip, styled by
+     `.leaflet-tooltip.friend-label` in `globals.css` — specificity-scoped because Leaflet's own
+     stylesheet is imported inside `map-canvas.tsx`'s chunk, so source order is not reliable). The
+     fix age stays in the popup and the accessible legend; the label is identity only, or a
+     crowded map becomes a wall of text. The map is **dots, never a polyline** (invariant 3
+     above), pinned by a test in `friends-map-draw.test.tsx`.
   **Deploy:** migration `0022` touches no projection table — plain `./deploy/deploy.sh`,
   **no `--rebuild`**. No new env vars, worker or systemd unit. Unlike F3 there is **no operator
   gate** (no worker is involved), so the endpoint is live on deploy — but **inert**: every master
