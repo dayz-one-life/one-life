@@ -57,9 +57,9 @@ export async function resolveGamertagBySlug(db: Database, input: string): Promis
   return (await resolveSlugMatch(db, input))?.gamertag ?? null;
 }
 
-async function killCount(db: Database, serverId: number, gamertag: string): Promise<number> {
+async function killCount(db: Database, serverId: number, playerId: number): Promise<number> {
   const r = await db.select({ c: sql<number>`count(*)::int` }).from(kills)
-    .where(and(eq(kills.serverId, serverId), eq(kills.killerGamertag, gamertag)));
+    .where(and(eq(kills.serverId, serverId), eq(kills.killerPlayerId, playerId)));
   return r[0]?.c ?? 0;
 }
 async function longestLifeSeconds(db: Database, serverId: number, gamertag: string): Promise<number> {
@@ -72,13 +72,15 @@ export async function getPlayerAcrossServers(db: Database, gamertag: string, now
   const real = await resolveGamertagBySlug(db, gamertag);
   if (!real) return null;
   gamertag = real;
+  const p = (await db.select({ id: players.id }).from(players).where(eq(players.gamertag, gamertag)))[0];
+  if (!p) return null;
   const active = await db.select().from(servers).where(eq(servers.active, true));
   const perMap: PlayerMapStats[] = [];
   for (const s of active) {
     if (!s.slug) continue;
     const profile = await getPlayerProfile(db, s.id, gamertag, now);
     if (!profile) continue;
-    const kc = await killCount(db, s.id, gamertag);
+    const kc = await killCount(db, s.id, p.id);
     const ll = await longestLifeSeconds(db, s.id, gamertag);
     perMap.push({ map: s.map, slug: s.slug, profile, kills: kc, longestLifeSeconds: ll });
   }

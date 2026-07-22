@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { players, playerGamertags } from "@onelife/db";
-import { inArray, eq } from "drizzle-orm";
+import { players, playerGamertags, kills, servers } from "@onelife/db";
+import { inArray, eq, and } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { resolveSlugMatch } from "../src/player-aggregate.js";
 
@@ -98,5 +98,53 @@ describe("resolveSlugMatch", () => {
     } finally {
       await db.delete(players).where(inArray(players.id, [stale!.id, fresh!.id]));
     }
+  });
+});
+
+describe("stats follow the identity across a rename", () => {
+  it("counts a kill recorded under a FORMER gamertag", async () => {
+    const [p] = await db.select().from(players).where(eq(players.gamertag, tag));
+    const [srv] = await db.insert(servers)
+      .values({ nitradoServiceId: 990000 + (p!.id % 1000), name: "ident", map: "sakhal", slug: `ident-${p!.id}` })
+      .returning();
+    await db.insert(kills).values({
+      serverId: srv!.id,
+      killerGamertag: `${tag}Former`,      // the name at the time
+      killerPlayerId: p!.id,               // the identity, resolved by the fold
+      victimGamertag: "SomeoneElse",
+      occurredAt: new Date("2026-06-01T12:00:00Z"),
+    });
+
+    const rows = await db.select().from(kills)
+      .where(and(eq(kills.serverId, srv!.id), eq(kills.killerPlayerId, p!.id)));
+    expect(rows).toHaveLength(1);
+
+    // The name-keyed predicate this task removes would have missed it.
+    const byName = await db.select().from(kills)
+      .where(and(eq(kills.serverId, srv!.id), eq(kills.killerGamertag, p!.gamertag)));
+    expect(byName).toHaveLength(0);
+
+    await db.delete(kills).where(eq(kills.serverId, srv!.id));
+    await db.delete(servers).where(eq(servers.id, srv!.id));
+  });
+
+  it("does NOT count a kill whose killer_player_id is null", async () => {
+    // killer_player_id is nullable — the fold leaves it null when the killer had no players
+    // row at the time. eq() never matches NULL, which is the behaviour we want; a predicate
+    // that treated NULL as a wildcard would credit one player with everyone's orphan kills.
+    const [p] = await db.select().from(players).where(eq(players.gamertag, tag));
+    const [srv] = await db.insert(servers)
+      .values({ nitradoServiceId: 991000 + (p!.id % 1000), name: "ident2", map: "sakhal", slug: `ident2-${p!.id}` })
+      .returning();
+    await db.insert(kills).values({
+      serverId: srv!.id, killerGamertag: "GhostKiller", killerPlayerId: null,
+      victimGamertag: "SomeoneElse", occurredAt: new Date("2026-06-02T12:00:00Z"),
+    });
+    const rows = await db.select().from(kills)
+      .where(and(eq(kills.serverId, srv!.id), eq(kills.killerPlayerId, p!.id)));
+    expect(rows).toHaveLength(0);
+
+    await db.delete(kills).where(eq(kills.serverId, srv!.id));
+    await db.delete(servers).where(eq(servers.id, srv!.id));
   });
 });

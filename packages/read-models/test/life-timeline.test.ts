@@ -29,10 +29,10 @@ beforeAll(async () => {
     { serverId, playerId: pid, lifeId: deadLifeId, connectedAt: mins(200), disconnectedAt: mins(360), durationSeconds: 9600, closeReason: "death" },
   ]);
   await db.insert(kills).values({
-    serverId, killerGamertag: `LtHero-${svc}`, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(120),
+    serverId, killerGamertag: `LtHero-${svc}`, killerPlayerId: pid, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(120),
   });
   await db.insert(hitEvents).values({
-    serverId, victimGamertag: `LtHero-${svc}`, attackerType: "player", attackerGamertag: "SomeKiller",
+    serverId, victimGamertag: `LtHero-${svc}`, victimPlayerId: pid, attackerType: "player", attackerGamertag: "SomeKiller",
     victimHp: 30, occurredAt: new Date(mins(360).getTime() - 20_000),
   });
 

@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { kills } from "@onelife/db";
+import { kills, players } from "@onelife/db";
 import { and, eq, gte, lte, desc } from "drizzle-orm";
 
 export interface PlayerKill {
@@ -17,6 +17,10 @@ export async function getLifeKills(
   startedAt: Date,
   endedAt: Date | null,
 ): Promise<PlayerKill[]> {
+  // Match on the player FK (the identity), not the name: a kill scored under a former gamertag
+  // still counts. Resolve the id once from the caller's gamertag; a miss means no kills.
+  const p = (await db.select({ id: players.id }).from(players).where(eq(players.gamertag, killerGamertag)))[0];
+  if (!p) return [];
   const rows = await db
     .select({
       victimGamertag: kills.victimGamertag,
@@ -28,7 +32,7 @@ export async function getLifeKills(
     .where(
       and(
         eq(kills.serverId, serverId),
-        eq(kills.killerGamertag, killerGamertag),
+        eq(kills.killerPlayerId, p.id),
         gte(kills.occurredAt, startedAt),
         endedAt ? lte(kills.occurredAt, endedAt) : undefined,
       ),

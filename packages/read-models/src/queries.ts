@@ -20,10 +20,10 @@ export async function getRoster(db: Database, serverId: number, now: Date): Prom
   }).sort((a, b) => b.sessionSeconds - a.sessionSeconds);
 }
 
-/** All kill timestamps scored by this gamertag on this server (killer side of qualification). */
-async function killTimes(db: Database, serverId: number, gamertag: string): Promise<{ occurredAt: Date }[]> {
+/** All kill timestamps scored by this player on this server (killer side of qualification). */
+async function killTimes(db: Database, serverId: number, playerId: number): Promise<{ occurredAt: Date }[]> {
   return db.select({ occurredAt: kills.occurredAt }).from(kills)
-    .where(and(eq(kills.serverId, serverId), eq(kills.killerGamertag, gamertag)));
+    .where(and(eq(kills.serverId, serverId), eq(kills.killerPlayerId, playerId)));
 }
 
 export type Profile = {
@@ -41,7 +41,7 @@ export async function getPlayerProfile(db: Database, serverId: number, gamertag:
   if (lifeRows.length === 0) return null;
   const openSession = (await db.select().from(sessions)
     .where(and(eq(sessions.serverId, serverId), eq(sessions.playerId, p.id), isNull(sessions.disconnectedAt))))[0] ?? null;
-  const pk = await killTimes(db, serverId, gamertag);
+  const pk = await killTimes(db, serverId, p.id);
   const upTo = p.lastSeenAt ?? (openSession ? openSession.connectedAt : now);
 
   const qualified = lifeRows.filter((l) => isLifeQualified({
@@ -71,7 +71,7 @@ export async function getPlayerLives(db: Database, serverId: number, gamertag: s
   const rows = await db.select().from(lives).where(and(eq(lives.serverId, serverId), eq(lives.playerId, p.id))).orderBy(desc(lives.lifeNumber));
   const openSession = (await db.select().from(sessions)
     .where(and(eq(sessions.serverId, serverId), eq(sessions.playerId, p.id), isNull(sessions.disconnectedAt))))[0] ?? null;
-  const pk = await killTimes(db, serverId, gamertag);
+  const pk = await killTimes(db, serverId, p.id);
   const upTo = p.lastSeenAt ?? (openSession ? openSession.connectedAt : new Date());
   return rows.filter((l) => isLifeQualified({
     deathCause: l.deathCause,

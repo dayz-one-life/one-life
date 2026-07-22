@@ -83,8 +83,10 @@ export async function getPlayerPage(
     // totals
     totals.lives += livesRows.length;
     totals.deaths += livesRows.filter((l) => l.endedAt !== null).length;
-    const kcRow = await db.select({ c: sql<number>`count(*)::int` }).from(kills).where(and(eq(kills.serverId, s.id), eq(kills.killerGamertag, gamertag)));
-    totals.kills += kcRow[0]?.c ?? 0;
+    if (p) {
+      const kcRow = await db.select({ c: sql<number>`count(*)::int` }).from(kills).where(and(eq(kills.serverId, s.id), eq(kills.killerPlayerId, p.id)));
+      totals.kills += kcRow[0]?.c ?? 0;
+    }
     for (const l of livesRows) {
       const secs = l.endedAt ? l.playtimeSeconds : (profile?.currentLifeSeconds ?? 0);
       if (secs > totals.longestLifeSeconds) totals.longestLifeSeconds = secs;

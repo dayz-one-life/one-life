@@ -97,17 +97,16 @@ export async function getLifeTrack(
   const { points: thinned, truncated } = thinTrackWithMeta(raw);
   const segments = segmentBySession(thinned, windows);
 
-  // `kills` has no `player_id` column (only `killer_gamertag`/`victim_gamertag`), so this
-  // predicate cannot be rewritten to use `kills_killer_idx` (server_id, killer_gamertag)
-  // end-to-end without a schema change — out of scope here (no migrations in this task).
-  // Left as `lower()` deliberately; a kills table gets nowhere near the volume of
-  // `positions`, so this is a known, accepted gap rather than an oversight.
+  // Match on the player FK (the identity), keyed on the already-resolved numeric `row.playerId`
+  // — a kill scored under a former gamertag still counts, and this uses `kills_killer_player_idx`
+  // (server_id, killer_player_id) end-to-end. `killer_player_id` is nullable (the fold leaves it
+  // null when the killer had no players row); `eq` never matches null, which is exactly right.
   const killRows = await db
     .select({ victimGamertag: kills.victimGamertag, occurredAt: kills.occurredAt })
     .from(kills)
     .where(and(
       eq(kills.serverId, serverId),
-      sql`lower(${kills.killerGamertag}) = lower(${gamertag})`,
+      eq(kills.killerPlayerId, row.playerId),
       gte(kills.occurredAt, row.startedAt),
       lte(kills.occurredAt, windowEnd),
     ))
