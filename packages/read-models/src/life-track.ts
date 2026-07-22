@@ -76,10 +76,12 @@ export async function getLifeTrack(
   // A `lower(gamertag) = lower($1)` predicate defeats that index past its `server_id`
   // prefix and forces Postgres to scan and filter every position ever recorded on the
   // server — on the highest-volume, never-truncated table in the system, on a 60s poll.
-  // Correctness is not at stake either way: since migration 0024 `players_gamertag_uniq` is
-  // on lower(gamertag), so one gamertag is one player row and folding case here could not
-  // merge two players' fixes. Keying on the resolved numeric player id is purely the index
-  // decision above — and it stays correct regardless of how that index is defined.
+  // Correctness is not at stake either way: this query keys on the already-resolved numeric
+  // `row.playerId`, not on the gamertag, so it cannot merge two players' fixes regardless of
+  // how many rows currently share a name — migration 0025 dropped `players_gamertag_uniq`
+  // (gamertag is a current label now, not an identity), so more than one row legitimately can.
+  // Keying on the resolved player id is purely the index decision above, and stays correct
+  // regardless of how the gamertag uniqueness story changes.
   const posRows = await db
     .select({ x: positions.x, y: positions.y, recordedAt: positions.recordedAt })
     .from(positions)

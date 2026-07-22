@@ -95,6 +95,37 @@ describe("the fold resolves identity by account hash", () => {
     expect(s.lives.filter((l) => l.playerId === b.id).length).toBe(1);
   });
 
+  it("a recycled name's later label-resolved event attributes to the NEW holder, not the departed one", async () => {
+    // The split-brain scenario: account A holds "Rec" and never returns. Account B is minted
+    // under a different hash but the same recycled name — onConnected correctly resolves this
+    // by hash, giving B its own row and its own open session while A's row and A's still-open
+    // session are untouched. From then on every LABEL-resolved event for "Rec" (disconnect,
+    // death, kill, hit, build, position — none of which carry a hash) must resolve to B, the
+    // current holder, never back to A. Resolving to the oldest holder instead — the bug this
+    // test is red against — would touch/close A's session on B's disconnect and leave B's
+    // session open forever, while B's life is never ended.
+    const s = new MemoryStore();
+    await applyEvent(s, ev({ id: 1, occurredAt: new Date("2026-07-01T00:00:00Z"), payload: { gamertag: "Rec", dayzId: "A=" } }));
+    await applyEvent(s, ev({ id: 2, occurredAt: new Date("2026-07-08T00:00:00Z"), payload: { gamertag: "Rec", dayzId: "B=" } }));
+
+    const a = (await s.getPlayerByDayzId("A="))!;
+    const b = (await s.getPlayerByDayzId("B="))!;
+    expect(a.id).not.toBe(b.id);
+
+    // The current label resolves to the NEW holder before the disconnect even fires.
+    expect((await s.getPlayer("Rec"))!.id).toBe(b.id);
+
+    await applyEvent(s, {
+      id: 3, serverId: 1, type: "player.disconnected",
+      occurredAt: new Date("2026-07-08T00:10:00Z"), payload: { gamertag: "Rec" },
+    });
+
+    const aSession = s.sessions.find((x) => x.playerId === a.id)!;
+    const bSession = s.sessions.find((x) => x.playerId === b.id)!;
+    expect(bSession.disconnectedAt).not.toBeNull();   // B's session is the one actually closed
+    expect(aSession.disconnectedAt).toBeNull();       // A's untouched session must NOT be closed
+  });
+
   it("a hash-less event still resolves by gamertag and creates nothing new", async () => {
     // Hit/build events carry no account hash; the gamertag fallback is why they still work.
     const s = new MemoryStore();

@@ -38,14 +38,17 @@ describe("PgProjectionStore", () => {
 
   // Superseded by identity-by-hash: createPlayer no longer upserts on the gamertag, so a
   // second call under the same name is a second identity. getPlayer is a LABEL lookup and
-  // resolves to the earliest holder; identity resolution is getPlayerByDayzId.
-  it("createPlayer is unconditional; getPlayer resolves the label to one row", async () => {
+  // resolves to the MOST RECENTLY SEEN holder (id ascending as a stable tie-break); identity
+  // resolution is getPlayerByDayzId. Resolving to the oldest holder instead is the split-brain
+  // bug: every subsequent label-resolved event for a recycled name (disconnect, death, kill,
+  // hit, build, position) would attribute forever to the departed account.
+  it("createPlayer is unconditional; getPlayer resolves the label to the most-recently-seen row", async () => {
     await expect(db.transaction(async (tx) => {
       const store = new PgProjectionStore(tx as any);
       const a = await store.createPlayer("Zed", "ZEDA=", new Date("2026-07-01"));
       const b = await store.createPlayer("Zed", "ZEDB=", new Date("2026-07-02"));
       expect(b.id).not.toBe(a.id);
-      expect((await store.getPlayer("Zed"))?.id).toBe(a.id);
+      expect((await store.getPlayer("Zed"))?.id).toBe(b.id);
       tx.rollback();
     })).rejects.toThrow(/rollback/i);
   });

@@ -29,9 +29,6 @@ async function onConnected(store: ProjectionStore, e: ProjectionEvent): Promise<
   const gamertag = String(e.payload.gamertag);
   const dayzId = e.payload.dayzId != null ? String(e.payload.dayzId) : null;
   // Identity is the account hash, not the name. A rename must resolve to the existing row;
-  // a RECYCLED gamertag must resolve to a different person. The gamertag fallback remains
-  // because hit/build events carry no hash (and never create players).
-  // Identity is the account hash, not the name. A rename must resolve to the existing row;
   // a RECYCLED gamertag must resolve to a different person.
   //
   // ⚠️ When the event CARRIES a hash the name is never consulted, not even as a fallback. A

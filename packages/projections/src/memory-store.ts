@@ -29,8 +29,19 @@ export class MemoryStore implements ProjectionStore {
   private seq = 1;
 
   async getPlayer(gamertag: string): Promise<PlayerRow | null> {
+    // Mirrors PgProjectionStore.getPlayer: most-recently-seen row wins, `id` ascending as a
+    // stable tie-break — never the oldest/first match, which would permanently attribute a
+    // recycled name's disconnects/deaths/kills/hits/builds/positions to the departed holder.
     const want = gamertag.toLowerCase();
-    return this.players.find((p) => p.gamertag.toLowerCase() === want) ?? null;
+    const matches = this.players.filter((p) => p.gamertag.toLowerCase() === want);
+    if (matches.length === 0) return null;
+    return matches.reduce((best, p) => {
+      const bestSeen = best.lastSeenAt?.getTime() ?? -Infinity;
+      const pSeen = p.lastSeenAt?.getTime() ?? -Infinity;
+      if (pSeen > bestSeen) return p;
+      if (pSeen === bestSeen && p.id < best.id) return p;
+      return best;
+    });
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {
     return this.players.find((p) => p.id === playerId) ?? null;

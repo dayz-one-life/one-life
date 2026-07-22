@@ -42,12 +42,12 @@ export async function getFriendPositions(
   //
   // The join folds case because `gamertag_links` and `players` are independently-cased text
   // columns for one identity; that is safe precisely because it is scoped by a verified link,
-  // never used as a bare directory lookup. Since migration 0024 `players_gamertag_uniq` is on
-  // lower(gamertag), so "Sasha" and "sasha" can no longer BE two rows and this join matches at
-  // most one — but the ordering below (most-recently-seen wins, deterministically) and the
-  // `limit(1)` are retained as defence in depth, exactly as the two per-friend guards further
-  // down are: a restore from a pre-0024 dump or a hand-run backfill reintroduces the input, and
-  // the failure mode is two dots for one identity rather than an error.
+  // never used as a bare directory lookup. Migration 0024 put `players_gamertag_uniq` on
+  // lower(gamertag), so "Sasha" and "sasha" could no longer be two rows for the SAME identity —
+  // but migration 0025 dropped that index entirely (gamertag is a current label now; identity is
+  // dayz_id), so two DIFFERENT identities can once again hold the same name. The ordering below
+  // (most-recently-seen wins, deterministically) and the `limit(1)` are load-bearing, not merely
+  // defensive, and match the two per-friend guards further down.
   const [viewer] = await db
     .select({
       gamertag: gamertagLinks.gamertag,

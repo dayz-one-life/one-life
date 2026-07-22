@@ -14,10 +14,20 @@ export class PgProjectionStore implements ProjectionStore {
     // Case-insensitive: Xbox reserves gamertags case-insensitively, so a re-cased name is
     // the same human and a bare eq() would miss it and mint a second identity. This is a
     // label lookup, not an identity lookup — identity is getPlayerByDayzId — and since
-    // migration 0025 lower(gamertag) is no longer unique, so limit to the first match.
+    // migration 0025 lower(gamertag) is no longer unique, so more than one row can match.
+    //
+    // When a gamertag is RECYCLED onto a second identity, the departed holder's row still
+    // carries the name until their (never-coming) next connect. Resolving to the OLDEST row
+    // would permanently attribute every subsequent label-resolved event for that name — every
+    // disconnect, death, kill, hit, build and position — to the account that gave the name up,
+    // not the one that now holds it: split-brain. Resolve to the MOST RECENTLY SEEN row
+    // instead, with `id` as a stable tie-break — the same rule
+    // `packages/read-models/src/friend-positions.ts` already applies, so there is one rule
+    // rather than two.
     const r = await this.tx.select().from(players)
       .where(sql`lower(${players.gamertag}) = lower(${gamertag})`)
-      .orderBy(players.id).limit(1);
+      .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`)
+      .limit(1);
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {
@@ -72,7 +82,11 @@ export class PgProjectionStore implements ProjectionStore {
     await this.tx.update(players).set({ lastSeenAt }).where(eq(players.id, playerId));
   }
   async getPlayerByDayzId(dayzId: string): Promise<PlayerRow | null> {
-    const r = await this.tx.select().from(players).where(eq(players.dayzId, dayzId)).limit(1);
+    // dayz_id is deliberately non-unique until migration 0026 (duplicates provably exist
+    // between the migrate and rebuild phases of a deploy). Not reachable by the fold in that
+    // window, but `.orderBy` makes the pick deterministic and matches its `getPlayer` sibling.
+    const r = await this.tx.select().from(players).where(eq(players.dayzId, dayzId))
+      .orderBy(players.id).limit(1);
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async recordGamertag(playerId: number, gamertag: string, seenAt: Date): Promise<void> {
