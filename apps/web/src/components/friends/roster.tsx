@@ -2,13 +2,15 @@
 import { useState } from "react";
 import { GamertagLink } from "@/components/gamertag-link";
 import { SrStatus } from "@/components/shared/sr-status";
+import { friendErrorMessage } from "@/components/player/friend-button";
 import { useFriendActions, useFriends } from "@/lib/use-friends";
 import type { FriendEntryDto, FriendsFeed } from "@/lib/types";
 
 const BTN = "font-mono text-[11px] uppercase tracking-[.05em] border border-ink px-2.5 py-1 " +
   "hover:bg-ink hover:text-paper disabled:opacity-50";
+const BTN_DANGER = `${BTN} text-red-deep border-red-deep`;
 
-type RowAction = { label: string; onClick: () => void };
+type RowAction = { label: string; onClick: () => void; danger?: boolean; disabled?: boolean };
 
 function Row({ entry, actions }: { entry: FriendEntryDto; actions: RowAction[] }) {
   return (
@@ -16,7 +18,15 @@ function Row({ entry, actions }: { entry: FriendEntryDto; actions: RowAction[] }
       <GamertagLink gamertag={entry.gamertag} />
       <div className="flex gap-2">
         {actions.map((a) => (
-          <button key={a.label} type="button" onClick={a.onClick} className={BTN}>{a.label}</button>
+          <button
+            key={a.label}
+            type="button"
+            onClick={a.onClick}
+            disabled={a.disabled}
+            className={a.danger ? BTN_DANGER : BTN}
+          >
+            {a.label}
+          </button>
         ))}
       </div>
     </li>
@@ -31,7 +41,7 @@ function Section({ title, id, entries, action }: {
   return (
     <section className="mt-8 first:mt-0">
       <h2 id={id} className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-muted">{title}</h2>
-      <ul aria-labelledby={id} className="mt-2">
+      <ul role="list" aria-labelledby={id} className="mt-2">
         {entries.map((e) => <Row key={e.id} entry={e} actions={action(e)} />)}
       </ul>
     </section>
@@ -43,6 +53,17 @@ export type RosterViewProps = {
   loading?: boolean;
   error?: boolean;
   announcement?: string;
+  /** Human sentence for the most recently FAILED action, already mapped through
+   *  friendErrorMessage — the same mapper and the same visible role="status" presentation
+   *  FriendView uses, so the two surfaces describe an identical failure identically. */
+  errorMessage?: string | null;
+  /** Whether any friend-action mutation is currently in flight — disables every row control
+   *  so a user can't double-fire accept/decline/remove before the first call resolves. */
+  pending?: boolean;
+  /** Which friendship id is mid remove-friend confirm, if any — see the Friends section
+   *  below. Cancel request (outgoing) is deliberately NOT gated this way. */
+  confirmingId?: number | null;
+  onConfirmToggle?: (id: number | null) => void;
   onAccept: (id: number) => void;
   onDecline: (id: number) => void;
   onRemove: (id: number) => void;
@@ -57,23 +78,37 @@ export function RosterView(p: RosterViewProps) {
   if (!d) return null;
 
   const empty = d.friends.length === 0 && d.incoming.length === 0 && d.outgoing.length === 0;
+  const toggleConfirm = p.onConfirmToggle ?? (() => {});
+
   return (
     <div>
       {p.announcement ? <SrStatus>{p.announcement}</SrStatus> : null}
+      {p.errorMessage ? (
+        <p role="status" className="mb-3 font-mono text-[11px] uppercase tracking-[.05em] text-red-deep">
+          {p.errorMessage}
+        </p>
+      ) : null}
       <Section
         title="Requests" id="roster-incoming" entries={d.incoming}
         action={(e) => [
-          { label: "Accept", onClick: () => p.onAccept(e.id) },
-          { label: "Decline", onClick: () => p.onDecline(e.id) },
+          { label: "Accept", onClick: () => p.onAccept(e.id), disabled: p.pending },
+          { label: "Decline", onClick: () => p.onDecline(e.id), disabled: p.pending },
         ]}
       />
       <Section
         title="Friends" id="roster-friends" entries={d.friends}
-        action={(e) => [{ label: "Remove", onClick: () => p.onRemove(e.id) }]}
+        action={(e) =>
+          p.confirmingId === e.id
+            ? [
+                { label: "Remove friend", onClick: () => p.onRemove(e.id), danger: true, disabled: p.pending },
+                { label: "Cancel", onClick: () => toggleConfirm(null) },
+              ]
+            : [{ label: "Remove", onClick: () => toggleConfirm(e.id), disabled: p.pending }]
+        }
       />
       <Section
         title="Sent" id="roster-outgoing" entries={d.outgoing}
-        action={(e) => [{ label: "Cancel", onClick: () => p.onRemove(e.id) }]}
+        action={(e) => [{ label: "Cancel", onClick: () => p.onRemove(e.id), disabled: p.pending }]}
       />
       {empty ? <p className="font-mono text-[11px] uppercase text-ink-muted">No friends yet.</p> : null}
     </div>
@@ -84,6 +119,22 @@ export function Roster() {
   const { data, loading, error } = useFriends();
   const a = useFriendActions();
   const [announcement, setAnnouncement] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+
+  // Announce only once the mutation has actually settled — never at click time. A failed
+  // action never announces success; it surfaces the mapped error text instead (same
+  // friendErrorMessage mapper and same visible role="status" presentation as FriendView), so
+  // a screen-reader user is never told something happened when it didn't.
+  const settle = (successMessage: string) => (ok: boolean, code: string | null) => {
+    if (ok) {
+      setAnnouncement(successMessage);
+      setErrorMessage(null);
+    } else {
+      setAnnouncement("");
+      setErrorMessage(friendErrorMessage(code) ?? "Something went wrong — try again.");
+    }
+  };
 
   return (
     <RosterView
@@ -91,9 +142,16 @@ export function Roster() {
       loading={loading}
       error={error}
       announcement={announcement}
-      onAccept={(id) => { a.acceptRequest(id); setAnnouncement("Friend request accepted"); }}
-      onDecline={(id) => { a.declineRequest(id); setAnnouncement("Friend request declined"); }}
-      onRemove={(id) => { a.removeFriend(id); setAnnouncement("Removed"); }}
+      errorMessage={errorMessage}
+      pending={a.pending}
+      confirmingId={confirmingId}
+      onConfirmToggle={setConfirmingId}
+      onAccept={(id) => a.acceptRequest(id, settle("Friend request accepted"))}
+      onDecline={(id) => a.declineRequest(id, settle("Friend request declined"))}
+      onRemove={(id) => {
+        a.removeFriend(id, settle("Removed"));
+        setConfirmingId(null);
+      }}
     />
   );
 }

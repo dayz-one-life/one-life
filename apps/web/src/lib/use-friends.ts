@@ -78,11 +78,43 @@ export function useFriendActions() {
     : null;
   const failed = lastMutation?.isError ? lastMutation : undefined;
 
+  // Callers that need to know the OUTCOME of a specific invocation (not just the trailing
+  // errorCode above, which describes only the most recently invoked action and can be
+  // stomped by a second call before the first settles) pass onSettled. It fires once, from
+  // the mutation's own onSuccess/onError — never synchronously at call time — so a caller
+  // can never announce success before the mutation has actually resolved.
+  type Settled = (ok: boolean, errorCode: string | null) => void;
+  const codeOf = (err: unknown) => (err instanceof ApiError ? err.code : "http_error");
+
   return {
-    sendRequest: (gamertag: string) => { setLastAction("send"); send.mutate(gamertag); },
-    acceptRequest: (id: number) => { setLastAction("accept"); acc.mutate(id); },
-    declineRequest: (id: number) => { setLastAction("decline"); dec.mutate(id); },
-    removeFriend: (id: number) => { setLastAction("remove"); del.mutate(id); },
+    sendRequest: (gamertag: string, onSettled?: Settled) => {
+      setLastAction("send");
+      send.mutate(gamertag, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    acceptRequest: (id: number, onSettled?: Settled) => {
+      setLastAction("accept");
+      acc.mutate(id, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    declineRequest: (id: number, onSettled?: Settled) => {
+      setLastAction("decline");
+      dec.mutate(id, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    removeFriend: (id: number, onSettled?: Settled) => {
+      setLastAction("remove");
+      del.mutate(id, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
     pending: all.some((m) => m.isPending),
     errorCode: failed?.error instanceof ApiError ? failed.error.code : (failed ? "http_error" : null),
   };
