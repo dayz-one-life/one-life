@@ -27,15 +27,18 @@ export default async function MapsPage() {
   try {
     servers = await getServers();
   } catch {
-    // Falls through to the remembered slug below: it worked last time, and a guess we have
-    // evidence for beats an error page. Only a visitor with no cookie AND no server list
-    // reaches the rendered branch.
     servers = null;
   }
 
+  // ⚠️ A remembered slug is NEVER trusted without the live list to check it against — that is the
+  // whole invariant, and the API-outage path is not an exception to it. Redirecting on the raw
+  // cookie would send a returning visitor to `/maps/<stale>`, which during an outage renders a
+  // broken map card anyway (the map page fetches `/servers` too); the honest fallback below is no
+  // worse and does not pretend the slug is good. So we resolve ONLY when we have the list.
+  //
   // ⚠️ `redirect()` works by THROWING (NEXT_REDIRECT), so it must stay outside the try above —
   // inside it, the catch would swallow the redirect and every visitor would get the error page.
-  const slug = servers ? resolveMapSlug(servers, remembered) : remembered;
+  const slug = servers ? resolveMapSlug(servers, remembered) : null;
   if (slug) redirect(`/maps/${slug}`);
 
   // No slug to send anyone to. Guessing a path would 404, and an empty page would imply the

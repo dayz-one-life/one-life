@@ -8,7 +8,7 @@ import { useModalBehavior } from "@/lib/use-modal-behavior";
  *  and it never showed the friend count anyway — see the note in the menu below. */
 export type SwitchableMap = { slug: string; name: string };
 
-/** Current map plus a menu of the others, with each map's friend count.
+/** Current map plus a menu of the others.
  *
  *  ⚠️ This sits on the DARK top bar: paper/cream text and dark-edge borders, never the light
  *  rail's ink tokens. A panel written in `text-ink` renders present, functional and invisible —
@@ -54,7 +54,9 @@ export function MapSwitcher({ slug, servers, loading }: {
                   the online list became the ☰ button's count meant the same bar showed two
                   different counts about the same server, one of them unlabelled ("LIVONIA … 0"
                   beside "ONLINE 12"). This menu switches maps; the count belongs where it is
-                  named. The labelled "N sharing" on the /maps picker page is untouched. */}
+                  named. (The switcher now reads the public `SwitchableMap` shape, which carries
+                  no count at all — the count-bearing picker page it once coexisted with is
+                  gone.) */}
               {s.name}
             </Link>
           ))}

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { getFriendMap, getServers } from "@/lib/api";
+import { notFound } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendPositionDto, Server } from "@/lib/types";
 import { rememberMap } from "@/lib/last-map";
@@ -127,11 +128,6 @@ export function MapPage({ slug }: { slug: string }) {
   // The map centre, in world metres. Owned HERE rather than in FriendsMap because the chip
   // that reads it is chrome: on a phone it sits in the bottom bar, outside the map entirely.
   const [world, setWorld] = useState<{ x: number; y: number } | null>(null);
-  // What makes the nav's `/maps` link land where you left off. Written for EVERY visitor,
-  // signed in or not — a signed-out browser still has a map they were looking at. The slug is
-  // stored unvalidated (this route renders for any segment), which is safe because the read
-  // side re-checks it against the live server list; see resolveMapSlug in lib/last-map.ts.
-  useEffect(() => { rememberMap(slug); }, [slug]);
 
   // ⚠️ The PUBLIC server list, not the gated `/me/maps`. It carries `map` (the mission codename)
   // alongside `slug`, which is the whole reason the terrain can draw for a signed-out visitor —
@@ -142,14 +138,29 @@ export function MapPage({ slug }: { slug: string }) {
   const mapServers = servers.data
     ?.filter((s): s is Server & { slug: string } => Boolean(s.slug))
     .map((s) => ({ slug: s.slug, name: s.name }));
-  const mapCodename = servers.data?.find((s) => s.slug === slug)?.map;
+  const currentServer = servers.data?.find((s) => s.slug === slug);
+  const mapCodename = currentServer?.map;
+  // Only once the list has loaded can an unknown slug be told apart from a pending one.
+  const unknownSlug = Boolean(servers.data) && !currentServer;
+
+  // What makes the nav's `/maps` link land where you left off — but only for a REAL map, now
+  // that the route is public and any segment renders. Gated on `mapCodename` so a typo we are
+  // about to 404 is never written into the cookie the redirect reads back.
+  useEffect(() => { if (mapCodename) rememberMap(slug); }, [slug, mapCodename]);
 
   const q = useQuery({
     queryKey: ["friend-map", slug],
+    // A bad slug 404s below; no point asking the gated route about a map that does not exist.
+    enabled: verified && Boolean(currentServer),
     queryFn: () => getFriendMap(slug),
-    enabled: verified,
     refetchInterval: 30_000,
   });
+
+  // ⚠️ AFTER every hook. `notFound()` throws, and a conditional throw sitting ABOVE a hook would
+  // skip it on the render that 404s — a rules-of-hooks violation. A public, directly-linkable
+  // route means `/maps/<typo>` and stale links are reachable; they must 404, not render a
+  // "couldn't load" card claiming a failure that did not happen.
+  if (unknownSlug) notFound();
 
   // Built once, placed twice — see the note at the top-bar slot below.
   const controls = verified ? (
@@ -195,9 +206,10 @@ export function MapPage({ slug }: { slug: string }) {
           signedOut={account.kind === "signedOut"}
           unverified={account.kind === "unlinked" || account.kind === "pending"}
           // ⚠️ The map's own loading/error come from the PUBLIC server list only. The gated
-          // friend payload must never gate the terrain — that is the bug this replaced.
+          // friend payload must never gate the terrain — that is the bug this replaced. An
+          // unknown slug is not an error here; it has already `notFound()`d above.
           loading={servers.isPending}
-          error={(servers.isError && !servers.data) || (Boolean(servers.data) && !mapCodename)}
+          error={servers.isError && !servers.data}
           friendsError={q.isError && !q.data}
           mapCodename={mapCodename}
           positions={q.data?.positions}
