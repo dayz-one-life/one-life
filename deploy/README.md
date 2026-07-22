@@ -225,6 +225,90 @@ Adding/removing a server later is a pure data change (`active` flag) — no rede
 Without Discord, login falls back to **magic-link with a console mailer** — the login
 link is printed to `journalctl -u onelife-api`, not emailed. Configure SMTP later.
 
+## Owner-only life map tiles (DayZ terrain mirror)
+
+**This release needs no migration and no `--rebuild`** — the owner-only life map read
+models query existing `positions`/`kills`/`lives` rows only; there is no new or
+reshaped projection table. A plain `./deploy/deploy.sh` is the whole deploy.
+
+The per-life map (owner-only, `/players/[slug]/[map]/lives/[n]`) renders a player's
+trail over a self-hosted mirror of DayZ's own terrain tiles. This is **host
+configuration, not a release artifact** — it is a one-time prerequisite (redone only
+when a map's terrain changes upstream), never touched by `deploy/deploy.sh`. Tile
+mirroring is independent of the release train: it may be run before or after any given
+`deploy.sh`, in either order, and **skipping it degrades rather than blocks** — see
+"Things to know before relying on this" below for exactly how it degrades.
+
+**Prerequisite:** install [`dzmap-loader`](https://github.com/WoozyMasta/dzmap) on
+the host and put it on `PATH` first. `deploy/mirror-tiles.sh` checks for it and
+fails with a clear message rather than half-running if it's missing.
+
+Mirror all three maps (`chernarusplus`, `sakhal`, `enoch`/Livonia):
+
+```bash
+cd /var/www/dayzonelife.com
+./deploy/mirror-tiles.sh              # first-time mirror
+./deploy/mirror-tiles.sh              # re-mirror (after a DayZ terrain update) —
+                                       # a bare re-run already fully re-downloads
+                                       # and replaces the destination, so there is
+                                       # no force flag needed here
+```
+
+This populates `/var/www/tiles/<map>/topographic/<z>/<x>/<y>.webp` (override the
+root with `TILE_DIR`). The path matches DZMap's own layer name exactly — the
+mirrored tree is DZMap's own output, unmodified — and must match what the web app
+requests (`apps/web/src/components/life/track-map.tsx`); a divergence here 404s
+every tile.
+
+Add the nginx location block (alongside the existing `dayzonelife.com` vhost
+server block):
+
+```nginx
+# Owner-only life map tiles. Static, immutable, and regenerated only by
+# deploy/mirror-tiles.sh — never by a release.
+location /tiles/ {
+    alias /var/www/tiles/;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    access_log off;
+    try_files $uri =404;
+}
+```
+
+Then `sudo nginx -t && sudo systemctl reload nginx`.
+
+Things to know before relying on this:
+
+- **Tiles are NOT in git (hundreds of MB) and NOT in Postgres**, so they are
+  **not captured by the `pg_dump` backup** in `deploy/deploy.sh`. They are fully
+  reproducible by re-running `deploy/mirror-tiles.sh` — that's the trade being
+  made: no backup coverage, in exchange for keeping hundreds of MB of static
+  binary tiles out of every database checkpoint.
+- **A missed or not-yet-run mirror is not a release blocker.** `track-map.tsx`
+  sets `errorTileUrl` to a blank placeholder and the map container has a dark
+  background, so an absent tile set degrades to a bare trail on a dark
+  backdrop rather than a broken-tile checkerboard or a crash.
+- **The tile-pyramid projection (`CANVAS_PX` in `track-map.tsx`) is a documented
+  assumption, not yet verified against real tiles** — there was no mirrored tile
+  set or production host available when it was written. **Before relying on the
+  life map for real**, mirror at least one map, sign in as that life's owner,
+  open its life-map page, and confirm a known in-game landmark lands where it
+  should. If the trail renders uniformly offset or scaled, `CANVAS_PX` (and/or
+  `MAX_ZOOM`) needs correcting for the mirrored pyramid — see the comment beside
+  it in `track-map.tsx`. This step is still outstanding as of this writing.
+
+### Verify the tile mirror after running `mirror-tiles.sh`
+
+Don't guess a tile path — `mirror-tiles.sh` prints per-map tile counts and a final
+success/failure summary, and exits non-zero if it mirrored zero maps. Find and curl a
+tile that actually exists rather than assuming a fixed `z/x/y`:
+
+```bash
+TILE="$(find /var/www/tiles/chernarusplus -name '*.webp' | head -1)"
+# => e.g. /var/www/tiles/chernarusplus/topographic/3/4/4.webp   (yours will differ)
+curl -sI "https://dayzonelife.com/tiles/${TILE#/var/www/tiles/}" | head -1
+# => expect: HTTP/2 200
+```
+
 ## TLS
 
 Certbot-managed lineage `dayzonelife.com` (apex + www). `live/ → archive/` symlinks are

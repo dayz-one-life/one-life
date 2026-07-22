@@ -18,4 +18,6 @@ export * from "./birth-notice-articles.js";
 export * from "./news-articles.js";
 export * from "./life-dossier.js";
 export * from "./player-articles.js";
+export * from "./life-track-shape.js";
+export * from "./life-track.js";
 export * from "./sitemap.js";
