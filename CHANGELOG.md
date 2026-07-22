@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repo it guards and updates centrally. `.keel.json` is now the source of truth for branch topology.
   `rigging` (CI) was evaluated and excluded: it cannot express pnpm, service containers, or a custom
   test command. Contributors approve a one-time plugin install prompt on their first session.
+- Rewrote `README.md`, which still described this repo as the upstream workflow *template* rather
+  than One Life, and pointed at the now-removed `workflow-setup` skill and `.claude/workflow.json`.
 
 ### Deprecated
 
