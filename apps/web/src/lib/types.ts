@@ -372,6 +372,10 @@ export type FriendEntryDto = {
   since: string;
   sharesPresence: boolean;
   notifyPresence: boolean;
+  sharesLocation: boolean;
+  /** ⚠️ Deliberately collapsed — see `reciprocityLabel` in `components/friends/location-toggles`.
+   *  Never split into "master off" vs. "hidden from you specifically". */
+  theyShareLocation: boolean;
 };
 
 export type FriendsFeed = {
@@ -383,6 +387,8 @@ export type FriendsFeed = {
   pageSize: number;
   /** The viewer's master switch — gates every per-friend share flag. */
   sharePresence: boolean;
+  /** The viewer's master switch for location — gates every per-friend location flag. */
+  shareLocation: boolean;
 };
 
 export type FriendStatusDto = {
@@ -391,3 +397,14 @@ export type FriendStatusDto = {
   /** ISO-8601. Set only when status is "cooldown". */
   cooldownUntil: string | null;
 };
+
+export type FriendPositionDto = {
+  gamertag: string;
+  x: number;
+  y: number;
+  /** ISO-8601. */
+  recordedAt: string;
+  self: boolean;
+};
+export type FriendMap = { mapCodename: string; positions: FriendPositionDto[] };
+export type MapServerDto = { slug: string; name: string; map: string; friendCount: number };

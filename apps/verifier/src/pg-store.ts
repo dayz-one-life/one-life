@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { gamertagLinks, verificationChallenges } from "@onelife/db";
+import { gamertagLinks, verificationChallenges, userPreferences } from "@onelife/db";
 import { and, eq, gt, lt, ne, isNull } from "drizzle-orm";
 
 export type PendingChallenge = {
@@ -48,8 +48,30 @@ export class PgVerifierStore {
     return r[0]?.id ?? null;
   }
 
+  /**
+   * Marks a link verified AND resets that user's sharing master switches.
+   *
+   * Both happen in the same transaction, deliberately. A friendship's per-pair sharing flags
+   * survive a link being released, so without this a user who releases a gamertag and later
+   * verifies a DIFFERENT one silently resurrects consent their friends granted against the old
+   * identity (F1's deferred prerequisite; see the F2 spec §4).
+   *
+   * This fires on EVERY verification, not only a re-verification. For a first-time verifier it
+   * updates zero rows — an absent user_preferences row already means false — so there is no
+   * "is this a re-verification?" branch to get wrong, and no row is created just to hold
+   * defaults.
+   */
   async verifyLink(linkId: number, verifiedAt: Date): Promise<void> {
-    await this.tx.update(gamertagLinks).set({ status: "verified", verifiedAt }).where(eq(gamertagLinks.id, linkId));
+    const [link] = await this.tx
+      .update(gamertagLinks)
+      .set({ status: "verified", verifiedAt })
+      .where(eq(gamertagLinks.id, linkId))
+      .returning({ userId: gamertagLinks.userId });
+    if (!link) return;
+    await this.tx
+      .update(userPreferences)
+      .set({ sharePresence: false, shareLocation: false, updatedAt: verifiedAt })
+      .where(eq(userPreferences.userId, link.userId));
   }
 
   async cancelLink(linkId: number): Promise<void> {
