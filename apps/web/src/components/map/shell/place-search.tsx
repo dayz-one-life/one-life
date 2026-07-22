@@ -12,7 +12,7 @@ const RESULT_ZOOM = 4;
  *  site supplies it, and all of them are dark today — so the tokens live here. An ink-on-dark
  *  box would render present, functional and invisible; the token test pins the swap. */
 const INPUT =
-  "w-full border border-dark-line bg-dark-well px-3 py-1.5 font-mono text-base md:text-[11.5px] uppercase tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red";
+  "w-full border border-dark-line bg-dark-well px-3 py-1.5 font-mono text-base md:text-[13px] uppercase tracking-[.04em] text-paper outline-none placeholder:text-cream-muted focus:border-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red";
 
 /** Place search. Reuses the combobox from the controls rail rather than growing a second one —
  *  it already carries the WAI-ARIA 1.2 listbox semantics and the announced result count. Its

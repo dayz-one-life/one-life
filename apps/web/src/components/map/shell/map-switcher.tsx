@@ -24,7 +24,7 @@ export function MapSwitcher({ slug, servers, loading }: {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[52px] min-w-0 items-center gap-2 border border-dark-edge px-3 py-1.5 font-display text-base font-bold uppercase tracking-[.06em] text-paper md:min-h-0 md:px-3 md:text-sm"
+        className="flex min-h-[52px] min-w-0 items-center gap-2 border border-dark-edge px-3 py-1.5 font-display text-base font-bold uppercase tracking-[.06em] text-paper md:min-h-[40px] md:px-3 md:text-base"
       >
         <span className="truncate">{label}</span>
         <span aria-hidden>▾</span>
@@ -43,7 +43,7 @@ export function MapSwitcher({ slug, servers, loading }: {
               role="menuitem"
               href={`/maps/${s.slug}`}
               onClick={() => setOpen(false)}
-              className="flex min-h-[52px] items-center justify-between gap-4 px-4 py-2 font-mono text-[15px] uppercase tracking-[.05em] text-cream-dim hover:text-paper md:min-h-[44px] md:px-3 md:text-[11px]"
+              className="flex min-h-[52px] items-center justify-between gap-4 px-4 py-2 font-mono text-[15px] uppercase tracking-[.05em] text-cream-dim hover:text-paper md:min-h-[40px] md:px-3 md:text-[13px]"
             >
               {/* NO COUNT HERE, deliberately. This used to render `friendCount` — friends
                   SHARING A POSITION on that server — as a bare unlabelled number, which since
