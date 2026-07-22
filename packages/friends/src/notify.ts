@@ -1,4 +1,3 @@
-import type { Database } from "@onelife/db";
 import { notifications } from "@onelife/db";
 
 /**
@@ -21,6 +20,11 @@ export function playerSlug(gamertag: string): string {
   return gamertag.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+// Accepts a drizzle db OR transaction executor — both expose the same query builder, but
+// Database and PgTransaction are distinct TS types. Same loose-typing precedent as
+// packages/tokens/src/internal.ts's Executor.
+type Executor = { insert: (table: any) => any };
+
 /**
  * Insert one notification.
  *
@@ -29,7 +33,7 @@ export function playerSlug(gamertag: string): string {
  * request_seq already makes a collision impossible; this is belt and braces, so a
  * duplicate key can never turn a friend request into a 500.
  */
-export async function writeNotification(tx: Database, draft: FriendNotificationDraft): Promise<void> {
+export async function writeNotification(tx: Executor, draft: FriendNotificationDraft): Promise<void> {
   await tx.insert(notifications).values(draft).onConflictDoNothing({ target: notifications.naturalKey });
 }
 
