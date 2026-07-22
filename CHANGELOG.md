@@ -16,12 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.39.2] - 2026-07-22
+
+### Fixed
+
 - The map zooms out all the way to its own edge now. It used to stop up to a full zoom step
   early, refusing to pull back while the terrain still filled the screen — most noticeable on
   a wide desktop window. Resizing the window afterwards works properly too: shrinking it used
   to leave the map stuck at the wider view's limit.
-
-### Security
 
 ## [0.39.1] - 2026-07-22
 
