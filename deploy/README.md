@@ -156,34 +156,49 @@ only in the systemd env is too late — the wrong values are already frozen in t
 
 ### ⚠️ A change to `deploy.sh` never applies to the deploy that installs it
 
-**This is permanent and unfixable, not a bug to be patched.** `deploy.sh` deploys the repo it
-lives in: the operator invokes the *currently checked-out* script, which then checks out the
-new tag and carries on to the end. So the release that ships a `deploy.sh` fix is deployed
-**by the previous release's script**, still containing the flaw. The fix only takes effect
-from the *next* deploy onward.
+> **Read this page from `develop` on GitHub, not from the host.** The checked-out copy is by
+> definition the *old* release's, so it cannot describe the release you are about to install.
+> This document is subject to the same lag it documents.
 
-(A running bash process is unaffected by the checkout itself — `git checkout` unlinks and
-recreates, so the process keeps reading the original inode. Verified: a 236 KB script that
-checks out a 42-byte replacement of itself mid-run completes every phase. Do not add
-machinery to defend against a mid-run rewrite; it does not happen here.)
+`deploy.sh` deploys the repo it lives in: the operator invokes the *currently checked-out*
+script, which then checks out the new tag and carries on to the end. There is no `exec` and no
+re-invocation, so the release that ships a `deploy.sh` fix is deployed **by the previous
+release's script**, flaw included. The fix takes effect from the *next* deploy onward.
 
-**What this means in practice:** when a release changes `deploy.sh`, read the changelog entry
-and compensate manually for that one deploy.
+This is **deliberately not fixed**, not unfixable — the script could `exec` its new self behind
+a guard flag once the checkout succeeds. Compensating manually on the rare release that touches
+`deploy.sh` is cheaper than an exec-resume in the one script whose failure means an outage.
+
+(The running bash process is *not* corrupted by the checkout. `git checkout` unlinks and
+recreates, so it keeps reading the original inode — verified on macOS/APFS and Linux/overlayfs:
+a 236 KB script that checks out a 42-byte replacement of itself completes every phase.)
+
+**⚠️ Do not try to "get ahead" by checking out the tag first.** `git checkout <tag> &&
+./deploy/deploy.sh` makes preflight see `ROLLBACK_TAG == LATEST_TAG` and exit 0 with *"Already
+on … — nothing to deploy"*, leaving the fleet running old code against new files. Always let
+the script do its own checkout.
+
+**In practice:** when a release changes `deploy.sh`, read its changelog entry and compensate
+for that one deploy.
 
 **Concretely, for v0.37.2** — which fixed the migrate and `--rebuild` phases to pass
-`DATABASE_URL` explicitly — the v0.37.1 script that installs it still runs the bare
-invocation, and dies in the MIGRATE phase (after the fleet has been stopped; the ERR trap
-rolls back and restarts on the old tag). Export the variable once, so the old script's child
-processes inherit it:
+`DATABASE_URL` explicitly to their children — the older script that installs it still runs the
+bare invocation and dies in the MIGRATE phase, *after* the fleet has been stopped (the ERR trap
+then rolls back and restarts on the old tag). Applies to **any first deploy from a tag older
+than v0.37.2**, not only from v0.37.1:
 
 ```bash
 cd /var/www/dayzonelife.com
-export DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')"
-./deploy/deploy.sh          # add --rebuild if the release needs it
+DATABASE_URL=placeholder ./deploy/deploy.sh     # add --rebuild if the release needs it
 ```
 
-Needed **once**. From v0.37.2 onward the script passes `DATABASE_URL` to those children
-itself, and a plain `./deploy/deploy.sh` is enough.
+**The value is deliberately irrelevant.** All that is needed is for the name to carry the
+export attribute into the script; `read_database_url` then overwrites it with the real value
+from `.env`, and the export survives the reassignment, so the children inherit the correct URL.
+A one-shot prefix — rather than `export` — also leaves no production connection string sitting
+in the operator's shell for a later ad-hoc `pnpm db:migrate` to pick up.
+
+Needed **once**. From v0.37.2 onward a plain `./deploy/deploy.sh` is enough.
 
 ### Normal deploys
 
