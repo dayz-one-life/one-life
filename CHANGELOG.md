@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.42.0] - 2026-07-22
+
+### Added
+
 - **Maps is in the main menu**, between Survivors and About. It opens the map you last had
   open, or Chernarus the first time — so getting to the map is one tap from anywhere on the
   site instead of a trip through the account panel.
@@ -15,20 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   server, signed in or not. Signing in and verifying your gamertag still adds your friends'
   positions, the online list and the locate button — those stay private.
 
-### Changed
-
-### Deprecated
-
 ### Removed
 
 - The maps list page. Picking a map lives in the map's own switcher, and the menu link now goes
   straight to a map rather than to a page about maps.
 - The duplicate "Map →" link in the friends block of the account panel — the menu covers it, on
   every page rather than only where the panel appears.
-
-### Fixed
-
-### Security
 
 ## [0.41.3] - 2026-07-22
 
