@@ -49,6 +49,12 @@ const post = (cookie: string, url: string, payload?: unknown) =>
     payload: payload as never,
   });
 const del = (cookie: string, url: string) => app.inject({ method: "DELETE", url, headers: { cookie } });
+const patch = (cookie: string, url: string, payload: unknown) =>
+  app.inject({
+    method: "PATCH", url,
+    headers: { cookie, "content-type": "application/json" },
+    payload: payload as never,
+  });
 
 beforeAll(async () => {
   await app.ready();
@@ -140,5 +146,54 @@ describe("friend routes", () => {
     const res = await post(cookieSender, "/me/friends/requests", { toGamertag: tagB });
     expect(res.statusCode).toBe(429);
     expect(res.json().error).toBe("rate_limited");
+  });
+
+  it("401s the presence routes when signed out", async () => {
+    expect((await app.inject({ method: "PATCH", url: "/me/friends/1/presence" })).statusCode).toBe(401);
+    expect((await app.inject({ method: "PATCH", url: "/me/preferences" })).statusCode).toBe(401);
+  });
+
+  it("patches each side's presence flags independently", async () => {
+    // The A/B pair from the earlier cases was declined in the cooldown_active case above and
+    // is still inside its 7-day re-request cooldown, so it can't be reused here. Use a fresh
+    // pair instead, matching the "dedicated fresh sender" pattern the rate-limit case above
+    // already uses.
+    const emailC = `frC${svc}@example.com`;
+    const emailD = `frD${svc}@example.com`;
+    const tagC = `FriendCharlie${svc}`;
+    const tagD = `FriendDelta${svc}`;
+    const cookieC = await signIn(emailC);
+    const cookieD = await signIn(emailD);
+    const [uc] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailC.toLowerCase()));
+    const [ud] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailD.toLowerCase()));
+    await db.insert(gamertagLinks).values([
+      { userId: uc!.id, gamertag: tagC, status: "verified", verifiedAt: new Date() },
+      { userId: ud!.id, gamertag: tagD, status: "verified", verifiedAt: new Date() },
+    ]);
+
+    await post(cookieC, "/me/friends/requests", { toGamertag: tagD });
+    const id = (await get(cookieD, "/me/friends")).json().incoming[0].id;
+    await post(cookieD, `/me/friends/${id}/accept`);
+
+    expect((await patch(cookieC, `/me/friends/${id}/presence`, { share: false })).statusCode).toBe(200);
+    expect((await patch(cookieD, `/me/friends/${id}/presence`, { notify: false })).statusCode).toBe(200);
+
+    const c = (await get(cookieC, "/me/friends")).json().friends[0];
+    const d = (await get(cookieD, "/me/friends")).json().friends[0];
+    expect(c.sharesPresence).toBe(false);
+    expect(c.notifyPresence).toBe(true);
+    expect(d.sharesPresence).toBe(true);
+    expect(d.notifyPresence).toBe(false);
+  });
+
+  it("404s a presence patch on a friendship the caller is not party to", async () => {
+    expect((await patch(cookieA, "/me/friends/99999999/presence", { share: true })).statusCode).toBe(404);
+  });
+
+  it("serves and updates the master switch, defaulting off", async () => {
+    expect((await get(cookieA, "/me/preferences")).json().sharePresence).toBe(false);
+    expect((await patch(cookieA, "/me/preferences", { sharePresence: true })).json().sharePresence).toBe(true);
+    expect((await get(cookieA, "/me/preferences")).json().sharePresence).toBe(true);
+    expect((await get(cookieA, "/me/friends")).json().sharePresence).toBe(true);
   });
 });
