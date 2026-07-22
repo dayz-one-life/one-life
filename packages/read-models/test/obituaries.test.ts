@@ -36,7 +36,7 @@ beforeAll(async () => {
     { serverId: nullSlugServerId, playerId: nullSlug, lifeNumber: 1, startedAt: hrs(7), endedAt: hrs(8), deathCause: "pvp", deathByGamertag: "Killer2", deathWeapon: "M4", deathDistance: 50, playtimeSeconds: 200, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null },
   ]);
   await db.insert(kills).values([
-    { serverId, killerGamertag: `ob-kill-${svc}`, victimGamertag: `ob-short-${svc}`, occurredAt: hrs(6.05), weapon: "M4", distance: 10 },
+    { serverId, killerGamertag: `ob-kill-${svc}`, killerPlayerId: killScored, victimGamertag: `ob-short-${svc}`, occurredAt: hrs(6.05), weapon: "M4", distance: 10 },
   ]);
 });
 

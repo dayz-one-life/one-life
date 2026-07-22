@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Changing your gamertag no longer splits you into two players. Your lives, kills and record
+  now follow you across a name change, and an old name still leads to your page. A name that
+  someone else takes over later belongs to them, not to you.
+
 ### Security
 
 ## [0.42.0] - 2026-07-22

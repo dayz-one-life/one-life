@@ -1,6 +1,28 @@
-import { and, eq, inArray, desc } from "drizzle-orm";
-import { type Database, bans, gamertagLinks, tokenTransactions } from "@onelife/db";
-import { TokenError, balanceOf } from "./internal.js";
+import { and, eq, inArray, desc, sql } from "drizzle-orm";
+import { type Database, bans, gamertagLinks, tokenTransactions, players, playerGamertags } from "@onelife/db";
+import { TokenError, balanceOf, type Executor } from "./internal.js";
+
+/**
+ * Map a gamertag to the player identity that holds it: the current name first, then any
+ * former name, most recent holder winning. Returns null for a name nobody has used.
+ * A rename moves players.gamertag, so comparing raw strings here silently denies a renamed
+ * player their own unban.
+ */
+async function playerIdForGamertag(tx: Executor, gamertag: string): Promise<number | null> {
+  // players.gamertag is a non-unique index now (players_gamertag_uniq was dropped once a
+  // gamertag became a current label rather than an identity) — a recycled name can legitimately
+  // match two players rows, so resolve to the most-recently-seen one, `id` as a stable
+  // tie-break. Same ordering as resolveSlugMatch in packages/read-models/src/player-aggregate.ts.
+  const direct = await tx.select({ id: players.id }).from(players)
+    .where(sql`lower(${players.gamertag}) = lower(${gamertag})`)
+    .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`)
+    .limit(1);
+  if (direct[0]) return direct[0].id;
+  const alias = await tx.select({ id: playerGamertags.playerId }).from(playerGamertags)
+    .where(sql`lower(${playerGamertags.gamertag}) = lower(${gamertag})`)
+    .orderBy(desc(playerGamertags.lastSeenAt)).limit(1);
+  return alias[0]?.id ?? null;
+}
 
 /**
  * Spend one token to lift the user's active 24h death-ban. Sets the ban to 'lift_pending'
@@ -24,7 +46,21 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
       .from(bans)
       .where(and(inArray(bans.status, ["pending", "applied"]), eq(bans.dryRun, false)))
       .orderBy(desc(bans.bannedAt));
-    const owned = candidates.filter((b) => links.some((l) => l.gamertag === b.gamertag));
+    // Compare identities, not name strings: after a rename a verified link still names the
+    // OLD callsign while bans are written under the NEW one, so raw-string matching would
+    // silently deny a renamed player their own unban (the casing failure `0024` fixed).
+    const linkIds = new Set(
+      (await Promise.all(links.map((l) => playerIdForGamertag(tx, l.gamertag))))
+        .filter((id): id is number => id !== null),
+    );
+    const banIds = new Map<string, number | null>();
+    for (const b of candidates) {
+      if (!banIds.has(b.gamertag)) banIds.set(b.gamertag, await playerIdForGamertag(tx, b.gamertag));
+    }
+    const owned = candidates.filter((b) => {
+      const id = banIds.get(b.gamertag);
+      return id !== null && id !== undefined && linkIds.has(id);
+    });
 
     let ban;
     if (a.banId != null) {

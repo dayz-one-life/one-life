@@ -86,10 +86,14 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
     try {
       const result = await db.transaction(async (tx) => {
         // Upsert the caller's link for (user, gamertag) to pending.
-        // No orderBy/limit on this case-folded lookup, so existing[0] is an arbitrary pick if two
-        // rows ever differed only in case. Safe: migration 0024's third precheck aborts the
-        // deploy on exactly that state, and it cannot recur afterward because players.gamertag is
-        // frozen at first sight, so `canonical` is stable and every write path now stores it.
+        // No orderBy/limit on this case-folded lookup, so existing[0] is an arbitrary pick among
+        // same-named rows. That is bounded to zero today: migration 0024's third precheck aborted
+        // the deploy on any case-variant duplicate `gamertag_links` row that existed then, and
+        // nothing since has produced a new one. It is NOT structurally guaranteed going forward —
+        // `players.gamertag` now moves on rename and `players_gamertag_uniq` was dropped, so
+        // case-variant duplicate `players` rows are possible post-identity-merge; resolving this
+        // arbitrary pick correctly is part of the deferred name-resolution sweep (spec §9), not
+        // fixed here.
         const existing = await tx.select().from(gamertagLinks)
           .where(and(eq(gamertagLinks.userId, userId), dsql`lower(${gamertagLinks.gamertag}) = lower(${canonical})`));
         let id: number;
@@ -97,9 +101,10 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
           id = existing[0].id;
           // The lookup above folds case, so a row stored with the user's typed casing (a
           // pre-0024 claim, or a restore from an older dump) is found here and reused. It MUST
-          // be rewritten to the canonical casing on the way through: redeem.ts matches links to
-          // bans with strict `===` against `bans.gamertag` (written from `players.gamertag`), so
-          // a mis-cased link silently costs the player their self-unban and their Verified stamp.
+          // be rewritten to the canonical casing on the way through: redeem.ts resolves a link's
+          // gamertag to a player identity case-insensitively (not by strict string match), so this
+          // rewrite is no longer needed to make ownership resolve correctly — but a mis-cased link
+          // is still user-visible casing drift (e.g. on the profile), so it stays rewritten.
           //
           // Split, not one unconditional set(): a row that is ALREADY pending must keep its
           // verifiedAt untouched, so only the reactivation branch clears it.

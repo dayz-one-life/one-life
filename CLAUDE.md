@@ -1462,6 +1462,61 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **`GET /me/maps/:mapSlug` gained an `online: OnlinePlayer[]` field on the existing payload** —
   no new route, so the route's defining properties are unchanged: still no subject parameter (the
   viewer's session is the only input), still `cache-control: no-store, private`.
+- **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;
+  `players.gamertag` becomes the **current** label and moves on a rename — a new `player_gamertags`
+  alias-history table (one row per player per distinct name, `(player_id, lower(gamertag))` unique)
+  records every name a player has held. This narrowly **reverses migration `0024`'s frozen-casing
+  rule, for renames only** — a rename now updates `players.gamertag`; casing itself still stays
+  frozen (the existing `lower()` comparisons are unaffected). Slug resolution
+  (`resolveSlugMatch`/`resolveGamertagBySlug`, `packages/read-models/src/player-aggregate.ts`) now
+  falls back through `player_gamertags` for a former name, and an old player-page URL 308-redirects
+  to the current one. Player-scoped stats (kill counts, priors, life
+  tracks) key on `kills.killer_player_id`/`victim_player_id` — populated by the fold, so they are
+  identity-correct after a rebuild — rather than the gamertag text; `killer_player_id` is nullable
+  and every site uses `eq()`, which correctly excludes NULL rather than matching it. Three
+  ownership checks (self-unban, the Verified stamp, friend-map/track access) resolve identity
+  rather than a bare gamertag string, so a renamed verified player keeps both.
+  **⚠️ Migration `0025` DROPPED `players_gamertag_uniq` (the `lower(gamertag)` unique index `0024`
+  added) — this was not in the original plan, it was forced mid-implementation.** Once
+  `players.gamertag` is a current label rather than an identity, that unique constraint is wrong in
+  both directions: `createPlayer`'s old `ON CONFLICT (lower(gamertag)) DO UPDATE … RETURNING` would
+  silently return an unrelated identity's row for a **new** dayz_id first seen under a name someone
+  else still held (a new account attributed to the previous name-holder), and `recordGamertag`
+  inserting into `player_gamertags` mid-rename could raise `23505` **inside the fold transaction**,
+  which an event-log fold retries forever — a crash loop. `0025` replaces it with a plain
+  `players_gamertag_idx` (non-unique), and `createPlayer` (`apps/projector/src/pg-store.ts`) is now
+  a **plain `INSERT`, no `ON CONFLICT` at all** — safe only because the projector is single-instance
+  and `onConnected` always resolves by `dayz_id` (`getPlayerByDayzId`) before ever calling
+  `createPlayer`, so the fold cannot race itself into a duplicate identity.
+  **⚠️ Because a gamertag is now a current label, a RECYCLED name can match two `players` rows at
+  once** (the departed holder's row still carries the name until their never-coming next connect).
+  Every site that resolves a gamertag to a player therefore picks the **most-recently-seen row,
+  `id` ascending as the tie-break** — never the oldest, which would permanently attribute the
+  name's *new* holder's events to the account that gave the name up. This one rule lives in four
+  places and a change to any one should match the others: `getPlayer`
+  (`apps/projector/src/pg-store.ts` and `packages/projections/src/memory-store.ts`),
+  `resolveSlugMatch` (`packages/read-models/src/player-aggregate.ts`), and
+  `packages/read-models/src/friend-positions.ts` (both its viewer lookup and its per-friend join,
+  which also retains its two pre-existing defensive collapses — one-friend-one-dot,
+  one-player-row-one-subject — as defence in depth now that the trigger `0024` thought it had
+  closed is reachable again).
+  **`player_gamertags` is a PROJECTION, not durable data**: it is in `rebuildAll`'s truncate list
+  (`apps/projector/src/rebuild.ts`) and carries **no global unique on gamertag** — only
+  `(player_id, lower(gamertag))` — because a recycled name legitimately belongs to two identities
+  over time; a global unique would crash the ingest the moment a name recycled.
+  **The merge needs no migration script or backfill** — `rebuildAll` re-folds the entire event log
+  from event 0, and since the fold now resolves by `dayz_id` first, the collapse happens for free.
+  **Deploy is `./deploy/deploy.sh --rebuild` — the rebuild IS the merge**, not an optional cleanup
+  step; skipping it leaves the pre-merge duplicate rows in place.
+  **⚠️ `players.dayz_id` is NOT YET UNIQUE.** `deploy.sh` migrates before it rebuilds, so at
+  migrate time the database still holds the duplicate hashes the old gamertag-keyed fold produced
+  — a unique constraint added in this release would abort the deploy outright. Migration `0026`,
+  next release, promotes `dayz_id` to unique, gated on confirming
+  `SELECT dayz_id, count(*) FROM players GROUP BY 1 HAVING count(*) > 1` returns zero rows after
+  this release's rebuild.
+  **Deferred — still key on gamertag text, not player id:** `player-articles.ts` (both the subject
+  and killer arms), `leaderboards.ts`, `obituaries.ts`, and the broader articles/notifications/
+  friends surfaces generally. A rename is therefore not yet reflected in those surfaces' history.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 

@@ -84,9 +84,13 @@ async function insertKill(opts: {
   distance: number;
   occurredAt: Date;
 }) {
+  // The fold stamps killer_player_id from the killer's players row; mirror that here so
+  // the FK-keyed read model can attribute the kill.
+  const [kp] = await db.select({ id: players.id }).from(players).where(eq(players.gamertag, opts.killerGamertag));
   await db.insert(kills).values({
     serverId: opts.serverId,
     killerGamertag: opts.killerGamertag,
+    killerPlayerId: kp?.id ?? null,
     victimGamertag: opts.victimGamertag,
     distance: opts.distance,
     occurredAt: opts.occurredAt,

@@ -32,7 +32,7 @@ beforeAll(async () => {
     deathCause: "bled out", playtimeSeconds: 120,
   });
   await db.insert(kills).values({
-    serverId: sid, killerGamertag: "Killaqual", victimGamertag: "SomeoneElse",
+    serverId: sid, killerGamertag: "Killaqual", killerPlayerId: kpid, victimGamertag: "SomeoneElse",
     occurredAt: new Date(killLifeStart.getTime() + 30e3), // inside [startedAt, endedAt]
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, user, gamertagLinks, bans } from "@onelife/db";
+import { servers, user, gamertagLinks, bans, players } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
 import { buildApp } from "../src/app.js";
@@ -46,11 +46,15 @@ beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "tok-test" }).returning();
   serverId = s!.id;
   await db.insert(gamertagLinks).values({ userId, gamertag: GT, status: "verified" });
+  // Ban ownership now resolves by IDENTITY — a ban only exists because a life died, so the
+  // player row that a rename would move always exists; seed it so GT resolves.
+  await db.insert(players).values({ gamertag: GT });
   await grant(db, { userId, kind: "verification", idempotencyKey: `verify:tokroute:${svc}` });
 });
 
 afterAll(async () => {
   await db.delete(bans).where(eq(bans.serverId, serverId));
+  await db.delete(players).where(eq(players.gamertag, GT));
   await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, userId));
   await sql`DELETE FROM token_transactions WHERE user_id = ${userId}`;
   await db.delete(servers).where(eq(servers.id, serverId));

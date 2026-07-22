@@ -251,12 +251,16 @@ cd /var/www/dayzonelife.com
   only new tables. If a plain deploy's `db:migrate` aborts on a
   projection-table constraint, that's the signal to re-run with `--rebuild`.
 - **⚠️ The gamertag case-insensitivity release (`0024`) is one-way for a HAND rollback.** `0024`
-  moves `players_gamertag_uniq` onto `lower(gamertag)`; the older release's `createPlayer` uses
+  moved `players_gamertag_uniq` onto `lower(gamertag)`; the older release's `createPlayer` uses
   `ON CONFLICT (gamertag)`, which then matches no constraint and raises inside the fold
   transaction — the projector retries it forever and every projection stalls. `deploy.sh` will
   not do this to you (it refuses to auto-revert once the migrate phase has succeeded), so this
   only bites a manual `git checkout <older-tag>`; restore the pre-deploy dump instead, or
-  recreate `players_gamertag_uniq` on the bare column first.
+  recreate a `players_gamertag_uniq` on the bare column first. **Note this index no longer exists
+  at all as of migration 0025** (gamertag is a current label, not an identity, and identity is
+  `dayz_id`) — a rollback past 0025 needs to recreate the index from scratch, not merely repoint
+  it, and a hand rollback to a pre-0025 release will re-admit duplicate-gamertag rows that 0025
+  legitimately created.
 
 <details><summary>Manual equivalent (fallback)</summary>
 

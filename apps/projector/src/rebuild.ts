@@ -6,7 +6,7 @@ import { loadConfig } from "./config.js";
 
 export async function rebuildAll(db: Database, consumerName = "projector"): Promise<void> {
   await db.execute(sql`TRUNCATE TABLE
-    positions, build_events, hit_events, kills, sessions, lives, players
+    positions, build_events, hit_events, kills, sessions, lives, player_gamertags, players
     RESTART IDENTITY CASCADE`);
   await setCursor(db, consumerName, 0);
 }

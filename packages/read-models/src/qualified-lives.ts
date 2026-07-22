@@ -22,7 +22,7 @@ export function qualifiedLifeCondition(db: Database): SQL {
         .where(
           and(
             eq(kills.serverId, lives.serverId),
-            eq(kills.killerGamertag, players.gamertag),
+            eq(kills.killerPlayerId, players.id),
             gte(kills.occurredAt, lives.startedAt),
             or(isNull(lives.endedAt), lte(kills.occurredAt, lives.endedAt)),
           ),

@@ -38,14 +38,14 @@ beforeAll(async () => {
   await db.insert(buildEvents).values({ serverId, gamertag: gt, playerId: pid, lifeId, action: "placed", object: "Fireplace", occurredAt: mins(30) });
   await db.insert(hitEvents).values([
     // Encounter 1: two infected ticks 10s apart at +100m.
-    { serverId, victimGamertag: gt, attackerType: "infected", attackerLabel: "Infected", victimHp: 62, occurredAt: mins(100) },
-    { serverId, victimGamertag: gt, attackerType: "infected", attackerLabel: "Infected", victimHp: 47, occurredAt: new Date(mins(100).getTime() + 10_000) },
+    { serverId, victimGamertag: gt, victimPlayerId: pid, attackerType: "infected", attackerLabel: "Infected", victimHp: 62, occurredAt: mins(100) },
+    { serverId, victimGamertag: gt, victimPlayerId: pid, attackerType: "infected", attackerLabel: "Infected", victimHp: 47, occurredAt: new Date(mins(100).getTime() + 10_000) },
     // Encounter 2 (gap > 120s): one infected tick 30s before death — inside the recent window.
-    { serverId, victimGamertag: gt, attackerType: "infected", attackerLabel: "Infected", victimHp: 12, occurredAt: new Date(mins(360).getTime() - 30_000) },
+    { serverId, victimGamertag: gt, victimPlayerId: pid, attackerType: "infected", attackerLabel: "Infected", victimHp: 12, occurredAt: new Date(mins(360).getTime() - 30_000) },
     // A fire tick (attackerType environment, label Fireplace) at +50m.
-    { serverId, victimGamertag: gt, attackerType: "environment", attackerLabel: "Fireplace", victimHp: 80, occurredAt: mins(50) },
+    { serverId, victimGamertag: gt, victimPlayerId: pid, attackerType: "environment", attackerLabel: "Fireplace", victimHp: 80, occurredAt: mins(50) },
     // Outside the life window entirely (before birth) — must be ignored.
-    { serverId, victimGamertag: gt, attackerType: "player", attackerGamertag: "Someone", victimHp: 90, occurredAt: mins(-10) },
+    { serverId, victimGamertag: gt, victimPlayerId: pid, attackerType: "player", attackerGamertag: "Someone", victimHp: 90, occurredAt: mins(-10) },
   ]);
 
   // A second player + life, isolated from the assertions above, dedicated to the
@@ -63,9 +63,9 @@ beforeAll(async () => {
   const gapT1 = new Date(gapT0.getTime() + 120_000); // exactly 120s after t0 — same encounter
   const gapT2 = new Date(gapT1.getTime() + 121_000); // 121s after t1 — new encounter
   await db.insert(hitEvents).values([
-    { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 70, occurredAt: gapT0 },
-    { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 55, occurredAt: gapT1 },
-    { serverId, victimGamertag: gt2, attackerType: "infected", attackerLabel: "Infected", victimHp: 40, occurredAt: gapT2 },
+    { serverId, victimGamertag: gt2, victimPlayerId: pid2, attackerType: "infected", attackerLabel: "Infected", victimHp: 70, occurredAt: gapT0 },
+    { serverId, victimGamertag: gt2, victimPlayerId: pid2, attackerType: "infected", attackerLabel: "Infected", victimHp: 55, occurredAt: gapT1 },
+    { serverId, victimGamertag: gt2, victimPlayerId: pid2, attackerType: "infected", attackerLabel: "Infected", victimHp: 40, occurredAt: gapT2 },
   ]);
 
   // A third life: the RonaldRaygun552 shape (Sakhal, 2026-07-20). DayZ logged the fall as a hit
@@ -80,7 +80,7 @@ beforeAll(async () => {
   }).returning();
   lifeId3 = l3!.id;
   await db.insert(hitEvents).values({
-    serverId, victimGamertag: gt3, attackerType: "environment", attackerLabel: "FallDamageHealth",
+    serverId, victimGamertag: gt3, victimPlayerId: pid3, attackerType: "environment", attackerLabel: "FallDamageHealth",
     victimHp: 0, occurredAt: mins(360),
   });
 });

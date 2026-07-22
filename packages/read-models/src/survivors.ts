@@ -82,6 +82,7 @@ export async function getAliveSurvivors(
       map: servers.map,
       slug: servers.slug,
       gamertag: players.gamertag,
+      playerId: players.id,
       lastSeenAt: players.lastSeenAt,
       stored: lives.playtimeSeconds,
       startedAt: lives.startedAt,
@@ -102,7 +103,7 @@ export async function getAliveSurvivors(
   const killRows = await db
     .select({
       serverId: kills.serverId,
-      gamertag: kills.killerGamertag,
+      killerPlayerId: kills.killerPlayerId,
       occurredAt: kills.occurredAt,
       distance: kills.distance,
     })
@@ -114,9 +115,11 @@ export async function getAliveSurvivors(
     const upTo = r.lastSeenAt ?? r.connectedAt ?? now;
     const timeAliveSeconds = livePlaytime(r.stored, r.connectedAt ? { connectedAt: r.connectedAt } : null, upTo);
 
-    // this-life kills: killerGamertag = gamertag AND serverId = server.id AND occurredAt >= life.startedAt
+    // this-life kills: killer_player_id = player.id (the identity, not the name) AND
+    // serverId = server.id AND occurredAt >= life.startedAt. A null killer_player_id never
+    // equals a real id, so orphan kills are correctly excluded.
     const myKills = killRows.filter(
-      (k) => k.serverId === r.serverId && k.gamertag === r.gamertag && k.occurredAt.getTime() >= r.startedAt.getTime(),
+      (k) => k.serverId === r.serverId && k.killerPlayerId === r.playerId && k.occurredAt.getTime() >= r.startedAt.getTime(),
     );
 
     const qualified = isLifeQualified({

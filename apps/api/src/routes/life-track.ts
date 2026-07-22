@@ -5,7 +5,7 @@ import { gamertagLinks } from "@onelife/db";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getSession } from "../auth-plugin.js";
-import { getLifeTrack } from "@onelife/read-models";
+import { getLifeTrack, resolveGamertagBySlug } from "@onelife/read-models";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const params = z.object({
@@ -50,7 +50,13 @@ export function registerLifeTrackRoutes(app: FastifyInstance, db: Database, auth
     const server = await resolveServerBySlug(db, mapSlug);
     if (!server) return reply.code(404).send({ error: "not_found" });
 
-    const track = await getLifeTrack(db, server.id, link.gamertag, n);
+    // The verified link still names the callsign the user CLAIMED; after a rename the life
+    // (and its player row) carries the current name, so `getLifeTrack`'s gamertag match would
+    // miss it. Resolve the claimed name to the player's current identity name first. This
+    // changes only HOW the subject's life is matched — the subject itself is still derived
+    // solely from the session-cookie link, with no player identifier accepted from the caller.
+    const subjectGamertag = (await resolveGamertagBySlug(db, link.gamertag)) ?? link.gamertag;
+    const track = await getLifeTrack(db, server.id, subjectGamertag, n);
     if (!track) return reply.code(404).send({ error: "not_found" });
 
     // A shared proxy or CDN caching this would hand one owner's position to the next

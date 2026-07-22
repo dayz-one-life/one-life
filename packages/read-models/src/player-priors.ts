@@ -80,7 +80,7 @@ export async function getPlayerPriors(
   const kc = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(kills)
-    .where(and(eq(kills.killerGamertag, gamertag), lt(kills.occurredAt, beforeLifeStartedAt)));
+    .where(and(eq(kills.killerPlayerId, p.id), lt(kills.occurredAt, beforeLifeStartedAt)));
   const totalKills = kc[0]?.c ?? 0;
 
   return {
