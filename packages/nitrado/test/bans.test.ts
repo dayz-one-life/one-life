@@ -93,10 +93,26 @@ describe("NitradoClient batched ban list", () => {
     expect(posts).toHaveLength(0);
   });
 
-  it("both ignore empty and blank entries", async () => {
+  it("addBans ignores empty and blank entries", async () => {
     const { fetchFn, posts } = makeFake("");
     const c = new NitradoClient("tok", 123, fetchFn);
     await c.addBans(["", "  ", "ABC123"]);
     expect(posts[0]!.value.split("\r\n")).toEqual(["ABC123"]);
+  });
+
+  it("removeBans ignores empty and blank entries", async () => {
+    const { fetchFn, posts } = makeFake("Someone\r\nABC123\r\nRonald");
+    const c = new NitradoClient("tok", 123, fetchFn);
+    await c.removeBans(["", "  ", "ABC123"]);
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.value.split("\r\n")).toEqual(["Someone", "Ronald"]);
+  });
+
+  it("addBans deduplicates within input, preserving first-occurrence order", async () => {
+    const { fetchFn, posts } = makeFake("");
+    const c = new NitradoClient("tok", 123, fetchFn);
+    await c.addBans(["A", "A"]);
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.value.split("\r\n")).toEqual(["A"]);
   });
 });
