@@ -47,3 +47,34 @@ export function placeWeight(kind: string): "major" | "minor" | "faint" {
   if (kind === "village") return "minor";
   return "faint";
 }
+
+const WEIGHT_ORDER: Record<string, number> = { major: 0, minor: 1, faint: 2 };
+
+/**
+ * Name search across EVERY place on a map, regardless of the zoom tier that would draw it —
+ * a landmark you cannot see yet is exactly the thing you search for by name. Flying to a
+ * result zooms in far enough to render its tier.
+ *
+ * Ranking: bigger places first (major → minor → faint), then within each tier prefix matches
+ * before interior matches, then alphabetically. Purely local over the vendored data — there is
+ * no search endpoint.
+ */
+export function searchPlaces(mapCodename: string, query: string, limit = 8): MapPlace[] {
+  const q = query.trim().toLowerCase();
+  if (q === "") return [];
+  const all = PLACES[mapCodename];
+  if (!all) return [];
+
+  return all
+    .filter((p) => p.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const aw = WEIGHT_ORDER[placeWeight(a.kind)]!;
+      const bw = WEIGHT_ORDER[placeWeight(b.kind)]!;
+      if (aw !== bw) return aw - bw;
+      const aPrefix = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+      const bPrefix = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+      if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
+}

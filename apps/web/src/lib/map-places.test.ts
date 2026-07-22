@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { placesFor, placeMinZoom, placeWeight, PLACE_FALLBACK_MIN_ZOOM } from "./map-places";
+import { placesFor, placeMinZoom, placeWeight, PLACE_FALLBACK_MIN_ZOOM, searchPlaces } from "./map-places";
 import data from "./map-places.json";
 
 describe("map-places data", () => {
@@ -79,5 +79,47 @@ describe("placeWeight", () => {
     expect(placeWeight("village")).toBe("minor");
     expect(placeWeight("hill")).toBe("faint");
     expect(placeWeight("whatever")).toBe("faint");
+  });
+});
+
+describe("searchPlaces", () => {
+  it("matches case-insensitively on any part of the name", () => {
+    const names = searchPlaces("chernarusplus", "sobor").map((p) => p.name);
+    expect(names).toContain("Stary Sobor");
+    expect(names).toContain("Novy Sobor");
+  });
+
+  it("ranks a prefix match above an interior one", () => {
+    // Typing "nov" should offer Novy Sobor before Chernaya Polyana-style interior hits.
+    const first = searchPlaces("chernarusplus", "nov")[0]!;
+    expect(first.name.toLowerCase().startsWith("nov")).toBe(true);
+  });
+
+  it("ranks bigger places first within the same match kind", () => {
+    const results = searchPlaces("chernarusplus", "a");
+    const weights = results.map((p) => placeWeight(p.kind));
+    // Never a faint landmark ahead of a city in the same result set.
+    expect(weights.indexOf("major")).toBeLessThanOrEqual(
+      weights.lastIndexOf("faint") === -1 ? weights.length : weights.lastIndexOf("faint"),
+    );
+  });
+
+  it("searches every tier, not just what is drawn at the current zoom", () => {
+    // Zelenaya Gora is a `hill` — a `faint`-tier place that only renders from zoom 4.
+    // A landmark you cannot see yet is precisely the thing you search for by name, so
+    // search must ignore the zoom tiers entirely.
+    const hits = searchPlaces("chernarusplus", "zelenaya gora");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(placeWeight(hits[0]!.kind)).toBe("faint");
+  });
+
+  it("caps the result list", () => {
+    expect(searchPlaces("chernarusplus", "a").length).toBeLessThanOrEqual(8);
+    expect(searchPlaces("chernarusplus", "a", 3).length).toBeLessThanOrEqual(3);
+  });
+
+  it("returns nothing for a blank query or an unknown map, rather than everything", () => {
+    expect(searchPlaces("chernarusplus", "   ")).toEqual([]);
+    expect(searchPlaces("banov", "sobor")).toEqual([]);
   });
 });
