@@ -114,4 +114,43 @@ describe("redeem", () => {
     const r = await redeem(db, { userId: "rn1" });
     expect(r.gamertag).toBe("CurrentName");
   });
+
+  it("resolves a current-gamertag COLLISION to the most-recently-seen players row (direct branch)", async () => {
+    // A recycled gamertag: two distinct players rows can legitimately share a CURRENT
+    // gamertag today. The verified link here is deliberately NOT under that shared name —
+    // it names an unrelated old alias that resolves only through the (already-ordered) alias
+    // branch — so the only way ownership can succeed is if the DIRECT branch, resolving the
+    // ban's shared current name, picks the SAME identity the alias branch already picked
+    // (the fresh player). If the direct branch instead arbitrarily prefers the unrelated
+    // stale row that also currently holds this name, the two resolutions disagree and
+    // ownership is (wrongly) denied. Seed the unrelated STALE row FIRST so an unordered
+    // `.limit(1)` is inclined to return it ahead of the fresh, true owner.
+    await db.insert(user).values({ id: "rc1", name: "RC1", email: "rc1@x.com" });
+    const [unrelatedStale] = await db
+      .insert(players)
+      .values({ gamertag: "RecycledGT", lastSeenAt: new Date("2026-01-01T00:00:00Z") })
+      .returning();
+    const [owner] = await db
+      .insert(players)
+      .values({ gamertag: "RecycledGT", lastSeenAt: new Date("2026-07-15T00:00:00Z") })
+      .returning();
+    const ownerId = owner!.id;
+    await db.insert(playerGamertags).values([
+      { playerId: ownerId, gamertag: "OldClaimGT", firstSeenAt: new Date("2026-06-01T00:00:00Z"), lastSeenAt: new Date("2026-06-02T00:00:00Z") },
+      { playerId: ownerId, gamertag: "RecycledGT", firstSeenAt: new Date("2026-07-01T00:00:00Z"), lastSeenAt: new Date("2026-07-15T00:00:00Z") },
+    ]);
+    // The verified link names the owner's OLD alias — it resolves only via the alias branch,
+    // which is already ordered, so it deterministically names `ownerId` regardless of the fix.
+    await db.insert(gamertagLinks).values({ userId: "rc1", gamertag: "OldClaimGT", status: "verified" });
+    await grant(db, { userId: "rc1", kind: "verification", idempotencyKey: "verify:rc1" });
+    // The ban is under the CURRENT (shared) name, which only the DIRECT branch resolves.
+    await db.insert(bans).values({ serverId, gamertag: "RecycledGT", lifeStartedAt: LIFE3, reason: "qualified_death", bannedAt: LIFE3, status: "applied", dryRun: false });
+
+    const r = await redeem(db, { userId: "rc1" });
+    expect(r.gamertag).toBe("RecycledGT");
+    // Sanity: both rows exist and share the name — the test only passes because the direct
+    // branch picked the fresh, true owner, not because there was only one candidate row.
+    const rows = await db.select().from(players).where(eq(players.gamertag, "RecycledGT"));
+    expect(rows.map((p) => p.id).sort((a, b) => a - b)).toEqual([unrelatedStale!.id, ownerId].sort((a, b) => a - b));
+  });
 });

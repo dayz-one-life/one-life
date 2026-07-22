@@ -9,8 +9,14 @@ import { TokenError, balanceOf, type Executor } from "./internal.js";
  * player their own unban.
  */
 async function playerIdForGamertag(tx: Executor, gamertag: string): Promise<number | null> {
+  // players.gamertag is a non-unique index now (players_gamertag_uniq was dropped once a
+  // gamertag became a current label rather than an identity) — a recycled name can legitimately
+  // match two players rows, so resolve to the most-recently-seen one, `id` as a stable
+  // tie-break. Same ordering as resolveSlugMatch in packages/read-models/src/player-aggregate.ts.
   const direct = await tx.select({ id: players.id }).from(players)
-    .where(sql`lower(${players.gamertag}) = lower(${gamertag})`).limit(1);
+    .where(sql`lower(${players.gamertag}) = lower(${gamertag})`)
+    .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`)
+    .limit(1);
   if (direct[0]) return direct[0].id;
   const alias = await tx.select({ id: playerGamertags.playerId }).from(playerGamertags)
     .where(sql`lower(${playerGamertags.gamertag}) = lower(${gamertag})`)

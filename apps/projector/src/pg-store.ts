@@ -83,8 +83,12 @@ export class PgProjectionStore implements ProjectionStore {
   }
   async getPlayerByDayzId(dayzId: string): Promise<PlayerRow | null> {
     // dayz_id is deliberately non-unique until migration 0026 (duplicates provably exist
-    // between the migrate and rebuild phases of a deploy). Not reachable by the fold in that
-    // window, but `.orderBy` makes the pick deterministic and matches its `getPlayer` sibling.
+    // between the migrate and rebuild phases of a deploy). This does NOT match its `getPlayer`
+    // sibling, which orders most-recently-seen first to resolve a name recycled onto a second
+    // identity — here we order by `id` ascending (oldest first) instead. That is fine only
+    // because this path is unreachable by the fold during the duplicate-hash window: hashes are
+    // unique again after the rebuild, so `.orderBy` exists purely to make the pick deterministic,
+    // not to pick the semantically-correct row among genuine duplicates.
     const r = await this.tx.select().from(players).where(eq(players.dayzId, dayzId))
       .orderBy(players.id).limit(1);
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
