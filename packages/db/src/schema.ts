@@ -71,7 +71,11 @@ export const players = pgTable("players", {
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 }, (t) => ({
-  uniq: uniqueIndex("players_gamertag_uniq").on(t.gamertag),
+  // Expression index (migration 0024): Xbox reserves gamertags case-insensitively, so a re-cased
+  // name is the same human and must not become a second row. NOTE this makes the index
+  // unaddressable as an ON CONFLICT target through drizzle's query builder — see createPlayer in
+  // apps/projector/src/pg-store.ts.
+  uniq: uniqueIndex("players_gamertag_uniq").on(sql`lower(${t.gamertag})`),
 }));
 
 export const lives = pgTable("lives", {
@@ -233,7 +237,9 @@ export const gamertagLinks = pgTable("gamertag_links", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqUserGamertag: uniqueIndex("gamertag_links_user_gamertag_uniq").on(t.userId, t.gamertag),
-  uniqVerified: uniqueIndex("gamertag_links_verified_uniq").on(t.gamertag).where(sql`${t.status} = 'verified'`),
+  // Expression index (migration 0024). Still PARTIAL: two users may hold PENDING claims on the
+  // same callsign in different casings; first-verify-wins resolves it.
+  uniqVerified: uniqueIndex("gamertag_links_verified_uniq").on(sql`lower(${t.gamertag})`).where(sql`${t.status} = 'verified'`),
   uniqUserActive: uniqueIndex("gamertag_links_user_active_uniq").on(t.userId).where(sql`${t.status} IN ('pending','verified')`),
   byGamertag: index("gamertag_links_gamertag_idx").on(t.gamertag),
 }));

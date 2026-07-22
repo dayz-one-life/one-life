@@ -169,6 +169,13 @@
       "when": 1785300000000,
       "tag": "0023_bans_dayz_id",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785400000000,
+      "tag": "0024_gamertag_case_insensitive",
+      "breakpoints": true
     }
   ]
 }

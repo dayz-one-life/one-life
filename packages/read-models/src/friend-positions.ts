@@ -42,10 +42,12 @@ export async function getFriendPositions(
   //
   // The join folds case because `gamertag_links` and `players` are independently-cased text
   // columns for one identity; that is safe precisely because it is scoped by a verified link,
-  // never used as a bare directory lookup. It can nonetheless match MORE THAN ONE row —
-  // `players_gamertag_uniq` is case-SENSITIVE, so "Sasha" and "sasha" are two rows — hence
-  // the ordering below: most-recently-seen wins, deterministically, and `limit(1)` keeps one
-  // identity to one dot. See the same reasoning applied per-friend further down.
+  // never used as a bare directory lookup. Since migration 0024 `players_gamertag_uniq` is on
+  // lower(gamertag), so "Sasha" and "sasha" can no longer BE two rows and this join matches at
+  // most one — but the ordering below (most-recently-seen wins, deterministically) and the
+  // `limit(1)` are retained as defence in depth, exactly as the two per-friend guards further
+  // down are: a restore from a pre-0024 dump or a hand-run backfill reintroduces the input, and
+  // the failure mode is two dots for one identity rather than an error.
   const [viewer] = await db
     .select({
       gamertag: gamertagLinks.gamertag,
@@ -110,11 +112,14 @@ export async function getFriendPositions(
     }),
   );
 
-  // ⚠️ One friend, one dot. The lower(gamertag) join above can match several `players` rows
-  // for a single link, because `players_gamertag_uniq` is case-SENSITIVE and the ingest can
-  // therefore hold "Sasha" and "sasha" as distinct rows for what is really one Xbox identity.
-  // Left as-is that renders TWO markers, both labelled with the same callsign, in two different
-  // places — a friend appearing to be in two locations at once is worse than being absent.
+  // ⚠️ One friend, one dot. The lower(gamertag) join above can match several `players` rows for
+  // a single link whenever the ingest holds "Sasha" and "sasha" as distinct rows for what is
+  // really one Xbox identity. Since migration 0024 `players_gamertag_uniq` is on lower(gamertag),
+  // so the database no longer PERMITS that pair — this collapse is retained as defence in depth,
+  // not because a live query can still hit it. Keep it: a later index change, a hand-run
+  // backfill, or a restore from a pre-0024 dump reintroduces the input, and the failure mode is
+  // TWO markers, both labelled with the same callsign, in two different places — a friend
+  // appearing to be in two locations at once is worse than being absent, and it throws nothing.
   // Collapse to the FIRST row per friend, which the `orderBy` above has already made the
   // most-recently-seen one. Deliberately one rule rather than an ORDER BY plus a comparator
   // that must agree with it.
@@ -129,9 +134,11 @@ export async function getFriendPositions(
     if (!bestByFriend.has(r.friendUserId)) bestByFriend.set(r.friendUserId, r);
   }
 
-  // ⚠️ Also one PLAYER ROW to one subject. `gamertag_links_verified_uniq` is case-sensitive
-  // too, so two different users can hold verified links to "Sasha" and "sasha" and resolve to
-  // the same `players` row. Keying the reverse map by player id would then silently relabel
+  // ⚠️ Also one PLAYER ROW to one subject. Two different users holding verified links to "Sasha"
+  // and "sasha" would resolve to the same `players` row; migration 0024 put
+  // `gamertag_links_verified_uniq` on lower(gamertag) as well, so that pair is now rejected at
+  // write time and this guard, like the collapse above, is retained as defence in depth rather
+  // than as a live code path. Keying the reverse map by player id would silently relabel
   // that position with whichever callsign was inserted last — a marker attributed to the wrong
   // friend. First claim wins, deterministically, and the viewer is added first so their own
   // dot is never relabelled as someone else's.

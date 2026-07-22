@@ -107,4 +107,14 @@ describe("PgProjectionStore", () => {
       expect(row.bleedSourcesAtDeath).toBe(1);
     });
   });
+
+  it("resolves an existing player when the ADM re-cases their gamertag", async () => {
+    const tag = `Recase${Math.floor(Math.random() * 1e8)}`;
+    await db.insert(players).values({ gamertag: tag, dayzId: `D=${tag}` });
+    const store = new PgProjectionStore(db);
+    const found = await store.getPlayer(tag.toLowerCase());
+    expect(found).not.toBeNull();
+    expect(found!.gamertag).toBe(tag); // the stored casing is returned, not the queried one
+    await db.delete(players).where(eq(players.gamertag, tag));
+  });
 });
