@@ -37,13 +37,29 @@ export async function writeNotification(tx: Executor, draft: FriendNotificationD
   await tx.insert(notifications).values(draft).onConflictDoNothing({ target: notifications.naturalKey });
 }
 
+/**
+ * naturalKey is `friend_request:<senderUserId>:<friendshipId>:<seq>`.
+ *
+ * The `:<seq>` suffix is load-bearing (see the re-request test): notifications.natural_key
+ * is a PLAIN GLOBAL unique index, so re-using the same key across a decline→re-request cycle
+ * would have the second notification swallowed by onConflictDoNothing and the recipient
+ * would never be told.
+ *
+ * The `<senderUserId>` segment is load-bearing too: it lets mutations.request() count how
+ * many requests THIS sender has actually had delivered (a prefix match on
+ * `friend_request:<senderUserId>:`), which friendships rows alone cannot answer since
+ * cancel() hard-deletes the row while the notification survives. Adding it cannot introduce
+ * a duplicate — the sender is fully determined by (friendshipId, seq): a given friendship
+ * row's requester for a given seq never changes retroactively, so the key stays a pure
+ * function of state that was already unique.
+ */
 export function requestNotification(a: {
-  friendshipId: number; seq: number; recipientId: string; senderGamertag: string;
+  friendshipId: number; seq: number; recipientId: string; senderId: string; senderGamertag: string;
 }): FriendNotificationDraft {
   return {
     userId: a.recipientId,
     kind: "friend_request_received",
-    naturalKey: `friend_request:${a.friendshipId}:${a.seq}`,
+    naturalKey: `friend_request:${a.senderId}:${a.friendshipId}:${a.seq}`,
     title: "Friend request",
     body: `${a.senderGamertag} wants to be friends.`,
     href: "/friends",

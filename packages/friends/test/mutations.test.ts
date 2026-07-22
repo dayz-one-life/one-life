@@ -114,6 +114,23 @@ describe("request", () => {
     }
     await expect(request(db, { fromUserId: "fa", toUserId: "fb" })).rejects.toThrow(/rate_limited/);
   });
+
+  // ⚠️ Regression guard: cancel() hard-deletes the friendships row but never the
+  // notification it already wrote. A counter that counts friendships rows is trivially
+  // evaded by request→cancel against fresh targets, defeating the whole point of the
+  // limit (bounding notification spam to a target). Counting notifications actually sent
+  // closes it. Verified to fail against the old friendships-counting implementation.
+  it("still rate-limits when each request is immediately cancelled", async () => {
+    for (let i = 0; i < 20; i++) {
+      const id = `c${i}`;
+      await db.insert(user).values({ id, name: id, email: `${id}@x.com` });
+      await db.insert(gamertagLinks).values({ userId: id, gamertag: `Can${i}`, status: "verified" });
+      const out = await request(db, { fromUserId: "fa", toUserId: id });
+      await cancel(db, { userId: "fa", friendshipId: out.id });
+    }
+    expect(await rows()).toHaveLength(0);
+    await expect(request(db, { fromUserId: "fa", toUserId: "fb" })).rejects.toThrow(/rate_limited/);
+  });
 });
 
 describe("accept / decline / cancel / remove", () => {

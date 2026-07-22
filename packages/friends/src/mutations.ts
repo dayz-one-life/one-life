@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { friendships, gamertagLinks } from "@onelife/db";
-import { and, eq, gte, or, sql as dsql } from "drizzle-orm";
+import { friendships, gamertagLinks, notifications } from "@onelife/db";
+import { and, eq, gte, like, or, sql as dsql } from "drizzle-orm";
 import { FriendError } from "./errors.js";
 import { cooldownEnd, orderPair, FRIEND_REQUEST_DAILY_LIMIT } from "./pair.js";
 import { acceptedNotification, requestNotification, writeNotification } from "./notify.js";
@@ -112,12 +112,20 @@ export async function request(
       }
     }
 
-    // Rolling 24h cap on outgoing requests. Counted off friendships itself — no new table.
+    // Rolling 24h cap on outgoing requests. Counted off notifications actually SENT, not
+    // friendships rows — cancel() hard-deletes the friendship row but never the
+    // notification it already wrote, so counting friendships is trivially evaded by
+    // request → cancel → request … against fresh targets. Notification rows are durable,
+    // so this measures the thing the limit exists to bound.
     const since = new Date(now.getTime() - 86_400_000);
+    const keyPrefix = `friend_request:${a.fromUserId}:`;
     const [countRow] = await tx
       .select({ count: dsql<number>`count(*)::int` })
-      .from(friendships)
-      .where(and(eq(friendships.requestedBy, a.fromUserId), gte(friendships.createdAt, since)));
+      .from(notifications)
+      .where(and(
+        like(notifications.naturalKey, `${keyPrefix}%`),
+        gte(notifications.createdAt, since),
+      ));
     if (countRow!.count >= FRIEND_REQUEST_DAILY_LIMIT) throw new FriendError("rate_limited");
 
     if (existing) {
@@ -128,7 +136,7 @@ export async function request(
         .set({ status: "pending", requestedBy: a.fromUserId, requestSeq: seq, respondedAt: null, createdAt: now })
         .where(eq(friendships.id, existing.id));
       await writeNotification(tx, requestNotification({
-        friendshipId: existing.id, seq, recipientId: a.toUserId, senderGamertag: fromTag,
+        friendshipId: existing.id, seq, recipientId: a.toUserId, senderId: a.fromUserId, senderGamertag: fromTag,
       }));
       return { id: existing.id, status: "pending" as const };
     }
@@ -138,7 +146,7 @@ export async function request(
       .returning({ id: friendships.id, requestSeq: friendships.requestSeq });
     // insert().values(single row) always returns exactly one row.
     await writeNotification(tx, requestNotification({
-      friendshipId: created!.id, seq: created!.requestSeq, recipientId: a.toUserId, senderGamertag: fromTag,
+      friendshipId: created!.id, seq: created!.requestSeq, recipientId: a.toUserId, senderId: a.fromUserId, senderGamertag: fromTag,
     }));
     return { id: created!.id, status: "pending" as const };
   });
