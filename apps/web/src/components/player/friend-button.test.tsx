@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { FriendView, friendButtonLabel, FriendButton } from "./friend-button";
@@ -15,6 +15,12 @@ describe("friendButtonLabel", () => {
       .toBe("You can send another request in 7 days");
     expect(friendButtonLabel("cooldown", "2026-07-02T06:00:00Z", now))
       .toBe("You can send another request in 2 days");
+  });
+
+  it("returns empty once the cooldown has actually expired, never a stale floor of 1 day", () => {
+    const now = new Date("2026-07-08T00:00:01Z");
+    expect(friendButtonLabel("cooldown", "2026-07-08T00:00:00Z", now)).toBe("");
+    expect(friendButtonLabel("cooldown", "2026-07-01T00:00:00Z", now)).toBe("");
   });
 });
 
@@ -73,6 +79,19 @@ describe("FriendView", () => {
     expect(btn).toBeDisabled();
   });
 
+  it("offers Add friend, not a stale disabled cooldown label, once the cooldown has expired", () => {
+    render(
+      <FriendView
+        status="cooldown"
+        cooldownUntil="2026-07-01T00:00:00Z"
+        now={new Date("2026-07-08T00:00:00Z")}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /add friend/i })).not.toBeDisabled();
+    expect(screen.queryByText(/send another request/i)).toBeNull();
+  });
+
   it("surfaces a failed mutation as a status line beside the control, not a silent re-enable", () => {
     render(<FriendView status="none" errorCode="already_friends" {...actions} />);
     expect(screen.getByRole("button", { name: /add friend/i })).toBeInTheDocument();
@@ -113,9 +132,10 @@ describe("friendErrorMessage", () => {
   });
 });
 
-const { mockAccount, getFriendStatus } = vi.hoisted(() => ({
+const { mockAccount, getFriendStatus, sendFriendRequest } = vi.hoisted(() => ({
   mockAccount: { value: null as unknown },
   getFriendStatus: vi.fn(),
+  sendFriendRequest: vi.fn(),
 }));
 
 vi.mock("@/lib/use-account-status", () => ({
@@ -128,7 +148,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...actual,
     getFriendStatus: (...a: unknown[]) => getFriendStatus(...a),
     getFriends: vi.fn(),
-    sendFriendRequest: vi.fn(),
+    sendFriendRequest: (...a: unknown[]) => sendFriendRequest(...a),
     acceptFriendRequest: vi.fn(),
     declineFriendRequest: vi.fn(),
     deleteFriendship: vi.fn(),
@@ -160,5 +180,25 @@ describe("FriendButton container gates", () => {
     wrap(<FriendButton gamertag="SomeoneElse" />);
     expect(await screen.findByRole("button", { name: /add friend/i })).toBeInTheDocument();
     expect(getFriendStatus).toHaveBeenCalledWith("SomeoneElse");
+  });
+
+  it("announces success only once a send-request mutation resolves, same as the Roster", async () => {
+    mockAccount.value = {
+      kind: "verified",
+      link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+    };
+    getFriendStatus.mockResolvedValue({ status: "none", friendshipId: null, cooldownUntil: null });
+    let resolveSend: () => void = () => {};
+    sendFriendRequest.mockReturnValue(new Promise<void>((res) => { resolveSend = res; }));
+    wrap(<FriendButton gamertag="SomeoneElse" />);
+
+    const addBtn = await screen.findByRole("button", { name: /add friend/i });
+    addBtn.click();
+
+    // Not announced synchronously at click time — the mutation hasn't resolved yet.
+    expect(screen.queryByText(/friend request sent/i)).toBeNull();
+
+    resolveSend();
+    await waitFor(() => expect(screen.getByText(/friend request sent/i)).toBeInTheDocument());
   });
 });

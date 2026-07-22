@@ -94,6 +94,37 @@ describe("RosterView", () => {
     expect(screen.getByRole("button", { name: /remove friend/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^cancel$/i })).toBeInTheDocument();
   });
+
+  it("offers a pager for the friends list once it spans more than one page", () => {
+    const friends = Array.from({ length: 25 }, (_, i) => entry(i + 1, `Friend${i + 1}`));
+    render(
+      <RosterView
+        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25 }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByText(/showing 1–25 of 30/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /next/i })).toBeInTheDocument();
+  });
+
+  it("never paginates the incoming or outgoing sections", () => {
+    render(
+      <RosterView
+        data={{
+          friends: [], incoming: [entry(1, "InOne")], outgoing: [entry(2, "OutOne")],
+          total: 0, page: 1, pageSize: 25,
+        }}
+        {...actions}
+      />,
+    );
+    expect(screen.queryByText(/showing .* of/i)).toBeNull();
+  });
+
+  it("says who's signed in only once resolved — never a blank page for a signed-out visitor", () => {
+    render(<RosterView signedOut {...actions} />);
+    expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/no friends yet/i)).toBeNull();
+  });
 });
 
 const { mockAccount, getFriends, acceptFriendRequest } = vi.hoisted(() => ({
@@ -176,5 +207,20 @@ describe("Roster container", () => {
     const acceptBtn = await screen.findByRole("button", { name: /accept/i });
     acceptBtn.click();
     await waitFor(() => expect(acceptBtn).toBeDisabled());
+  });
+
+  it("shows a sign-in prompt for a signed-out visitor, not a blank page", async () => {
+    mockAccount.value = { kind: "signedOut" };
+    getFriends.mockResolvedValue(feed);
+    wrap(<Roster />);
+    expect((await screen.findAllByText(/sign in/i)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/no friends yet/i)).toBeNull();
+  });
+
+  it("shows a loading state while account status is still resolving, not a blank page", () => {
+    mockAccount.value = { kind: "loading" };
+    getFriends.mockResolvedValue(feed);
+    wrap(<Roster />);
+    expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
   });
 });

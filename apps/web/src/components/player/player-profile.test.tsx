@@ -140,6 +140,10 @@ describe("PlayerProfile", () => {
 
   test("a failed articles fetch renders the status line, not an empty section", () => {
     renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed articlesPage={1} />);
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    // FriendButton's own (usually-empty) SrStatus announcer is an always-present sibling
+    // (same idiom as VerificationAnnouncer), so more than one role="status" node can
+    // legitimately coexist — the assertion is about the one with actual text.
+    const nonEmpty = screen.getAllByRole("status").filter((el) => el.textContent !== "");
+    expect(nonEmpty.length).toBeGreaterThan(0);
   });
 });

@@ -1,9 +1,12 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { GamertagLink } from "@/components/gamertag-link";
 import { SrStatus } from "@/components/shared/sr-status";
 import { friendErrorMessage } from "./format";
+import { FriendsPagination } from "./pagination";
 import { useFriendActions, useFriends } from "@/lib/use-friends";
+import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendEntryDto, FriendsFeed } from "@/lib/types";
 
 const BTN = "font-mono text-[11px] uppercase tracking-[.05em] border border-ink px-2.5 py-1 " +
@@ -52,6 +55,10 @@ export type RosterViewProps = {
   data?: FriendsFeed;
   loading?: boolean;
   error?: boolean;
+  /** True for a visitor who is definitely not signed in — checked before `loading`/`error`, so
+   *  a signed-out visitor gets an honest sign-in prompt instead of a permanently blank page
+   *  (the query behind `data` is never even enabled for them). */
+  signedOut?: boolean;
   announcement?: string;
   /** Human sentence for the most recently FAILED action, already mapped through
    *  friendErrorMessage — the same mapper and the same visible role="status" presentation
@@ -67,11 +74,23 @@ export type RosterViewProps = {
   onAccept: (id: number) => void;
   onDecline: (id: number) => void;
   onRemove: (id: number) => void;
+  onPageChange?: (page: number) => void;
 };
 
-/** Presentational. Loading, failed and genuinely-empty are three different statements and
- *  are never collapsed into one (live-data-honesty invariant). */
+/** Presentational. Loading, failed, signed-out and genuinely-empty are all different
+ *  statements and are never collapsed into one (live-data-honesty invariant) — "unknown"
+ *  (loading/signed-out) must never render as an authoritative negative (an empty roster). */
 export function RosterView(p: RosterViewProps) {
+  if (p.signedOut) {
+    return (
+      <p className="font-mono text-[12px] uppercase tracking-[.05em] text-ink-muted">
+        Sign in to see your roster.{" "}
+        <Link href="/login" className="font-bold text-red-deep underline">
+          Sign in →
+        </Link>
+      </p>
+    );
+  }
   if (p.loading) return <p role="status" className="font-mono text-[11px] uppercase text-ink-muted">Loading roster…</p>;
   if (p.error) return <p role="status" className="font-mono text-[11px] uppercase text-ink-muted">Couldn&apos;t load your roster</p>;
   const d = p.data;
@@ -106,9 +125,15 @@ export function RosterView(p: RosterViewProps) {
             : [{ label: "Remove", onClick: () => toggleConfirm(e.id), disabled: p.pending }]
         }
       />
+      {/* Only the friends list is paginated server-side; incoming/outgoing are returned
+       *  whole and must never gain a pager. */}
+      <FriendsPagination
+        page={d.page} total={d.total} pageSize={d.pageSize}
+        onPage={p.onPageChange ?? (() => {})}
+      />
       <Section
         title="Sent" id="roster-outgoing" entries={d.outgoing}
-        action={(e) => [{ label: "Cancel", onClick: () => p.onRemove(e.id), disabled: p.pending }]}
+        action={(e) => [{ label: "Cancel request", onClick: () => p.onRemove(e.id), disabled: p.pending }]}
       />
       {empty ? <p className="font-mono text-[11px] uppercase text-ink-muted">No friends yet.</p> : null}
     </div>
@@ -116,7 +141,9 @@ export function RosterView(p: RosterViewProps) {
 }
 
 export function Roster() {
-  const { data, loading, error } = useFriends();
+  const account = useAccountStatus();
+  const [page, setPage] = useState(1);
+  const { data, loading, error } = useFriends(page);
   const a = useFriendActions();
   const [announcement, setAnnouncement] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -136,16 +163,24 @@ export function Roster() {
     }
   };
 
+  // "loading" covers both the account-status resolution AND the friends fetch itself — the
+  // account status must be known BEFORE we can honestly say "signed out" vs. "loading", or a
+  // signed-out visitor flashes as an empty roster while the session resolves.
+  const signedOut = account.kind === "signedOut";
+  const accountLoading = account.kind === "loading";
+
   return (
     <RosterView
       data={data ?? undefined}
-      loading={loading}
+      loading={accountLoading || loading}
       error={error}
+      signedOut={signedOut}
       announcement={announcement}
       errorMessage={errorMessage}
       pending={a.pending}
       confirmingId={confirmingId}
       onConfirmToggle={setConfirmingId}
+      onPageChange={setPage}
       onAccept={(id) => a.acceptRequest(id, settle("Friend request accepted"))}
       onDecline={(id) => a.declineRequest(id, settle("Friend request declined"))}
       onRemove={(id) => {

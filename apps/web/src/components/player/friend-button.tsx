@@ -3,18 +3,24 @@ import { useState } from "react";
 import { useFriendActions, useFriendStatus } from "@/lib/use-friends";
 import { useAccountStatus } from "@/lib/use-account-status";
 import { friendErrorMessage } from "@/components/friends/format";
+import { SrStatus } from "@/components/shared/sr-status";
 import type { FriendStatusValue } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
 
 /** Whole days remaining, rounded UP — rounding down understates the wait (a 1-day-6-hour
  *  cooldown must never read "in 1 day", or the user retries ~6h early and the server refuses
- *  them) — and floored at 1: "in 0 days" is never a useful thing to read. */
+ *  them). Returns "" once the cooldown has actually expired — same rule as `banCountdown`
+ *  returning `null` past expiry rather than a clamped "0h 0m": a page left open past expiry
+ *  must not keep reading "in 1 day" forever. Callers branch on the empty string to a terminal
+ *  state (the real action), not a dead-looking disabled control. */
 export function friendButtonLabel(
   status: FriendStatusValue, cooldownUntil: string | null, now: Date,
 ): string {
   if (status !== "cooldown" || !cooldownUntil) return "";
-  const days = Math.max(1, Math.ceil((new Date(cooldownUntil).getTime() - now.getTime()) / DAY_MS));
+  const msLeft = new Date(cooldownUntil).getTime() - now.getTime();
+  if (msLeft <= 0) return "";
+  const days = Math.max(1, Math.ceil(msLeft / DAY_MS));
   return `You can send another request in ${days} ${days === 1 ? "day" : "days"}`;
 }
 
@@ -43,6 +49,11 @@ export type FriendViewProps = {
 function renderControl(p: FriendViewProps) {
   if (p.status === "cooldown") {
     const label = friendButtonLabel(p.status, p.cooldownUntil ?? null, p.now ?? new Date());
+    // An empty label means the cooldown has actually expired (see friendButtonLabel) — offer
+    // the real action instead of a stale disabled control that never re-enables itself.
+    if (!label) {
+      return <button type="button" onClick={p.onAdd} disabled={p.pending} className={BTN}>Add friend</button>;
+    }
     return <button type="button" disabled className={BTN}>{label}</button>;
   }
   if (p.status === "incoming") {
@@ -128,26 +139,42 @@ export function FriendButton({ gamertag }: { gamertag: string }) {
   const { data, loading, error } = useFriendStatus(isSelf ? null : gamertag);
   const a = useFriendActions();
   const [confirming, setConfirming] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
 
   if (isSelf) return null;
 
+  // Announce only once the mutation has actually settled successfully — never at click time,
+  // and never on failure (a.errorCode already surfaces the failure as a visible status line
+  // via FriendView, same friendErrorMessage mapper the Roster uses). Same discipline as
+  // Roster's settle(), so the two surfaces that perform these same four actions announce
+  // their outcomes identically.
+  const settle = (successMessage: string) => (ok: boolean) => {
+    if (ok) setAnnouncement(successMessage);
+  };
+
   return (
-    <FriendView
-      status={data?.status}
-      cooldownUntil={data?.cooldownUntil ?? null}
-      loading={loading}
-      error={error}
-      pending={a.pending}
-      confirming={confirming}
-      errorCode={a.errorCode}
-      onConfirmToggle={() => setConfirming((c) => !c)}
-      onAdd={() => a.sendRequest(gamertag)}
-      onAccept={() => data?.friendshipId && a.acceptRequest(data.friendshipId)}
-      onDecline={() => data?.friendshipId && a.declineRequest(data.friendshipId)}
-      onRemove={() => {
-        if (data?.friendshipId) a.removeFriend(data.friendshipId);
-        setConfirming(false);
-      }}
-    />
+    <>
+      <SrStatus>{announcement}</SrStatus>
+      <FriendView
+        status={data?.status}
+        cooldownUntil={data?.cooldownUntil ?? null}
+        loading={loading}
+        error={error}
+        pending={a.pending}
+        confirming={confirming}
+        errorCode={a.errorCode}
+        onConfirmToggle={() => setConfirming((c) => !c)}
+        onAdd={() => a.sendRequest(gamertag, settle("Friend request sent"))}
+        onAccept={() => data?.friendshipId && a.acceptRequest(data.friendshipId, settle("Friend request accepted"))}
+        onDecline={() => data?.friendshipId && a.declineRequest(data.friendshipId, settle("Friend request declined"))}
+        onRemove={() => {
+          if (data?.friendshipId) {
+            const message = data.status === "outgoing" ? "Friend request canceled" : "Removed";
+            a.removeFriend(data.friendshipId, settle(message));
+          }
+          setConfirming(false);
+        }}
+      />
+    </>
   );
 }

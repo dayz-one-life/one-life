@@ -65,8 +65,11 @@ describe("FriendsPanel", () => {
     expect(link).toHaveTextContent("Friends 0");
   });
 
-  it("hides the count when the fetch has failed (error state)", () => {
-    render(<FriendsPanel error={true} />);
+  // friendCount is undefined whenever the count is unknown — a failed fetch is the only
+  // real-world cause (FriendsPanelContainer never passes `data?.total` through on error), but
+  // the presentational component itself only ever looks at whether friendCount is a number.
+  it("hides the count when friendCount is unknown", () => {
+    render(<FriendsPanel />);
     const link = screen.getByRole("link", { name: /friends/i });
     expect(link).toHaveTextContent("Friends");
     // The link itself should still be present and working
@@ -75,8 +78,8 @@ describe("FriendsPanel", () => {
     expect(link).not.toHaveTextContent("0");
   });
 
-  it("does not show request badge when count is unknown (error state)", () => {
-    render(<FriendsPanel error={true} requestCount={2} />);
+  it("does not show request badge when friendCount is unknown", () => {
+    render(<FriendsPanel requestCount={2} />);
     expect(screen.queryByLabelText(/pending friend requests/i)).toBeNull();
   });
 });

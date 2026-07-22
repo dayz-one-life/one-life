@@ -3,11 +3,12 @@ import Link from "next/link";
 import { useFriends } from "@/lib/use-friends";
 
 export type FriendsPanelProps = {
+  /** Absent (rather than `false`/a distinct `error` flag) whenever the count is unknown —
+   *  a failed fetch is the only real-world cause (see FriendsPanelContainer), but this
+   *  presentational component only ever needs to know whether it HAS a number. */
   friendCount?: number;
   requestCount?: number;
   loading?: boolean;
-  /** True when the fetch failed — the count is unknown and should not render a number. */
-  error?: boolean;
   /** True when mounted in the mobile sheet, which is bg-dark. */
   boxed?: boolean;
 };
@@ -59,13 +60,13 @@ export function FriendsPanel(p: FriendsPanelProps) {
 }
 
 export function FriendsPanelContainer({ boxed }: { boxed?: boolean }) {
-  const { data, loading, error } = useFriends();
-  // A failed load falls through to the link with no counts rather than a fabricated zero
-  // badge — the link still works, which is the panel's whole job.
+  const { data, loading } = useFriends();
+  // A failed load leaves `data` (and so `friendCount`/`requestCount`) undefined, which falls
+  // through to the link with no counts rather than a fabricated zero badge — the link still
+  // works, which is the panel's whole job.
   return (
     <FriendsPanel
       loading={loading}
-      error={error}
       boxed={boxed}
       friendCount={data?.total}
       requestCount={data?.incoming.length}

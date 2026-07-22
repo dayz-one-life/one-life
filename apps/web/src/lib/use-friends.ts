@@ -40,9 +40,20 @@ export function useFriendStatus(gamertag: string | null): {
   };
 }
 
-export function useFriends(): { data: FriendsFeed | null; loading: boolean; error: boolean } {
+/**
+ * `page` scopes only the server-paginated `friends` list (`FriendsFeed.friends`) — `incoming`/
+ * `outgoing` are always returned whole regardless of `page`. Invalidating the bare `["friends"]`
+ * key (see useFriendActions below) still catches every page: TanStack Query's default
+ * `exact: false` matches any query key with that prefix, including `["friends", page]`.
+ */
+export function useFriends(page = 1): { data: FriendsFeed | null; loading: boolean; error: boolean } {
   const enabled = useSignedIn();
-  const q = useQuery({ queryKey: ["friends"], queryFn: () => getFriends(), enabled, refetchInterval: 60_000 });
+  const q = useQuery({
+    queryKey: ["friends", page],
+    queryFn: () => getFriends(page),
+    enabled,
+    refetchInterval: 60_000,
+  });
   return { data: q.data ?? null, loading: enabled && q.isPending, error: q.isError && !q.data };
 }
 
