@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles } from "@onelife/db";
+import { servers, players, lives, articles, sessions, kills } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { buildApp } from "../src/app.js";
 
@@ -54,7 +54,24 @@ describe("GET /players/:gamertag/:map/lives/:n", () => {
     // A Livonia (enoch) server — its slug must resolve, not be rejected by a hardcoded map allow-list.
     const [liv] = await db.insert(servers).values({ nitradoServiceId: 302, name: "Livonia", map: "enoch", slug: "pa-livonia" }).returning();
     const [p] = await db.insert(players).values({ gamertag: "LivoniaLad" }).returning();
-    await db.insert(lives).values({ serverId: liv!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-10T12:00:00Z"), playtimeSeconds: 600 });
+    // Deliberately given real nested structure (a session row + a kill row) and an `endedAt`
+    // so the death/verdict branch of getLifeTimeline is populated too — otherwise the
+    // "no coordinate data" scan below only ever visits a flat object and proves nothing about
+    // arrays that could one day carry per-session/per-kill coordinates.
+    const [life] = await db.insert(lives).values({
+      serverId: liv!.id, playerId: p!.id, lifeNumber: 1,
+      startedAt: new Date("2026-07-10T12:00:00Z"), endedAt: new Date("2026-07-10T13:00:00Z"),
+      playtimeSeconds: 3600,
+    }).returning();
+    await db.insert(sessions).values({
+      serverId: liv!.id, playerId: p!.id, lifeId: life!.id,
+      connectedAt: new Date("2026-07-10T12:00:00Z"), disconnectedAt: new Date("2026-07-10T13:00:00Z"),
+      durationSeconds: 3600, closeReason: "death",
+    });
+    await db.insert(kills).values({
+      serverId: liv!.id, killerGamertag: "LivoniaLad", victimGamertag: "LivoniaLadVictim",
+      weapon: "AKM", distance: 42, occurredAt: new Date("2026-07-10T12:30:00Z"),
+    });
   });
   it("resolves a life on a server whose slug is outside the original chernarus/sakhal set", async () => {
     const res = await app.inject({ method: "GET", url: "/players/LivoniaLad/pa-livonia/lives/1" });
@@ -178,6 +195,11 @@ describe("GET /players/:gamertag/articles", () => {
 describe("GET /players/:gamertag/:map/lives/:n — no coordinate data", () => {
   // A recursive key scan, not a shape-specific assertion — this survives the response
   // shape changing later, which is exactly when a "just add the map" regression would land.
+  // Implicit fixture dependency: this relies on the "GET /players/:gamertag/:map/lives/:n"
+  // describe block above having already seeded pa-livonia/LivoniaLad/life 1 in its own
+  // beforeAll — there is no seeding here. This fails safe (404, not a false pass) if that
+  // sibling block is ever reordered or run with `.only`, but a future maintainer reading only
+  // this block would otherwise wonder where the fixture came from.
   const FORBIDDEN_KEYS = new Set(["x", "y", "positions", "segments", "track"]);
   function findForbiddenKeys(value: unknown, path = ""): string[] {
     if (value === null || typeof value !== "object") return [];

@@ -119,9 +119,9 @@ describe("GET /me/lives/:mapSlug/:n/track — access control", () => {
     expect(xs).not.toContain(9999);
   });
 
-  it("sets Cache-Control: no-store so no proxy or CDN can hand this to the next visitor", async () => {
+  it("sets Cache-Control: no-store, private so no proxy or CDN can hand this to the next visitor", async () => {
     const r = await app.inject({ method: "GET", url: url(), headers: { cookie } });
-    expect(r.headers["cache-control"]).toContain("no-store");
+    expect(r.headers["cache-control"]).toBe("no-store, private");
   });
 
   it("404s for a life number the caller's gamertag does not have", async () => {
@@ -159,6 +159,10 @@ describe("GET /me/lives/:mapSlug/:n/track — access control", () => {
     const baseline = await app.inject({ method: "GET", url: url(), headers: { cookie } });
     expect(baseline.statusCode).toBe(200);
     const baselineBody = baseline.json();
+    // Prove the baseline actually contains the seeded fix (x: 1000, from `mine`'s position),
+    // not an empty/regressed body the matrix below would then vacuously compare against itself.
+    const baselineXs = baselineBody.segments.flatMap((s: { points: { x: number }[] }) => s.points.map((p) => p.x));
+    expect(baselineXs).toContain(1000);
 
     const queryKeys = ["gamertag", "player", "tag", "for", "as", "subject", "userId"];
     for (const key of queryKeys) {
