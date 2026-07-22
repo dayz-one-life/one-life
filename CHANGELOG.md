@@ -18,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Your gamertag is now recognised whatever its capitalisation. Claiming a name that the game
   logs with different capitals no longer leaves verification stuck forever, and the same name
-  in different capitals can no longer become two separate players.
+  in different capitals can no longer become two separate players. Names already stored with the
+  wrong capitals are repaired on deploy, and re-claiming one repairs it too — left alone, such a
+  name quietly cost that player their verified mark and their ability to spend a token to lift
+  their own ban.
 
 ### Security
 
