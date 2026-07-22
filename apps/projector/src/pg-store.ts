@@ -24,11 +24,33 @@ export class PgProjectionStore implements ProjectionStore {
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async createPlayer(gamertag: string, dayzId: string | null, seenAt: Date): Promise<PlayerRow> {
-    const [row] = await this.tx.insert(players)
-      .values({ gamertag, dayzId, firstSeenAt: seenAt, lastSeenAt: seenAt })
-      .onConflictDoUpdate({ target: [players.gamertag], set: { lastSeenAt: seenAt } })
-      .returning();
-    return { id: row!.id, gamertag: row!.gamertag, lastSeenAt: row!.lastSeenAt };
+    // Raw SQL because drizzle 0.36.4's onConflict target accepts columns only (IndexColumn =
+    // PgColumn), and players_gamertag_uniq is now an expression index on lower(gamertag).
+    // A column target here raises "no unique or exclusion constraint matching the ON CONFLICT
+    // specification" at RUNTIME — nothing about it fails to compile.
+    //
+    // Two things the raw path does NOT do for you, both verified against postgres-js 3.4.9:
+    //   1. A `Date` bound as a raw parameter THROWS ("The 'string' argument must be of type
+    //      string ... Received an instance of Date") — the driver only serialises Dates through
+    //      drizzle's typed builder. Hence toISOString(); the column is timestamptz and Postgres
+    //      parses the ISO string.
+    //   2. RETURNING comes back untyped: `id` is a bigint STRING (not the number the query
+    //      builder maps `bigint mode:"number"` to) and `last_seen_at` is a string, not a Date.
+    //      PlayerRow declares `id: number` and `lastSeenAt: Date | null`, so both are converted
+    //      here. A bare cast would satisfy the compiler and hand the fold a string id.
+    const at = seenAt.toISOString();
+    const rows = await this.tx.execute(sql`
+      INSERT INTO players (gamertag, dayz_id, first_seen_at, last_seen_at)
+      VALUES (${gamertag}, ${dayzId}, ${at}, ${at})
+      ON CONFLICT (lower(gamertag)) DO UPDATE SET last_seen_at = ${at}
+      RETURNING id, gamertag, last_seen_at
+    `);
+    const row = (rows as unknown as Array<{ id: string; gamertag: string; last_seen_at: string | null }>)[0]!;
+    return {
+      id: Number(row.id),
+      gamertag: row.gamertag,
+      lastSeenAt: row.last_seen_at === null ? null : new Date(row.last_seen_at),
+    };
   }
   async touchPlayer(playerId: number, lastSeenAt: Date): Promise<void> {
     await this.tx.update(players).set({ lastSeenAt }).where(eq(players.id, playerId));
