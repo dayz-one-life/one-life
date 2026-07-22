@@ -39,22 +39,41 @@ export function isOwnerOf(
 }
 
 export function LocationPanel({ mapSlug, lifeNumber, pageGamertag, alive }: Props) {
-  const { data: session } = useSession();
+  const { data: session, isPending: sessionPending } = useSession();
+  // `linksPending` is TanStack v5's `isPending` for the gamertag-links query, which for a
+  // DISABLED query (`useGamertagLinks(false)`, a signed-out visitor) is permanently `true`
+  // — there is no fetch to resolve it. That state is unreachable today only because of the
+  // `session?.user &&` guard below; if that guard is ever removed, every signed-out visitor
+  // would get "Pulling your fixes…" forever instead of the withheld bar.
   const { data: links, isPending: linksPending } = useGamertagLinks(!!session?.user);
   const isOwner = isOwnerOf(!!session?.user, links, pageGamertag);
 
   const { data: track, isPending, isError } = useLifeTrack(mapSlug, lifeNumber, isOwner, alive);
 
-  // While the owner's own links are still loading, `links` is `undefined` and `isOwnerOf`
-  // reads that as false — which would otherwise show the OWNER their own "positions
-  // withheld" bar for the few hundred ms before the fetch resolves. That's loading
-  // rendered as permission-refused, exactly what this panel forbids for the track fetch
-  // below. Only gate on this while signed in — a signed-out visitor never fetches links
-  // (`useGamertagLinks(false)`) and must keep seeing today's instant withheld bar.
-  if (session?.user && linksPending) {
+  // `useSession()` is itself async: on first mount `data` is `null` and `isPending` is
+  // `true`. Gating only on `linksPending` (which doesn't even start fetching until
+  // `!!session?.user` flips true) let a genuine owner see the withheld bar for the whole
+  // session-resolution window — loading rendered as permission-refused, exactly what this
+  // panel forbids for the track fetch below. `sessionPending` covers that first window;
+  // `linksPending` covers the window after sign-in status is known but links haven't
+  // resolved yet. A signed-out visitor resolves `sessionPending` to `false` and never
+  // fetches links, so they still get today's instant withheld bar.
+  if (sessionPending) {
     return (
       <p className="mt-5 border border-hairline bg-bone px-4 py-3 font-mono text-[11px] text-ink-soft">
         Pulling your fixes…
+      </p>
+    );
+  }
+
+  if (session?.user && linksPending) {
+    // Ownership is still unknown here (signed in, but we don't yet know which gamertag, if
+    // any, they own) — a non-owner viewing someone else's life would otherwise be told
+    // "Pulling your fixes…", which is untrue for them. This copy is deliberately neutral
+    // rather than possessive.
+    return (
+      <p className="mt-5 border border-hairline bg-bone px-4 py-3 font-mono text-[11px] text-ink-soft">
+        Checking the desk record…
       </p>
     );
   }

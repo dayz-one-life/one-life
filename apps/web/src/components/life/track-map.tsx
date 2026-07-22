@@ -88,7 +88,16 @@ export default function TrackMap({ track }: { track: LifeTrack }) {
     if (layerGroupRef.current) {
       layerGroupRef.current.clearLayers?.();
     } else {
-      layerGroupRef.current = L.layerGroup().addTo(m);
+      // Created and added as two separate calls, not `L.layerGroup().addTo(m)` — the
+      // exact chained-return pattern the marker code below deliberately avoids (see its
+      // comment). Real Leaflet's addTo() returns `this`, but relying on that return value
+      // here would mean a double whose addTo() returns undefined creates and adds a NEW
+      // LayerGroup every poll, forever, since `layerGroupRef.current` would stay null and
+      // this branch would never take the clearLayers() path — the exact unbounded-layer
+      // leak this effect split was written to remove.
+      const group = L.layerGroup();
+      group.addTo(m);
+      layerGroupRef.current = group;
     }
     const group = layerGroupRef.current;
 
@@ -120,9 +129,18 @@ export default function TrackMap({ track }: { track: LifeTrack }) {
     // never snap the view back out from under an owner who has zoomed into their base
     // and opened a marker popup — see the bug this guards against in track-map.test.tsx.
     if (!hasFitRef.current) {
-      if (all.length > 0) m.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
-      else m.setView(pt(size / 2, size / 2), 1);
-      hasFitRef.current = true;
+      if (all.length > 0) {
+        m.fitBounds(L.latLngBounds(all), { padding: [24, 24] });
+        // Only latched on a REAL first draw. An owner opening an alive life before any
+        // position fix has landed would otherwise get `setView` on an empty trail, latch
+        // the flag, and never fit the real trail once fixes arrive on the next 60s poll —
+        // rendering it tiny and off-centre forever. Leaving the flag false lets the next
+        // poll (or this same effect run again with data) fit properly the first time
+        // there is something to fit.
+        hasFitRef.current = true;
+      } else {
+        m.setView(pt(size / 2, size / 2), 1);
+      }
     }
   }
 
@@ -133,9 +151,14 @@ export default function TrackMap({ track }: { track: LifeTrack }) {
   // map — snapping `fitBounds` back to the full-track view and closing any open popup,
   // with no user input, forever, on a loop no test could see (jsdom has no layout).
   useEffect(() => {
+    // Reset BEFORE the early-return guard: a `size` change while in the error state (e.g.
+    // the mapCodename changing to one this component has no world size for) must clear the
+    // stale error rather than latch it — the `size === null` branch below renders its own
+    // honest "Unmapped terrain" message, and the error line must not persist alongside or
+    // instead of it.
+    setLoadError(false);
     if (!ref.current || size === null) return;
     let cancelled = false;
-    setLoadError(false);
     hasFitRef.current = false;
 
     // Dynamically imported so Leaflet never enters the server bundle and never runs

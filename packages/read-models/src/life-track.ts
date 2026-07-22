@@ -19,10 +19,15 @@ export interface LifeTrack {
 /**
  * The owner-only position track for one life.
  *
- * `gamertag` is a WHERE-clause predicate on every query, never a post-filter — a life
- * belonging to another player produces no rows and a null return, so there is no
- * intermediate state holding someone else's coordinates that a later bug could leak.
- * The caller (the /me route) derives that gamertag from the session cookie alone.
+ * `gamertag` is a WHERE-clause predicate on the life lookup and the kills query, never a
+ * post-filter — a life belonging to another player produces no rows and a null return, so
+ * there is no intermediate state holding someone else's coordinates that a later bug could
+ * leak. Positions are filtered indirectly, by the `player_id` resolved from that
+ * gamertag-scoped life lookup (see the note at the positions query below for why) — which
+ * is strictly NARROWER than filtering by gamertag directly: a life row only exists at all
+ * once the gamertag predicate has already matched, so the resolved `player_id` can only
+ * ever be that same player's. The caller (the /me route) derives that gamertag from the
+ * session cookie alone.
  */
 export async function getLifeTrack(
   db: Database, serverId: number, gamertag: string, lifeNumber: number,

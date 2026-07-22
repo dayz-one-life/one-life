@@ -76,6 +76,18 @@ for m in "${MAPS[@]}"; do
     continue
   fi
 
+  # Counted BEFORE touching $DEST at all: a staged-but-empty source must never destroy
+  # the previously-working mirror. The `rm -rf` + `mv` below is the destructive step, and
+  # the missing-source branch above promises "existing tiles untouched" — this check makes
+  # that promise hold for an empty-but-present source too, not just an absent one.
+  STAGED_COUNT="$(find "$SRC" -name '*.webp' | wc -l | tr -d ' ')"
+  if [[ "$STAGED_COUNT" -eq 0 ]]; then
+    echo "warning: $m produced a tile directory with zero .webp files — leaving the" >&2
+    echo "         existing mirror at $DEST/$m/topographic untouched" >&2
+    FAILED_MAPS+=("$m")
+    continue
+  fi
+
   # The web app requests /tiles/{map}/topographic/{z}/{x}/{y}.webp verbatim (see
   # apps/web/src/components/life/track-map.tsx) — the same "topographic" name
   # DZMap itself uses, so the mirrored tree lands exactly as DZMap produced it,
@@ -85,11 +97,7 @@ for m in "${MAPS[@]}"; do
   mv "$SRC" "$DEST/$m/topographic"
   TILE_COUNT="$(find "$DEST/$m/topographic" -name '*.webp' | wc -l | tr -d ' ')"
   echo "==> $m: $TILE_COUNT tiles mirrored"
-  if [[ "$TILE_COUNT" -eq 0 ]]; then
-    FAILED_MAPS+=("$m")
-  else
-    OK_MAPS+=("$m")
-  fi
+  OK_MAPS+=("$m")
 done
 
 if [[ ${#OK_MAPS[@]} -gt 0 ]]; then

@@ -17,9 +17,9 @@ const removeMap = vi.fn();
 const clearLayers = vi.fn();
 const unproject = vi.fn((p: [number, number]) => ({ lat: p[1], lng: p[0] }));
 const mapFn = vi.fn((..._a: unknown[]) => ({ unproject, fitBounds, setView, remove: removeMap }));
-// Every `L.map(...)` call gets its own layer group instance recording its own
-// `clearLayers` calls, so a test can assert redraw-without-recreate (a NEW track object
-// clears+redraws the SAME map's layer group rather than a fresh `L.map(...)` call).
+// A single module-level layer-group double shared by every `L.layerGroup()` call, with one
+// shared `clearLayers` spy — so a test can assert redraw-without-recreate (a NEW track
+// object clears+redraws the SAME layer group rather than a fresh `L.map(...)` call).
 interface LayerGroupObj { addTo: () => LayerGroupObj; clearLayers: typeof clearLayers }
 const layerGroupObj: LayerGroupObj = { addTo: () => layerGroupObj, clearLayers };
 const layerGroup = vi.fn((..._a: unknown[]) => layerGroupObj);
@@ -143,6 +143,36 @@ describe("TrackMap", () => {
     expect(removeMap).not.toHaveBeenCalled();
     // Layers were redrawn (polyline called again for the new track), not just left as-is.
     expect(polyline.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  it("does NOT latch the first-fit flag on an empty first draw — fits real fixes once they arrive", async () => {
+    // An owner opening an alive life before any position fix has landed gets an empty
+    // `all` on the first draw. The bug: `hasFitRef` latched unconditionally there too, so
+    // `setView` (a fixed centred view) ran once and the flag never let `fitBounds` run
+    // again — real fixes arriving on the next 60s poll would render tiny and off-centre
+    // forever. `setView` should keep running (nothing to latch) until a draw actually has
+    // points to fit, at which point `fitBounds` runs exactly once.
+    const empty = { ...track, segments: [], markers: [] };
+    const { rerender } = render(<TrackMap track={empty} />);
+    await waitFor(() => expect(setView).toHaveBeenCalledTimes(1));
+    expect(fitBounds).not.toHaveBeenCalled();
+
+    // Still empty on a second poll: setView keeps being called (flag never latched).
+    const stillEmpty = { ...empty, segments: [] };
+    rerender(<TrackMap track={stillEmpty} />);
+    await waitFor(() => expect(setView).toHaveBeenCalledTimes(2));
+    expect(fitBounds).not.toHaveBeenCalled();
+
+    // Now real fixes land: fitBounds should finally run, exactly once.
+    rerender(<TrackMap track={track} />);
+    await waitFor(() => expect(fitBounds).toHaveBeenCalledTimes(1));
+
+    // A further poll with fixes must NOT re-fit — the deliberate never-refit-after-a-
+    // real-first-draw behaviour must survive this fix.
+    const moreFixes: LifeTrack = { ...track, segments: [...track.segments] };
+    rerender(<TrackMap track={moreFixes} />);
+    await waitFor(() => expect(clearLayers).toHaveBeenCalled());
+    expect(fitBounds).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces an explicit status line when the Leaflet chunk fails to load, instead of a blank box", async () => {

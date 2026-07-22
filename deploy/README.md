@@ -303,9 +303,9 @@ success/failure summary, and exits non-zero if it mirrored zero maps. Find and c
 tile that actually exists rather than assuming a fixed `z/x/y`:
 
 ```bash
-find /var/www/tiles/chernarusplus -name '*.webp' | head -1
-# => /var/www/tiles/chernarusplus/topographic/3/4/4.webp   (example — yours will differ)
-curl -sI https://dayzonelife.com/tiles/chernarusplus/topographic/3/4/4.webp | head -1
+TILE="$(find /var/www/tiles/chernarusplus -name '*.webp' | head -1)"
+# => e.g. /var/www/tiles/chernarusplus/topographic/3/4/4.webp   (yours will differ)
+curl -sI "https://dayzonelife.com/tiles/${TILE#/var/www/tiles/}" | head -1
 # => expect: HTTP/2 200
 ```
 
