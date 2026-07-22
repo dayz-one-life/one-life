@@ -16,7 +16,7 @@ function killDetail(weapon: string | null, distanceMeters: number | null): strin
   return [weapon, meters(distanceMeters)].filter(Boolean).join(" · ");
 }
 
-function WithheldBar() {
+export function WithheldBar() {
   return (
     <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 border border-hairline bg-bone px-4 py-3">
       <span className="flex-none font-display text-xs font-bold uppercase tracking-[.1em] text-ink">Positions withheld</span>
@@ -70,10 +70,18 @@ function EventRow({ e }: { e: TimelineEvent }) {
   );
 }
 
-export function Timeline({ view, heading = "The record so far" }: { view: LifeTimelineView; heading?: string }) {
+export function Timeline({
+  view,
+  heading = "The record so far",
+  locationSlot,
+}: {
+  view: LifeTimelineView;
+  heading?: string;
+  locationSlot?: React.ReactNode;
+}) {
   return (
     <div>
-      {view.alive && <WithheldBar />}
+      {locationSlot ?? (view.alive ? <WithheldBar /> : null)}
       <h2 className="mt-7 font-display text-xl font-bold uppercase tracking-[.1em] text-ink">{heading}</h2>
       <ol role="list" className="m-0 mt-4 list-none p-0">
         {view.events.map((e, idx) => (

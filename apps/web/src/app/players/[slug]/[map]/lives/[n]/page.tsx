@@ -4,6 +4,7 @@ import { getPlayerLife } from "@/lib/api";
 import { buildTimeline } from "@/lib/life-timeline";
 import { LifeHero } from "@/components/life/hero";
 import { Timeline } from "@/components/life/timeline";
+import { LocationPanel } from "@/components/life/location-panel";
 import { mapLabel } from "@/components/player/format";
 import { absoluteUrl } from "@/lib/seo";
 
@@ -41,7 +42,17 @@ export default async function LifePageRoute({ params }: Props) {
     <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
       <LifeHero data={data} view={view} />
       <div className="mt-6">
-        <Timeline view={view} />
+        <Timeline
+          view={view}
+          locationSlot={
+            <LocationPanel
+              mapSlug={map}
+              lifeNumber={num}
+              pageGamertag={data.gamertag}
+              alive={data.life.endedAt === null}
+            />
+          }
+        />
       </div>
     </main>
   );
