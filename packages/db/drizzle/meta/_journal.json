@@ -141,6 +141,13 @@
       "when": 1784900000000,
       "tag": "0019_notification_key_pattern_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785000000000,
+      "tag": "0020_presence_flags",
+      "breakpoints": true
     }
   ]
 }

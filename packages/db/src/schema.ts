@@ -509,9 +509,25 @@ export const friendships = pgTable("friendships", {
   respondedAt: timestamp("responded_at", { withTimezone: true }),
   aSharesLocation: boolean("a_shares_location").notNull().default(false),
   bSharesLocation: boolean("b_shares_location").notNull().default(false),
-  aSharesPresence: boolean("a_shares_presence").notNull().default(false),
-  bSharesPresence: boolean("b_shares_presence").notNull().default(false),
+  aSharesPresence: boolean("a_shares_presence").notNull().default(true),
+  bSharesPresence: boolean("b_shares_presence").notNull().default(true),
+  aNotifyPresence: boolean("a_notify_presence").notNull().default(true),
+  bNotifyPresence: boolean("b_notify_presence").notNull().default(true),
 }, (t) => ({
   uniqPair: uniqueIndex("friendships_pair_uniq").on(t.userA, t.userB),
   byRecipient: index("friendships_recipient_idx").on(t.userB, t.status),
 }));
+
+// ── Per-user app preferences. Durable: NOT in apps/projector/src/rebuild.ts's truncate list.
+//
+// Deliberately a separate table rather than a column on `user`, which belongs to Better Auth.
+// F2's global location-sharing switch lands here too rather than inventing a second mechanism.
+//
+// An ABSENT row means defaults — the row is created lazily on first write, so every read must
+// treat "no row" as share_presence = false rather than an error. ──
+
+export const userPreferences = pgTable("user_preferences", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  sharePresence: boolean("share_presence").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
