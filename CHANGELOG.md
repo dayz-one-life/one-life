@@ -8,16 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- A life location map for the signed-in owner of a gamertag: the life timeline page now shows
-  your own route trail and approximate kill/death/last-known-position markers, on both open and
-  closed lives. It's visible to no one else — the API route that serves it takes no player
-  identifier at all, deriving the subject solely from your session's verified gamertag link, so
-  there is no request that could ask for someone else's position. Every marker is approximate:
-  deaths and kills have never carried recorded coordinates, so each pin is the nearest position
-  fix before the event, discarded outright past 15 minutes old. Deploying this release requires
-  a one-time host step, `deploy/mirror-tiles.sh`, to mirror map tiles to disk; the map still works
-  without it, falling back to a plain background.
-
 ### Changed
 
 ### Deprecated
@@ -27,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.35.0] - 2026-07-22
+
+### Added
+
+- A life location map for the signed-in owner of a gamertag: the life timeline page now shows
+  your own route trail and approximate kill/death/last-known-position markers, on both open and
+  closed lives. It's visible to no one else — the API route that serves it takes no player
+  identifier at all, deriving the subject solely from your session's verified gamertag link, so
+  there is no request that could ask for someone else's position. Every marker is approximate:
+  deaths and kills have never carried recorded coordinates, so each pin is the nearest position
+  fix before the event, discarded outright past 15 minutes old. Deploying this release requires
+  a one-time host step, `deploy/mirror-tiles.sh`, to mirror map tiles to disk; the map still works
+  without it, falling back to a plain background.
 
 ## [0.34.0] - 2026-07-22
 
