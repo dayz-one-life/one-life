@@ -45,6 +45,9 @@ export interface LeafletMap {
   unproject: (p: [number, number], zoom: number) => unknown;
   fitBounds: (bounds: unknown, opts?: unknown) => void;
   setView: (center: unknown, zoom: number) => void;
+  setMinZoom: (zoom: number) => void;
+  setMaxBounds: (bounds: unknown) => void;
+  getBoundsZoom: (bounds: unknown, inside?: boolean) => number;
   flyTo: (latlng: unknown, zoom: number) => void;
   project: (latlng: unknown, zoom: number) => { x: number; y: number };
   getCenter: () => unknown;
@@ -175,6 +178,40 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
     }
   }
 
+  /** The map's own extent as a Leaflet bounds — the full tile canvas, which `worldToPixel`
+   *  maps the world onto. Recomputed rather than stored: it depends only on the constants. */
+  function worldBounds(L: LeafletModule, m: LeafletMap): unknown {
+    return L.latLngBounds([
+      m.unproject([0, 0], MAX_ZOOM),
+      m.unproject([CANVAS_PX, CANVAS_PX], MAX_ZOOM),
+    ]);
+  }
+
+  /**
+   * Keep the world covering the viewport.
+   *
+   * Without this the map zooms out past its own edges into grey nothing — worst on Livonia,
+   * whose 12800m world is the smallest of the three (shipped in v0.39.0 and visible as a small
+   * square adrift in grey). `inside: true` asks Leaflet for the lowest zoom at which the VIEW
+   * still fits inside the world, which is precisely the no-blank-space floor; `setMaxBounds`
+   * then stops a pan doing the same thing sideways.
+   *
+   * Re-run on resize: the floor depends on the container's aspect and size, so one computed at
+   * mount leaves blank space as soon as the window widens or a phone rotates.
+   */
+  function applyWorldBounds() {
+    const L = leafletRef.current;
+    const m = mapRef.current;
+    if (!L || !m) return;
+    const bounds = worldBounds(L, m);
+    m.setMaxBounds(bounds);
+    const floor = m.getBoundsZoom(bounds, true);
+    // A container Leaflet measures as zero-sized yields Infinity here. Setting that as the
+    // floor clamps every gesture to a zoom whose tiles do not exist — an unusable map. A bad
+    // number is better ignored: the worst case is the old behaviour, not a broken one.
+    if (Number.isFinite(floor) && floor <= MAX_ZOOM) m.setMinZoom(floor);
+  }
+
   function runDraw() {
     const L = leafletRef.current;
     const m = mapRef.current;
@@ -206,7 +243,10 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
         // never fits once data arrives on a later poll.
         hasFitRef.current = true;
       } else {
-        m.setView(pt(size / 2, size / 2), 1);
+        // The whole world, not `setView(centre, 1)` — a fixed zoom framed each map differently
+        // and left the smallest one (Livonia) a stamp in the middle of a grey field. The zoom
+        // floor from applyWorldBounds() clamps this, so it can never open on blank space.
+        m.fitBounds(worldBounds(L, m));
       }
     }
   }
@@ -266,6 +306,11 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
         leafletRef.current = L;
         const m = L.map(ref.current, {
           crs: L.CRS.Simple, minZoom: 0, maxZoom: MAX_ZOOM, attributionControl: true,
+          // A hard stop at the world's edge rather than an elastic bounce — the edge is a
+          // fact about the terrain, not a suggestion. The real floor is set by
+          // applyWorldBounds() once the container has been measured; this minZoom is only
+          // the value before that runs.
+          maxBoundsViscosity: 1,
         });
         mapRef.current = m;
 
@@ -282,6 +327,11 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
         const pane = m.createPane(PLACE_PANE);
         if (pane) pane.style.zIndex = "350";
 
+        // BEFORE the first draw: runDraw's default view fits the world, and fitBounds must
+        // already know the floor or it opens under it and shows the blank the floor exists
+        // to prevent.
+        applyWorldBounds();
+        m.on("resize", applyWorldBounds);
         runDraw();
         runPlaces();
         // The whole point of the tiering: labels appear and disappear as the reader zooms.

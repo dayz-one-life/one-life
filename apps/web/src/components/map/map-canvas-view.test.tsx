@@ -11,6 +11,10 @@ const flyTo = vi.fn();
 const setView = vi.fn();
 const fitBounds = vi.fn();
 const project = vi.fn((_l: unknown, _z: number) => ({ x: 8192, y: 4096 }));
+const setMinZoom = vi.fn();
+const setMaxBounds = vi.fn();
+let boundsZoom = 2;
+const getBoundsZoom = vi.fn((_b: unknown, _inside?: boolean) => boundsZoom);
 const getCenter = vi.fn(() => ({ lat: -64, lng: 128 }));
 const handlers: Record<string, Array<() => void>> = {};
 const mapObj = {
@@ -21,6 +25,9 @@ const mapObj = {
   project,
   getCenter,
   getZoom: () => 3,
+  setMinZoom,
+  setMaxBounds,
+  getBoundsZoom,
   remove: vi.fn(),
   on: (evt: string, fn: () => void) => {
     (handlers[evt] ??= []).push(fn);
@@ -68,6 +75,50 @@ beforeEach(() => {
     return frames.length; // 1-based handle
   });
   vi.stubGlobal("cancelAnimationFrame", (h: number) => { cancelled.push(h); });
+  boundsZoom = 2;
+});
+
+describe("MapCanvas world bounds", () => {
+  it("floors the zoom where the world stops covering the viewport", async () => {
+    // Zooming out past this shows blank space around the map — see the Livonia screenshot in
+    // v0.39.0. `inside: true` asks Leaflet for the lowest zoom at which the VIEW still fits
+    // inside the world, which is exactly the no-blank-space floor.
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(setMinZoom).toHaveBeenCalledWith(2));
+    expect(getBoundsZoom.mock.calls[0]![1]).toBe(true);
+  });
+
+  it("pens the viewer inside the map's own extent", async () => {
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(setMaxBounds).toHaveBeenCalledTimes(1));
+  });
+
+  it("recomputes the floor when the viewport changes", async () => {
+    // A phone rotating, or a desktop window widening, changes which zoom covers the view; a
+    // floor computed once leaves blank space at the new size.
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(setMinZoom).toHaveBeenCalledTimes(1));
+    boundsZoom = 3;
+    handlers.resize![0]!();
+    expect(setMinZoom).toHaveBeenLastCalledWith(3);
+  });
+
+  it("ignores a nonsense floor rather than locking the map at it", async () => {
+    // A container Leaflet measures as zero-sized yields Infinity. Setting that as minZoom
+    // makes the map unusable — every gesture clamps to a zoom whose tiles do not exist.
+    boundsZoom = Infinity;
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(setMaxBounds).toHaveBeenCalled());
+    expect(setMinZoom).not.toHaveBeenCalled();
+  });
+
+  it("opens on the whole world, not a hardcoded zoom", async () => {
+    // The default view used to be setView(centre, 1), which on Livonia (a 12800m world) left
+    // the map a small square adrift in grey.
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(fitBounds).toHaveBeenCalled());
+    expect(setView).not.toHaveBeenCalled();
+  });
 });
 
 describe("MapCanvas focus", () => {

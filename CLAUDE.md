@@ -1227,6 +1227,18 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   creation, since a focus set before the dynamic import resolves has no map to fly. Centre
   reporting is rAF-throttled (Leaflet's `move` fires many times per drag frame) and the pending
   frame is cancelled on teardown.
+  **⚠️ The zoom floor and `maxBounds` are computed from the world, never hardcoded**
+  (`applyWorldBounds`, `map-canvas.tsx`). `getBoundsZoom(worldBounds, true)` — `inside: true` —
+  is the lowest zoom at which the VIEW still fits inside the world, i.e. the no-blank-space
+  floor; `setMaxBounds` stops a pan doing the same thing sideways. It re-runs on Leaflet's
+  `resize`, because the floor depends on the container's size and aspect, and a non-finite
+  result (a container Leaflet measures as zero-sized yields `Infinity`) is **ignored rather than
+  applied** — clamping every gesture to a zoom whose tiles do not exist is worse than the
+  unbounded behaviour it replaced. The default view is `fitBounds(worldBounds)`, **not**
+  `setView(centre, 1)`: a fixed zoom framed each map differently and opened Livonia (12800m, the
+  smallest world) as a stamp in a grey field. `applyWorldBounds()` must run BEFORE the first
+  draw, or that fit lands under the floor and shows exactly the blank the floor exists to
+  prevent.
   **A consumer that needs to NAME a point without a map instance uses `worldToLatLng`**
   (`@/lib/dayz-projection`) plus `MapCanvas`'s exported `CANVAS_PX`/`MAX_ZOOM` — never restated
   arithmetic, which drifts silently. Its test checks our metres→`CRS.Simple` conversion against the
