@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.39.0] - 2026-07-22
+
+### Added
+
 - The map is now a proper map application. It fills the whole screen, with one slim bar across
   the top instead of the site's usual furniture: a way back, the map you are on (and a menu of
   the others, each with a count of friends there), a search box, a locate button and a friends
@@ -27,14 +41,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The list of who is sharing a position moved out from under the map and into the bar's
   friends panel, so the map itself gets the whole screen.
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
 
 ## [0.38.3] - 2026-07-22
 
