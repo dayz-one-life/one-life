@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { gamertagLinks, verificationChallenges, userPreferences } from "@onelife/db";
-import { and, eq, gt, lt, ne, isNull, sql as dsql } from "drizzle-orm";
+import { and, asc, eq, gt, lt, ne, isNull, sql as dsql } from "drizzle-orm";
 
 export type PendingChallenge = {
   challengeId: number;
@@ -32,7 +32,13 @@ export class PgVerifierStore {
         isNull(verificationChallenges.completedAt),
         gt(verificationChallenges.expiresAt, at),
         lt(verificationChallenges.issuedAt, at),
-      ));
+      ))
+      // ⚠️ Load-bearing, not cosmetic. Two users can hold pending links for the same gamertag
+      // (in the same or differing casing), and this is the only thing that decides which one
+      // completes first — i.e. which one WINS. Without it the winner is whatever order the
+      // planner happens to return, so first-verify-wins is untestable and its behaviour can
+      // flip under an index or statistics change with no code change at all.
+      .orderBy(asc(gamertagLinks.id));
     return rows.map((r) => ({ ...r, sequence: r.sequence as string[] }));
   }
 

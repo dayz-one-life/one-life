@@ -166,6 +166,42 @@ describe("verifierTick", () => {
     expect(await status(linkId)).toBe("verified");
   });
 
+  it("getVerifiedLinkId folds case: a pending claim loses to an ALREADY-verified other casing", async () => {
+    // Isolates getVerifiedLinkId. uidB already holds a VERIFIED link for "dana"; uid's pending
+    // link for "Dana" then completes its sequence. Only a case-folding getVerifiedLinkId sees
+    // the incumbent and cancels the newcomer. A case-SENSITIVE one returns null, verifies the
+    // second link, and hits gamertag_links_verified_uniq (23505) — which, since verifierTick
+    // wraps the whole batch in one transaction, aborts every event in the batch and crash-loops.
+    await db.insert(gamertagLinks)
+      .values({ userId: uidB, gamertag: "dana", status: "verified", verifiedAt: issuedAt });
+    const a = await newChallenge("Dana", uid);
+    await seedEmote("Dana", "EmoteSalute", "2026-07-09T04:00:00Z");
+    await seedEmote("Dana", "EmoteDance", "2026-07-09T04:01:00Z");
+    await seedEmote("Dana", "EmoteShrug", "2026-07-09T04:02:00Z");
+
+    const r = await verifierTick(db, { batchSize: 100, consumerName: consumer });
+    expect(r.verified).toBe(0);
+    expect(await status(a.linkId)).toBe("cancelled");
+  });
+
+  it("cancelOtherPendingLinks folds case: a losing claim with no live challenge is still cancelled", async () => {
+    // Isolates cancelOtherPendingLinks. uidB's pending "erin" link has NO challenge row, so
+    // findPendingChallenges can never return it and the first-verify-wins branch in tick.ts
+    // can never reach it — the ONLY thing that can cancel it is cancelOtherPendingLinks
+    // matching "Erin" case-insensitively.
+    const a = await newChallenge("Erin", uid);
+    const [loser] = await db.insert(gamertagLinks)
+      .values({ userId: uidB, gamertag: "erin", status: "pending" }).returning();
+    await seedEmote("Erin", "EmoteSalute", "2026-07-09T05:00:00Z");
+    await seedEmote("Erin", "EmoteDance", "2026-07-09T05:01:00Z");
+    await seedEmote("Erin", "EmoteShrug", "2026-07-09T05:02:00Z");
+
+    const r = await verifierTick(db, { batchSize: 100, consumerName: consumer });
+    expect(r.verified).toBe(1);
+    expect(await status(a.linkId)).toBe("verified");
+    expect(await status(loser!.id)).toBe("cancelled");
+  });
+
   it("first-verify-wins across casings: the losing link is cancelled, not collided", async () => {
     const a = await newChallenge("Casey", uid);
     const b = await newChallenge("casey", uidB);
