@@ -3,6 +3,7 @@ import { friendships, gamertagLinks } from "@onelife/db";
 import { and, eq, inArray, or, sql as dsql } from "drizzle-orm";
 import { orderPair, viewOf, type FriendStatus, type FriendshipRow } from "./pair.js";
 import { playerSlug } from "./notify.js";
+import { getSharePresence } from "./presence.js";
 
 export const FRIENDS_PAGE_SIZE = 25;
 
@@ -12,6 +13,8 @@ export type FriendEntry = {
   slug: string;
   status: FriendStatus;
   since: Date;
+  sharesPresence: boolean;
+  notifyPresence: boolean;
 };
 
 /** The verified gamertag for each of a set of user ids. */
@@ -39,11 +42,12 @@ export async function listFriends(
   a: { userId: string; now?: Date; page?: number; pageSize?: number },
 ): Promise<{
   friends: FriendEntry[]; incoming: FriendEntry[]; outgoing: FriendEntry[];
-  total: number; page: number; pageSize: number;
+  total: number; page: number; pageSize: number; sharePresence: boolean;
 }> {
   const now = a.now ?? new Date();
   const page = Math.max(1, a.page ?? 1);
   const pageSize = a.pageSize ?? FRIENDS_PAGE_SIZE;
+  const sharePresence = await getSharePresence(db, a.userId);
 
   const rows = (await db
     .select()
@@ -78,6 +82,8 @@ export async function listFriends(
     return {
       id: v.view.id, gamertag, slug: playerSlug(gamertag),
       status: v.view.status, since: v.view.createdAt,
+      sharesPresence: v.view.iSharePresence,
+      notifyPresence: v.view.iNotifyPresence,
     };
   };
   const bucket = (s: FriendStatus) =>
@@ -91,6 +97,7 @@ export async function listFriends(
     total: friends.length,
     page,
     pageSize,
+    sharePresence,
   };
 }
 

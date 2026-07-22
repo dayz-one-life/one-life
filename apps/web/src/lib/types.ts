@@ -370,6 +370,8 @@ export type FriendEntryDto = {
   slug: string;
   status: FriendStatusValue;
   since: string;
+  sharesPresence: boolean;
+  notifyPresence: boolean;
 };
 
 export type FriendsFeed = {
@@ -379,6 +381,8 @@ export type FriendsFeed = {
   total: number;
   page: number;
   pageSize: number;
+  /** The viewer's master switch — gates every per-friend share flag. */
+  sharePresence: boolean;
 };
 
 export type FriendStatusDto = {

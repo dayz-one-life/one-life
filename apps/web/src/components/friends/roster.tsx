@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { GamertagLink } from "@/components/gamertag-link";
 import { SrStatus } from "@/components/shared/sr-status";
 import { friendErrorMessage } from "./format";
 import { FriendsPagination } from "./pagination";
+import { MasterShareSwitch, PresenceToggles } from "./presence-toggles";
 import { useFriendActions, useFriends } from "@/lib/use-friends";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendEntryDto, FriendsFeed } from "@/lib/types";
@@ -15,37 +16,45 @@ const BTN_DANGER = `${BTN} text-red-deep border-red-deep`;
 
 type RowAction = { label: string; onClick: () => void; danger?: boolean; disabled?: boolean };
 
-function Row({ entry, actions }: { entry: FriendEntryDto; actions: RowAction[] }) {
+function Row({ entry, actions, extra }: {
+  entry: FriendEntryDto; actions: RowAction[]; extra?: ReactNode;
+}) {
   return (
-    <li className="flex items-center justify-between border-b border-hairline py-2.5">
-      <GamertagLink gamertag={entry.gamertag} />
-      <div className="flex gap-2">
-        {actions.map((a) => (
-          <button
-            key={a.label}
-            type="button"
-            onClick={a.onClick}
-            disabled={a.disabled}
-            className={a.danger ? BTN_DANGER : BTN}
-          >
-            {a.label}
-          </button>
-        ))}
+    <li className="border-b border-hairline py-2.5">
+      <div className="flex items-center justify-between">
+        <GamertagLink gamertag={entry.gamertag} />
+        <div className="flex gap-2">
+          {actions.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              onClick={a.onClick}
+              disabled={a.disabled}
+              className={a.danger ? BTN_DANGER : BTN}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
       </div>
+      {extra}
     </li>
   );
 }
 
-function Section({ title, id, entries, action }: {
+function Section({ title, id, entries, action, extra }: {
   title: string; id: string; entries: FriendEntryDto[];
   action: (e: FriendEntryDto) => RowAction[];
+  extra?: (e: FriendEntryDto) => ReactNode;
 }) {
   if (entries.length === 0) return null;
   return (
     <section className="mt-8 first:mt-0">
       <h2 id={id} className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-muted">{title}</h2>
       <ul role="list" aria-labelledby={id} className="mt-2">
-        {entries.map((e) => <Row key={e.id} entry={e} actions={action(e)} />)}
+        {entries.map((e) => (
+          <Row key={e.id} entry={e} actions={action(e)} extra={extra?.(e)} />
+        ))}
       </ul>
     </section>
   );
@@ -79,6 +88,8 @@ export type RosterViewProps = {
    *  should not share its announcement (see FriendButton, which already distinguishes them). */
   onCancel: (id: number) => void;
   onPageChange?: (page: number) => void;
+  onPresenceChange?: (id: number, patch: { share?: boolean; notify?: boolean }) => void;
+  onSharePresenceChange?: (value: boolean) => void;
 };
 
 /** Presentational. Loading, failed, signed-out and genuinely-empty are all different
@@ -102,6 +113,8 @@ export function RosterView(p: RosterViewProps) {
 
   const empty = d.friends.length === 0 && d.incoming.length === 0 && d.outgoing.length === 0;
   const toggleConfirm = p.onConfirmToggle ?? (() => {});
+  const onPresenceChange = p.onPresenceChange ?? (() => {});
+  const onSharePresenceChange = p.onSharePresenceChange ?? (() => {});
 
   return (
     <div>
@@ -118,6 +131,13 @@ export function RosterView(p: RosterViewProps) {
           { label: "Decline", onClick: () => p.onDecline(e.id), disabled: p.pending },
         ]}
       />
+      {empty ? null : (
+        <MasterShareSwitch
+          on={d.sharePresence}
+          disabled={p.pending}
+          onChange={onSharePresenceChange}
+        />
+      )}
       <Section
         title="Friends" id="roster-friends" entries={d.friends}
         action={(e) =>
@@ -128,6 +148,16 @@ export function RosterView(p: RosterViewProps) {
               ]
             : [{ label: "Remove", onClick: () => toggleConfirm(e.id), disabled: p.pending }]
         }
+        extra={(e) => (
+          <PresenceToggles
+            friendshipId={e.id}
+            share={e.sharesPresence}
+            notify={e.notifyPresence}
+            masterOn={d.sharePresence}
+            disabled={p.pending}
+            onChange={(patch) => onPresenceChange(e.id, patch)}
+          />
+        )}
       />
       {/* Only the friends list is paginated server-side; incoming/outgoing are returned
        *  whole and must never gain a pager. */}
@@ -205,6 +235,10 @@ export function Roster() {
         setConfirmingId(null);
       }}
       onCancel={(id) => a.removeFriend(id, settle("Friend request canceled"))}
+      onPresenceChange={(id, patch) =>
+        a.setPresence(id, patch, settle("Presence updated"))}
+      onSharePresenceChange={(value) =>
+        a.setSharePresence(value, settle(value ? "Sharing your status" : "No longer sharing your status"))}
     />
   );
 }

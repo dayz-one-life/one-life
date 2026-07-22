@@ -16,6 +16,8 @@ export type FriendshipRow = {
   bSharesLocation: boolean;
   aSharesPresence: boolean;
   bSharesPresence: boolean;
+  aNotifyPresence: boolean;
+  bNotifyPresence: boolean;
 };
 
 /** What the viewer sees, never what column the data sits in. */
@@ -33,6 +35,8 @@ export type FriendView = {
   theyShareLocation: boolean;
   iSharePresence: boolean;
   theySharePresence: boolean;
+  iNotifyPresence: boolean;
+  theyNotifyPresence: boolean;
 };
 
 /**
@@ -71,5 +75,7 @@ export function viewOf(row: FriendshipRow, viewerId: string, now: Date): FriendV
     theyShareLocation: isA ? row.bSharesLocation : row.aSharesLocation,
     iSharePresence: isA ? row.aSharesPresence : row.bSharesPresence,
     theySharePresence: isA ? row.bSharesPresence : row.aSharesPresence,
+    iNotifyPresence: isA ? row.aNotifyPresence : row.bNotifyPresence,
+    theyNotifyPresence: isA ? row.bNotifyPresence : row.aNotifyPresence,
   };
 }

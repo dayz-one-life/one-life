@@ -7,6 +7,7 @@ const base = {
   createdAt: new Date("2026-07-01T00:00:00Z"), respondedAt: null,
   aSharesLocation: false, bSharesLocation: false,
   aSharesPresence: false, bSharesPresence: false,
+  aNotifyPresence: true, bNotifyPresence: true,
 };
 const now = new Date("2026-07-10T00:00:00Z");
 

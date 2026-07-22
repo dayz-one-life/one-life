@@ -45,8 +45,9 @@ function isUniqueViolation(err: unknown, constraintName: string): boolean {
  *  — here, a user id — can be safely used as a LIKE prefix. Without this, `_`/`%` in the id
  *  act as single-character/any-length wildcards and can match a DIFFERENT user's
  *  notification keys (see the ab_cd / abXcd regression test), silently under- or
- *  over-counting that user's rate limit. */
-function escapeLikePattern(value: string): string {
+ *  over-counting that user's rate limit. Exported because the presence generator builds
+ *  the same kind of prefix. */
+export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
 }
 

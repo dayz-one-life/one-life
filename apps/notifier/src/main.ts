@@ -9,6 +9,7 @@ import { gamertagVerifiedGenerator, tokensGenerator } from "./generators/account
 import { banAppliedGenerator, banLiftedGenerator } from "./generators/bans.js";
 import { lifeQualifiedGenerator, survivalMilestoneGenerator } from "./generators/lives.js";
 import { articleGenerator } from "./generators/articles.js";
+import { presenceGenerator } from "./generators/presence.js";
 
 const cfg = loadConfig(process.env);
 const log = pino({ level: cfg.logLevel });
@@ -22,6 +23,7 @@ const generators = [
   lifeQualifiedGenerator,
   survivalMilestoneGenerator,
   articleGenerator,
+  presenceGenerator,
 ];
 
 // Missing OR invalid VAPID yields null (push OFF) rather than a module-scope throw — see buildSender.

@@ -104,7 +104,7 @@ export async function apiGetCached<T>(path: string, revalidateSeconds: number): 
   return parse<T>(res);
 }
 
-export async function apiSend<T>(method: "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
+export async function apiSend<T>(method: "POST" | "DELETE" | "PATCH", path: string, body?: unknown): Promise<T> {
   // Only send a content-type when there's actually a body. A bodyless request that still
   // declares `application/json` makes Fastify reject it with 400 (FST_ERR_CTP_EMPTY_JSON_BODY),
   // which is what broke the bodyless DELETE for cancelling a gamertag claim.
@@ -239,3 +239,7 @@ export const declineFriendRequest = (id: number) =>
 // this must not pass one — Fastify rejects an empty JSON body with a 400.
 export const deleteFriendship = (id: number) =>
   apiSend<{ ok: true }>("DELETE", `/api/me/friends/${id}`);
+export const patchFriendPresence = (id: number, body: { share?: boolean; notify?: boolean }) =>
+  apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
+export const patchPreferences = (body: { sharePresence?: boolean }) =>
+  apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);

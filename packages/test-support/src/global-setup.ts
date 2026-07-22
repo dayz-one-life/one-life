@@ -32,6 +32,7 @@ const APP_TABLES = [
   "notifications",
   "push_subscriptions",
   "friendships",
+  "user_preferences",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */
