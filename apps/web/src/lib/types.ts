@@ -391,3 +391,14 @@ export type FriendStatusDto = {
   /** ISO-8601. Set only when status is "cooldown". */
   cooldownUntil: string | null;
 };
+
+export type FriendPositionDto = {
+  gamertag: string;
+  x: number;
+  y: number;
+  /** ISO-8601. */
+  recordedAt: string;
+  self: boolean;
+};
+export type FriendMap = { mapCodename: string; positions: FriendPositionDto[] };
+export type MapServerDto = { slug: string; name: string; map: string; friendCount: number };

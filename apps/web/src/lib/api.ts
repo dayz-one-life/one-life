@@ -7,7 +7,7 @@ import type {
   AppNotification, NotificationsFeed,
   NewsFeed, NewsArticle, LifeTrack,
   SitemapData,
-  FriendsFeed, FriendStatusDto,
+  FriendsFeed, FriendStatusDto, FriendMap, MapServerDto,
 } from "./types";
 
 export class ApiError extends Error {
@@ -243,3 +243,7 @@ export const patchFriendPresence = (id: number, body: { share?: boolean; notify?
   apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
 export const patchPreferences = (body: { sharePresence?: boolean }) =>
   apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);
+
+export const getFriendMap = (slug: string) =>
+  apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);
+export const getMapServers = () => apiGet<{ servers: MapServerDto[] }>("/api/me/maps");
