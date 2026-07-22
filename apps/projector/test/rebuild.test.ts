@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, admFiles, playerGamertags } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getCursor, setCursor, appendEvent } from "@onelife/event-log";
-import { rebuildAll } from "../src/rebuild.js";
+import { rebuildAll, REBUILD_TRUNCATE_TABLES } from "../src/rebuild.js";
 import { projectorTick } from "../src/tick.js";
 import { getTestDb } from "@onelife/test-support";
 
@@ -26,7 +26,7 @@ describe("rebuildAll", () => {
     expect(await getCursor(db, "projector")).toBe(0);
   });
 
-  it("truncates player_gamertags — it is a projection, not durable data", async () => {
+  it("clears player_gamertags via CASCADE even though it is NOT named in the truncate list", async () => {
     const [p] = await db.insert(players)
       .values({ gamertag: `RB${Date.now()}`, dayzId: `RB=${Date.now()}`, firstSeenAt: new Date(), lastSeenAt: new Date() })
       .returning();
@@ -34,11 +34,21 @@ describe("rebuildAll", () => {
       playerId: p!.id, gamertag: p!.gamertag, firstSeenAt: new Date(), lastSeenAt: new Date(),
     });
     await rebuildAll(db, `rb-test-${p!.id}`);
-    // Note: this assertion proves rows are gone, but TRUNCATE ... CASCADE on players
-    // reaches this table through its FK regardless of the explicit list entry.
-    // The entry is kept deliberately in case FK cascade behavior ever changes.
+    // player_gamertags is deliberately absent from REBUILD_TRUNCATE_TABLES (see below), yet it
+    // is still emptied — TRUNCATE players ... CASCADE reaches it through its FK. This proves
+    // removing the explicit entry (the v0.42.1 deploy fix) loses nothing.
     const rows = await db.select().from(playerGamertags);
     expect(rows).toHaveLength(0);
+  });
+
+  it("does not name a table a same-release migration creates — the v0.42.1 deploy bug", () => {
+    // deploy.sh runs the rebuild phase BEFORE migrate, so on the deploy that introduces a
+    // projection table it does not exist yet when rebuildAll runs. Naming player_gamertags
+    // here aborted that TRUNCATE with `relation "player_gamertags" does not exist` and took the
+    // v0.42.1 deploy down. It must NOT be listed; the CASCADE test above proves it is cleared
+    // anyway. `players` must stay listed — it is the parent the cascade flows from.
+    expect(REBUILD_TRUNCATE_TABLES as readonly string[]).not.toContain("player_gamertags");
+    expect(REBUILD_TRUNCATE_TABLES as readonly string[]).toContain("players");
   });
 
   it("after a rebuild + re-fold, one gamertag on two servers yields one global player with a per-server life", async () => {
