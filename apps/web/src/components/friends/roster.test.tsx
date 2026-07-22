@@ -10,6 +10,8 @@ const entry = (id: number, gamertag: string) => ({
 });
 const actions = { onAccept: () => {}, onDecline: () => {}, onRemove: () => {}, onCancel: () => {} };
 
+const withPresence = { ...entry(2, "FriendOne"), sharesPresence: true, notifyPresence: false };
+
 describe("RosterView", () => {
   it("shows a skeleton while loading, never an empty roster", () => {
     render(<RosterView loading {...actions} />);
@@ -144,12 +146,74 @@ describe("RosterView", () => {
     expect(screen.getAllByText(/sign in/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/no friends yet/i)).toBeNull();
   });
+
+  it("renders the master share switch from data.sharePresence, only when there is a friend", () => {
+    render(
+      <RosterView
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeChecked();
+  });
+
+  it("does not render the master switch with an empty roster", () => {
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
+    expect(screen.queryByRole("checkbox", { name: /share my status with friends/i })).toBeNull();
+  });
+
+  it("shows per-friend presence toggles on friend rows, but not on incoming or outgoing rows", () => {
+    render(
+      <RosterView
+        data={{
+          friends: [withPresence], incoming: [entry(1, "IncomingOne")], outgoing: [entry(3, "PendingOne")],
+          total: 1, page: 1, pageSize: 25, sharePresence: true,
+        }}
+        {...actions}
+      />,
+    );
+    const friends = screen.getByRole("list", { name: /friends/i });
+    expect(within(friends).getByRole("checkbox", { name: /share my status/i })).toBeInTheDocument();
+    expect(within(friends).getByRole("checkbox", { name: /notify me/i })).toBeInTheDocument();
+
+    const incoming = screen.getByRole("list", { name: /requests/i });
+    expect(within(incoming).queryByRole("checkbox")).toBeNull();
+    const outgoing = screen.getByRole("list", { name: /sent/i });
+    expect(within(outgoing).queryByRole("checkbox")).toBeNull();
+  });
+
+  it("reports a presence change through onPresenceChange", async () => {
+    const onPresenceChange = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
+        {...actions}
+        onPresenceChange={onPresenceChange}
+      />,
+    );
+    screen.getByRole("checkbox", { name: /notify me/i }).click();
+    expect(onPresenceChange).toHaveBeenCalledWith(2, { notify: true });
+  });
+
+  it("reports a master switch change through onSharePresenceChange", () => {
+    const onSharePresenceChange = vi.fn();
+    render(
+      <RosterView
+        data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false }}
+        {...actions}
+        onSharePresenceChange={onSharePresenceChange}
+      />,
+    );
+    screen.getByRole("checkbox", { name: /share my status with friends/i }).click();
+    expect(onSharePresenceChange).toHaveBeenCalledWith(true);
+  });
 });
 
-const { mockAccount, getFriends, acceptFriendRequest } = vi.hoisted(() => ({
+const { mockAccount, getFriends, acceptFriendRequest, patchFriendPresence } = vi.hoisted(() => ({
   mockAccount: { value: null as unknown },
   getFriends: vi.fn(),
   acceptFriendRequest: vi.fn(),
+  patchFriendPresence: vi.fn(),
 }));
 
 vi.mock("@/lib/use-account-status", () => ({
@@ -166,6 +230,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
     acceptFriendRequest: (...a: unknown[]) => acceptFriendRequest(...a),
     declineFriendRequest: vi.fn(),
     deleteFriendship: vi.fn(),
+    patchFriendPresence: (...a: unknown[]) => patchFriendPresence(...a),
+    patchPreferences: vi.fn(),
   };
 });
 
@@ -274,5 +340,24 @@ describe("Roster container", () => {
     // section with no way back.
     await screen.findByRole("link", { name: "Friend1" });
     expect(screen.queryByText(/no friends yet/i)).toBeNull();
+  });
+
+  it("does not announce success on a failed presence write, and surfaces the mapped error text", async () => {
+    mockAccount.value = {
+      kind: "verified",
+      link: { id: 1, gamertag: "Boots", status: "verified", verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+    };
+    getFriends.mockResolvedValue({
+      friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true,
+    });
+    const { ApiError } = await import("@/lib/api");
+    patchFriendPresence.mockRejectedValue(new ApiError(404, "not_found"));
+    wrap(<Roster />);
+
+    const notifyBox = await screen.findByRole("checkbox", { name: /notify me/i });
+    notifyBox.click();
+
+    await waitFor(() => expect(screen.getByText(/not found|couldn't|went wrong/i)).toBeInTheDocument());
+    expect(screen.queryByText(/presence updated/i)).toBeNull();
   });
 });
