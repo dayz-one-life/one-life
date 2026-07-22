@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { user, gamertagLinks, servers } from "@onelife/db";
+import { user, gamertagLinks, servers, players, lives, sessions } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
 import { buildApp } from "../src/app.js";
@@ -98,5 +98,34 @@ describe("friend map routes", () => {
     const entry = res.json().servers.find((s: { slug: string }) => s.slug === `sakhal-${svc}`);
     expect(entry).toBeTruthy();
     expect(entry.friendCount).toBe(0);
+  });
+
+  it("serves the online list alongside the positions", async () => {
+    // Seed: viewer verified + online, a stranger online, both with fresh last_seen_at.
+    const [server] = await db.select().from(servers).where(eq(servers.slug, `sakhal-${svc}`));
+    const now = new Date();
+
+    for (const gamertag of [`Mapper${svc}`, "Stranger"]) {
+      const [p] = await db.insert(players).values({ gamertag, lastSeenAt: now }).returning();
+      const [life] = await db.insert(lives)
+        .values({ serverId: server!.id, playerId: p!.id, lifeNumber: 1, startedAt: now })
+        .returning();
+      await db.insert(sessions).values({
+        serverId: server!.id, playerId: p!.id, lifeId: life!.id,
+        connectedAt: now, disconnectedAt: null,
+      });
+    }
+
+    const res = await get(`/me/maps/sakhal-${svc}`, cookie);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.online.map((o: { gamertag: string }) => o.gamertag)).toContain("Stranger");
+    expect(body.online[0].self).toBe(true); // the viewer sorts first
+  });
+
+  it("still refuses a caller with no verified link", async () => {
+    // Unchanged behaviour, re-asserted because this route now returns more data.
+    const res = await get(`/me/maps/sakhal-${svc}`, pendingCookie);
+    expect(res.statusCode).toBe(403);
   });
 });
