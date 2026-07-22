@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The friends map now fills the page instead of sitting in a small panel, and every dot
+  carries its gamertag on the map itself rather than hiding it behind a click.
+
 ### Deprecated
 
 ### Removed
