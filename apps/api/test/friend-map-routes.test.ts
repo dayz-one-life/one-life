@@ -8,6 +8,7 @@ import { getTestDb } from "@onelife/test-support";
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 8e8;
 const email = `map${svc}@example.com`;
+const pendingEmail = `mappending${svc}@example.com`;
 
 let lastLink = "";
 const captureMailer: Mailer = { async send(msg) { lastLink = msg.url; } };
@@ -34,10 +35,12 @@ async function signIn(addr: string): Promise<string> {
 }
 
 let cookie = "";
+let pendingCookie = "";
 
 beforeAll(async () => {
   await app.ready();
   cookie = await signIn(email);
+  pendingCookie = await signIn(pendingEmail);
   await db.insert(servers)
     .values({ nitradoServiceId: svc, name: "Sakhal", map: "sakhal", slug: `sakhal-${svc}` });
 });
@@ -54,6 +57,20 @@ describe("friend map routes", () => {
 
   it("403s not_verified for a signed-in user with no verified gamertag", async () => {
     const res = await get(`/me/maps/sakhal-${svc}`, cookie);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("not_verified");
+  });
+
+  // A pending link is a claim typed into a box, not proof — only emote verification unlocks
+  // coordinates. Anyone can type any gamertag; a pending link must be exactly as insufficient
+  // as no link at all.
+  it("403s not_verified for a signed-in user with only a PENDING gamertag link", async () => {
+    const [u] = await db.select({ id: user.id }).from(user)
+      .where(eq(user.email, pendingEmail.toLowerCase()));
+    await db.insert(gamertagLinks)
+      .values({ userId: u!.id, gamertag: `Pending${svc}`, status: "pending" });
+
+    const res = await get(`/me/maps/sakhal-${svc}`, pendingCookie);
     expect(res.statusCode).toBe(403);
     expect(res.json().error).toBe("not_verified");
   });

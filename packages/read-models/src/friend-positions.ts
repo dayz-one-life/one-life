@@ -31,11 +31,15 @@ export async function getFriendPositions(
 ): Promise<FriendPosition[]> {
   const freshest = new Date(a.now.getTime() - MARKER_MAX_AGE_SECONDS * 1000);
 
-  // The viewer's own gamertag. No verified link ⇒ no map at all (the route also checks, but
-  // this keeps the read model safe on its own).
+  // The viewer's own gamertag + resolved player id. No verified link ⇒ no map at all (the
+  // route also checks, but this keeps the read model safe on its own). The join to `players`
+  // is by lower(gamertag) — gamertag_links and players are independently-cased text columns
+  // for the same identity — and is safe to fold case on precisely because it is scoped by a
+  // verified link, never used as a bare directory lookup.
   const [viewer] = await db
-    .select({ gamertag: gamertagLinks.gamertag })
+    .select({ gamertag: gamertagLinks.gamertag, playerId: players.id })
     .from(gamertagLinks)
+    .innerJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
     .where(and(
       eq(gamertagLinks.userId, a.viewerUserId),
       eq(gamertagLinks.status, "verified"),
@@ -45,6 +49,11 @@ export async function getFriendPositions(
 
   // Candidate friends with both sides' flags plus the FRIEND's master switch. Eligibility is
   // decided in TypeScript by shouldShareLocation so the rule lives in exactly one place.
+  //
+  // ⚠️ The viewer restriction lives entirely in the `gamertagLinks` join's ON clause (the
+  // `or(...)` below), not a WHERE — this IS the scope, restricting the joined rows to the
+  // OTHER side of a friendship the viewer belongs to. Moving it into a WHERE would need both
+  // halves of the `or` repeated there or it silently drops the case where the friend is side A.
   const friendRows = await db
     .select({
       userA: friendships.userA,
@@ -54,6 +63,7 @@ export async function getFriendPositions(
       bShares: friendships.bSharesLocation,
       friendUserId: gamertagLinks.userId,
       gamertag: gamertagLinks.gamertag,
+      playerId: players.id,
       masterShare: userPreferences.shareLocation,
     })
     .from(friendships)
@@ -64,6 +74,7 @@ export async function getFriendPositions(
         and(eq(friendships.userB, a.viewerUserId), eq(gamertagLinks.userId, friendships.userA)),
       ),
     ))
+    .innerJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
     .leftJoin(userPreferences, eq(userPreferences.userId, gamertagLinks.userId));
 
   const visible = friendRows.filter((r) =>
@@ -76,18 +87,29 @@ export async function getFriendPositions(
     }),
   );
 
-  const gamertags = [viewer.gamertag, ...visible.map((r) => r.gamertag)];
-  if (gamertags.length === 0) return [];
-  const lowered = gamertags.map((g) => g.toLowerCase());
+  const subjects = [
+    { gamertag: viewer.gamertag, playerId: viewer.playerId },
+    ...visible.map((r) => ({ gamertag: r.gamertag, playerId: r.playerId })),
+  ];
+  const playerIds = subjects.map((s) => s.playerId);
+  const gamertagByPlayerId = new Map(subjects.map((s) => [s.playerId, s.gamertag]));
 
-  // Latest fresh position per gamertag on this server, for players with an OPEN session there.
-  // DISTINCT ON is the shape Drizzle cannot express, hence raw SQL — but the gamertag set is
+  // Latest fresh position per subject on this server, for players with an OPEN session there.
+  // DISTINCT ON is the shape Drizzle cannot express, hence raw SQL — but the subject set is
   // passed through `inArray` as bind parameters, never interpolated into the query text.
+  //
+  // Filtered by `p.player_id`, not `lower(p.gamertag)` — this is the ONLY predicate shape that
+  // can use `positions_player_idx` (server_id, player_id, recorded_at) end-to-end. A
+  // `lower(gamertag) IN (...)` predicate defeats that index past its `server_id` prefix and
+  // forces Postgres to scan and filter every position ever recorded on the server — on the
+  // highest-volume table in the system, on a 30s poll per viewer. The player ids above are
+  // already resolved case-insensitively via the `players` joins, so this loses no matching
+  // behaviour versus the old lower(gamertag) predicate.
   const rows = await db.execute<{
-    gamertag: string; x: number; y: number; recorded_at: Date;
+    player_id: number; x: number; y: number; recorded_at: Date;
   }>(sql`
-    SELECT DISTINCT ON (lower(p.gamertag))
-           p.gamertag, p.x, p.y, p.recorded_at
+    SELECT DISTINCT ON (p.player_id)
+           p.player_id, p.x, p.y, p.recorded_at
     FROM ${positions} p
     JOIN ${players} pl ON pl.id = p.player_id
     JOIN ${sessions} s ON s.player_id = pl.id
@@ -100,15 +122,21 @@ export async function getFriendPositions(
       -- here crashes inside postgres-js's wire encoder the moment the server describes
       -- the placeholder as timestamptz.
       AND p.recorded_at >= ${freshest.toISOString()}
-      AND ${inArray(sql`lower(p.gamertag)`, lowered)}
-    ORDER BY lower(p.gamertag), p.recorded_at DESC
+      AND ${inArray(sql`p.player_id`, playerIds)}
+    ORDER BY p.player_id, p.recorded_at DESC
   `);
 
-  return rows.map((r) => ({
-    gamertag: r.gamertag,
-    x: Number(r.x),
-    y: Number(r.y),
-    recordedAt: new Date(r.recorded_at),
-    self: r.gamertag.toLowerCase() === viewer.gamertag.toLowerCase(),
-  }));
+  return rows
+    .map((r) => {
+      const gamertag = gamertagByPlayerId.get(Number(r.player_id));
+      if (!gamertag) return null;
+      return {
+        gamertag,
+        x: Number(r.x),
+        y: Number(r.y),
+        recordedAt: new Date(r.recorded_at),
+        self: Number(r.player_id) === viewer.playerId,
+      };
+    })
+    .filter((r): r is FriendPosition => r !== null);
 }

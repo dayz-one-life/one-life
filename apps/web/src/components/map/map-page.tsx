@@ -33,11 +33,9 @@ export function MapPageView(p: MapPageViewProps) {
   }
   if (p.loading) {
     return (
-      <div
-        aria-busy="true"
-        aria-hidden
-        className="h-[420px] w-full motion-safe:animate-pulse bg-bone"
-      />
+      <div aria-busy="true">
+        <div aria-hidden className="h-[420px] w-full motion-safe:animate-pulse bg-bone" />
+      </div>
     );
   }
   if (p.error) {
