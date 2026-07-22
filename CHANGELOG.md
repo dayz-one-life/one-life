@@ -10,12 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The map's controls are built for a thumb now. On a phone, Locate and the friends list move to
-  a bar along the bottom of the screen, alongside the grid reference, and every control in both
-  bars — including the map's own zoom buttons — is a proper 44px target with larger type. On a
-  desktop nothing moves.
-- The way off the map is the One Life wordmark rather than plain text.
-
 ### Deprecated
 
 ### Removed
@@ -23,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.40.0] - 2026-07-22
+
+### Changed
+
+- The map's controls are built for a thumb now. On a phone, Locate and the friends list move to
+  a bar along the bottom of the screen, alongside the grid reference, and every control in both
+  bars — including the map's own zoom buttons — is a proper 44px target with larger type. On a
+  desktop nothing moves.
+- The way off the map is the One Life wordmark rather than plain text.
 
 ## [0.39.2] - 2026-07-22
 
