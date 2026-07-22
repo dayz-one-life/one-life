@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Your gamertag is now recognised whatever its capitalisation. Claiming a name that the game
+  logs with different capitals no longer leaves verification stuck forever, and the same name
+  in different capitals can no longer become two separate players.
+
 ### Security
 
 ## [0.38.3] - 2026-07-22
