@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { worldSize, worldToPixel } from "@/lib/dayz-projection";
+import { placesFor, placeWeight } from "@/lib/map-places";
 // Next.js's bundler special-cases global stylesheets imported FROM node_modules: unlike an
 // app-authored global .css (which must live in the root layout), a third-party package's CSS
 // may be imported directly in the component that needs it and still gets extracted + emitted —
@@ -28,6 +29,15 @@ const CANVAS_PX = 256 * 2 ** MAX_ZOOM;
 // this renders through Leaflet's own attribution control rather than being suppressed.
 const TILE_ATTRIBUTION = '<a href="https://dayz.xam.nu" target="_blank">Tiles © Xam.nu</a>';
 
+/** Leaflet pane holding the place labels. See `runPlaces` for why it exists. */
+const PLACE_PANE = "places";
+
+/** `L.divIcon` takes raw HTML. The names are vendored, not user input, but a data refresh
+ *  that ever pulled in a `<` must not become an injection vector in a client component. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // Minimal structural types for the pieces of Leaflet's API this component touches —
 // enough to keep the two effects below (map lifecycle vs. layer redraw) honest without
 // pulling in `@types/leaflet` for a dynamically-imported module.
@@ -36,6 +46,9 @@ export interface LeafletMap {
   fitBounds: (bounds: unknown, opts?: unknown) => void;
   setView: (center: unknown, zoom: number) => void;
   remove: () => void;
+  getZoom: () => number | undefined;
+  on: (event: string, handler: () => void) => void;
+  createPane: (name: string) => HTMLElement | undefined;
 }
 export interface LeafletLayer {
   addTo: (target: unknown) => LeafletLayer;
@@ -46,6 +59,9 @@ export interface LeafletLayer {
 export interface LeafletModule {
   CRS: { Simple: unknown };
   map: (el: HTMLElement, opts: Record<string, unknown>) => LeafletMap;
+  latLng: (lat: number, lng: number) => unknown;
+  marker: (latlng: unknown, opts: Record<string, unknown>) => LeafletLayer;
+  divIcon: (opts: Record<string, unknown>) => unknown;
   tileLayer: (url: string, opts: Record<string, unknown>) => LeafletLayer;
   polyline: (latlngs: unknown[], opts: Record<string, unknown>) => LeafletLayer;
   circleMarker: (latlng: unknown, opts: Record<string, unknown>) => LeafletLayer;
@@ -94,7 +110,55 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
   const leafletRef = useRef<LeafletModule | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const layerGroupRef = useRef<LeafletLayer | null>(null);
+  const placeGroupRef = useRef<LeafletLayer | null>(null);
   const hasFitRef = useRef(false);
+
+  /**
+   * Town/landmark labels, redrawn on every zoom change (that is the whole point — see the
+   * tiering rationale in `@/lib/map-places`).
+   *
+   * Labels live in their OWN low pane (`PLACE_PANE`, z-index 350) so they paint UNDER the
+   * dots and trails. This is not a stylistic preference and a LayerGroup cannot do it:
+   * Leaflet puts every `L.marker` in the marker pane at z-index 600, ABOVE the overlay pane
+   * (400) that holds our circleMarkers and polylines — so without the pane, a town name
+   * covers the very dot someone opened the map to find, regardless of insertion order.
+   * Nothing here is interactive, so labels also cannot swallow a click meant for a popup.
+   */
+  function runPlaces() {
+    const L = leafletRef.current;
+    const m = mapRef.current;
+    if (!L || !m) return;
+    // Before the first setView/fitBounds the map has no zoom; the zoomend those calls fire
+    // brings us straight back here with a real one.
+    const zoom = m.getZoom();
+    if (typeof zoom !== "number") return;
+
+    if (placeGroupRef.current) {
+      placeGroupRef.current.clearLayers?.();
+    } else {
+      const group = L.layerGroup();
+      group.addTo(m);
+      placeGroupRef.current = group;
+    }
+
+    for (const p of placesFor(mapCodename, zoom)) {
+      // `p.lat`/`p.lng` are already CRS.Simple coordinates on this pyramid — deliberately NOT
+      // run through `worldToPixel`/`unproject` like our own metre-based data.
+      L.marker(L.latLng(p.lat, p.lng), {
+        pane: PLACE_PANE,
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: `map-place map-place-${placeWeight(p.kind)}`,
+          html: escapeHtml(p.name),
+          // Zero-sized so the label centres on the place rather than hanging off it; the
+          // text itself overflows the icon box, which is what `white-space: nowrap` in the
+          // stylesheet is for.
+          iconSize: [0, 0],
+        }),
+      }).addTo(placeGroupRef.current);
+    }
+  }
 
   function runDraw() {
     const L = leafletRef.current;
@@ -166,7 +230,15 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
           errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==",
           attribution: TILE_ATTRIBUTION,
         }).addTo(m);
+
+        // Under the overlay pane (400) that holds our dots and trails, over the tiles (200).
+        const pane = m.createPane(PLACE_PANE);
+        if (pane) pane.style.zIndex = "350";
+
         runDraw();
+        runPlaces();
+        // The whole point of the tiering: labels appear and disappear as the reader zooms.
+        m.on("zoomend", runPlaces);
       })
       .catch(() => {
         // A chunk 404 (realistic mid-deploy) or any other load failure must surface honestly,
@@ -179,6 +251,7 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
       mapRef.current?.remove();
       mapRef.current = null;
       layerGroupRef.current = null;
+      placeGroupRef.current = null;
       leafletRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

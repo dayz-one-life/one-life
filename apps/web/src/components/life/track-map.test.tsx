@@ -16,7 +16,21 @@ const setView = vi.fn();
 const removeMap = vi.fn();
 const clearLayers = vi.fn();
 const unproject = vi.fn((p: [number, number]) => ({ lat: p[1], lng: p[0] }));
-const mapFn = vi.fn((..._a: unknown[]) => ({ unproject, fitBounds, setView, remove: removeMap }));
+// Place labels (map-canvas's `runPlaces`) need a zoom, a pane and a zoomend hook. A double
+// missing any of them throws inside the load promise and the component silently renders its
+// "couldn't load the map" state, so every one of these must be present even in tests that
+// care only about the trail.
+const zoomHandlers: Array<() => void> = [];
+const createPane = vi.fn(() => document.createElement("div"));
+const marker = vi.fn((..._a: unknown[]) => ({ addTo }));
+const divIcon = vi.fn((o: unknown) => o);
+const mapObj = {
+  unproject, fitBounds, setView, remove: removeMap,
+  getZoom: () => 3,
+  on: (evt: string, fn: () => void) => { if (evt === "zoomend") zoomHandlers.push(fn); },
+  createPane,
+};
+const mapFn = vi.fn((..._a: unknown[]) => mapObj);
 // A single module-level layer-group double shared by every `L.layerGroup()` call, with one
 // shared `clearLayers` spy — so a test can assert redraw-without-recreate (a NEW track
 // object clears+redraws the SAME layer group rather than a fresh `L.map(...)` call).
@@ -31,6 +45,9 @@ vi.mock("leaflet", () => ({
     tileLayer: (...a: unknown[]) => tileLayer(...a),
     polyline: (...a: unknown[]) => polyline(...a),
     circleMarker: (...a: unknown[]) => circleMarker(...a),
+    marker: (...a: unknown[]) => marker(...a),
+    divIcon: (o: unknown) => divIcon(o),
+    latLng: (lat: number, lng: number) => ({ lat, lng }),
     layerGroup: (...a: unknown[]) => layerGroup(...a),
     latLngBounds: (v: unknown) => v,
   },
