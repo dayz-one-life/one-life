@@ -27,7 +27,7 @@ export function PlayerHero({ page }: { page: PlayerPage }) {
             Verified
           </span>
         )}
-        <FriendButton gamertag={page.gamertag} />
+        {page.verified && <FriendButton gamertag={page.gamertag} />}
       </div>
       <div className="mt-5 grid grid-cols-2 gap-y-4 sm:flex sm:gap-x-9">
         {stats.map((st) => (

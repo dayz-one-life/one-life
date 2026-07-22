@@ -1,8 +1,39 @@
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { PlayerHero } from "./player-hero";
 import type { PlayerPage } from "@/lib/types";
+
+// FriendButton must never render for a target with no verified gamertag link, and never on
+// the viewer's own profile. Both gates need a verified viewer to be distinguishable at all —
+// a signed-out/unlinked/pending viewer already renders nothing, which would pass either test
+// vacuously — so this file pins a fixed verified viewer ("Boots") and stubs the friend-status
+// fetch so a mounted FriendButton doesn't hit a real network call.
+const { mockAccount, getFriendStatus } = vi.hoisted(() => ({
+  mockAccount: {
+    kind: "verified" as const,
+    link: { id: 1, gamertag: "Boots", status: "verified" as const, verifiedAt: "2026-07-01T00:00:00Z", challenge: null },
+  },
+  getFriendStatus: vi.fn().mockResolvedValue({ status: "none", friendshipId: null, cooldownUntil: null }),
+}));
+vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockAccount }));
+
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return {
+    ...actual,
+    getFriendStatus: (...a: unknown[]) => getFriendStatus(...a),
+    getFriends: vi.fn(),
+    sendFriendRequest: vi.fn(),
+    acceptFriendRequest: vi.fn(),
+    declineFriendRequest: vi.fn(),
+    deleteFriendship: vi.fn(),
+  };
+});
+
+beforeEach(() => {
+  getFriendStatus.mockClear();
+});
 
 // PlayerHero mounts FriendButton, which reads useFriendStatus/useFriendActions —
 // both TanStack Query hooks, so every render here needs a QueryClientProvider (same
@@ -71,5 +102,22 @@ describe("PlayerHero", () => {
     const block = screen.getByText("Deaths").closest("div")!;
     const value = within(block).getByText(String(page().totals.deaths));
     expect(value.className).toContain("text-red");
+  });
+
+  test("FriendButton does not mount for an unverified target, even for a verified viewer", async () => {
+    renderHero(<PlayerHero page={page({ gamertag: "SomeoneElse", verified: false })} />);
+    expect(screen.queryByRole("button", { name: /add friend/i })).toBeNull();
+    expect(getFriendStatus).not.toHaveBeenCalled();
+  });
+
+  test("FriendButton does not mount on the viewer's own profile (case-insensitive)", async () => {
+    renderHero(<PlayerHero page={page({ gamertag: "BOOTS", verified: true })} />);
+    expect(screen.queryByRole("button", { name: /add friend/i })).toBeNull();
+    expect(getFriendStatus).not.toHaveBeenCalled();
+  });
+
+  test("FriendButton mounts for a verified target that isn't the viewer", async () => {
+    renderHero(<PlayerHero page={page({ gamertag: "SomeoneElse", verified: true })} />);
+    expect(await screen.findByRole("button", { name: /add friend/i })).toBeInTheDocument();
   });
 });
