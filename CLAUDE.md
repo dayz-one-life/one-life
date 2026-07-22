@@ -455,9 +455,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **Longest kill** chip on the max-distance kill) → the terminal `death` row (carrying the
   **vitals at death** — energy/water/bleed — this is where R2's dropped per-life detail returns) or,
   for an open life, a live **Still drawing breath** row. **Captions are deterministic + factual — no
-  LLM** (voice-first; editorial prose is R5). **Location is voice-only:** a "Positions withheld"
-  notice renders **only while a life is alive**; no coordinates are stored or shown anywhere (kills/
-  deaths carry no coords). Standing + funeral cards link in via a pure **`lifeHref(gamertag, mapSlug,
+  LLM** (voice-first; editorial prose is R5). **Location was voice-only at R4 ship time; it no
+  longer is.** A "Positions withheld" notice still renders **only while a life is alive** to
+  everyone except the verified owner of that gamertag — coordinates **have always been stored**
+  (the `positions` table, populated since SP1) and, since the owner-only life location map
+  sub-project below, **are shown**, to that one person, in place of the withheld notice. What
+  remains true, and is why every marker on that map is approximate: kills and deaths themselves
+  still carry no recorded coordinates. Standing + funeral cards link in via a pure **`lifeHref(gamertag, mapSlug,
   lifeNumber)`** (`@/lib/life-href`); `AliveStanding` gained a `lifeNumber` for the alive-standing
   link. Backed by **`getLifeTimeline`** (`packages/read-models/src/life-timeline.ts`, composing
   `getLifeDetail` + `getLifeKills` + `getLifeCharacter` + `lifeQualifiedAt`) and the extended
@@ -854,6 +858,53 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      sheet). After sign-out the DELETE is scoped to a dead session and matches zero rows, leaving a
      shared browser delivering the previous user's notifications. It never throws — a failed
      teardown must not trap anyone in a session.
+- **Owner-only life location map** ✅ (spec
+  `docs/superpowers/specs/2026-07-21-owner-life-map-design.md`): the life timeline page
+  (`/players/[slug]/[map]/lives/[n]`) gains a route trail + kill/death/last-known-position
+  markers for the signed-in owner of that gamertag alone, on both open and closed lives. This is
+  the **first reader of the `positions` table** — populated since SP1, folded from every ADM
+  `pos=<x, y, z>` line, but never previously queried by any read model or route.
+  **The security boundary is the point of the design, not a checklist item added after:**
+  1. **`GET /me/lives/:mapSlug/:n/track` takes no player identifier at all.** The subject comes
+     solely from the session cookie → a `verified` `gamertag_links` row for that user. There is no
+     gamertag/slug/userId parameter to add, ever — an equality check is something a later refactor
+     can weaken without a test noticing; having no field to name another player in is not.
+  2. **A `pending` link is never sufficient — only `verified`.** Anyone can type any gamertag into
+     the claim box; only a link that survived emote verification unlocks coordinates (mirrors
+     `self-unban-button.tsx`'s ownership gate).
+  3. **`Cache-Control: no-store, private` on the response is load-bearing**, not decoration —
+     without it a shared proxy or CDN can serve one owner's live position to the next visitor, the
+     classic way a correct auth check still leaks.
+  4. **Ownership is a WHERE-clause predicate in `getLifeTrack`, never a post-filter** — a life
+     belonging to another player produces zero rows and a 404, so no intermediate value in the call
+     path ever holds another player's coordinates for a bug to leak. Three separate gamertag
+     predicates (lives, positions, kills) are each pinned by a mutation-verified test.
+  **Every marker is approximate, because deaths and kills have never carried coordinates** — each
+  marker is the nearest `positions` fix at or before the event. There is deliberately **no
+  `approximate` boolean**; `sampleAgeSeconds` is non-optional, so a render site must actively
+  discard it rather than silently omit an honesty flag. Past 900 seconds old, no marker renders at
+  all — silent beats confidently wrong. A `now` marker (open life) carries `sampleAgeSeconds: 0` by
+  construction — the fix *is* the event — with real staleness computed client-side against the
+  clock; the accessible marker list and the map popup both route through one shared `staleness()`
+  helper so they can never disagree with each other. Trail polylines are **per-session, never one
+  line** — joining sessions draws a straight path across a logout/login the player never walked.
+  **Rendering:** plain `leaflet` driven from a `useEffect`, deliberately **not** `react-leaflet`
+  (its v4 doesn't support React 19); `TrackMap` is `dynamic(..., { ssr: false })` so a non-owner
+  never downloads the chunk or Leaflet's stylesheet. The map container carries **`isolate`** —
+  Leaflet's own controls sit at `z-index: 1000` and would otherwise paint over the `z-40` masthead
+  and `z-50` overlays; this is the same LAYER LEGEND rule from `header.tsx`, applied to a new
+  offender. Map tiles are a **host prerequisite** mirrored by `deploy/mirror-tiles.sh`, served at
+  `/tiles/{map}/topographic/{z}/{x}/{y}.webp` (DZMap's own on-disk layer name, deliberately not
+  renamed — renaming it would silently 404 a tree a direct loader run actually produces); tiles are
+  **absent from the `pg_dump` backup** (reproducible from the mirror script, not worth putting
+  hundreds of MB in Postgres for), and their absence **degrades** the map to a trail on a plain
+  dark background rather than breaking it.
+  ⚠️ **`CANVAS_PX` in `track-map.tsx` is an unverified assumption** — the tile pyramid's true pixel
+  extent needs checking against real mirrored tiles on the host; a uniformly offset or scaled trail
+  is the symptom of a wrong value. It's a parameter of `worldToPixel` precisely so that correction
+  is a one-line fix, not a rewrite.
+  No migration and no new table — this release deploys with a plain `./deploy/deploy.sh`, **no
+  `--rebuild`**.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
