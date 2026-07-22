@@ -114,27 +114,44 @@ describe("MapCanvas world bounds", () => {
     expect(setMinZoom).toHaveBeenLastCalledWith(3);
   });
 
-  it("floors on the exact fraction, not the next whole step", async () => {
-    // The map must pull back until terrain EXACTLY meets the viewport edge. Leaflet's
-    // getBoundsZoom would round an `inside` result up to the next whole level, stopping up to
-    // a full step short — v0.39.2's bug report. A fractional minZoom is honoured even with
-    // snapping on, because `_limitZoom` rounds to the snap first and clamps to min second.
-    mapSize = { x: 700, y: 400 };
+  it("puts the floor ON a snap point, so zooming out can actually reach it", async () => {
+    // ⚠️ THE v0.41.2 BUG. Leaflet applies `_limitZoom` TWICE on the way to a new view: it
+    // rounds to the snap and clamps to min, then does it again. A floor BETWEEN snap points
+    // survives the first pass and is rounded away by the second, bouncing the map back to the
+    // level above — zoom-out becomes a silent no-op with the control still enabled. Verified
+    // live on Livonia at 1502x1517: exact floor 2.567, map stuck at 3.
+    mapSize = { x: 1502, y: 1517 };
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
     await waitFor(() => expect(setMinZoom).toHaveBeenCalled());
     const floor = setMinZoom.mock.calls.at(-1)![0] as number;
-    expect(floor).toBeCloseTo(Math.log2(700 / 256), 6);
-    expect(Number.isInteger(floor)).toBe(false);
+    // The exact edge is 2.567; the reachable floor is the next quarter step above it.
+    expect(Math.log2(1517 / 256)).toBeCloseTo(2.567, 3);
+    expect(floor).toBeCloseTo(2.75, 6);
+    // Still well inside the whole step the old getBoundsZoom floor would have cost.
+    expect(floor).toBeLessThan(3);
   });
 
-  it("keeps the scroll wheel on whole steps — no zoomSnap: 0", async () => {
-    // v0.39.2 set `zoomSnap: 0` to make the floor exact, which turned wheel zoom into
-    // continuous fractional zoom: reported as slow and choppy, because every tick rescales
-    // tiles instead of stepping between rendered levels. The floor is computed instead, so
-    // snapping stays at Leaflet's default.
+  it("never floors BELOW the world-covering zoom — grey must not come back", async () => {
+    // Rounding the exact floor DOWN to a snap point would let the world stop covering the
+    // viewport, which is the original Livonia-adrift-in-grey report.
+    for (const size of [{ x: 1502, y: 1517 }, { x: 700, y: 400 }, { x: 1024, y: 512 }]) {
+      setMinZoom.mockClear();
+      mapSize = size;
+      const { unmount } = render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+      await waitFor(() => expect(setMinZoom).toHaveBeenCalled());
+      const floor = setMinZoom.mock.calls.at(-1)![0] as number;
+      expect(floor).toBeGreaterThanOrEqual(Math.log2(Math.max(size.x, size.y) / 256));
+      unmount();
+    }
+  });
+
+  it("keeps the wheel stepping — never zoomSnap: 0", async () => {
+    // `zoomSnap: 0` (v0.39.2) makes wheel zoom continuous: every notch rescales tiles rather
+    // than stepping between rendered levels, reported as slow and choppy. A quarter step still
+    // moves a whole level per notch, because _performZoom takes ceil(d2 / snap) * snap.
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
     await waitFor(() => expect(mapFn).toHaveBeenCalled());
-    expect((mapFn.mock.calls[0]![1] as Record<string, unknown>).zoomSnap).toBeUndefined();
+    expect((mapFn.mock.calls[0]![1] as Record<string, unknown>).zoomSnap).toBe(0.25);
   });
 
   it("lets a shrinking viewport zoom out further — the floor never latches", async () => {
@@ -146,6 +163,8 @@ describe("MapCanvas world bounds", () => {
     mapSize = { x: 512, y: 256 };
     handlers.resize![0]!();
     expect(setMinZoom).toHaveBeenLastCalledWith(1);
+    // 1024 and 512 are exact powers of two, so the snap rounding is a no-op on both — the
+    // point of this test is the direction of travel, not the rounding.
   });
 
   it("ignores a nonsense floor rather than locking the map at it", async () => {
