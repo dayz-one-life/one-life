@@ -47,7 +47,7 @@ export interface LeafletMap {
   setView: (center: unknown, zoom: number) => void;
   setMinZoom: (zoom: number) => void;
   setMaxBounds: (bounds: unknown) => void;
-  getBoundsZoom: (bounds: unknown, inside?: boolean) => number;
+  getSize: () => { x: number; y: number };
   flyTo: (latlng: unknown, zoom: number) => void;
   project: (latlng: unknown, zoom: number) => { x: number; y: number };
   getCenter: () => unknown;
@@ -203,17 +203,34 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
     const L = leafletRef.current;
     const m = mapRef.current;
     if (!L || !m) return;
-    const bounds = worldBounds(L, m);
-    m.setMaxBounds(bounds);
-    // ⚠️ Reset BEFORE measuring. getBoundsZoom returns `Math.max(currentMinZoom, ...)`, so a
-    // floor raised once becomes a latch: narrow the window afterwards and the map stays
-    // clamped at the wider view's floor, unable to zoom out to its own edge.
-    m.setMinZoom(0);
-    const floor = m.getBoundsZoom(bounds, true);
-    // A container Leaflet measures as zero-sized yields Infinity here. Setting that as the
-    // floor clamps every gesture to a zoom whose tiles do not exist — an unusable map. A bad
-    // number is better ignored: the worst case is the old behaviour, not a broken one.
-    if (Number.isFinite(floor) && floor <= MAX_ZOOM) m.setMinZoom(floor);
+    m.setMaxBounds(worldBounds(L, m));
+
+    // ⚠️ The floor is computed here rather than with `getBoundsZoom(bounds, true)`, and the
+    // map deliberately keeps Leaflet's DEFAULT `zoomSnap: 1`. Both halves matter:
+    //
+    //   - getBoundsZoom rounds an `inside` result UP to the next whole level
+    //     (`Math.ceil(zoom / snap) * snap`), so with snapping on it lands up to a full step
+    //     short of the real edge — the map refuses to pull back while terrain still covers
+    //     the view. v0.39.2 fixed that with `zoomSnap: 0`, which made the floor exact but
+    //     turned the scroll wheel into continuous fractional zoom: slow and choppy, because
+    //     every wheel tick rescales tiles instead of stepping between rendered levels.
+    //   - It also returns `Math.max(currentMinZoom, …)`, so a floor raised once could never
+    //     be measured lower again — widen the window then narrow it and the map stayed
+    //     clamped at the wider view's floor.
+    //
+    // Computing it ourselves sidesteps both. The pyramid is one 256px tile at zoom 0, so the
+    // world spans `256 * 2**z` px at zoom z; the floor is where that just covers the LONGER
+    // side of the container: `256 * 2**z >= max(w, h)`, i.e. `z >= log2(max(w, h) / 256)`.
+    //
+    // A FRACTIONAL minZoom is honoured even with snapping on: Leaflet's `_limitZoom` rounds
+    // to the snap FIRST and clamps to min second, so the wheel steps between whole levels
+    // (smooth) and the final zoom-out lands exactly on this floor (no grey).
+    const size = m.getSize();
+    const floor = Math.log2(Math.max(size.x, size.y) / 256);
+    // A container Leaflet measures as zero-sized yields -Infinity. Setting a nonsense floor
+    // clamps every gesture to a zoom whose tiles do not exist — an unusable map. A bad number
+    // is better ignored: the worst case is the old behaviour, not a broken one.
+    if (Number.isFinite(floor) && floor <= MAX_ZOOM) m.setMinZoom(Math.max(0, floor));
   }
 
   function runDraw() {
@@ -310,13 +327,6 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
         leafletRef.current = L;
         const m = L.map(ref.current, {
           crs: L.CRS.Simple, minZoom: 0, maxZoom: MAX_ZOOM, attributionControl: true,
-          // ⚠️ `zoomSnap: 0` is what makes the zoom floor EXACT. Leaflet rounds an `inside`
-          // getBoundsZoom result UP to the next whole level (`Math.ceil(zoom / snap) * snap`,
-          // and zoomSnap defaults to 1), so the floor lands up to a full step short of the
-          // real edge and the map refuses to zoom out while the terrain still covers the
-          // view. Zero disables the rounding, and the cost is only that tiles render at a
-          // fractional scale at the very bottom of the range.
-          zoomSnap: 0,
           // A hard stop at the world's edge rather than an elastic bounce — the edge is a
           // fact about the terrain, not a suggestion. The real floor is set by
           // applyWorldBounds() once the container has been measured; this minZoom is only

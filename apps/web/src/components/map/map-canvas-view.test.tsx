@@ -13,8 +13,9 @@ const fitBounds = vi.fn();
 const project = vi.fn((_l: unknown, _z: number) => ({ x: 8192, y: 4096 }));
 const setMinZoom = vi.fn();
 const setMaxBounds = vi.fn();
-let boundsZoom = 2;
-const getBoundsZoom = vi.fn((_b: unknown, _inside?: boolean) => boundsZoom);
+/** Container size Leaflet reports. The zoom floor is derived from it. */
+let mapSize = { x: 1024, y: 512 };
+const getSize = vi.fn(() => mapSize);
 /** Call order across the double, for assertions about sequencing. */
 const calls: string[] = [];
 const mapFn = vi.fn((_el: unknown, _opts: Record<string, unknown>) => mapObj);
@@ -30,7 +31,7 @@ const mapObj = {
   getZoom: () => 3,
   setMinZoom: (z: number) => { calls.push(`setMinZoom:${z}`); setMinZoom(z); },
   setMaxBounds,
-  getBoundsZoom: (b: unknown, inside?: boolean) => { calls.push("getBoundsZoom"); return getBoundsZoom(b, inside); },
+  getSize: () => { calls.push("getSize"); return getSize(); },
   remove: vi.fn(),
   on: (evt: string, fn: () => void) => {
     (handlers[evt] ??= []).push(fn);
@@ -78,18 +79,24 @@ beforeEach(() => {
     return frames.length; // 1-based handle
   });
   vi.stubGlobal("cancelAnimationFrame", (h: number) => { cancelled.push(h); });
-  boundsZoom = 2;
+  mapSize = { x: 1024, y: 512 };
   calls.length = 0;
 });
 
 describe("MapCanvas world bounds", () => {
   it("floors the zoom where the world stops covering the viewport", async () => {
     // Zooming out past this shows blank space around the map — see the Livonia screenshot in
-    // v0.39.0. `inside: true` asks Leaflet for the lowest zoom at which the VIEW still fits
-    // inside the world, which is exactly the no-blank-space floor.
+    // v0.39.0. The pyramid is one 256px tile at zoom 0, so the world spans 256 * 2**z px;
+    // a 1024px-wide container is covered from log2(1024 / 256) = 2.
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
     await waitFor(() => expect(setMinZoom).toHaveBeenCalledWith(2));
-    expect(getBoundsZoom.mock.calls[0]![1]).toBe(true);
+  });
+
+  it("measures the LONGER side, so neither dimension can show grey", async () => {
+    // A tall phone in portrait: height drives the floor, not width.
+    mapSize = { x: 256, y: 1024 };
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(setMinZoom).toHaveBeenCalledWith(2));
   });
 
   it("pens the viewer inside the map's own extent", async () => {
@@ -101,46 +108,54 @@ describe("MapCanvas world bounds", () => {
     // A phone rotating, or a desktop window widening, changes which zoom covers the view; a
     // floor computed once leaves blank space at the new size.
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
-    // Not a call COUNT: each pass also resets the floor to 0 before measuring, so counting
-    // calls measures the reset rather than the floor.
     await waitFor(() => expect(setMinZoom).toHaveBeenLastCalledWith(2));
-    boundsZoom = 3;
+    mapSize = { x: 2048, y: 1024 };
     handlers.resize![0]!();
     expect(setMinZoom).toHaveBeenLastCalledWith(3);
   });
 
-  it("allows a fractional floor, so it stops exactly where grey would start", async () => {
-    // Leaflet's getBoundsZoom rounds an `inside` result UP to the next whole level
-    // (`Math.ceil(zoom / snap) * snap`, and zoomSnap defaults to 1), so the floor lands up to
-    // a full step short of the real edge — the map refuses to zoom out while the terrain
-    // still covers the view. zoomSnap: 0 disables the rounding entirely.
+  it("floors on the exact fraction, not the next whole step", async () => {
+    // The map must pull back until terrain EXACTLY meets the viewport edge. Leaflet's
+    // getBoundsZoom would round an `inside` result up to the next whole level, stopping up to
+    // a full step short — v0.39.2's bug report. A fractional minZoom is honoured even with
+    // snapping on, because `_limitZoom` rounds to the snap first and clamps to min second.
+    mapSize = { x: 700, y: 400 };
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
-    await waitFor(() => expect(mapFn).toHaveBeenCalled());
-    expect(mapFn.mock.calls[0]![1]).toMatchObject({ zoomSnap: 0 });
+    await waitFor(() => expect(setMinZoom).toHaveBeenCalled());
+    const floor = setMinZoom.mock.calls.at(-1)![0] as number;
+    expect(floor).toBeCloseTo(Math.log2(700 / 256), 6);
+    expect(Number.isInteger(floor)).toBe(false);
   });
 
-  it("re-measures from a clean floor, so a shrinking viewport can zoom out again", async () => {
-    // getBoundsZoom returns `Math.max(currentMinZoom, ...)`, so a floor raised once becomes a
-    // latch: narrow the window afterwards and the map stays clamped at the wider view's floor,
-    // unable to zoom out to its own edge. Reset to 0 before measuring.
+  it("keeps the scroll wheel on whole steps — no zoomSnap: 0", async () => {
+    // v0.39.2 set `zoomSnap: 0` to make the floor exact, which turned wheel zoom into
+    // continuous fractional zoom: reported as slow and choppy, because every tick rescales
+    // tiles instead of stepping between rendered levels. The floor is computed instead, so
+    // snapping stays at Leaflet's default.
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
-    await waitFor(() => expect(calls).toContain("getBoundsZoom"));
-    // Assert PRESENCE before order: indexOf returns -1 when absent, which is trivially less
-    // than any real index, so an order-only assertion passes when the reset does not happen.
-    expect(calls).toContain("setMinZoom:0");
-    expect(calls.indexOf("setMinZoom:0")).toBeLessThan(calls.indexOf("getBoundsZoom"));
+    await waitFor(() => expect(mapFn).toHaveBeenCalled());
+    expect((mapFn.mock.calls[0]![1] as Record<string, unknown>).zoomSnap).toBeUndefined();
+  });
+
+  it("lets a shrinking viewport zoom out further — the floor never latches", async () => {
+    // getBoundsZoom returned `Math.max(currentMinZoom, ...)`, so a floor raised once could
+    // never be measured lower: widen the window, narrow it, and the map stayed clamped at the
+    // wider view's floor. Deriving the floor from the container size cannot latch.
+    render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
+    await waitFor(() => expect(setMinZoom).toHaveBeenCalledWith(2));
+    mapSize = { x: 512, y: 256 };
+    handlers.resize![0]!();
+    expect(setMinZoom).toHaveBeenLastCalledWith(1);
   });
 
   it("ignores a nonsense floor rather than locking the map at it", async () => {
     // A container Leaflet measures as zero-sized yields Infinity. Setting that as minZoom
     // makes the map unusable — every gesture clamps to a zoom whose tiles do not exist.
-    boundsZoom = Infinity;
+    // A container Leaflet measures as zero-sized gives log2(0) = -Infinity.
+    mapSize = { x: 0, y: 0 };
     render(<MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} />);
     await waitFor(() => expect(setMaxBounds).toHaveBeenCalled());
-    // The pre-measurement reset to 0 is fine and expected; what must never be applied is the
-    // nonsense value itself.
-    expect(setMinZoom).not.toHaveBeenCalledWith(Infinity);
-    expect(setMinZoom.mock.calls.every(([z]) => Number.isFinite(z))).toBe(true);
+    expect(setMinZoom).not.toHaveBeenCalled();
   });
 
   it("opens on the whole world, not a hardcoded zoom", async () => {
