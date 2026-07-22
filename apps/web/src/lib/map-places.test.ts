@@ -95,13 +95,32 @@ describe("searchPlaces", () => {
     expect(first.name.toLowerCase().startsWith("nov")).toBe(true);
   });
 
-  it("ranks bigger places first within the same match kind", () => {
-    const results = searchPlaces("chernarusplus", "a");
-    const weights = results.map((p) => placeWeight(p.kind));
-    // Never a faint landmark ahead of a city in the same result set.
-    expect(weights.indexOf("major")).toBeLessThanOrEqual(
-      weights.lastIndexOf("faint") === -1 ? weights.length : weights.lastIndexOf("faint"),
-    );
+  it("puts an exactly-typed name first, even when a bigger place contains it", () => {
+    // Real Chernarus collisions: without exact-match-first, typing "Bor" yields Stary Sobor
+    // and typing "Rog" yields Severograd — so the search box, which detects a pick by
+    // comparing the typed text to the top hit, could never fly to those places at all.
+    for (const name of ["Bor", "Rog", "Bogat", "Prud"]) {
+      expect(searchPlaces("chernarusplus", name, 1)[0]!.name).toBe(name);
+    }
+  });
+
+  it("ranks bigger places first among matches of the same kind", () => {
+    const results = searchPlaces("chernarusplus", "a", 200);
+    const ORDER: Record<string, number> = { major: 0, minor: 1, faint: 2 };
+    // Group by match kind, because size only breaks ties WITHIN a kind. Inside each group
+    // the weights must be non-decreasing — deleting the size sort makes this fail.
+    const groups = new Map<number, number[]>();
+    for (const p of results) {
+      const n = p.name.toLowerCase();
+      const kind = n === "a" ? 0 : n.startsWith("a") ? 1 : 2;
+      const arr = groups.get(kind) ?? [];
+      arr.push(ORDER[placeWeight(p.kind)]!);
+      groups.set(kind, arr);
+    }
+    expect(groups.size).toBeGreaterThan(0);
+    for (const weights of groups.values()) {
+      expect(weights).toEqual([...weights].sort((x, y) => x - y));
+    }
   });
 
   it("searches every tier, not just what is drawn at the current zoom", () => {
