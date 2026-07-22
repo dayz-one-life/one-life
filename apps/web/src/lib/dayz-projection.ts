@@ -25,3 +25,17 @@ export function worldToPixel(
   const k = canvasPx / size;
   return [x * k, (size - y) * k];
 }
+
+/**
+ * Tile-pyramid pixels at max zoom → world metres. The exact inverse of `worldToPixel`,
+ * including the northing flip (DayZ's origin is bottom-left; Leaflet's is top-left).
+ *
+ * Used by the map's coordinate readout. Keep it here, beside its inverse, so the projection
+ * rules live in one module and `canvasPx` stays a single parameter.
+ */
+export function pixelToWorld(
+  px: number, py: number, size: number, canvasPx: number,
+): [number, number] {
+  const k = canvasPx / size;
+  return [px / k, size - py / k];
+}
