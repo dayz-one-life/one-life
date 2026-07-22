@@ -1,25 +1,14 @@
 {
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_start.py\""
-          }
-        ]
-      }
-    ]
+  "extraKnownMarketplaces": {
+    "shipyard": {
+      "source": { "source": "github", "repo": "submtd/shipyard" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "keel@shipyard": true,
+    "stow@shipyard": true,
+    "hull@shipyard": true,
+    "bosun@shipyard": true
   }
 }
