@@ -97,20 +97,35 @@ describe("request", () => {
 
     // Wait for fb's request() to actually be blocked on the held row lock, rather than a fixed
     // sleep — a fixed sleep is exactly the kind of timing assumption this test exists to avoid.
+    //
+    // ⚠️ Scoped to THIS database and to a statement touching `friendships`. The original form
+    // counted every ungranted transactionid lock cluster-wide, so any unrelated suite blocking
+    // on any row in any database satisfied it — the poll would return before fb's insert was
+    // actually blocked, the holder would commit early, and the collision this test exists to
+    // force would silently not happen (a green test proving nothing). That made correctness
+    // depend on `fileParallelism: false` holding forever. pg_blocking_pids() asks the precise
+    // question instead: is a backend of ours waiting on someone else?
     const waitForBlockedInsert = async () => {
       for (let i = 0; i < 100; i++) {
         const [row] = await sql<{ count: string }[]>`
-          select count(*)::int as count from pg_locks
-          where locktype = 'transactionid' and not granted
+          select count(*)::int as count from pg_stat_activity
+          where datname = current_database()
+            and cardinality(pg_blocking_pids(pid)) > 0
+            and query ilike '%friendships%'
         `;
-        if (Number(row?.count ?? 0) > 0) return;
+        if (Number(row?.count ?? 0) > 0) return i;
         await new Promise((r) => setTimeout(r, 10));
       }
       throw new Error("fb's insert never blocked — the forced collision setup is broken");
     };
 
     const bPromise = request(db, { fromUserId: "fb", toUserId: "fa" });
-    await waitForBlockedInsert();
+    const polls = await waitForBlockedInsert();
+    // The poll must have observed a not-blocked → blocked TRANSITION. A match on the very
+    // first iteration means it matched something that was already waiting before fb's request
+    // had even reached its INSERT — i.e. the predicate is too loose and this test would go on
+    // to assert the ordinary non-colliding path while claiming to prove the recovery.
+    expect(polls).toBeGreaterThan(0);
     releaseHolder();
     await holderDone;
 
