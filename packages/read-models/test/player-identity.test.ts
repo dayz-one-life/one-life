@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { players, playerGamertags } from "@onelife/db";
 import { inArray, eq } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
+import { resolveSlugMatch } from "../src/player-aggregate.js";
 
 const { db, sql } = getTestDb();
 const tag = `Ident${Math.floor(Math.random() * 1e8)}`;
@@ -46,5 +47,56 @@ describe("player_gamertags", () => {
     const rows = await db.select().from(playerGamertags).where(eq(playerGamertags.gamertag, tag));
     expect(rows.length).toBeGreaterThanOrEqual(2);
     await db.delete(players).where(eq(players.id, other!.id));
+  });
+});
+
+describe("resolveSlugMatch", () => {
+  it("resolves a CURRENT name directly, not via an alias", async () => {
+    const [p] = await db.select().from(players).where(eq(players.gamertag, tag));
+    const m = await resolveSlugMatch(db, tag.toLowerCase());
+    expect(m).toEqual({ gamertag: p!.gamertag, viaAlias: false });
+  });
+
+  it("resolves an OLD name to the current one, flagged as an alias", async () => {
+    const [p] = await db.select().from(players).where(eq(players.gamertag, tag));
+    await db.insert(playerGamertags).values({
+      playerId: p!.id, gamertag: `${tag}Former`,
+      firstSeenAt: new Date("2026-06-01T00:00:00Z"), lastSeenAt: new Date("2026-06-02T00:00:00Z"),
+    });
+    const m = await resolveSlugMatch(db, `${tag}Former`.toLowerCase());
+    expect(m).toEqual({ gamertag: p!.gamertag, viaAlias: true });
+  });
+
+  it("returns null for a name nobody has ever used", async () => {
+    expect(await resolveSlugMatch(db, "nobodyhaseverbeencalledthis")).toBeNull();
+  });
+
+  it("resolves two players holding the same current gamertag to the most recently seen one", async () => {
+    // Same casing would slug-normalize to the same target AND collapse to the same `gamertag`
+    // string in the result, making the two rows indistinguishable by the assertion. Different
+    // casing still normalizes to one slug but keeps the returned string distinguishable, so the
+    // test can actually tell which of the two rows was picked — inserting the stale
+    // (soon-to-be-wrong) row FIRST forces a bare `.limit(1)` (no ORDER BY) to fail here, since an
+    // unordered query tends to hand back rows in something close to insertion/physical order.
+    const staleTag = `${tag}Recycled`;
+    const freshTag = `${tag}RECYCLED`;
+    const [stale] = await db.insert(players)
+      .values({
+        gamertag: staleTag, dayzId: `H3=${tag}`,
+        firstSeenAt: new Date("2026-01-01T00:00:00Z"), lastSeenAt: new Date("2026-01-02T00:00:00Z"),
+      })
+      .returning();
+    const [fresh] = await db.insert(players)
+      .values({
+        gamertag: freshTag, dayzId: `H4=${tag}`,
+        firstSeenAt: new Date("2026-07-01T00:00:00Z"), lastSeenAt: new Date("2026-07-02T00:00:00Z"),
+      })
+      .returning();
+    try {
+      const m = await resolveSlugMatch(db, staleTag.toLowerCase());
+      expect(m).toEqual({ gamertag: freshTag, viaAlias: false });
+    } finally {
+      await db.delete(players).where(inArray(players.id, [stale!.id, fresh!.id]));
+    }
   });
 });
