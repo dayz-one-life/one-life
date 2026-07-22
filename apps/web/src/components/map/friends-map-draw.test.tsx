@@ -21,6 +21,12 @@ const zoomHandlers: Array<() => void> = [];
 let currentZoom = 0;
 const mapObj = {
   unproject, fitBounds: vi.fn(), setView: vi.fn(), remove: vi.fn(),
+  // FriendsMap drives MapCanvas's focus/onCenterChange props, so the double needs the view
+  // API too — without it the centre-report rAF throws as an UNHANDLED error, which vitest
+  // reports separately from the assertions and leaves every test in this file green.
+  flyTo: vi.fn(),
+  project: vi.fn((_l: unknown, _z: number) => ({ x: 8192, y: 8192 })),
+  getCenter: vi.fn(() => ({ lat: -128, lng: 128 })),
   getZoom: () => currentZoom,
   on: (evt: string, fn: () => void) => { if (evt === "zoomend") zoomHandlers.push(fn); },
   createPane: vi.fn(() => document.createElement("div")),
