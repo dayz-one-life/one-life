@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { user, gamertagLinks, friendships } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
+import { eq } from "drizzle-orm";
 import { request, accept, decline } from "../src/mutations.js";
 import { listFriends, statusFor } from "../src/queries.js";
 
@@ -39,6 +40,30 @@ describe("listFriends", () => {
     expect(out.incoming.map((f) => f.gamertag)).toEqual(["QuebecCharlie"]);
     expect(out.outgoing.map((f) => f.gamertag)).toEqual(["QuebecDelta"]);
     expect(out.total).toBe(1);
+  });
+
+  // ⚠️ The drop-out half of F1's released-link prerequisite, verified by inspection only
+  // until now. A friend whose verified link is released is unnameable and unreachable, so
+  // they must vanish from the roster rather than render as a blank row — while the
+  // friendships row itself survives (F2 relies on that surviving row being harmless).
+  it("drops a friend whose verified gamertag link was released, keeping the row", async () => {
+    await request(db, { fromUserId: "qa", toUserId: "qb" });
+    const [ab] = await db.select().from(friendships);
+    await accept(db, { userId: "qb", friendshipId: ab!.id });
+    expect((await listFriends(db, { userId: "qa" })).friends).toHaveLength(1);
+
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "qb"));
+
+    const out = await listFriends(db, { userId: "qa" });
+    expect(out.friends).toEqual([]);
+    expect(out.total).toBe(0);
+    // All three buckets share one null-filter, so assert all three: a regression that dropped
+    // the unnameable friend from `friends` while leaking them into a pending bucket would
+    // otherwise pass.
+    expect(out.incoming).toEqual([]);
+    expect(out.outgoing).toEqual([]);
+    // The row survives — it is unreachable, not deleted.
+    expect(await db.select().from(friendships)).toHaveLength(1);
   });
 
   it("slugifies the gamertag for linking", async () => {

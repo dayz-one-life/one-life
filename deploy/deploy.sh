@@ -197,7 +197,10 @@ log_success "Full-DB checkpoint: $DB_BACKUP ($(du -h "$DB_BACKUP" | cut -f1))"
 if [[ "$DO_REBUILD" == "1" ]]; then
   CURRENT_PHASE="rebuild"
   log_phase "REBUILD (--rebuild)"
-  "$PNPM" --filter @onelife/projector run rebuild
+  # Same unexported-variable hazard as the MIGRATE phase below — see the note there. This one
+  # never had a fallback masking it at all: apps/projector/src/config.ts declares DATABASE_URL
+  # as a required zod field, tsx loads no .env, and this phase runs AFTER the fleet is stopped.
+  DATABASE_URL="$DATABASE_URL" "$PNPM" --filter @onelife/projector run rebuild
   log_success "Projections truncated + cursor reset to 0"
 fi
 
@@ -207,7 +210,15 @@ fi
 # aborts on a projection-table constraint, re-run with --rebuild.
 CURRENT_PHASE="migrate"
 log_phase "MIGRATE"
-"$PNPM" --filter @onelife/db run db:migrate
+# ⚠️ DATABASE_URL must be passed EXPLICITLY. It is a plain shell variable here (read out of
+# .env at the top of this script), never exported, so a bare `pnpm run db:migrate` child does
+# not inherit it — and drizzle-kit's bundled dotenv loads from its own cwd (packages/db/), not
+# the repo root, so it does not find the .env this script read either. Until this line existed,
+# what actually supplied the connection string on the host was a hardcoded localhost:5432
+# fallback in drizzle.config.ts that happened to match production. That fallback is now a hard
+# error (it silently migrated the wrong database in dev), which would abort this phase — and
+# phase order is backup → STOP SERVICES → migrate, so the abort lands with the fleet down.
+DATABASE_URL="$DATABASE_URL" "$PNPM" --filter @onelife/db run db:migrate
 MIGRATED=1
 log_success "Migrations applied"
 

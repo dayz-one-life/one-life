@@ -657,6 +657,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   drizzle snapshot chain is broken — `meta/` stops at `0014_snapshot.json` while `0015`/`0016` exist as
   hand-written SQL with no snapshots — so `drizzle-kit generate` diffs against a stale snapshot and
   emits wrong SQL. Follow the hand-written practice for `0018+` until someone repairs the chain.
+  **⚠️ A hand-written `CREATE INDEX` on a hot table takes a ShareLock for the whole build,
+  blocking writes to it for the duration of the deploy** — `0021` did exactly that to `sessions`.
+  It was small enough not to hurt; the next one may not be. Prefer `CREATE INDEX CONCURRENTLY`
+  on any table the ingest writes to (`positions`, `sessions`, `events`, `hit_events`), and note
+  that CONCURRENTLY **cannot run inside a transaction**, so it needs its own migration file.
   **⚠️ The profile page now has TWO independent paginations.** Past lives own `page`; In The Paper owns
   **`ap`**. One pure `playerPageHref` (`@/lib/player-page-href`) builds both and **preserves the other
   param**, omitting either when it is 1. `PlayerPagination` had to be taught about `ap` — a control
@@ -999,8 +1004,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      `status:"none"`. The self-gate skips the **fetch**, not just the render, so there is no flash of
      "Add friend" on your own dossier while identity resolves.
   10. **A friend whose gamertag link is released drops out of the roster — but the row survives,
-      unreachable, with its sharing flags intact** (`packages/friends/src/queries.ts`). Inert in F1;
-      **an F2 prerequisite**, flagged in a comment there. Resolve it before location sharing ships.
+      unreachable, with its sharing flags intact** (`packages/friends/src/queries.ts`). **Resolved
+      in F2**, both halves — see F2 invariant 5. The drop-out itself is now pinned by a test
+      (`packages/friends/test/queries.test.ts`), proven red against a render-blank implementation:
+      an unnameable friend must vanish from the roster while the row survives.
   **Deploy:** migrations `0018` + `0019` touch no projection table — plain `./deploy/deploy.sh`,
   **no `--rebuild`**. No new env vars, no new worker, no systemd unit. **Friend notifications are
   live on deploy**, unlike the nine worker-generated kinds: they are written inline in the API
@@ -1094,11 +1101,22 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      alone leaves stale `true` flags that go live on re-verification; the reset alone dies to any
      query that forgets the join. **The reset is one-directional** — it clears the re-verifying
      user's *outbound* sharing, not their friends' inbound flags toward them.
-  6. **The positions lookup filters on `player_id`, never `lower(gamertag)`.** Only the former can
+  6. **⚠️ OPEN BACKLOG ITEM — `gamertag_links_verified_uniq` is case-SENSITIVE.** So is
+     `players_gamertag_uniq`, and so is the `already_verified` precheck in
+     `apps/api/src/routes/gamertag-links.ts`. Two users can therefore hold verified links to
+     `Sasha` and `sasha` and fold onto one `players` row. `getFriendPositions` guards the
+     *labelling* consequence (a `claim()`/`claimed` set, viewer-first, so a marker can never be
+     flagged `self` while carrying a friend's callsign) — it does **not** close the hole: a
+     viewer whose link folds onto another player's row still receives that row's coordinates as
+     their own dot, and the viewer's own subject is unconditional by design. The durable fix is
+     upstream and needs a migration: make the verified-link unique index `lower(gamertag)` and
+     change that precheck to a `lower()` comparison (`verified-gamertag.ts` already does).
+     Not absorbed by the read-model guard — still open.
+  7. **The positions lookup filters on `player_id`, never `lower(gamertag)`.** Only the former can
      be served by `positions_player_idx (server_id, player_id, recorded_at)`; the gamertag shape
      seq-scans the largest table in the system, on a 30s poll per viewer and once per server on
      `/maps`. Measured: index scan 0.066ms vs seq scan filtering 60,115 rows at 2.356ms.
-  7. **The Leaflet lifecycle lives in ONE place** — `apps/web/src/components/map/map-canvas.tsx`,
+  8. **The Leaflet lifecycle lives in ONE place** — `apps/web/src/components/map/map-canvas.tsx`,
      extracted from `TrackMap`. Nearly every comment in it documents a fixed bug (the two-effect
      split, the first-draw fit latch, the created-then-added LayerGroup, the SSR-avoiding dynamic
      import, the `isolate` stacking context). Consumers supply a `draw` function and nothing else;
@@ -1229,7 +1247,19 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
 - Test: `pnpm turbo run test --concurrency=1` (DB suites need `TEST_DATABASE_URL`).
   Typecheck: `pnpm turbo run typecheck`.
 - Local Postgres: `docker compose up -d postgres`. **Note:** a gitignored
-  `docker-compose.override.yml` may remap the host port (this dev machine uses 5434, not 5432).
+  `docker-compose.override.yml` may remap the host port (this dev machine uses 5434, not 5432;
+  a git worktree brings up its own stack on its own port — check `docker ps`).
+  **⚠️ `drizzle-kit` reads `DATABASE_URL` and NOTHING ELSE — notably not `TEST_DATABASE_URL`,
+  which is what every suite here uses.** It used to fall back to a hardcoded
+  `localhost:5432/onelife`, so a migrate run with only `TEST_DATABASE_URL` exported silently
+  targeted a different database and reported success; an unset `DATABASE_URL` is now a loud
+  error. To migrate the test database, name it:
+  `DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @onelife/db run db:migrate`.
+  **⚠️ `turbo.json`'s `test` task declares `env` for exactly this reason.** Without it,
+  `TEST_DATABASE_URL` is not part of the cache key, so repointing the suite at a different or
+  unmigrated database replays a cached PASS and reports green **without running anything** —
+  which happened during the friends work. Any new env var a suite reads must be added to that
+  list, or the suite gains the ability to report success it did not earn.
   `.gitignore` covers OS cruft (`.DS_Store`); prefer `git add -p`/explicit paths over `git add -A`
   at the repo root so stray untracked files don't ride into a commit.
 - Deploy (prod): `./deploy/deploy.sh` deploys the latest release tag (build → backup → migrate →

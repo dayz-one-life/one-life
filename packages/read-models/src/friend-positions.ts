@@ -32,18 +32,33 @@ export async function getFriendPositions(
   const freshest = new Date(a.now.getTime() - MARKER_MAX_AGE_SECONDS * 1000);
 
   // The viewer's own gamertag + resolved player id. No verified link ⇒ no map at all (the
-  // route also checks, but this keeps the read model safe on its own). The join to `players`
-  // is by lower(gamertag) — gamertag_links and players are independently-cased text columns
-  // for the same identity — and is safe to fold case on precisely because it is scoped by a
-  // verified link, never used as a bare directory lookup.
+  // route also checks, but this keeps the read model safe on its own).
+  //
+  // ⚠️ The join to `players` is LEFT, not INNER. A verified link whose gamertag has no
+  // `players` row yet — verified before the projector has ever folded a session for them —
+  // used to fail the inner join, return [], and blank the WHOLE map: the viewer lost every
+  // friend's dot as collateral for their own missing one. The viewer's own dot is the only
+  // thing that may be absent here.
+  //
+  // The join folds case because `gamertag_links` and `players` are independently-cased text
+  // columns for one identity; that is safe precisely because it is scoped by a verified link,
+  // never used as a bare directory lookup. It can nonetheless match MORE THAN ONE row —
+  // `players_gamertag_uniq` is case-SENSITIVE, so "Sasha" and "sasha" are two rows — hence
+  // the ordering below: most-recently-seen wins, deterministically, and `limit(1)` keeps one
+  // identity to one dot. See the same reasoning applied per-friend further down.
   const [viewer] = await db
-    .select({ gamertag: gamertagLinks.gamertag, playerId: players.id })
+    .select({
+      gamertag: gamertagLinks.gamertag,
+      playerId: players.id,
+      lastSeenAt: players.lastSeenAt,
+    })
     .from(gamertagLinks)
-    .innerJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
+    .leftJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
     .where(and(
       eq(gamertagLinks.userId, a.viewerUserId),
       eq(gamertagLinks.status, "verified"),
     ))
+    .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`)
     .limit(1);
   if (!viewer) return [];
 
@@ -64,6 +79,7 @@ export async function getFriendPositions(
       friendUserId: gamertagLinks.userId,
       gamertag: gamertagLinks.gamertag,
       playerId: players.id,
+      lastSeenAt: players.lastSeenAt,
       masterShare: userPreferences.shareLocation,
     })
     .from(friendships)
@@ -75,7 +91,14 @@ export async function getFriendPositions(
       ),
     ))
     .innerJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
-    .leftJoin(userPreferences, eq(userPreferences.userId, gamertagLinks.userId));
+    .leftJoin(userPreferences, eq(userPreferences.userId, gamertagLinks.userId))
+    // Ordered so the per-friend collapse below is DETERMINISTIC, matching the viewer's own
+    // lookup. Without it this query has no ORDER BY at all, the collapse's strict `>` keeps
+    // whichever duplicate Postgres happened to return first, and two case-variant rows with
+    // equal — or both NULL, the column is nullable — `lastSeenAt` could swap the rendered dot
+    // between two locations on successive 30s polls. That is the very failure the collapse
+    // exists to remove, just at a lower frequency.
+    .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`);
 
   const visible = friendRows.filter((r) =>
     shouldShareLocation({
@@ -87,10 +110,44 @@ export async function getFriendPositions(
     }),
   );
 
-  const subjects = [
-    { gamertag: viewer.gamertag, playerId: viewer.playerId },
-    ...visible.map((r) => ({ gamertag: r.gamertag, playerId: r.playerId })),
-  ];
+  // ⚠️ One friend, one dot. The lower(gamertag) join above can match several `players` rows
+  // for a single link, because `players_gamertag_uniq` is case-SENSITIVE and the ingest can
+  // therefore hold "Sasha" and "sasha" as distinct rows for what is really one Xbox identity.
+  // Left as-is that renders TWO markers, both labelled with the same callsign, in two different
+  // places — a friend appearing to be in two locations at once is worse than being absent.
+  // Collapse to the FIRST row per friend, which the `orderBy` above has already made the
+  // most-recently-seen one. Deliberately one rule rather than an ORDER BY plus a comparator
+  // that must agree with it.
+  //
+  // Note the collapse key (`lastSeenAt`, global) is not the criterion the position query then
+  // applies (this server, open session, fresh fix). Those agree today only because the fold
+  // treats a position dump as a presence heartbeat, so the row with the freshest position is
+  // necessarily the row with the freshest `lastSeenAt`. If that ever stops holding, collapse
+  // AFTER the position query instead — otherwise picking the wrong row renders no dot at all.
+  const bestByFriend = new Map<string, (typeof visible)[number]>();
+  for (const r of visible) {
+    if (!bestByFriend.has(r.friendUserId)) bestByFriend.set(r.friendUserId, r);
+  }
+
+  // ⚠️ Also one PLAYER ROW to one subject. `gamertag_links_verified_uniq` is case-sensitive
+  // too, so two different users can hold verified links to "Sasha" and "sasha" and resolve to
+  // the same `players` row. Keying the reverse map by player id would then silently relabel
+  // that position with whichever callsign was inserted last — a marker attributed to the wrong
+  // friend. First claim wins, deterministically, and the viewer is added first so their own
+  // dot is never relabelled as someone else's.
+  const subjects: { gamertag: string; playerId: number }[] = [];
+  const claimed = new Set<number>();
+  const claim = (gamertag: string, playerId: number) => {
+    if (claimed.has(playerId)) return;
+    claimed.add(playerId);
+    subjects.push({ gamertag, playerId });
+  };
+  // `playerId` is null when the viewer has a verified link but no folded `players` row — they
+  // contribute no subject and simply have no dot of their own. Friends are unaffected.
+  if (viewer.playerId !== null) claim(viewer.gamertag, viewer.playerId);
+  for (const r of bestByFriend.values()) claim(r.gamertag, r.playerId);
+
+  if (subjects.length === 0) return [];
   const playerIds = subjects.map((s) => s.playerId);
   const gamertagByPlayerId = new Map(subjects.map((s) => [s.playerId, s.gamertag]));
 

@@ -2,8 +2,17 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
-    "test": { "dependsOn": ["^build"] },
-    "typecheck": { "dependsOn": ["^build"] },
+    "test": {
+      "dependsOn": ["^build"],
+      // Declared so they are part of the cache key. Without this, turbo has no idea the
+      // database a suite runs against is an input: repointing TEST_DATABASE_URL at a
+      // different (or unmigrated) database replays a cached PASS and reports green
+      // WITHOUT RUNNING ANYTHING. That has happened here. A test task that can report
+      // success it did not earn is worse than no cache at all — add any new env var a
+      // suite reads to this list.
+      "env": ["TEST_DATABASE_URL", "DATABASE_URL", "NODE_ENV", "CI"]
+    },
+    "typecheck": { "dependsOn": ["^build"], "env": ["NODE_ENV"] },
     "lint": {}
   }
 }

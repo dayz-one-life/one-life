@@ -209,12 +209,18 @@ export function Roster() {
   // page — returns null, stranding the user with no control back to page 1. Clamps only
   // DOWNWARD, and only once real data has actually loaded (never against a stale/loading
   // total, which would be a fabricated clamp).
+  const [announcement, setAnnouncement] = useState("");
   useEffect(() => {
     if (!data) return;
     const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
-    if (page > totalPages) setPage(totalPages);
+    if (page <= totalPages) return;
+    setPage(totalPages);
+    // ⚠️ The clamp is NOT only reachable from the viewer's own removal. `useFriends` polls on
+    // a 60s refetchInterval, so a request the OTHER party declines shrinks `total` and moves
+    // the page under a reader who did nothing — silently, since a page change carries no focus
+    // move. Announce it for the same reason every other settlement here announces.
+    setAnnouncement(`Page ${page} is no longer available. Showing page ${totalPages}.`);
   }, [data, page]);
-  const [announcement, setAnnouncement] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
