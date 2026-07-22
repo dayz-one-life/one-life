@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { gamertagLinks, verificationChallenges, userPreferences } from "@onelife/db";
-import { and, eq, gt, lt, ne, isNull } from "drizzle-orm";
+import { and, eq, gt, lt, ne, isNull, sql as dsql } from "drizzle-orm";
 
 export type PendingChallenge = {
   challengeId: number;
@@ -27,7 +27,7 @@ export class PgVerifierStore {
       .from(verificationChallenges)
       .innerJoin(gamertagLinks, eq(verificationChallenges.gamertagLinkId, gamertagLinks.id))
       .where(and(
-        eq(gamertagLinks.gamertag, gamertag),
+        dsql`lower(${gamertagLinks.gamertag}) = lower(${gamertag})`,
         eq(gamertagLinks.status, "pending"),
         isNull(verificationChallenges.completedAt),
         gt(verificationChallenges.expiresAt, at),
@@ -44,7 +44,10 @@ export class PgVerifierStore {
 
   async getVerifiedLinkId(gamertag: string): Promise<number | null> {
     const r = await this.tx.select({ id: gamertagLinks.id }).from(gamertagLinks)
-      .where(and(eq(gamertagLinks.gamertag, gamertag), eq(gamertagLinks.status, "verified")));
+      .where(and(
+        dsql`lower(${gamertagLinks.gamertag}) = lower(${gamertag})`,
+        eq(gamertagLinks.status, "verified"),
+      ));
     return r[0]?.id ?? null;
   }
 
@@ -81,7 +84,7 @@ export class PgVerifierStore {
   async cancelOtherPendingLinks(gamertag: string, exceptLinkId: number): Promise<void> {
     await this.tx.update(gamertagLinks).set({ status: "cancelled" })
       .where(and(
-        eq(gamertagLinks.gamertag, gamertag),
+        dsql`lower(${gamertagLinks.gamertag}) = lower(${gamertag})`,
         eq(gamertagLinks.status, "pending"),
         ne(gamertagLinks.id, exceptLinkId),
       ));

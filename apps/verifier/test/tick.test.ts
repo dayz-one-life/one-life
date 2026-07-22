@@ -153,4 +153,28 @@ describe("verifierTick", () => {
     const statuses = [await status(a.linkId), await status(b.linkId)].sort();
     expect(statuses).toEqual(["cancelled", "verified"]);
   });
+
+  it("verifies when the ADM casing differs from the claimed link casing", async () => {
+    // The claim stored "sasha"; the game logs the emote as "Sasha". Same human.
+    const { linkId } = await newChallenge("sasha", uid);
+    await seedEmote("Sasha", "EmoteSalute", "2026-07-09T01:00:00Z");
+    await seedEmote("Sasha", "EmoteDance", "2026-07-09T01:01:00Z");
+    await seedEmote("Sasha", "EmoteShrug", "2026-07-09T01:02:00Z");
+
+    const r = await verifierTick(db, { batchSize: 100, consumerName: consumer });
+    expect(r.verified).toBe(1);
+    expect(await status(linkId)).toBe("verified");
+  });
+
+  it("first-verify-wins across casings: the losing link is cancelled, not collided", async () => {
+    const winner = await newChallenge("Casey", uid);
+    const loser = await newChallenge("casey", uidB);
+    await seedEmote("Casey", "EmoteSalute", "2026-07-09T02:00:00Z");
+    await seedEmote("Casey", "EmoteDance", "2026-07-09T02:01:00Z");
+    await seedEmote("Casey", "EmoteShrug", "2026-07-09T02:02:00Z");
+
+    await verifierTick(db, { batchSize: 100, consumerName: consumer });
+    expect(await status(winner.linkId)).toBe("verified");
+    expect(await status(loser.linkId)).toBe("cancelled");
+  });
 });
