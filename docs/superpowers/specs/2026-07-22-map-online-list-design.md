@@ -21,6 +21,24 @@ switches.** That is a deliberate change of policy, made on the grounds that **Da
 menu already lists everyone connected to the server** — the information is not secret, and
 gating it on consent protects nothing while making our list look broken.
 
+**⚠️ That argument does not fully hold, and the gap is accepted knowingly rather than
+overlooked.** The in-game menu requires you to be *connected to that server*. This list does
+not. A verified account can poll `/me/maps/{slug}` for all three maps every 30 seconds
+indefinitely, from anywhere, and derive a per-player online/offline schedule — including which
+map someone plays, which §6 declares out of scope but which a viewer obtains simply by opening
+three pages. There is no rate limit and no way for the subject to opt out. This is materially
+broader than the in-game menu, and it is precisely the exposure F3 spent a migration defaulting
+to `false`.
+
+The maintainer's decision (2026-07-22) is to ship it as built: on a small single-tenant server
+where players already coordinate off-game, the utility of seeing who is on outweighs the
+schedule-inference risk, and third-party trackers publish comparable data for DayZ servers
+anyway. **Do not repair this section by re-asserting the in-game-menu equivalence** — a
+justification that does not survive scrutiny is worse than none, because the next person to
+extend this surface will lean on it. If the exposure ever needs narrowing, the cheapest lever
+is gating a server's list on the viewer having a life on that server, which restores something
+close to the in-game boundary.
+
 Two consequences that must not be left implicit:
 
 1. **The F3 switches now govern notifications only, not visibility.** Their labels currently
