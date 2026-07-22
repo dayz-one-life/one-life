@@ -502,11 +502,15 @@ describe("gamertag uniqueness is case-insensitive", () => {
   });
 
   it("but two PENDING links differing only in case are still allowed", async () => {
-    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, uidA));
+    // The verified index is PARTIAL (WHERE status = 'verified'). Two users may both hold a
+    // pending claim on the same callsign in different casings — first-verify-wins resolves
+    // it later. If this ever fails, the partial clause has been lost.
+    await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [uidA, uidB]));
     await db.insert(gamertagLinks).values({ userId: uidA, gamertag: tag, status: "pending" });
-    await db.insert(gamertagLinks).values({ userId: uidB, gamertag: `x${tag}`, status: "pending" });
-    const rows = await db.select().from(gamertagLinks).where(inArray(gamertagLinks.userId, [uidA, uidB]));
-    expect(rows.length).toBeGreaterThanOrEqual(2);
+    await db.insert(gamertagLinks).values({ userId: uidB, gamertag: tag.toLowerCase(), status: "pending" });
+    const rows = await db.select({ g: gamertagLinks.gamertag }).from(gamertagLinks)
+      .where(inArray(gamertagLinks.userId, [uidA, uidB]));
+    expect(rows.map((r) => r.g).sort()).toEqual([tag, tag.toLowerCase()].sort());
   });
 });
 ```
