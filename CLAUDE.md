@@ -1230,7 +1230,14 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **⚠️ The zoom floor and `maxBounds` are computed from the world, never hardcoded**
   (`applyWorldBounds`, `map-canvas.tsx`). `getBoundsZoom(worldBounds, true)` — `inside: true` —
   is the lowest zoom at which the VIEW still fits inside the world, i.e. the no-blank-space
-  floor; `setMaxBounds` stops a pan doing the same thing sideways. It re-runs on Leaflet's
+  floor; `setMaxBounds` stops a pan doing the same thing sideways. **Two Leaflet details make
+  or break it, both in `getBoundsZoom`'s source:** it rounds an `inside` result **UP** to the
+  next whole level (`Math.ceil(zoom / snap) * snap`), so the map option **`zoomSnap: 0`** is
+  load-bearing — with the default 1 the floor lands up to a full step short of the real edge
+  and the map refuses to zoom out while terrain still covers the view; and it returns
+  `Math.max(currentMinZoom, …)`, so the floor **must be reset with `setMinZoom(0)` BEFORE
+  measuring** or it latches — raise it once at a wide window, narrow the window, and the map
+  stays clamped at the old floor forever. It re-runs on Leaflet's
   `resize`, because the floor depends on the container's size and aspect, and a non-finite
   result (a container Leaflet measures as zero-sized yields `Infinity`) is **ignored rather than
   applied** — clamping every gesture to a zoom whose tiles do not exist is worse than the
