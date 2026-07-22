@@ -91,8 +91,20 @@ export function registerGamertagLinkRoutes(app: FastifyInstance, db: Database, a
         let id: number;
         if (existing[0]) {
           id = existing[0].id;
+          // The lookup above folds case, so a row stored with the user's typed casing (a
+          // pre-0024 claim, or a restore from an older dump) is found here and reused. It MUST
+          // be rewritten to the canonical casing on the way through: redeem.ts matches links to
+          // bans with strict `===` against `bans.gamertag` (written from `players.gamertag`), so
+          // a mis-cased link silently costs the player their self-unban and their Verified stamp.
+          //
+          // Split, not one unconditional set(): a row that is ALREADY pending must keep its
+          // verifiedAt untouched, so only the reactivation branch clears it.
           if (existing[0].status !== "pending") {
-            await tx.update(gamertagLinks).set({ status: "pending", verifiedAt: null }).where(eq(gamertagLinks.id, id));
+            await tx.update(gamertagLinks)
+              .set({ gamertag: canonical, status: "pending", verifiedAt: null })
+              .where(eq(gamertagLinks.id, id));
+          } else if (existing[0].gamertag !== canonical) {
+            await tx.update(gamertagLinks).set({ gamertag: canonical }).where(eq(gamertagLinks.id, id));
           }
         } else {
           const [row] = await tx.insert(gamertagLinks).values({ userId, gamertag: canonical, status: "pending" }).returning();

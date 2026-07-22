@@ -260,6 +260,32 @@ describe("POST /me/gamertag-links — case-insensitivity", () => {
     expect(res.json().error).toBe("gamertag_not_seen");
   });
 
+  it("repairs a mis-cased PENDING row on reuse", async () => {
+    // A pre-0024 row stored with the user's typed casing. The case-folded lookup finds it and
+    // reuses it; it must come back out canonical, or redeem.ts's strict === against
+    // bans.gamertag never matches and the player cannot spend a token to unban themselves.
+    const first = (await claim({ gamertag: "Sasha" })).json();
+    await db.update(gamertagLinks).set({ gamertag: "sasha" }).where(eq(gamertagLinks.id, first.linkId));
+    const res = await claim({ gamertag: "sasha" });
+    expect(res.statusCode).toBe(201);
+    const rows = await db.select({ g: gamertagLinks.gamertag, s: gamertagLinks.status })
+      .from(gamertagLinks).where(eq(gamertagLinks.id, first.linkId));
+    expect(rows[0]!.g).toBe("Sasha");
+    expect(rows[0]!.s).toBe("pending");
+  });
+
+  it("repairs a mis-cased CANCELLED row on reactivation", async () => {
+    const first = (await claim({ gamertag: "Sasha" })).json();
+    await db.update(gamertagLinks).set({ gamertag: "sasha", status: "cancelled" })
+      .where(eq(gamertagLinks.id, first.linkId));
+    const res = await claim({ gamertag: "SASHA" });
+    expect(res.statusCode).toBe(201);
+    const rows = await db.select({ g: gamertagLinks.gamertag, s: gamertagLinks.status })
+      .from(gamertagLinks).where(eq(gamertagLinks.id, first.linkId));
+    expect(rows[0]!.g).toBe("Sasha");
+    expect(rows[0]!.s).toBe("pending");
+  });
+
   it("re-claiming your own pending link in different casing is idempotent", async () => {
     const first = await claim({ gamertag: "Sasha" });
     expect(first.statusCode).toBe(201);
