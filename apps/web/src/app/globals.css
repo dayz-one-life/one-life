@@ -122,6 +122,19 @@ body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 .map-crosshair::before { height: 100%; left: 50%; transform: translateX(-50%); width: 1px; }
 .map-crosshair::after { height: 1px; top: 50%; transform: translateY(-50%); width: 100%; }
 
+/* Leaflet's own zoom buttons are 26px, which is far under a usable touch target. Scaled up
+   on COARSE POINTERS ONLY, so a mouse keeps the compact control. Specificity-scoped for the
+   same reason as .friend-label above: Leaflet's stylesheet is imported inside map-canvas's
+   chunk, so source order is not reliable. */
+@media (pointer: coarse) {
+  .leaflet-touch .leaflet-bar a,
+  .leaflet-bar a {
+    height: 44px;
+    line-height: 44px;
+    width: 44px;
+  }
+}
+
 :focus-visible {
   outline: 2px solid rgb(var(--red));
   outline-offset: 2px;

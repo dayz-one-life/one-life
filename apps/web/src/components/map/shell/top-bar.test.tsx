@@ -19,6 +19,27 @@ describe("TopBar", () => {
     expect(screen.getByRole("button", { name: "Locate" })).toBeInTheDocument();
   });
 
+  it("uses the real wordmark, with intrinsic dimensions so the bar cannot shift", () => {
+    render(<TopBar slug="chernarus" servers={servers} serversLoading={false} />);
+    const img = screen.getByRole("link", { name: "Back to One Life" }).querySelector("img")!;
+    expect(img).toHaveAttribute("src", expect.stringContaining("wordmark"));
+    expect(img).toHaveAttribute("width");
+    expect(img).toHaveAttribute("height");
+  });
+
+  it("names the way out exactly once", () => {
+    // An alt of "One Life" on top of the link's own aria-label makes the accessible name
+    // "Back to One Life One Life".
+    render(<TopBar slug="chernarus" servers={servers} serversLoading={false} />);
+    expect(screen.getByRole("link", { name: "Back to One Life" })).toBeInTheDocument();
+    expect(screen.queryByAltText("One Life")).toBeNull();
+  });
+
+  it("holds a 44px touch floor on the way out", () => {
+    render(<TopBar slug="chernarus" servers={servers} serversLoading={false} />);
+    expect(screen.getByRole("link", { name: "Back to One Life" }).className).toMatch(/min-h-\[44px\]/);
+  });
+
   it("is the z-40 layer on this route, where there is no masthead", () => {
     // LAYER LEGEND (components/header.tsx): content -> z-40 chrome -> z-50 overlays.
     // jsdom cannot observe paint order, so pin the altitude numerically.

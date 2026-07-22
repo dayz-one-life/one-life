@@ -24,7 +24,7 @@ export function MapSwitcher({ slug, servers, loading }: {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-w-0 items-center gap-2 border border-dark-edge px-2 py-1.5 font-display text-sm font-bold uppercase tracking-[.06em] text-paper md:px-3"
+        className="flex min-h-[44px] min-w-0 items-center gap-2 border border-dark-edge px-2 py-1.5 font-display text-sm font-bold uppercase tracking-[.06em] text-paper md:min-h-0 md:px-3"
       >
         <span className="truncate">{label}</span>
         <span aria-hidden>▾</span>
@@ -43,7 +43,7 @@ export function MapSwitcher({ slug, servers, loading }: {
               role="menuitem"
               href={`/maps/${s.slug}`}
               onClick={() => setOpen(false)}
-              className="flex items-center justify-between gap-4 px-3 py-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim hover:text-paper"
+              className="flex min-h-[44px] items-center justify-between gap-4 px-3 py-2 font-mono text-[13px] uppercase tracking-[.05em] text-cream-dim hover:text-paper md:text-[11px]"
             >
               {s.name}
               {/* Loading is not zero: while `loading`, no count renders at all. */}
