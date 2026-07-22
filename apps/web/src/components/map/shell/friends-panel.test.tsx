@@ -33,6 +33,23 @@ describe("FriendsPanel", () => {
     expect(screen.getByText(/nobody is sharing/i)).toBeInTheDocument();
   });
 
+  it("does not report a failed fetch as an empty map", async () => {
+    // "Nobody is sharing" is a claim about the game. A network error is not evidence for it,
+    // and the page's own overlay card already says the load failed.
+    render(<FriendsPanel positions={undefined} loading={false} error now={NOW} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /friends/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/couldn't load/i);
+    expect(screen.queryByText(/nobody is sharing/i)).toBeNull();
+  });
+
+  it("moves focus into the sheet it opens", async () => {
+    // useModalBehavior focuses the panel; without tabIndex={-1} that is a silent no-op and
+    // the sheet opens with focus left on the trigger behind it.
+    render(<FriendsPanel positions={positions} loading={false} now={NOW} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /friends/i }));
+    expect(screen.getByRole("dialog")).toHaveFocus();
+  });
+
   it("uses dark tokens — it is mounted on the dark bar, not the light rail", () => {
     const { container } = render(<FriendsPanel positions={positions} loading={false} now={NOW} />);
     expect(container.querySelector("button")!.className).toMatch(/text-paper/);

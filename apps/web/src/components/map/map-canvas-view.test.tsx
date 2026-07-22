@@ -47,16 +47,27 @@ vi.mock("leaflet", () => ({
 
 const draw = () => [];
 
+/** Pending frame callbacks, drained by `flushFrame()`. */
+const frames: FrameRequestCallback[] = [];
+const cancelled: number[] = [];
+function flushFrame() {
+  const pending = frames.splice(0, frames.length);
+  for (const cb of pending) cb(0);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   for (const k of Object.keys(handlers)) delete handlers[k];
-  // rAF is what throttles centre reporting; jsdom has it, but run it synchronously so a test
-  // never has to guess how long a frame takes.
+  // A MANUAL frame queue, not a synchronous stub. Running the callback inline means one call
+  // is always one frame, so the coalescing branch can never be entered and a cleanup that
+  // forgot cancelAnimationFrame would still pass — the two behaviours the rAF layer exists for.
+  frames.length = 0;
+  cancelled.length = 0;
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
-    cb(0);
-    return 1;
+    frames.push(cb);
+    return frames.length; // 1-based handle
   });
-  vi.stubGlobal("cancelAnimationFrame", () => {});
+  vi.stubGlobal("cancelAnimationFrame", (h: number) => { cancelled.push(h); });
 });
 
 describe("MapCanvas focus", () => {
@@ -102,11 +113,36 @@ describe("MapCanvas onCenterChange", () => {
     render(
       <MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} onCenterChange={onCenterChange} />,
     );
-    await waitFor(() => expect(handlers.move?.length).toBe(1));
-    handlers.move![0]!();
-    await waitFor(() => expect(onCenterChange).toHaveBeenCalled());
+    await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    flushFrame();
     // project() returns pixel (8192, 4096) on a 16384 canvas over a 15360m map:
     // x = 8192/16384*15360 = 7680; y = 15360 - 4096/16384*15360 = 11520.
     expect(onCenterChange).toHaveBeenLastCalledWith({ x: 7680, y: 11520 });
+  });
+
+  it("subscribes to move, and coalesces a burst of them into ONE frame", async () => {
+    // Leaflet fires `move` many times per drag frame and the consumer re-renders a text chip
+    // on every call. Without the rafRef guard this queues a frame per event.
+    const onCenterChange = vi.fn();
+    render(
+      <MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} onCenterChange={onCenterChange} />,
+    );
+    await waitFor(() => expect(handlers.move?.length).toBe(1));
+    flushFrame(); // the initial report made at map creation
+    onCenterChange.mockClear();
+    for (let i = 0; i < 5; i++) handlers.move![0]!();
+    expect(frames.length).toBe(1);
+    flushFrame();
+    expect(onCenterChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels a pending frame on teardown", async () => {
+    // Otherwise the callback runs against a removed map after unmount.
+    const { unmount } = render(
+      <MapCanvas mapCodename="chernarusplus" draw={draw} drawKey={1} onCenterChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    unmount();
+    expect(cancelled.length).toBeGreaterThan(0);
   });
 });

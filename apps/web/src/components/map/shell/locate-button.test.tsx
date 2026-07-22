@@ -20,17 +20,35 @@ describe("LocateButton", () => {
     expect(focus.lng).toBeCloseTo(112.98, 1);
   });
 
-  it("is disabled WITH A REASON when you have no live position", () => {
-    render(<LocateButton {...props} self={undefined} loading={false} onLocate={() => {}} />);
+  it("is unavailable WITH A REASON when you have no live position, and still focusable", async () => {
+    const onLocate = vi.fn();
+    render(<LocateButton {...props} self={undefined} loading={false} onLocate={onLocate} />);
     const button = screen.getByRole("button");
-    expect(button).toBeDisabled();
-    // Never a control that silently does nothing.
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    // Never a control that silently does nothing...
     expect(button).toHaveAccessibleDescription(/offline|not seen|no position/i);
+    // ...and never one whose reason is unreachable: `disabled` would drop it out of the tab
+    // order, so a screen-reader user would never hear the reason at all.
+    expect(button).not.toBeDisabled();
+    button.focus();
+    expect(button).toHaveFocus();
+    await userEvent.setup().click(button);
+    expect(onLocate).not.toHaveBeenCalled();
+  });
+
+  it("does not blame the game for a failed fetch", () => {
+    render(<LocateButton {...props} self={undefined} loading={false} error onLocate={() => {}} />);
+    const button = screen.getByRole("button");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription(/couldn't load/i);
+    expect(button).not.toHaveAccessibleDescription(/offline/i);
   });
 
   it("does not claim you are offline while the position is still loading", () => {
     render(<LocateButton {...props} self={undefined} loading onLocate={() => {}} />);
-    expect(screen.getByRole("button")).toHaveAccessibleDescription(/loading/i);
+    const button = screen.getByRole("button");
+    expect(button).toHaveAccessibleDescription(/loading/i);
+    expect(button).not.toHaveAccessibleDescription(/offline/i);
   });
 
   it("gives a new nonce per press, so locating twice still flies twice", async () => {
@@ -44,6 +62,6 @@ describe("LocateButton", () => {
 
   it("is dead rather than wrong on a map we have no world size for", () => {
     render(<LocateButton mapCodename="banov" self={self} loading={false} onLocate={() => {}} />);
-    expect(screen.getByRole("button")).toBeDisabled();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-disabled", "true");
   });
 });

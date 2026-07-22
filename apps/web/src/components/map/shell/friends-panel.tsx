@@ -9,9 +9,12 @@ import type { FriendPositionDto } from "@/lib/types";
  *  This is the ONLY home of `FriendsMapLegend` now that the map fills the viewport — and the
  *  legend is the screen-reader companion to a canvas with no text, so it must stay reachable
  *  by a real button in the tab order rather than becoming decoration behind a hover. */
-export function FriendsPanel({ positions, loading, now }: {
+export function FriendsPanel({ positions, loading, error, now }: {
   positions: FriendPositionDto[] | undefined;
   loading: boolean;
+  /** A FAILED fetch. Distinct from loading and from a genuinely empty map — rendering it as
+   *  "nobody is sharing" is a claim about the game made from a network error. */
+  error?: boolean;
   now: Date;
 }) {
   const [open, setOpen] = useState(false);
@@ -41,12 +44,26 @@ export function FriendsPanel({ positions, loading, now }: {
         <div
           ref={panelRef}
           role="dialog"
+          aria-modal="true"
+          // Load-bearing: useModalBehavior calls panelRef.current?.focus(), which is a silent
+          // no-op on a div with no tabindex — the sheet would open with focus left behind.
+          tabIndex={-1}
           aria-label="Friends sharing on this map"
           className="fixed inset-x-0 bottom-0 z-50 max-h-[60dvh] overflow-y-auto border-t border-dark-edge bg-dark-well p-4 pb-[env(safe-area-inset-bottom)] md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-1 md:w-72 md:border"
         >
           {/* The legend already carries cream tokens — the map shell is dark end to end, so
               there is no light variant of it to swap to. */}
-          <FriendsMapLegend positions={positions ?? []} now={now} />
+          {error ? (
+            <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
+              Couldn&apos;t load who is sharing.
+            </p>
+          ) : loading ? (
+            <p role="status" className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
+              Loading…
+            </p>
+          ) : (
+            <FriendsMapLegend positions={positions ?? []} now={now} />
+          )}
         </div>
       )}
     </div>

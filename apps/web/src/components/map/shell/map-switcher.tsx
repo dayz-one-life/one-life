@@ -18,21 +18,23 @@ export function MapSwitcher({ slug, servers, loading }: {
   const label = current?.name ?? slug;
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 border border-dark-edge px-3 py-1.5 font-display text-sm font-bold uppercase tracking-[.06em] text-paper"
+        className="flex min-w-0 items-center gap-2 border border-dark-edge px-2 py-1.5 font-display text-sm font-bold uppercase tracking-[.06em] text-paper md:px-3"
       >
-        {label}
+        <span className="truncate">{label}</span>
         <span aria-hidden>▾</span>
       </button>
       {open && (
         <div
           ref={panelRef}
           role="menu"
+          // useModalBehavior focuses the panel; a div with no tabindex silently ignores it.
+          tabIndex={-1}
           className="absolute left-0 top-full z-50 mt-1 min-w-[200px] border border-dark-edge bg-dark-well"
         >
           {(servers ?? []).map((s) => (

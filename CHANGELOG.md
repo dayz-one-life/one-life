@@ -18,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copy the pair, ready to send to whoever you are trying to meet.
 - The locate button recentres the map on you. If you have no live position it says so rather
   than sitting there doing nothing, and it never claims to be loading a position that is not
-  coming.
+  coming — nor that you are offline when what actually happened is that the page could not
+  reach the server.
+- On a phone the search box is a magnifier that opens across the bar, so the bar itself stays
+  uncluttered and every control keeps its place at the narrowest screens.
 
 ### Changed
 

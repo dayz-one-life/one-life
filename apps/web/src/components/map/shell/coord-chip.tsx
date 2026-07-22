@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gridRef } from "@/lib/map-grid";
 
 /** The grid reference under the centre crosshair.
@@ -10,6 +10,10 @@ import { gridRef } from "@/lib/map-grid";
  *  since you read a coordinate in order to send it to someone. */
 export function CoordChip({ world }: { world: { x: number; y: number } | null }) {
   const [copied, setCopied] = useState(false);
+  // Cleared on unmount: the chip disappears whenever the friend query errors or the route
+  // changes, and a pending setCopied would then fire against a gone component.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   if (!world) return null;
   const ref = gridRef(world.x, world.y);
 
@@ -17,7 +21,8 @@ export function CoordChip({ world }: { world: { x: number; y: number } | null })
     try {
       await navigator.clipboard.writeText(ref);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
     } catch {
       // A denied clipboard permission must not break the readout; the value stays on screen.
     }

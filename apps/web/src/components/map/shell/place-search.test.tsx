@@ -46,6 +46,30 @@ describe("PlaceSearch", () => {
     expect(onPick).toHaveBeenCalledTimes(1);
   });
 
+  it("does not hijack the map mid-typing for a name that is a prefix of a longer one", async () => {
+    // Five such pairs exist in the Chernarus data (Bogat/Bogatyrka, Klen/Klenovyipereval,
+    // Skalisty/Skalisty Proliv, ...). Typing "Skalisty Proliv" passes through "Skalisty",
+    // itself a real place — inferring a pick from the text flew there at the 8th character
+    // and again at the end: two flights and a disorienting jump for one intent.
+    const onPick = vi.fn();
+    const user = userEvent.setup();
+    render(<PlaceSearch mapCodename="chernarusplus" onPick={onPick} />);
+    await user.type(screen.getByRole("combobox"), "Skalisty Proliv");
+    await screen.findByRole("option", { name: /skalisty proliv/i });
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("gets out of the way once a place is chosen", async () => {
+    // Below md the field covers the whole bar; leaving it up hides the map the pick just flew.
+    const user = userEvent.setup();
+    render(<PlaceSearch mapCodename="chernarusplus" onPick={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Search places" }));
+    expect(screen.getByRole("button", { name: "Search places" })).toHaveAttribute("aria-expanded", "true");
+    await user.type(screen.getByRole("combobox"), "vybor");
+    await user.click(await screen.findByRole("option", { name: /^vybor$/i }));
+    expect(screen.getByRole("button", { name: "Search places" })).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("is written in dark-surface tokens — the bar is dark", () => {
     // RTL asserts the DOM, not contrast: an ink-on-dark search box is present, functional and
     // invisible, and every other test in this file stays green while it is.

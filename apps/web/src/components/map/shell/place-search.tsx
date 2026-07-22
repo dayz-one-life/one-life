@@ -23,42 +23,72 @@ export function PlaceSearch({ mapCodename, onPick }: {
   onPick: (focus: MapFocus) => void;
 }) {
   const [value, setValue] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const nonce = useRef(0);
-  // Typing a place's full name resolves it, and so does clicking that place in the dropdown —
-  // and a click arrives as an onChange carrying the SAME text, so without this the last
-  // keystroke and the click both fly. Reset by any different value, so clearing and picking
-  // the same place again is still two flights.
-  const lastFired = useRef<string | null>(null);
 
   const fetchSuggestions = useCallback(
     async (q: string) => searchPlaces(mapCodename, q).map((p) => p.name),
     [mapCodename],
   );
 
-  function handleChange(next: string) {
-    setValue(next);
-    // The combobox reports a pick by setting the value to the exact option text. This is why
-    // `searchPlaces` ranks an exact name match above a bigger place containing it: without
-    // that, typing "Bor" resolves to Stary Sobor and Bor can never be flown to at all.
-    const key = next.trim().toLowerCase();
-    if (key !== lastFired.current) lastFired.current = null;
-    const hit = searchPlaces(mapCodename, next, 1)[0];
-    if (hit && hit.name.toLowerCase() === key && lastFired.current === null) {
-      lastFired.current = key;
-      nonce.current += 1;
-      onPick({ lat: hit.lat, lng: hit.lng, zoom: RESULT_ZOOM, nonce: nonce.current });
-    }
+  /** Fires on an EXPLICIT pick only, never on a value that merely happens to spell a place.
+   *  Inferring a pick from the text flew the map twice for one intent (the last keystroke and
+   *  then the click), and hijacked it mid-typing for any name that is a prefix of a longer one
+   *  — "Skalisty Island" flies to Skalisty at the 8th character. Exact-match ranking in
+   *  `searchPlaces` still matters: it decides which place a typed name OFFERS first. */
+  function handlePick(name: string) {
+    const hit = searchPlaces(mapCodename, name, 1)[0];
+    if (!hit || hit.name.toLowerCase() !== name.trim().toLowerCase()) return;
+    nonce.current += 1;
+    onPick({ lat: hit.lat, lng: hit.lng, zoom: RESULT_ZOOM, nonce: nonce.current });
+    // On a phone the expanded field covers the bar; keep it up after a pick and it hides the
+    // very map the pick just flew.
+    setExpanded(false);
   }
 
   return (
-    <GamertagAutocomplete
-      value={value}
-      onChange={handleChange}
-      fetchSuggestions={fetchSuggestions}
-      placeholder="Find a place…"
-      aria-label="Search places on this map"
-      className="w-40 md:w-56"
-      inputClassName={INPUT}
-    />
+    <div className="flex min-w-0 items-center">
+      {/* Spec §4: a persistent field cannot share a 360px row with the back link, the map
+          name and two controls — the row overflows inside the shell's `overflow-hidden` and
+          pushes the friends button, the only route to the accessible legend, off-screen. So
+          below `md` the field is a magnifier that expands over the bar. */}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-label="Search places"
+        onClick={() => setExpanded(true)}
+        className={`border border-dark-edge px-2 py-1.5 font-mono text-[11px] text-paper md:hidden ${
+          expanded ? "invisible" : ""
+        }`}
+      >
+        <span aria-hidden>⌕</span>
+      </button>
+      <div
+        className={
+          expanded
+            // Same z-40 altitude as the bar it covers — NOT a new one (LAYER LEGEND).
+            ? "fixed inset-x-0 top-0 z-40 flex h-[calc(3rem+env(safe-area-inset-top))] items-center gap-2 bg-dark px-2 pt-[env(safe-area-inset-top)] md:static md:h-auto md:bg-transparent md:p-0"
+            : "hidden md:block"
+        }
+      >
+        <GamertagAutocomplete
+          value={value}
+          onChange={setValue}
+          onPick={handlePick}
+          fetchSuggestions={fetchSuggestions}
+          placeholder="Find a place…"
+          aria-label="Search places on this map"
+          className="w-full md:w-56"
+          inputClassName={INPUT}
+        />
+        <button
+          type="button"
+          onClick={() => { setExpanded(false); setValue(""); }}
+          className="shrink-0 px-2 py-1.5 font-mono text-[11px] uppercase text-cream-dim md:hidden"
+        >
+          Close
+        </button>
+      </div>
+    </div>
   );
 }

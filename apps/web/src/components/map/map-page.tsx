@@ -106,10 +106,16 @@ export function MapPage({ slug }: { slug: string }) {
             <LocateButton
               self={q.data?.positions.find((p) => p.self)}
               loading={q.isPending}
+              error={q.isError && !q.data}
               mapCodename={q.data?.mapCodename ?? ""}
               onLocate={setFocus}
             />
-            <FriendsPanel positions={q.data?.positions} loading={q.isPending} now={new Date()} />
+            <FriendsPanel
+              positions={q.data?.positions}
+              loading={q.isPending}
+              error={q.isError && !q.data}
+              now={new Date()}
+            />
           </>
         )}
       </TopBar>

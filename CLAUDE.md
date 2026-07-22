@@ -1177,13 +1177,18 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   panel, and a live grid-reference readout. **Presentation only**: no migration, no new API route,
   no env var, no worker. Deploys with a plain `./deploy/deploy.sh`.
   **⚠️ `app/(site)/` is a route group, and route groups are NOT path segments.** Every page except
-  `/maps` lives in it and renders the site chrome (masthead, controls rail, footer, the
+  **`/maps/[map]`** lives in it and renders the site chrome (masthead, controls rail, footer, the
   `xl:grid-cols-[minmax(0,1fr)_380px]` shell) from `app/(site)/layout.tsx`; the root layout now
   holds only `<html>`, the fonts, `QueryProvider` and the skip link. **Nothing changed URL.**
   A consequence that has already bitten twice: the root layout no longer renders
   `#main-content`, so **every route outside `(site)` must supply that id itself** — `not-found.tsx`,
   `error.tsx` and the map shell (`MapPage`, on the map region, not the bar the link exists to skip)
   each do, and each is pinned by a test.
+  **⚠️ Only `/maps/[map]` is the tool shell — the picker at `/maps` stays an ordinary (site)
+  page.** It was moved out with the rest of `app/maps/` at first, which orphaned it: no masthead,
+  no footer, no way back, clipped inside `overflow-hidden`, and every one of its ink tokens
+  invisible on the dark shell. It is a list page and belongs with the site chrome; `next build`
+  confirms both routes still resolve and that no URL gained a `(site)` segment.
   **⚠️ The whole shell is DARK — there is no paper anywhere on `/maps`.** `MapPageView`'s state
   notes, the friends legend, the switcher, the search box, the locate button and the friends panel
   all carry cream/paper tokens, and each swap has its own test: RTL asserts the DOM, not contrast,
@@ -1209,19 +1214,39 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **`searchPlaces` ranks an exact name match ABOVE a bigger place containing it.** Size breaks ties
   only within a match kind. Real Chernarus collisions — `Bor` inside Stary Sobor, `Rog` inside
   Severograd — otherwise make those places **unreachable by typing their own name**, because
-  `PlaceSearch` detects a pick by comparing the typed text to the top hit. For the same reason
-  `PlaceSearch` fires once per intent: a click arrives as an `onChange` carrying the same text the
-  last keystroke already resolved, so consecutive identical values fly once (a different value
-  resets, so clearing and re-picking is still two flights).
+  a typed name offers the right place first. **`PlaceSearch` flies on an EXPLICIT pick only**, via
+  a new optional **`onPick`** on `GamertagAutocomplete` (fired from `pick()` alone). Inferring a
+  pick from the value cannot work: a click arrives as an `onChange` carrying text a keystroke could
+  equally have produced, so it flew twice for one intent — and worse, any name that is a strict
+  prefix of a longer one hijacked the map mid-typing (five such pairs in Chernarus:
+  `Bogat`/`Bogatyrka`, `Klen`/`Klenovyipereval`, `Skalisty`/`Skalisty Proliv`, …).
+  **Below `md` the search field is a magnifier that expands over the bar** (spec §4): a persistent
+  field cannot share a 360px row with the back link, the map name and two controls, and the
+  overflow is clipped by the shell's `overflow-hidden` — pushing the friends button, the only route
+  to the accessible legend, off-screen. The expanded field sits at the **same z-40 altitude as the
+  bar it covers**, not a new one, and closes on a pick so it does not hide the map it just flew.
+  The bar's height is `h-[calc(3rem+env(safe-area-inset-top))]`, **not `h-12` + `pt-[inset]`** —
+  under `border-box` the padding is subtracted from the 48px box, which on a notched phone in PWA
+  mode (~47px inset) collapses the row to about a pixel.
   **`GamertagAutocomplete` has no light variant and needs none** — it ships no default input
   styling at all and all four call sites are dark. Do not add an `onDark` prop; pass
   `inputClassName`.
-  **Loading is never an authoritative zero:** the switcher renders no count while fetching, the
-  friends panel renders no count, and `LocateButton` has three states — ready, loading, and
-  genuinely-no-position — with the disabled states carrying a `sr-only` reason (a disabled control
-  with no stated reason is indistinguishable from a broken one). The controls only render for a
-  **verified** viewer: everyone else has the friend query disabled, so `isPending` never resolves
-  and Locate would sit claiming to load a position that is never coming.
+  **Loading is never an authoritative zero, and a FAILED fetch is a fourth state:** the switcher
+  and the friends panel render no count while fetching; `LocateButton` distinguishes ready /
+  loading / failed / genuinely-no-position, and the panel distinguishes failed from empty —
+  "nobody is sharing" and "you appear offline" are claims about the game, and a network error is
+  not evidence for either (the page would also contradict its own "Couldn't load" card). The
+  controls only render for a **verified** viewer: everyone else has the friend query disabled, so
+  `isPending` never resolves and Locate would sit claiming to load a position that is never coming.
+  **⚠️ `LocateButton` uses `aria-disabled`, never `disabled`.** Its unavailable states carry an
+  `sr-only` reason via `aria-describedby`, and a `disabled` button leaves the tab order — which
+  makes that reason unreachable by exactly the users it was written for, so the control reads as
+  absent rather than as unavailable-because-X. `toHaveAccessibleDescription` does not model
+  focusability, so the test asserts `not.toBeDisabled()` and a real focus move as well.
+  **⚠️ A panel driven by `useModalBehavior` needs `tabIndex={-1}`** — it calls
+  `panelRef.current?.focus()`, which is a silent no-op on a plain `div`, so the sheet opens with
+  focus left on the trigger behind it. Both the friends panel and the map switcher set it, and the
+  friends panel's focus move is pinned by a test.
   **The `CoordChip` is deliberately NOT a live region** — it updates every animation frame of a
   pan, and a polite region would read a new coordinate continuously; the value reaches assistive
   tech through the copy button's accessible name. **`FriendsMapLegend` is no longer rendered under
