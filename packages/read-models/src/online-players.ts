@@ -1,16 +1,32 @@
 import type { Database } from "@onelife/db";
-import { friendships, gamertagLinks, players, sessions } from "@onelife/db";
-import { and, eq, gte, isNull, or } from "drizzle-orm";
+import { friendships, gamertagLinks, players, positions, sessions } from "@onelife/db";
+import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
 import type { FriendPosition } from "./friend-positions.js";
 
 /**
- * How recently a player must have been seen to count as online.
+ * How recently a player must have been seen ON THIS SERVER to count as online here.
  *
  * ⚠️ An open session is NOT evidence that someone is playing. `sessions.disconnected_at` stays
  * NULL for a crashed client until the next even-hour reboot closes it (apps/rebooter restarts
  * every active server every 2h), so a bare `disconnected_at IS NULL` list shows players who
  * left up to two hours ago — stale state presented as current. Same bound as the map's markers
  * and the presence generator.
+ *
+ * ⚠️ The evidence must be PER SERVER, which is why this is not a `players.last_seen_at` test.
+ * That column is GLOBAL — one row per player across every server (`packages/db/src/schema.ts`,
+ * written by `touchPlayer` in `packages/projections/src/fold.ts`) — and `onConnected` only
+ * closes a dangling session on the server being connected TO. So the exact case this bound
+ * exists for defeats it: crash on Sakhal at 12:00 (Sakhal session stays open), hop to Chernarus
+ * at 12:05 and play for an hour, and Chernarus activity keeps the GLOBAL heartbeat fresh — the
+ * player is listed as online on Sakhal until Sakhal's next reboot. Server-hopping after a crash
+ * is ordinary recovery behaviour, not a corner case.
+ *
+ * The per-server evidence is a fresh `positions` row on this server (the fold treats a position
+ * dump as the presence heartbeat, so the ADM's periodic player-list block writes one for every
+ * connected player — the same premise F2's markers already rely on), OR a session that
+ * CONNECTED within the bound, which covers the gap before a freshly-joined player's first dump.
+ * Both imply a fresh `players.last_seen_at`, since the same fold calls touch it, so the old
+ * global check added nothing on top and was removed.
  */
 export const ONLINE_MAX_AGE_SECONDS = 900;
 
@@ -45,7 +61,20 @@ export async function getOnlinePlayers(
     .where(and(
       eq(sessions.serverId, a.serverId),
       isNull(sessions.disconnectedAt),
-      gte(players.lastSeenAt, freshest),
+      or(
+        // Just joined — no position dump has landed for them yet.
+        gte(sessions.connectedAt, freshest),
+        // Seen on THIS server within the bound. Shaped as (server_id, player_id, recorded_at)
+        // so it is served by `positions_player_idx` end-to-end (F2 invariant 7); the timestamp
+        // goes in as `.toISOString()` because a raw SQL template bypasses drizzle's column
+        // mapping and postgres-js's timestamptz encoder crashes on a bare Date there.
+        sql`EXISTS (
+          SELECT 1 FROM ${positions} pos
+          WHERE pos.server_id = ${a.serverId}
+            AND pos.player_id = ${players.id}
+            AND pos.recorded_at >= ${freshest.toISOString()}
+        )`,
+      ),
     ));
 
   // The viewer's own verified gamertag, and their accepted friends' — both compared with
