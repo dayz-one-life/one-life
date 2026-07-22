@@ -14,6 +14,7 @@ const svc = Math.floor(Math.random() * 1e8) + 8e8;
 const email = `map${svc}@example.com`;
 const pendingEmail = `mappending${svc}@example.com`;
 const friendEmail = `mapfriend${svc}@example.com`;
+const unlinkedEmail = `mapunlinked${svc}@example.com`;
 
 let lastLink = "";
 const captureMailer: Mailer = { async send(msg) { lastLink = msg.url; } };
@@ -41,14 +42,23 @@ async function signIn(addr: string): Promise<string> {
 
 let cookie = "";
 let pendingCookie = "";
+let unlinkedCookie = "";
 
 beforeAll(async () => {
   await app.ready();
   cookie = await signIn(email);
   pendingCookie = await signIn(pendingEmail);
+  unlinkedCookie = await signIn(unlinkedEmail);
   await signIn(friendEmail); // only to create the `user` row; no request uses this cookie
   await db.insert(servers)
     .values({ nitradoServiceId: svc, name: "Sakhal", map: "sakhal", slug: `sakhal-${svc}` });
+  // Seeded once here, not inside a later `it`: several tests below need `cookie`'s owner
+  // already verified, and a test that only ran because an earlier one in this file happened
+  // to create the row first is a fixture bug wearing a feature-regression costume — running
+  // any one of them with `.only` must not 403.
+  const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
+  await db.insert(gamertagLinks)
+    .values({ userId: u!.id, gamertag: `Mapper${svc}`, status: "verified", verifiedAt: new Date() });
 });
 afterAll(async () => { await app.close(); await sql.end(); });
 
@@ -62,7 +72,9 @@ describe("friend map routes", () => {
   });
 
   it("403s not_verified for a signed-in user with no verified gamertag", async () => {
-    const res = await get(`/me/maps/sakhal-${svc}`, cookie);
+    // A dedicated unlinked user — `cookie`'s owner is verified from `beforeAll` onward so the
+    // later tests in this file don't depend on execution order to find them verified.
+    const res = await get(`/me/maps/sakhal-${svc}`, unlinkedCookie);
     expect(res.statusCode).toBe(403);
     expect(res.json().error).toBe("not_verified");
   });
@@ -82,10 +94,8 @@ describe("friend map routes", () => {
   });
 
   it("serves the map once verified, with no-store", async () => {
-    const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
-    await db.insert(gamertagLinks)
-      .values({ userId: u!.id, gamertag: `Mapper${svc}`, status: "verified", verifiedAt: new Date() });
-
+    // The verified link itself is seeded once in beforeAll — this test only asserts the
+    // response shape a verified caller gets, not the pending→verified transition.
     const res = await get(`/me/maps/sakhal-${svc}`, cookie);
     expect(res.statusCode).toBe(200);
     expect(res.json().mapCodename).toBe("sakhal");

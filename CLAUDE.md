@@ -1081,8 +1081,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **no `--rebuild`**. No new env vars, worker or systemd unit. **F3 ships dark behind TWO gates**:
   the notifier's generate pass is off in production (`NOTIFIER_SINCE` unset), and switching it on
   **un-dormants the other eleven kinds simultaneously** — set `NOTIFIER_SINCE` to the go-live
-  instant and watch one dry-run interval first; and separately, no user is visible until they turn
-  on the master switch.
+  instant and watch one dry-run interval first. **Presence visibility itself is no longer gated at
+  all** (see the map online-list feature below) — the master switch now governs only whether
+  friends are told when you come online. **Location sharing IS still gated**: no friend sees your
+  dot on the map until you turn on that separate master switch.
 - **Friends, F2 — location sharing** ✅ (spec
   `docs/superpowers/specs/2026-07-22-friends-f2-location-design.md`), completing the three-part
   friends feature: a live map per server at **`/maps/{map}`** (plus a `/maps` picker) showing the
@@ -1357,9 +1359,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   friends panel's focus move is pinned by a test.
   **The `CoordChip` is deliberately NOT a live region** — it updates every animation frame of a
   pan, and a polite region would read a new coordinate continuously; the value reaches assistive
-  tech through the copy button's accessible name. **`FriendsMapLegend` is no longer rendered under
-  the map** — the bar's `FriendsPanel` is its only home, and it stays reachable by a real button in
-  the tab order because it is the screen-reader companion to a canvas with no text.
+  tech through the copy button's accessible name. **`FriendsMapLegend` was deleted; the ☰ panel's
+  `OnlineList` replaces it** — the bar's `FriendsPanel` is its only home, and it stays reachable by
+  a real button in the tab order because it is the screen-reader companion to a canvas with no text.
   **⚠️ Any Leaflet double in a test that renders `FriendsMap` needs `flyTo`/`project`/`getCenter`.**
   A partial double throws inside the rAF as an **unhandled** error, which vitest reports separately
   from the assertions — the file stays green while exercising a component that crashed.

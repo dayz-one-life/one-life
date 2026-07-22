@@ -12,8 +12,22 @@ describe("FriendsPanel", () => {
   it("opens a list of who is online", async () => {
     render(<FriendsPanel players={players} loading={false} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    // The viewer's own row is marked with the "(you)" suffix, not merely findable by gamertag —
+    // matching on the gamertag text alone would pass even if the suffix silently vanished.
+    expect(items[0]).toHaveTextContent(/\(you\)/i);
     expect(screen.getByText(/mate/i)).toBeInTheDocument();
+  });
+
+  it("passes fixes through so a sharer's row can show its age", async () => {
+    const positions = [
+      { gamertag: "You", x: 0, y: 0, recordedAt: "2026-07-22T11:59:00.000Z", self: true },
+    ];
+    const now = new Date("2026-07-22T12:00:00.000Z");
+    render(<FriendsPanel players={players} positions={positions} now={now} loading={false} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
+    expect(screen.getByText(/on the map · 1m ago/i)).toBeInTheDocument();
   });
 
   it("counts players online, excluding the viewer", () => {

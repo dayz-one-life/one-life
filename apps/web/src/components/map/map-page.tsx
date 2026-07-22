@@ -113,6 +113,8 @@ export function MapPage({ slug }: { slug: string }) {
       />
       <FriendsPanel
         players={q.data?.online}
+        positions={q.data?.positions}
+        now={new Date()}
         loading={q.isPending}
         error={q.isError && !q.data}
       />
