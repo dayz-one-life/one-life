@@ -5,7 +5,7 @@ import type {
   ObituariesFeed, ObituaryArticle,
   BirthNoticesFeed, BirthNoticeArticle,
   AppNotification, NotificationsFeed,
-  NewsFeed, NewsArticle,
+  NewsFeed, NewsArticle, LifeTrack,
   SitemapData,
   FriendsFeed, FriendStatusDto,
 } from "./types";
@@ -42,7 +42,11 @@ async function buildInit(base: RequestInit): Promise<{ url: (p: string) => strin
       init: { ...base, cache: "no-store", headers: { ...base.headers, cookie: cookieHeader } },
     };
   }
-  return { url: (p) => p, init: { ...base, credentials: "include" } };
+  // Defence-in-depth (spec §3.3): every response here can carry `Cache-Control:
+  // no-store, private` (e.g. the owner-only life track), and the browser's own HTTP
+  // cache must never be the reason a stale/foreign response is served. `credentials:
+  // "include"` alone doesn't disable caching.
+  return { url: (p) => p, init: { ...base, credentials: "include", cache: "no-store" } };
 }
 
 async function parse<T>(res: Response): Promise<T> {
@@ -184,6 +188,15 @@ export const getPlayerArticles = (slug: string, page: number) =>
 
 export const getPlayerLife = (slug: string, map: string, n: number) =>
   getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
+
+/** Owner-only. Wraps `getOrNull`, so a 404 (life does not exist) resolves to null. A 403
+ *  (signed-in but not the verified owner) is NOT translated here — it rethrows, matching
+ *  every other `getOrNull` wrapper in this file. Prefer `useLifeTrack` (`./use-life-track`)
+ *  as the entry point: its `queryFn` is what catches the 403 and turns it into null so the
+ *  UI doesn't distinguish "not found" from "not yours" for a stranger. A caller importing
+ *  this function directly must handle the 403 itself. */
+export const getLifeTrack = (mapSlug: string, n: number) =>
+  getOrNull<LifeTrack>(`/api/me/lives/${encodeURIComponent(mapSlug)}/${n}/track`);
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);

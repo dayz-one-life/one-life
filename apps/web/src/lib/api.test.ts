@@ -22,6 +22,9 @@ describe("apiGet (client path)", () => {
     const [url, init] = f.mock.calls[0]!;
     expect(url).toBe("/api/servers/7/roster");
     expect((init as RequestInit).credentials).toBe("include");
+    // Defence-in-depth (spec §3.3): the browser's own HTTP cache must never be why a
+    // stale/foreign response (e.g. the owner-only life track) gets served.
+    expect((init as RequestInit).cache).toBe("no-store");
   });
 
   it("throws ApiError carrying status and code on non-2xx", async () => {
