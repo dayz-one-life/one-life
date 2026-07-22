@@ -8,12 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Place names on both maps. Towns, villages and landmarks are now labelled on the friends
-  map and on your own life trail, so a dot finally means something without counting grid
-  squares. The labels thin out as you zoom out — capitals and cities stay put, villages
-  appear as you come in closer, and hills, camps and ruins only once you are reading a
-  single valley.
-
 ### Changed
 
 ### Deprecated
@@ -23,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.38.0] - 2026-07-22
+
+### Added
+
+- Place names on both maps. Towns, villages and landmarks are now labelled on the friends
+  map and on your own life trail, so a dot finally means something without counting grid
+  squares. The labels thin out as you zoom out — capitals and cities stay put, villages
+  appear as you come in closer, and hills, camps and ruins only once you are reading a
+  single valley.
 
 ## [0.37.4] - 2026-07-22
 
