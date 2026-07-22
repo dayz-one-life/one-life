@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, admFiles } from "@onelife/db";
+import { servers, players, lives, admFiles, playerGamertags } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getCursor, setCursor, appendEvent } from "@onelife/event-log";
 import { rebuildAll } from "../src/rebuild.js";
@@ -24,6 +24,18 @@ describe("rebuildAll", () => {
     const rows = await db.select().from(players).where(eq(players.gamertag, `Stale-${svc}`));
     expect(rows.length).toBe(0);
     expect(await getCursor(db, "projector")).toBe(0);
+  });
+
+  it("truncates player_gamertags — it is a projection, not durable data", async () => {
+    const [p] = await db.insert(players)
+      .values({ gamertag: `RB${Date.now()}`, dayzId: `RB=${Date.now()}`, firstSeenAt: new Date(), lastSeenAt: new Date() })
+      .returning();
+    await db.insert(playerGamertags).values({
+      playerId: p!.id, gamertag: p!.gamertag, firstSeenAt: new Date(), lastSeenAt: new Date(),
+    });
+    await rebuildAll(db, `rb-test-${p!.id}`);
+    const rows = await db.select().from(playerGamertags);
+    expect(rows).toHaveLength(0);
   });
 
   it("after a rebuild + re-fold, one gamertag on two servers yields one global player with a per-server life", async () => {

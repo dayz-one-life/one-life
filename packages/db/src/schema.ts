@@ -76,6 +76,24 @@ export const players = pgTable("players", {
   // unaddressable as an ON CONFLICT target through drizzle's query builder — see createPlayer in
   // apps/projector/src/pg-store.ts.
   uniq: uniqueIndex("players_gamertag_uniq").on(sql`lower(${t.gamertag})`),
+  // No unique here — the duplicates still exist at migrate time (deploy.sh migrates
+  // before it rebuilds). Promoting this to unique is migration 0026, next release.
+  byDayzId: index("players_dayz_id_idx").on(t.dayzId),
+}));
+
+// Alias history for a player's gamertags. A projection, not durable data — rebuilt
+// (truncated) alongside players/lives/etc in apps/projector/src/rebuild.ts.
+export const playerGamertags = pgTable("player_gamertags", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  playerId: bigint("player_id", { mode: "number" }).notNull().references(() => players.id, { onDelete: "cascade" }),
+  gamertag: text("gamertag").notNull(),          // exactly as the ADM reported it
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+}, (t) => ({
+  // Per PLAYER, never global: a recycled gamertag legitimately belongs to two identities
+  // over time, and a global unique would crash the ingest the day that happens.
+  uniqPerPlayer: uniqueIndex("player_gamertags_player_name_uniq").on(t.playerId, sql`lower(${t.gamertag})`),
+  byName: index("player_gamertags_name_idx").on(sql`lower(${t.gamertag})`, t.lastSeenAt.desc()),
 }));
 
 export const lives = pgTable("lives", {
@@ -127,6 +145,7 @@ export const kills = pgTable("kills", {
 }, (t) => ({
   uniq: uniqueIndex("kills_victim_life_uniq").on(t.serverId, t.victimLifeId),
   byKiller: index("kills_killer_idx").on(t.serverId, t.killerGamertag),
+  byKillerPlayer: index("kills_killer_player_idx").on(t.serverId, t.killerPlayerId),
 }));
 
 export const hitEvents = pgTable("hit_events", {
@@ -145,6 +164,7 @@ export const hitEvents = pgTable("hit_events", {
 }, (t) => ({
   uniq: uniqueIndex("hit_events_natural_uniq").on(
     t.serverId, t.victimGamertag, t.attackerGamertag, t.attackerType, t.bodyPart, t.occurredAt),
+  byVictimPlayer: index("hit_events_victim_player_idx").on(t.serverId, t.victimPlayerId),
 }));
 
 export const buildEvents = pgTable("build_events", {
