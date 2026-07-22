@@ -1,6 +1,8 @@
 "use client";
+import { useState } from "react";
 import MapCanvas, { type DrawContext, type MapFocus } from "./map-canvas";
 import type { FriendMap, FriendPositionDto } from "@/lib/types";
+import { CoordChip } from "./shell/coord-chip";
 
 const SELF_COLOR = "#2563eb";
 const FRIEND_COLOR = "#c8102e";
@@ -39,6 +41,8 @@ export function FriendsMapLegend({ positions, now }: { positions: FriendPosition
 export default function FriendsMap({ data, now, focus }: {
   data: FriendMap; now: Date; focus?: MapFocus | null;
 }) {
+  const [world, setWorld] = useState<{ x: number; y: number } | null>(null);
+
   function draw({ L, group, pt }: DrawContext): unknown[] {
     const all: unknown[] = [];
     for (const p of data.positions) {
@@ -62,14 +66,18 @@ export default function FriendsMap({ data, now, focus }: {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1">
         <MapCanvas
           mapCodename={data.mapCodename}
           draw={draw}
           drawKey={data}
           focus={focus}
+          onCenterChange={setWorld}
           className="h-full w-full"
         />
+        {/* Decorative: the chip carries the same information as text. */}
+        <span aria-hidden className="map-crosshair" />
+        <CoordChip world={world} />
       </div>
       <FriendsMapLegend positions={data.positions} now={now} />
     </div>
