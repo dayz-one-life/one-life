@@ -131,6 +131,52 @@ describe("request", () => {
     expect(await rows()).toHaveLength(0);
     await expect(request(db, { fromUserId: "fa", toUserId: "fb" })).rejects.toThrow(/rate_limited/);
   });
+
+  // ⚠️ Regression guard for LIKE wildcard bug: user IDs containing _ were treated as
+  // wildcards in the LIKE pattern, matching other users' IDs that differ only at that
+  // position. The pattern "friend_request:ab_cd:%" would match "friend_request:abXcd:%"
+  // because _ in the pattern matches any single character X in the data, causing false
+  // rate limit denials. Fixed by using starts_with() instead of LIKE. Verified to fail
+  // against the LIKE implementation.
+  it("does not confuse rate limits across users with similar IDs containing wildcards", async () => {
+    const senderWithUnderscore = "ab_cd";
+    const differentSender = "abXcd"; // differs only at the _ position
+
+    // Create both users and verify them
+    await db.insert(user).values([
+      { id: senderWithUnderscore, name: "Under", email: "under@x.com" },
+      { id: differentSender, name: "Different", email: "different@x.com" },
+    ]);
+    await db.insert(gamertagLinks).values([
+      { userId: senderWithUnderscore, gamertag: "UnderTag", status: "verified" },
+      { userId: differentSender, gamertag: "DiffTag", status: "verified" },
+    ]);
+
+    // Have differentSender send 20 requests to fill their quota
+    for (let i = 0; i < 20; i++) {
+      const targetId = `dt${i}`;
+      await db.insert(user).values({ id: targetId, name: targetId, email: `${targetId}@x.com` });
+      await db.insert(gamertagLinks).values({
+        userId: targetId,
+        gamertag: `DT${i}`,
+        status: "verified",
+      });
+      await request(db, { fromUserId: differentSender, toUserId: targetId });
+    }
+
+    // senderWithUnderscore should still be able to send
+    // (the LIKE bug would have made this incorrectly rate-limited)
+    const finalTarget = "final";
+    await db.insert(user).values({ id: finalTarget, name: finalTarget, email: `${finalTarget}@x.com` });
+    await db.insert(gamertagLinks).values({
+      userId: finalTarget,
+      gamertag: "Final",
+      status: "verified",
+    });
+
+    await expect(request(db, { fromUserId: senderWithUnderscore, toUserId: finalTarget }))
+      .resolves.toBeDefined();
+  });
 });
 
 describe("accept / decline / cancel / remove", () => {

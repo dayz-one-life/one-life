@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { friendships, gamertagLinks, notifications } from "@onelife/db";
-import { and, eq, gte, like, or, sql as dsql } from "drizzle-orm";
+import { and, eq, gte, or, sql as dsql } from "drizzle-orm";
 import { FriendError } from "./errors.js";
 import { cooldownEnd, orderPair, FRIEND_REQUEST_DAILY_LIMIT } from "./pair.js";
 import { acceptedNotification, requestNotification, writeNotification } from "./notify.js";
@@ -123,7 +123,7 @@ export async function request(
       .select({ count: dsql<number>`count(*)::int` })
       .from(notifications)
       .where(and(
-        like(notifications.naturalKey, `${keyPrefix}%`),
+        dsql`starts_with(${notifications.naturalKey}, ${keyPrefix})`,
         gte(notifications.createdAt, since),
       ));
     if (countRow!.count >= FRIEND_REQUEST_DAILY_LIMIT) throw new FriendError("rate_limited");
