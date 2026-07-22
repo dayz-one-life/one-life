@@ -87,10 +87,26 @@ describe("GET /me/lives/:mapSlug/:n/track — access control", () => {
 
   it("403s for a PENDING link — a claim is not proof", async () => {
     await db.insert(gamertagLinks).values({ userId, gamertag: mine, status: "pending" });
-    const r = await app.inject({ method: "GET", url: url(), headers: { cookie } });
-    expect(r.statusCode).toBe(403);
-    expect(r.json().error).toBe("not_verified");
-    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, userId));
+    try {
+      const r = await app.inject({ method: "GET", url: url(), headers: { cookie } });
+      expect(r.statusCode).toBe(403);
+      expect(r.json().error).toBe("not_verified");
+    } finally {
+      // Runs even if the assertions above fail, so a failure here doesn't cascade into a
+      // confusing unique-constraint error on gamertag_links_user_active_uniq in the next test.
+      await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, userId));
+    }
+  });
+
+  it("403s for a CANCELLED link — a withdrawn claim is not proof either", async () => {
+    await db.insert(gamertagLinks).values({ userId, gamertag: mine, status: "cancelled" });
+    try {
+      const r = await app.inject({ method: "GET", url: url(), headers: { cookie } });
+      expect(r.statusCode).toBe(403);
+      expect(r.json().error).toBe("not_verified");
+    } finally {
+      await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, userId));
+    }
   });
 
   it("200s once the link is verified, and returns only the caller's own fixes", async () => {
@@ -118,14 +134,62 @@ describe("GET /me/lives/:mapSlug/:n/track — access control", () => {
     expect(r.statusCode).toBe(404);
   });
 
-  it("exposes NO parameter that could name another player", async () => {
-    // The route path is /me/lives/:mapSlug/:n/track — there is nowhere to put a gamertag.
-    // Query params are ignored entirely; the subject comes from the session.
-    const r = await app.inject({
-      method: "GET", url: `${url()}?gamertag=${encodeURIComponent(theirs)}`, headers: { cookie },
-    });
-    expect(r.statusCode).toBe(200);
-    const xs = r.json().segments.flatMap((s: { points: { x: number }[] }) => s.points.map((p) => p.x));
-    expect(xs).not.toContain(9999);
+  it("404s (not 500) for a malformed life number", async () => {
+    const r = await app.inject({ method: "GET", url: `/me/lives/${slug}/abc/track`, headers: { cookie } });
+    expect(r.statusCode).toBe(404);
+    expect(r.json().error).toBe("not_found");
+  });
+
+  it("the route's path parameters are exactly [mapSlug, n] — no path segment can name a player", () => {
+    // Mechanism: Fastify's printed route tree (app.printRoutes({ commonPrefix: false })),
+    // scanned for the /me/lives/... line and its `:param` segments. This is derived from
+    // Fastify's actual route table, not from re-reading the route source.
+    // printRoutes prints a nested tree with common path segments folded onto ancestor
+    // lines, so the leaf line for this route reads "lives/:mapSlug/:n/track (GET, HEAD)",
+    // not the full "/me/lives/..." path — match on the leaf segment instead.
+    const tree = app.printRoutes({ commonPrefix: false });
+    const matches = tree.split("\n").filter((l) => l.includes("/track (GET"));
+    expect(matches).toHaveLength(1);
+    const line = matches[0];
+    const params = [...line!.matchAll(/:(\w+)/g)].map((m) => m[1]);
+    expect(params).toEqual(["mapSlug", "n"]);
+  });
+
+  it("carries no other player's data regardless of which channel an identifier rides in", async () => {
+    const baseline = await app.inject({ method: "GET", url: url(), headers: { cookie } });
+    expect(baseline.statusCode).toBe(200);
+    const baselineBody = baseline.json();
+
+    const queryKeys = ["gamertag", "player", "tag", "for", "as", "subject", "userId"];
+    for (const key of queryKeys) {
+      const r = await app.inject({
+        method: "GET", url: `${url()}?${key}=${encodeURIComponent(theirs)}`, headers: { cookie },
+      });
+      expect(r.statusCode).toBe(200);
+      expect(r.json()).toEqual(baselineBody);
+    }
+
+    const headerNames = ["x-gamertag", "x-user-id"];
+    for (const h of headerNames) {
+      const r = await app.inject({
+        method: "GET", url: url(), headers: { cookie, [h]: theirs },
+      });
+      expect(r.statusCode).toBe(200);
+      expect(r.json()).toEqual(baselineBody);
+    }
+  });
+});
+
+describe("GET /me/lives/:mapSlug/:n/track — registration is auth-gated", () => {
+  it("404s when the app is built with NO auth opts — a route registered without auth has no session check", async () => {
+    // A second, independent app instance: never touches `cookie`/`app`/the DB cleanup above.
+    const bareApp = buildApp(db);
+    await bareApp.ready();
+    try {
+      const r = await bareApp.inject({ method: "GET", url: url() });
+      expect(r.statusCode).toBe(404);
+    } finally {
+      await bareApp.close();
+    }
   });
 });

@@ -30,16 +30,23 @@ export function registerLifeTrackRoutes(app: FastifyInstance, db: Database, auth
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });
 
+    // `.limit(1)` documents, rather than relies on, the invariant that makes an unordered
+    // select here safe: `gamertag_links_user_active_uniq` (a partial unique index on
+    // user_id WHERE status IN ('pending','verified')) makes more than one verified row
+    // per user impossible today. If that index ever changes, this stays deterministic.
     const [link] = await db
       .select({ gamertag: gamertagLinks.gamertag })
       .from(gamertagLinks)
       .where(and(
         eq(gamertagLinks.userId, session.user.id),
         eq(gamertagLinks.status, "verified"),
-      ));
+      ))
+      .limit(1);
     if (!link) return reply.code(403).send({ error: "not_verified" });
 
-    const { mapSlug, n } = params.parse(req.params);
+    const parsed = params.safeParse(req.params);
+    if (!parsed.success) return reply.code(404).send({ error: "not_found" });
+    const { mapSlug, n } = parsed.data;
     const server = await resolveServerBySlug(db, mapSlug);
     if (!server) return reply.code(404).send({ error: "not_found" });
 

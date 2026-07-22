@@ -174,3 +174,26 @@ describe("GET /players/:gamertag/articles", () => {
     expect(body.rows[0].slug).toBe("dead-eye-jim-perishes");
   });
 });
+
+describe("GET /players/:gamertag/:map/lives/:n — no coordinate data", () => {
+  // A recursive key scan, not a shape-specific assertion — this survives the response
+  // shape changing later, which is exactly when a "just add the map" regression would land.
+  const FORBIDDEN_KEYS = new Set(["x", "y", "positions", "segments", "track"]);
+  function findForbiddenKeys(value: unknown, path = ""): string[] {
+    if (value === null || typeof value !== "object") return [];
+    const hits: string[] = [];
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (FORBIDDEN_KEYS.has(key)) hits.push(childPath);
+      hits.push(...findForbiddenKeys(child, childPath));
+    }
+    return hits;
+  }
+
+  it("the public life route's response body contains no coordinate data at any depth", async () => {
+    const res = await app.inject({ method: "GET", url: "/players/LivoniaLad/pa-livonia/lives/1" });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(findForbiddenKeys(body)).toEqual([]);
+  });
+});
