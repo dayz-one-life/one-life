@@ -38,6 +38,9 @@ importers:
       '@onelife/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@onelife/friends':
+        specifier: workspace:*
+        version: link:../../packages/friends
       '@onelife/read-models':
         specifier: workspace:*
         version: link:../../packages/read-models

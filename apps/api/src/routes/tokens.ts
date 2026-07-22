@@ -1,25 +1,16 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
-import { tokenTransactions, gamertagLinks } from "@onelife/db";
-import { and, eq, desc, sql as dsql } from "drizzle-orm";
+import { tokenTransactions } from "@onelife/db";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { getBalance, redeem, transfer, setReferrer, TokenError } from "@onelife/tokens";
 import { getSession } from "../auth-plugin.js";
+import { verifiedUserIdByGamertag } from "./verified-gamertag.js";
 
 const redeemBody = z.object({ banId: z.number().int().positive().optional() });
 const transferBody = z.object({ toGamertag: z.string().min(1) });
 const referrerBody = z.object({ referrerGamertag: z.string().min(1) });
-
-/** Resolve a gamertag to its verified owner's userId; null when nobody verified holds it. */
-async function verifiedUserIdByGamertag(db: Database, gamertag: string): Promise<string | null> {
-  const [row] = await db
-    .select({ userId: gamertagLinks.userId })
-    .from(gamertagLinks)
-    .where(and(eq(gamertagLinks.status, "verified"), dsql`lower(${gamertagLinks.gamertag}) = lower(${gamertag})`))
-    .limit(1);
-  return row?.userId ?? null;
-}
 
 const ERROR_STATUS: Record<string, number> = {
   no_active_ban: 400,
