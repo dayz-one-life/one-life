@@ -197,7 +197,10 @@ log_success "Full-DB checkpoint: $DB_BACKUP ($(du -h "$DB_BACKUP" | cut -f1))"
 if [[ "$DO_REBUILD" == "1" ]]; then
   CURRENT_PHASE="rebuild"
   log_phase "REBUILD (--rebuild)"
-  "$PNPM" --filter @onelife/projector run rebuild
+  # Same unexported-variable hazard as the MIGRATE phase below — see the note there. This one
+  # never had a fallback masking it at all: apps/projector/src/config.ts declares DATABASE_URL
+  # as a required zod field, tsx loads no .env, and this phase runs AFTER the fleet is stopped.
+  DATABASE_URL="$DATABASE_URL" "$PNPM" --filter @onelife/projector run rebuild
   log_success "Projections truncated + cursor reset to 0"
 fi
 

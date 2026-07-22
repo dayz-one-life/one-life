@@ -1101,11 +1101,22 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      alone leaves stale `true` flags that go live on re-verification; the reset alone dies to any
      query that forgets the join. **The reset is one-directional** — it clears the re-verifying
      user's *outbound* sharing, not their friends' inbound flags toward them.
-  6. **The positions lookup filters on `player_id`, never `lower(gamertag)`.** Only the former can
+  6. **⚠️ OPEN BACKLOG ITEM — `gamertag_links_verified_uniq` is case-SENSITIVE.** So is
+     `players_gamertag_uniq`, and so is the `already_verified` precheck in
+     `apps/api/src/routes/gamertag-links.ts`. Two users can therefore hold verified links to
+     `Sasha` and `sasha` and fold onto one `players` row. `getFriendPositions` guards the
+     *labelling* consequence (a `claim()`/`claimed` set, viewer-first, so a marker can never be
+     flagged `self` while carrying a friend's callsign) — it does **not** close the hole: a
+     viewer whose link folds onto another player's row still receives that row's coordinates as
+     their own dot, and the viewer's own subject is unconditional by design. The durable fix is
+     upstream and needs a migration: make the verified-link unique index `lower(gamertag)` and
+     change that precheck to a `lower()` comparison (`verified-gamertag.ts` already does).
+     Not absorbed by the read-model guard — still open.
+  7. **The positions lookup filters on `player_id`, never `lower(gamertag)`.** Only the former can
      be served by `positions_player_idx (server_id, player_id, recorded_at)`; the gamertag shape
      seq-scans the largest table in the system, on a 30s poll per viewer and once per server on
      `/maps`. Measured: index scan 0.066ms vs seq scan filtering 60,115 rows at 2.356ms.
-  7. **The Leaflet lifecycle lives in ONE place** — `apps/web/src/components/map/map-canvas.tsx`,
+  8. **The Leaflet lifecycle lives in ONE place** — `apps/web/src/components/map/map-canvas.tsx`,
      extracted from `TrackMap`. Nearly every comment in it documents a fixed bug (the two-effect
      split, the first-draw fit latch, the created-then-added LayerGroup, the SSR-avoiding dynamic
      import, the `isolate` stacking context). Consumers supply a `draw` function and nothing else;

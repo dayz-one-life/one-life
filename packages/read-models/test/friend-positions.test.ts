@@ -155,6 +155,23 @@ describe("getFriendPositions", () => {
     expect(out.find((p) => p.gamertag.toLowerCase() === "friendbravo")!.x).toBe(9999);
   });
 
+  // ⚠️ `gamertag_links_verified_uniq` is case-SENSITIVE too, so two users can hold verified
+  // links that fold to the same `players` row. The reverse map is keyed by player id, so
+  // without a claim guard the last writer wins and the marker renders with the FRIEND's
+  // callsign while still carrying the viewer's `self` flag — a dot that is simultaneously
+  // "you" and someone else. The viewer must claim their row first.
+  it("keeps the viewer's own label when a friend's link folds onto the same player row", async () => {
+    await db.update(gamertagLinks)
+      .set({ gamertag: "vieweralpha" })
+      .where(eq(gamertagLinks.userId, "vb"));
+
+    const out = await call();
+    const mine = out.filter((p) => p.gamertag.toLowerCase() === "vieweralpha");
+    expect(mine).toHaveLength(1);
+    expect(mine[0]!.gamertag).toBe("ViewerAlpha");
+    expect(mine[0]!.self).toBe(true);
+  });
+
   // Every other test in this file seeds the viewer as side A ("va" < "vb"), so the ternary in
   // friend-positions.ts (`r.userA === r.friendUserId ? r.aShares : r.bShares`) only ever reads
   // the FRIEND's `bShares` column. This test seeds the FRIEND as side A instead ("fa" < "vw"),
