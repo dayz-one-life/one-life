@@ -10,10 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Deploy docs: documented that a change to the deploy script never applies to the deploy that
-  installs it — the release is deployed by the previous release's script — and recorded the
-  one-time step needed to install v0.37.2's database-connection fix.
-
 ### Deprecated
 
 ### Removed
@@ -21,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.37.3] - 2026-07-22
+
+### Changed
+
+- Deploy docs: documented that a change to the deploy script never applies to the deploy that
+  installs it — the release is deployed by the previous release's script — and recorded the
+  one-time step needed to install v0.37.2's database-connection fix.
 
 ## [0.37.2] - 2026-07-22
 
