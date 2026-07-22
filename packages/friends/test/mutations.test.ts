@@ -105,27 +105,34 @@ describe("request", () => {
     // force would silently not happen (a green test proving nothing). That made correctness
     // depend on `fileParallelism: false` holding forever. pg_blocking_pids() asks the precise
     // question instead: is a backend of ours waiting on someone else?
+    const blockedBackends = async () => {
+      const [row] = await sql<{ count: string }[]>`
+        select count(*)::int as count from pg_stat_activity
+        where datname = current_database()
+          and cardinality(pg_blocking_pids(pid)) > 0
+          and query ilike '%friendships%'
+      `;
+      return Number(row?.count ?? 0);
+    };
     const waitForBlockedInsert = async () => {
       for (let i = 0; i < 100; i++) {
-        const [row] = await sql<{ count: string }[]>`
-          select count(*)::int as count from pg_stat_activity
-          where datname = current_database()
-            and cardinality(pg_blocking_pids(pid)) > 0
-            and query ilike '%friendships%'
-        `;
-        if (Number(row?.count ?? 0) > 0) return i;
+        if (await blockedBackends() > 0) return;
         await new Promise((r) => setTimeout(r, 10));
       }
       throw new Error("fb's insert never blocked — the forced collision setup is broken");
     };
 
+    // Assert the pre-condition DETERMINISTICALLY, before anything can be blocked: nothing is
+    // waiting yet, so a later match is necessarily fb's insert and not something the predicate
+    // picked up by being too loose. (Asserting instead that the poll took >0 iterations would
+    // be racing the poll's own first connection handshake — which has to open a NEW connection,
+    // since `sql`'s warm one is held by the open holder transaction — against request()'s ~7
+    // round trips on an already-warm pool. That is a coin flip on a slow or TLS-enabled box,
+    // and it would fail red while the code under test is entirely correct.)
+    expect(await blockedBackends()).toBe(0);
+
     const bPromise = request(db, { fromUserId: "fb", toUserId: "fa" });
-    const polls = await waitForBlockedInsert();
-    // The poll must have observed a not-blocked → blocked TRANSITION. A match on the very
-    // first iteration means it matched something that was already waiting before fb's request
-    // had even reached its INSERT — i.e. the predicate is too loose and this test would go on
-    // to assert the ordinary non-colliding path while claiming to prove the recovery.
-    expect(polls).toBeGreaterThan(0);
+    await waitForBlockedInsert();
     releaseHolder();
     await holderDone;
 

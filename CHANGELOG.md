@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A friend whose gamertag has been recorded under two different capitalisations no longer
-  appears twice on the map, in two different places at once. Only their most recent position
-  is shown.
+  appears twice on the map, in two different places at once. Only one — the most recently
+  active — is shown.
 - The friends map no longer comes up empty for a player who has verified a gamertag but not
   yet been seen in game. Their own dot is simply absent; their friends still appear.
 - Fixed the disabled sharing switches on the friends roster: they no longer show a clickable

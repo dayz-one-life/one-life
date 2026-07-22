@@ -57,6 +57,11 @@ describe("listFriends", () => {
     const out = await listFriends(db, { userId: "qa" });
     expect(out.friends).toEqual([]);
     expect(out.total).toBe(0);
+    // All three buckets share one null-filter, so assert all three: a regression that dropped
+    // the unnameable friend from `friends` while leaking them into a pending bucket would
+    // otherwise pass.
+    expect(out.incoming).toEqual([]);
+    expect(out.outgoing).toEqual([]);
     // The row survives — it is unreachable, not deleted.
     expect(await db.select().from(friendships)).toHaveLength(1);
   });

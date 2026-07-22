@@ -91,7 +91,14 @@ export async function getFriendPositions(
       ),
     ))
     .innerJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
-    .leftJoin(userPreferences, eq(userPreferences.userId, gamertagLinks.userId));
+    .leftJoin(userPreferences, eq(userPreferences.userId, gamertagLinks.userId))
+    // Ordered so the per-friend collapse below is DETERMINISTIC, matching the viewer's own
+    // lookup. Without it this query has no ORDER BY at all, the collapse's strict `>` keeps
+    // whichever duplicate Postgres happened to return first, and two case-variant rows with
+    // equal — or both NULL, the column is nullable — `lastSeenAt` could swap the rendered dot
+    // between two locations on successive 30s polls. That is the very failure the collapse
+    // exists to remove, just at a lower frequency.
+    .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`);
 
   const visible = friendRows.filter((r) =>
     shouldShareLocation({
@@ -108,21 +115,38 @@ export async function getFriendPositions(
   // therefore hold "Sasha" and "sasha" as distinct rows for what is really one Xbox identity.
   // Left as-is that renders TWO markers, both labelled with the same callsign, in two different
   // places — a friend appearing to be in two locations at once is worse than being absent.
-  // Collapse to the most-recently-seen row per friend, matching the viewer's own `orderBy`.
+  // Collapse to the FIRST row per friend, which the `orderBy` above has already made the
+  // most-recently-seen one. Deliberately one rule rather than an ORDER BY plus a comparator
+  // that must agree with it.
+  //
+  // Note the collapse key (`lastSeenAt`, global) is not the criterion the position query then
+  // applies (this server, open session, fresh fix). Those agree today only because the fold
+  // treats a position dump as a presence heartbeat, so the row with the freshest position is
+  // necessarily the row with the freshest `lastSeenAt`. If that ever stops holding, collapse
+  // AFTER the position query instead — otherwise picking the wrong row renders no dot at all.
   const bestByFriend = new Map<string, (typeof visible)[number]>();
   for (const r of visible) {
-    const held = bestByFriend.get(r.friendUserId);
-    if (!held || (r.lastSeenAt?.getTime() ?? -Infinity) > (held.lastSeenAt?.getTime() ?? -Infinity)) {
-      bestByFriend.set(r.friendUserId, r);
-    }
+    if (!bestByFriend.has(r.friendUserId)) bestByFriend.set(r.friendUserId, r);
   }
 
-  const subjects = [
-    // `playerId` is null when the viewer has a verified link but no folded `players` row —
-    // they contribute no subject and simply have no dot of their own. Friends are unaffected.
-    ...(viewer.playerId === null ? [] : [{ gamertag: viewer.gamertag, playerId: viewer.playerId }]),
-    ...[...bestByFriend.values()].map((r) => ({ gamertag: r.gamertag, playerId: r.playerId })),
-  ];
+  // ⚠️ Also one PLAYER ROW to one subject. `gamertag_links_verified_uniq` is case-sensitive
+  // too, so two different users can hold verified links to "Sasha" and "sasha" and resolve to
+  // the same `players` row. Keying the reverse map by player id would then silently relabel
+  // that position with whichever callsign was inserted last — a marker attributed to the wrong
+  // friend. First claim wins, deterministically, and the viewer is added first so their own
+  // dot is never relabelled as someone else's.
+  const subjects: { gamertag: string; playerId: number }[] = [];
+  const claimed = new Set<number>();
+  const claim = (gamertag: string, playerId: number) => {
+    if (claimed.has(playerId)) return;
+    claimed.add(playerId);
+    subjects.push({ gamertag, playerId });
+  };
+  // `playerId` is null when the viewer has a verified link but no folded `players` row — they
+  // contribute no subject and simply have no dot of their own. Friends are unaffected.
+  if (viewer.playerId !== null) claim(viewer.gamertag, viewer.playerId);
+  for (const r of bestByFriend.values()) claim(r.gamertag, r.playerId);
+
   if (subjects.length === 0) return [];
   const playerIds = subjects.map((s) => s.playerId);
   const gamertagByPlayerId = new Map(subjects.map((s) => [s.playerId, s.gamertag]));
