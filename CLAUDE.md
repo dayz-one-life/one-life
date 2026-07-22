@@ -1262,6 +1262,21 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   list, or the suite gains the ability to report success it did not earn.
   `.gitignore` covers OS cruft (`.DS_Store`); prefer `git add -p`/explicit paths over `git add -A`
   at the repo root so stray untracked files don't ride into a commit.
+- **⚠️ `deploy/deploy.sh` re-execs itself from an unlinked temp copy before touching the working
+  tree — DO NOT REMOVE that block.** The script `git checkout`s the new tag while bash is still
+  reading it, and bash reads scripts incrementally by byte offset, so the running process
+  otherwise continues into the replaced file: a splice of old and new text. A longer replacement
+  runs the wrong version of a later phase (this is exactly why v0.37.2's migrate fix did not
+  apply to the deploy that installed it); a **shorter** one makes bash hit EOF and **exit 0,
+  silently skipping every remaining phase** — no stop, no migrate, no restart, reported as
+  success. `$ONELIFE_DEPLOY_SELF` carries the original path across the exec because `REPO_DIR`
+  derives from the script's location; anything else needing the script's own path (e.g. `--help`
+  sed-ing its header) must use that variable, never `$BASH_SOURCE`, which after the exec points
+  at a file that has been unlinked.
+- **Any child process of `deploy.sh` that needs `DATABASE_URL` must be passed it EXPLICITLY.**
+  The script reads it out of `.env` into a plain shell variable and never exports it; the
+  migrate and `--rebuild` phases each prefix `DATABASE_URL="$DATABASE_URL"` for this reason.
+  Both phases run *after* the fleet is stopped, so a miss aborts the deploy with the site down.
 - Deploy (prod): `./deploy/deploy.sh` deploys the latest release tag (build → backup → migrate →
   restart fleet → health-check); add `--rebuild` for releases that change projection-table shape
   (truncate + re-fold from the event log). See `deploy/README.md`.

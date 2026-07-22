@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Deploy: the deploy script now runs from a copy of itself, so a release that changes the
+  script can no longer corrupt the deploy that installs it. Previously the script rewrote
+  itself mid-run when checking out the new release tag, and carried on reading the replaced
+  file — which either ran the wrong version of a phase or, if the new file was shorter,
+  stopped early and reported success without stopping, migrating or restarting anything.
+  **Upgrading to this release needs a one-time bootstrap step — see `deploy/README.md`.**
+
 ### Security
 
 ## [0.37.2] - 2026-07-22
