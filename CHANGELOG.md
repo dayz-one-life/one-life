@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.38.3] - 2026-07-22
+
+### Fixed
+
+- Changing your gamertag no longer sheds a death ban. Bans are now placed against the
+  player's stable account ID as well as their name, so a rename keeps the ban in force.
+
 ## [0.38.2] - 2026-07-22
 
 ### Fixed

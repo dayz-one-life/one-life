@@ -8,6 +8,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
     .select({
       serverId: lives.serverId,
       gamertag: players.gamertag,
+      dayzId: players.dayzId,
       startedAt: lives.startedAt,
       endedAt: lives.endedAt,
       deathCause: lives.deathCause,
@@ -42,6 +43,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
     out.push({
       serverId: r.serverId,
       gamertag: r.gamertag,
+      dayzId: r.dayzId,
       startedAt: r.startedAt,
       endedAt: r.endedAt,
       deathCause: r.deathCause,
@@ -59,6 +61,7 @@ export async function insertBan(db: Database, plan: BanPlan, dryRun: boolean): P
     .values({
       serverId: plan.serverId,
       gamertag: plan.gamertag,
+      dayzId: plan.dayzId,
       lifeStartedAt: plan.lifeStartedAt,
       reason: "qualified_death",
       qualifiedBy: plan.qualifiedBy,
@@ -70,20 +73,22 @@ export async function insertBan(db: Database, plan: BanPlan, dryRun: boolean): P
     .onConflictDoNothing();
 }
 
-export type BanRow = { id: number; serverId: number; gamertag: string; expiresAt: Date | null };
+export type BanRow = { id: number; serverId: number; gamertag: string; dayzId: string | null; expiresAt: Date | null };
 
 export async function pendingBans(db: Database): Promise<BanRow[]> {
   return db
-    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, expiresAt: bans.expiresAt })
+    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, dayzId: bans.dayzId, expiresAt: bans.expiresAt })
     .from(bans)
-    .where(eq(bans.status, "pending"));
+    .where(eq(bans.status, "pending"))
+    .orderBy(bans.id);
 }
 
 export async function appliedBans(db: Database): Promise<BanRow[]> {
   return db
-    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, expiresAt: bans.expiresAt })
+    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, dayzId: bans.dayzId, expiresAt: bans.expiresAt })
     .from(bans)
-    .where(eq(bans.status, "applied"));
+    .where(eq(bans.status, "applied"))
+    .orderBy(bans.id);
 }
 
 export async function markApplied(db: Database, id: number, at: Date): Promise<void> {
@@ -102,9 +107,10 @@ export async function markExpired(db: Database, id: number, at: Date): Promise<v
 /** Bans a token-redemption flagged for removal (was applied to Nitrado). */
 export async function liftPendingBans(db: Database): Promise<BanRow[]> {
   return db
-    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, expiresAt: bans.expiresAt })
+    .select({ id: bans.id, serverId: bans.serverId, gamertag: bans.gamertag, dayzId: bans.dayzId, expiresAt: bans.expiresAt })
     .from(bans)
-    .where(eq(bans.status, "lift_pending"));
+    .where(eq(bans.status, "lift_pending"))
+    .orderBy(bans.id);
 }
 
 export async function markLifted(db: Database, id: number, at: Date): Promise<void> {

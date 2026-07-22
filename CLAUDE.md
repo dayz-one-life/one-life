@@ -87,6 +87,27 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
   (never rebuilt).
+  **⚠️ Bans are placed against `bans.dayz_id` (the stable DayZ account hash) AND the gamertag,
+  via the batched `addBans`/`removeBans` — never the single-entry `addBan`/`removeBan`, which
+  would be one whole-field read-modify-write of the Nitrado ban list per entry, with a
+  lost-update window between them.** The ID is what survives a gamertag rename: an audit of
+  production found two accounts using five gamertags between them and 22 connections under a
+  different name during an active ban window. `dayz_id` is frozen onto the ban row at creation
+  (migration `0023`), never resolved through `players` later, because the deferred identity-merge
+  work will make a historical gamertag stop resolving. A null `dayz_id` degrades to name-only.
+  **⚠️ Corollary — never enable `ENFORCER_DRY_RUN` while a ban is `applied`.** Under dry-run the
+  expire/lift arms mark the row `expired`/`lifted` *without* calling Nitrado, and no query
+  revisits a closed row — so the entries stay on the Banlist forever. Now that one of them is the
+  account hash, that orphan is **permanent and unshakeable** (a rename used to shed the name-only
+  orphan). Recovery is manual Banlist editing; the precheck is in `deploy/README.md`.
+  Two further consequences of banning by ID, both bounded to one ban duration and both rooted in
+  pre-existing behaviour rather than this feature: `players.dayz_id` is written once at
+  `createPlayer` and never updated (`packages/projections/src/fold.ts`), so a **recycled gamertag**
+  would attach the *previous* owner's hash to a new player's ban; and two simultaneously-`applied`
+  bans for one account share a single list entry, so the earlier expiry frees the later ban (fails
+  open, not closed).
+  Nitrado's ban list accepting a player ID was **verified empirically** against a live server —
+  public documentation says console servers are gamertag-only, and is wrong.
 - **SP4 — Unban-token economy** ✅: `@onelife/tokens` (ledger; balance = SUM of deltas; idempotent
   grants) + `apps/granter` sweeps. Token on verification, monthly + referral grants, self-unban
   (redeem → ban `lift_pending` → enforcer removes under the dry-run gate), and transfers. API
