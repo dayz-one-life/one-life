@@ -8,14 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Know when your friends are playing. Turn on "Share my status with friends" from the
-  roster and your friends can be told when you come online; each friendship then has its
-  own pair of switches, so you can stay hidden from one person while visible to the rest,
-  and mute a friend whose comings and goings you'd rather not hear about. **Sharing is off
-  until you switch it on** — nobody is visible by default, and nothing is announced about
-  anyone who hasn't opted in. You'll hear about a given friend at most once every four
-  hours, so a server reboot doesn't turn into a flurry of alerts.
-
 ### Changed
 
 ### Deprecated
@@ -25,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.36.0] - 2026-07-22
+
+### Added
+
+- Know when your friends are playing. Turn on "Share my status with friends" from the
+  roster and your friends can be told when you come online; each friendship then has its
+  own pair of switches, so you can stay hidden from one person while visible to the rest,
+  and mute a friend whose comings and goings you'd rather not hear about. **Sharing is off
+  until you switch it on** — nobody is visible by default, and nothing is announced about
+  anyone who hasn't opted in. You'll hear about a given friend at most once every four
+  hours, so a server reboot doesn't turn into a flurry of alerts.
 
 ## [0.35.0] - 2026-07-22
 
