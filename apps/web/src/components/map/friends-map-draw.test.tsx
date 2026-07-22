@@ -13,9 +13,19 @@ const polyline = vi.fn((..._a: unknown[]) => ({ addTo }));
 const circleMarker = vi.fn((..._a: unknown[]) => ({ addTo, bindPopup, bindTooltip }));
 const tileLayer = vi.fn((..._a: unknown[]) => ({ addTo }));
 const unproject = vi.fn((p: [number, number]) => ({ lat: p[1], lng: p[0] }));
-const mapFn = vi.fn((..._a: unknown[]) => ({
+// See the note in track-map.test.tsx: the place-label pass needs getZoom/on/createPane, and
+// a double missing any of them degrades the whole component to its error state.
+const marker = vi.fn((..._a: unknown[]) => ({ addTo }));
+const divIcon = vi.fn((o: unknown) => o);
+const zoomHandlers: Array<() => void> = [];
+let currentZoom = 0;
+const mapObj = {
   unproject, fitBounds: vi.fn(), setView: vi.fn(), remove: vi.fn(),
-}));
+  getZoom: () => currentZoom,
+  on: (evt: string, fn: () => void) => { if (evt === "zoomend") zoomHandlers.push(fn); },
+  createPane: vi.fn(() => document.createElement("div")),
+};
+const mapFn = vi.fn((..._a: unknown[]) => mapObj);
 interface LayerGroupObj { addTo: () => LayerGroupObj; clearLayers: () => void }
 const layerGroupObj: LayerGroupObj = { addTo: () => layerGroupObj, clearLayers: vi.fn() };
 
@@ -26,6 +36,9 @@ vi.mock("leaflet", () => ({
     tileLayer: (...a: unknown[]) => tileLayer(...a),
     polyline: (...a: unknown[]) => polyline(...a),
     circleMarker: (...a: unknown[]) => circleMarker(...a),
+    marker: (...a: unknown[]) => marker(...a),
+    divIcon: (o: unknown) => divIcon(o),
+    latLng: (lat: number, lng: number) => ({ lat, lng }),
     layerGroup: () => layerGroupObj,
     latLngBounds: (v: unknown) => v,
   },
@@ -40,7 +53,7 @@ const data: FriendMap = {
 };
 const NOW = new Date("2026-07-22T12:00:00Z");
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); zoomHandlers.length = 0; currentZoom = 0; });
 
 describe("FriendsMap drawing", () => {
   it("draws one dot for the viewer and one per sharing friend", async () => {
@@ -65,6 +78,37 @@ describe("FriendsMap drawing", () => {
     expect(labels).toEqual(["You (you)", "Mate"]);
     for (const call of bindTooltip.mock.calls) {
       expect((call[1] as { permanent?: boolean }).permanent).toBe(true);
+    }
+  });
+
+  it("labels places under the dots, in a dedicated low pane", async () => {
+    // Leaflet puts markers at z-index 600 and our dots at 400, so without an explicit pane
+    // a town name paints OVER the friend it is meant to help you find.
+    render(<FriendsMap data={data} now={NOW} />);
+    await waitFor(() => expect(marker).toHaveBeenCalled());
+    expect(mapObj.createPane).toHaveBeenCalledWith("places");
+    for (const call of marker.mock.calls) {
+      const opts = call[1] as { pane?: string; interactive?: boolean };
+      expect(opts.pane).toBe("places");
+      expect(opts.interactive).toBe(false); // must not swallow a click meant for a dot
+    }
+  });
+
+  it("adds more place labels as the reader zooms in", async () => {
+    render(<FriendsMap data={data} now={NOW} />);
+    await waitFor(() => expect(marker).toHaveBeenCalled());
+    const wide = marker.mock.calls.length;
+
+    currentZoom = 4;
+    for (const fn of zoomHandlers) fn();
+    expect(marker.mock.calls.length - wide).toBeGreaterThan(wide);
+  });
+
+  it("escapes label HTML — divIcon takes raw markup", async () => {
+    render(<FriendsMap data={data} now={NOW} />);
+    await waitFor(() => expect(divIcon).toHaveBeenCalled());
+    for (const call of divIcon.mock.calls) {
+      expect((call[0] as { html: string }).html).not.toContain("<");
     }
   });
 
