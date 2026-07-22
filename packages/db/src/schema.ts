@@ -258,6 +258,7 @@ export const bans = pgTable("bans", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   serverId: integer("server_id").notNull().references(() => servers.id),
   gamertag: text("gamertag").notNull(),
+  dayzId: text("dayz_id"),                   // stable account hash; null when unknown
   lifeStartedAt: timestamp("life_started_at", { withTimezone: true }).notNull(),
   reason: text("reason").notNull(),          // 'qualified_death'
   qualifiedBy: text("qualified_by"),         // 'playtime' | 'kill' | 'pvp-death'
