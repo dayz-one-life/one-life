@@ -1,0 +1,9 @@
+{
+  "topology": "gitflow",
+  "branches": { "production": "main", "integration": "develop" },
+  "prefixes": { "feature": "feature/", "release": "release/" },
+  "contributions": "both",
+  "reviewPolicy": "review",
+  "mergeStrategy": { "toIntegration": "squash", "toProduction": "merge" },
+  "requireChangelog": true
+}
