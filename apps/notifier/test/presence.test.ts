@@ -194,14 +194,29 @@ describe("presenceGenerator", () => {
   });
 
   it("is unaffected by a LIKE wildcard in a user id", async () => {
-    // A `_` in an observer id must not let another observer's rows satisfy the cooldown.
+    // The OBSERVER under test has a `_` in its own id. `_` is a LIKE single-char wildcard, so
+    // an unescaped pattern built from "s_b" (i.e. `friend_online:s_b:SubjectAlpha:%`) would
+    // also match a row keyed for the totally different observer "sXb" — wrongly satisfying
+    // s_b's cooldown off another observer's notification and swallowing s_b's own.
+    // "s_b" < "sa" lexicographically (ASCII `_` 0x5F < `a` 0x61), so the canonically-ordered
+    // pair is (userA: "s_b", userB: "sa") — s_b is side A (observer), sa stays side B (subject).
     await db.insert(user).values({ id: "s_b", name: "SUB", email: "sub@x.com" });
+    await db.insert(gamertagLinks).values({
+      userId: "s_b", gamertag: "ObserverUnderscore", status: "verified", verifiedAt: NOW,
+    });
+    await db.insert(friendships).values({
+      userA: "s_b", userB: "sa", status: "accepted", requestedBy: "sa",
+      bSharesPresence: true, aNotifyPresence: true,
+    });
+    // A notification keyed for a DIFFERENT observer, "sXb", inside the cooldown window.
+    await db.insert(user).values({ id: "sXb", name: "SXB", email: "sxb@x.com" });
     await db.insert(notifications).values({
-      userId: "s_b", kind: "friend_online",
-      naturalKey: "friend_online:s_b:SubjectAlpha:2026-07-22T09:00:00.000Z",
+      userId: "sXb", kind: "friend_online",
+      naturalKey: "friend_online:sXb:SubjectAlpha:2026-07-22T09:00:00.000Z",
       title: "t", body: "b", href: "/", createdAt: new Date("2026-07-22T11:59:00Z"),
     });
-    // "sb" must still be notified — "s_b" is a different observer.
-    expect(await presenceGenerator(deps())).toHaveLength(1);
+    // "s_b" must still be notified — "sXb"'s unrelated row must not satisfy its cooldown.
+    const drafts = await presenceGenerator(deps());
+    expect(drafts.some((d) => d.userId === "s_b")).toBe(true);
   });
 });

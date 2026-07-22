@@ -186,8 +186,34 @@ describe("friend routes", () => {
     expect(d.notifyPresence).toBe(false);
   });
 
-  it("404s a presence patch on a friendship the caller is not party to", async () => {
+  it("404s a presence patch on a friendship that does not exist", async () => {
     expect((await patch(cookieA, "/me/friends/99999999/presence", { share: true })).statusCode).toBe(404);
+  });
+
+  // The nonexistent-id case above proves nothing about the party predicate itself — a
+  // friendship id that never existed would 404 even if `or(userA, userB)` were deleted
+  // entirely from setPresenceFlags. Patch a REAL friendship (the C/D pair idiom, per the
+  // case above) that cookieA is genuinely not a party to.
+  it("404s a presence patch on a real friendship the caller is not party to", async () => {
+    const emailE = `frE${svc}@example.com`;
+    const emailF = `frF${svc}@example.com`;
+    const tagE = `FriendEcho${svc}`;
+    const tagF = `FriendFoxtrot${svc}`;
+    const cookieE = await signIn(emailE);
+    const cookieF = await signIn(emailF);
+    const [ue] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailE.toLowerCase()));
+    const [uf] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailF.toLowerCase()));
+    await db.insert(gamertagLinks).values([
+      { userId: ue!.id, gamertag: tagE, status: "verified", verifiedAt: new Date() },
+      { userId: uf!.id, gamertag: tagF, status: "verified", verifiedAt: new Date() },
+    ]);
+
+    await post(cookieE, "/me/friends/requests", { toGamertag: tagF });
+    const id = (await get(cookieF, "/me/friends")).json().incoming[0].id;
+    await post(cookieF, `/me/friends/${id}/accept`);
+
+    // cookieA is neither E nor F — a real, accepted friendship, but the wrong party.
+    expect((await patch(cookieA, `/me/friends/${id}/presence`, { share: true })).statusCode).toBe(404);
   });
 
   it("serves and updates the master switch, defaulting off", async () => {

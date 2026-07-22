@@ -131,13 +131,13 @@ export function RosterView(p: RosterViewProps) {
           { label: "Decline", onClick: () => p.onDecline(e.id), disabled: p.pending },
         ]}
       />
-      {d.friends.length > 0 ? (
+      {empty ? null : (
         <MasterShareSwitch
           on={d.sharePresence}
           disabled={p.pending}
           onChange={onSharePresenceChange}
         />
-      ) : null}
+      )}
       <Section
         title="Friends" id="roster-friends" entries={d.friends}
         action={(e) =>
@@ -150,6 +150,7 @@ export function RosterView(p: RosterViewProps) {
         }
         extra={(e) => (
           <PresenceToggles
+            friendshipId={e.id}
             share={e.sharesPresence}
             notify={e.notifyPresence}
             masterOn={d.sharePresence}

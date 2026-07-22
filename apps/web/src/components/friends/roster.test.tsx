@@ -147,7 +147,7 @@ describe("RosterView", () => {
     expect(screen.queryByText(/no friends yet/i)).toBeNull();
   });
 
-  it("renders the master share switch from data.sharePresence, only when there is a friend", () => {
+  it("renders the master share switch from data.sharePresence, when there is a friend", () => {
     render(
       <RosterView
         data={{ friends: [withPresence], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: true }}
@@ -157,7 +157,30 @@ describe("RosterView", () => {
     expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeChecked();
   });
 
-  it("does not render the master switch with an empty roster", () => {
+  // A user with only pending requests (no accepted friends yet) can still set their global
+  // privacy preference ahead of the moment a request is accepted — the switch should not be
+  // hidden just because `friends` is empty.
+  it("renders the master switch with only incoming requests, no friends yet", () => {
+    render(
+      <RosterView
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+  });
+
+  it("renders the master switch with only outgoing requests, no friends yet", () => {
+    render(
+      <RosterView
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false }}
+        {...actions}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: /share my status with friends/i })).toBeInTheDocument();
+  });
+
+  it("does not render the master switch with a genuinely empty roster", () => {
     render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
     expect(screen.queryByRole("checkbox", { name: /share my status with friends/i })).toBeNull();
   });

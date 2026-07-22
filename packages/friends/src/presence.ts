@@ -3,6 +3,13 @@ import { friendships, userPreferences } from "@onelife/db";
 import { and, eq, or } from "drizzle-orm";
 import { FriendError } from "./errors.js";
 
+// The design spec's §2 claim that a server reboot rejoin is silent is optimistic: the fleet
+// (apps/rebooter) restarts every active server every 2 hours, half this cooldown, and this
+// generator has no notion of "was actually offline" (it fires on any fresh `connected_at`,
+// reboot-triggered or not). A friend online continuously through a long evening WILL be
+// re-announced roughly every 4h as their client reconnects post-reboot. That's within the
+// accepted 6-per-day bound and is not a behaviour change to make here — just don't be
+// surprised by it, and don't "fix" it as a bug without revisiting the spec.
 export const FRIEND_ONLINE_COOLDOWN_HOURS = 4;
 
 /** Skip a connect older than this even when it is inside the generator's window: a

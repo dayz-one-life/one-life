@@ -148,6 +148,13 @@
       "when": 1785000000000,
       "tag": "0020_presence_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785100000000,
+      "tag": "0021_sessions_connected_at_idx",
+      "breakpoints": true
     }
   ]
 }

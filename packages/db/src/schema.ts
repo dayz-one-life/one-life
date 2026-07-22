@@ -104,6 +104,9 @@ export const sessions = pgTable("sessions", {
   closeReason: text("close_reason"),
 }, (t) => ({
   openByPlayer: index("sessions_open_idx").on(t.serverId, t.playerId, t.disconnectedAt),
+  // Serves the presence generator's `sessions.connected_at >= <15 min ago>` filter, run every
+  // 60s against a table that grows with every session ever recorded. Migration 0021.
+  byConnectedAt: index("sessions_connected_at_idx").on(t.connectedAt),
 }));
 
 export const kills = pgTable("kills", {
