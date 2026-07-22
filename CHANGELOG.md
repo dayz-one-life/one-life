@@ -10,9 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the committed workflow template (hooks, seven workflow skills, `workflow.json`) with the
+  [Shipyard](https://github.com/submtd/shipyard) plugin suite — `keel`, `stow`, `hull`, `bosun` —
+  declared at repository level in `.claude/settings.json` so the lifecycle logic lives outside the
+  repo it guards and updates centrally. `.keel.json` is now the source of truth for branch topology.
+  `rigging` (CI) was evaluated and excluded: it cannot express pnpm, service containers, or a custom
+  test command. Contributors approve a one-time plugin install prompt on their first session.
+
 ### Deprecated
 
 ### Removed
+
+- `.claude/hooks/` (`guard.py`, `session_start.py`, `workflow_lib.py`, and their tests),
+  `.claude/workflow.json`, and the seven template workflow skills. The project's own
+  `drafting-an-article` skill is unaffected.
 
 ### Fixed
 

@@ -1,23 +1,45 @@
 # Contributing
 
-Contributions run through Claude Code, which enforces this workflow automatically.
+This repo's git lifecycle is managed by [keel](https://github.com/submtd/shipyard), a Claude Code
+plugin. `.keel.json` at the repo root is the source of truth for branch topology and merge rules.
 
-## Requirements
+## First session
 
-- **Install the [Superpowers plugin](https://github.com/anthropics/claude-code).** Write/git
-  actions are blocked without it.
-- Use Claude Code for your work so the workflow skills and guardrails apply.
+The plugins are declared in `.claude/settings.json`, so you don't need to add a marketplace or
+install anything by hand. On your **first** Claude Code session in this repo you'll be prompted to
+install the `shipyard` marketplace — approve it once and the plugins load automatically from then
+on.
+
+If you skip the prompt, the plugins simply don't load: you lose the guard and the skills, but
+nothing breaks.
 
 ## Flow
 
-1. **Fork** the repository: `gh repo fork <owner>/<repo> --clone`.
-2. Ask Claude to run the **starting-work** skill to create your `feature/*` branch.
-3. Do the work (test-driven).
-4. Ask Claude to run the **finishing-a-feature** skill. It will: run tests, update the
-   changelog, update `CLAUDE.md` last, and open a PR into `develop`.
-5. A maintainer reviews in Claude Code. Requested changes come back on the PR; address them
-   and push. Approved PRs are squash-merged.
+1. `keel:start-work` — creates a correctly-named `feature/*` branch off an up-to-date `develop`.
+   It picks fork or same-repo based on your GitHub permissions.
+2. Do the work, test-driven. Tests: `pnpm turbo run test --concurrency=1` (DB suites need
+   `TEST_DATABASE_URL`). Typecheck: `pnpm turbo run typecheck`.
+3. `keel:finish-work` — runs checks, updates the changelog, prompts for `CLAUDE.md` impact, and
+   opens the PR against `develop`.
+4. A maintainer reviews (`keel:review`). Address feedback and push; approved PRs are
+   squash-merged (`keel:land`).
+
+`keel:doctor` explains anything keel blocked or warned about. `keel:sync` brings a stale branch or
+fork back up to date.
 
 ## Changelog
 
-Every PR adds an entry under `Unreleased` in `CHANGELOG.md` (Keep a Changelog format).
+Every PR adds an entry under `Unreleased` in `CHANGELOG.md` (Keep a Changelog format). keel's
+`changelog` rule enforces this on feature and hotfix PRs; release and back-merge PRs are exempt.
+
+## A note on the guard
+
+keel's `PreToolUse` hook is **advisory**. It catches honest mistakes — committing on a protected
+branch, targeting the wrong base, merging with the wrong strategy — roughly 30 seconds before CI
+would. It runs only inside Claude Code and is not a security control. It also keys protected
+branches by *name*, so it will refuse a push to your own fork's `main`; use `keel:sync`.
+
+## CI
+
+There is none yet, deliberately. See
+`docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` §9.
