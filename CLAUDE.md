@@ -1287,15 +1287,21 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **⚠️ The zoom floor is computed from the CONTAINER, and `zoomSnap` must stay at Leaflet's
   default.** `applyWorldBounds` sets `minZoom = log2(max(containerW, containerH) / 256)` — the
   pyramid is one 256px tile at zoom 0, so the world spans `256 * 2**z` px and that is the zoom
-  at which it just covers the longer side. **A fractional `minZoom` is honoured even with
-  snapping on** (`_limitZoom` rounds to the snap first, clamps to min second), which is what
-  lets the wheel step between whole levels while the last zoom-out still lands exactly on the
-  edge. Do NOT go back to `getBoundsZoom(bounds, true)`: it rounds an `inside` result UP to the
+  at which it just covers the longer side. **⚠️ The floor is then rounded UP to a `ZOOM_SNAP` (0.25) multiple, and `zoomSnap` is set to
+  that same value — both halves are load-bearing.** Leaflet applies `_limitZoom` **twice** on
+  the way to a new view: it rounds to the snap and clamps to min, then does it again. A floor
+  sitting BETWEEN snap points survives the first pass and is rounded away by the second, so the
+  map bounces back to the level above and zoom-out becomes a silent no-op with the control
+  still enabled (v0.41.2, verified live on Livonia at 1502x1517: exact floor 2.567, stuck at
+  3). On a snap point the rounding is a no-op and the clamp holds. Round UP, never down —
+  down lets grey back in. The cost is the last quarter-step of zoom-out, against the full step
+  the old `getBoundsZoom` floor cost. Do NOT go back to `getBoundsZoom(bounds, true)`: it rounds an `inside` result UP to the
   next whole level, stopping a full step short of the edge, and returns `Math.max(currentMinZoom,
   …)`, which latches the floor so a shrinking viewport can never zoom out again. And do NOT
   reintroduce **`zoomSnap: 0`** (v0.39.2's fix for the rounding) — it makes wheel zoom
   continuous, which rescales tiles on every notch instead of stepping between rendered levels:
-  reported as slow and choppy.
+  reported as slow and choppy. A quarter step still moves a whole level per notch, because
+  `_performZoom` takes `ceil(d2 / snap) * snap` and `d2` for one notch is ~1.
   **⚠️ The `maxBounds` is computed from the world, never hardcoded**
   (`applyWorldBounds`, `map-canvas.tsx`). `getBoundsZoom(worldBounds, true)` — `inside: true` —
   is the lowest zoom at which the VIEW still fits inside the world, i.e. the no-blank-space
