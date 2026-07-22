@@ -35,9 +35,16 @@ describe("TopBar", () => {
     expect(screen.queryByAltText("One Life")).toBeNull();
   });
 
-  it("holds a 44px touch floor on the way out", () => {
+  it("holds a real touch floor on the way out", () => {
+    // 52, not the 44px accessibility minimum: 44 was measured on a phone and still read as
+    // fiddly. jsdom has no layout, so this pins the intent; the phone pass judges the result.
     render(<TopBar slug="chernarus" servers={servers} serversLoading={false} />);
-    expect(screen.getByRole("link", { name: "Back to One Life" }).className).toMatch(/min-h-\[44px\]/);
+    expect(screen.getByRole("link", { name: "Back to One Life" }).className).toMatch(/min-h-\[52px\]/);
+  });
+
+  it("has no arrow beside the wordmark — the wordmark is the way home", () => {
+    render(<TopBar slug="chernarus" servers={servers} serversLoading={false} />);
+    expect(screen.getByRole("link", { name: "Back to One Life" }).textContent).toBe("");
   });
 
   it("is the z-40 layer on this route, where there is no masthead", () => {

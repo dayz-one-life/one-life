@@ -28,7 +28,7 @@ export function FriendsMapLegend({ positions, now }: { positions: FriendPosition
   return (
     <ul role="list" className="mt-3 flex flex-col gap-1">
       {positions.map((p) => (
-        <li key={p.gamertag} className="flex min-h-[44px] items-center font-mono text-[13px] uppercase tracking-[.05em] text-cream-dim md:min-h-0 md:text-[11px]">
+        <li key={p.gamertag} className="flex min-h-[52px] items-center font-mono text-[15px] uppercase tracking-[.05em] text-cream-dim md:min-h-0 md:text-[11px]">
           {p.gamertag}{p.self ? " (you)" : ""} · {positionAge(p.recordedAt, now)}
         </li>
       ))}

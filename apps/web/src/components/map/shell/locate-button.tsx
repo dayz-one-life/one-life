@@ -48,7 +48,7 @@ export function LocateButton({ self, loading, error, onLocate, mapCodename }: {
           onLocate({ lat, lng, zoom: LOCATE_ZOOM, nonce: nonce.current });
         }}
         // ⚠️ DARK SURFACE (the top bar) — paper/cream tokens, never ink.
-        className={`flex min-h-[44px] min-w-[44px] items-center justify-center border border-dark-edge px-3 py-1.5 font-mono text-[13px] uppercase tracking-[.05em] md:min-h-0 md:min-w-0 md:px-2 md:text-[11px] ${
+        className={`flex min-h-[52px] min-w-[52px] items-center justify-center border border-dark-edge px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] md:min-h-0 md:min-w-0 md:px-2 md:text-[11px] ${
           ready ? "text-paper" : "cursor-default text-cream-muted"
         }`}
       >
