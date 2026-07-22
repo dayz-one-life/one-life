@@ -104,11 +104,16 @@ describe("FriendsMap drawing", () => {
     expect(marker.mock.calls.length - wide).toBeGreaterThan(wide);
   });
 
-  it("escapes label HTML — divIcon takes raw markup", async () => {
+  it("wraps each label in a chip span, with the name escaped", async () => {
+    // The span is load-bearing, not decoration: `iconSize: [0,0]` puts an inline
+    // `width: 0; height: 0` on the ROOT, so a background there paints a dash and the text
+    // overflows it unbacked — the v0.38.1 bug. The visible box must be an inner element.
+    // The name itself still has to be escaped, since divIcon takes raw markup.
     render(<FriendsMap data={data} now={NOW} />);
     await waitFor(() => expect(divIcon).toHaveBeenCalled());
     for (const call of divIcon.mock.calls) {
-      expect((call[0] as { html: string }).html).not.toContain("<");
+      const { html } = call[0] as { html: string };
+      expect(html).toMatch(/^<span class="map-place-chip">[^<>]*<\/span>$/);
     }
   });
 
