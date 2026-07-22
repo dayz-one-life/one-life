@@ -1,8 +1,6 @@
 "use client";
-import { useState } from "react";
 import MapCanvas, { type DrawContext, type MapFocus } from "./map-canvas";
 import type { FriendMap, FriendPositionDto } from "@/lib/types";
-import { CoordChip } from "./shell/coord-chip";
 
 const SELF_COLOR = "#2563eb";
 const FRIEND_COLOR = "#c8102e";
@@ -30,7 +28,7 @@ export function FriendsMapLegend({ positions, now }: { positions: FriendPosition
   return (
     <ul role="list" className="mt-3 flex flex-col gap-1">
       {positions.map((p) => (
-        <li key={p.gamertag} className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-dim">
+        <li key={p.gamertag} className="flex min-h-[44px] items-center font-mono text-[13px] uppercase tracking-[.05em] text-cream-dim md:min-h-0 md:text-[11px]">
           {p.gamertag}{p.self ? " (you)" : ""} · {positionAge(p.recordedAt, now)}
         </li>
       ))}
@@ -38,10 +36,14 @@ export function FriendsMapLegend({ positions, now }: { positions: FriendPosition
   );
 }
 
-export default function FriendsMap({ data, now, focus }: {
-  data: FriendMap; now: Date; focus?: MapFocus | null;
+export default function FriendsMap({ data, now, focus, onCenterChange }: {
+  data: FriendMap;
+  now: Date;
+  focus?: MapFocus | null;
+  /** Passed straight through to MapCanvas. The centre is owned by MapPage, because the chip
+   *  that reads it is chrome — on a phone it renders in the bottom bar, outside this map. */
+  onCenterChange?: (world: { x: number; y: number }) => void;
 }) {
-  const [world, setWorld] = useState<{ x: number; y: number } | null>(null);
 
   function draw({ L, group, pt }: DrawContext): unknown[] {
     const all: unknown[] = [];
@@ -74,12 +76,11 @@ export default function FriendsMap({ data, now, focus }: {
           draw={draw}
           drawKey={data}
           focus={focus}
-          onCenterChange={setWorld}
+          onCenterChange={onCenterChange}
           className="h-full w-full"
         />
-        {/* Decorative: the chip carries the same information as text. */}
+        {/* Decorative: the grid chip in the chrome carries the same information as text. */}
         <span aria-hidden className="map-crosshair" />
-        <CoordChip world={world} />
       </div>
     </div>
   );

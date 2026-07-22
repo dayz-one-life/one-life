@@ -30,7 +30,7 @@ export function FriendsPanel({ positions, loading, error, now }: {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         // ⚠️ DARK SURFACE (the top bar) — paper/cream tokens, never ink.
-        className="flex items-center gap-1 border border-dark-edge px-2 py-1.5 font-mono text-[11px] uppercase tracking-[.05em] text-paper"
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 border border-dark-edge px-3 py-1.5 font-mono text-[13px] uppercase tracking-[.05em] text-paper md:min-h-0 md:min-w-0 md:px-2 md:text-[11px]"
       >
         <span aria-hidden>☰</span>
         <span className="hidden md:inline">Friends</span>

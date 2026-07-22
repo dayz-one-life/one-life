@@ -1260,6 +1260,26 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   equally have produced, so it flew twice for one intent — and worse, any name that is a strict
   prefix of a longer one hijacked the map mid-typing (five such pairs in Chernarus:
   `Bogat`/`Bogatyrka`, `Klen`/`Klenovyipereval`, `Skalisty`/`Skalisty Proliv`, …).
+  **Below `md` the map's controls split across TWO bars** (spec
+  `docs/superpowers/specs/2026-07-22-map-mobile-controls-design.md`): the top of a full-viewport
+  app is the hardest place on a phone for a thumb, so `MapBottomBar`
+  (`components/map/shell/bottom-bar.tsx`) carries the grid chip plus Locate and Friends, and the
+  top bar keeps the wordmark, the map switcher and search (a text input raises the keyboard,
+  which would cover a bottom bar anyway). The bottom bar is **ordinary flow content — never an
+  overlay**: the map region simply gets shorter, so it needs no z-index and cannot become a
+  fourth altitude. **Locate and Friends are built once and placed in BOTH bars**, the
+  `ControlsRail`/`ControlsSheet` pattern; only one is visible, and `display:none` takes the other
+  out of the a11y tree — **jsdom applies no CSS, so no test can prove that exclusivity** and it
+  lives on the browser checklist instead. The **map centre state therefore lives in `MapPage`,
+  not `FriendsMap`** — the chip that reads it is chrome, and on a phone it renders outside the
+  map entirely. Every control in both bars holds `min-h-[44px]` at 13px, dropping to the compact
+  11px only at `md`; **Leaflet's own 26px zoom buttons are scaled to 44 under
+  `@media (pointer: coarse)`** in `globals.css`, so a mouse keeps the compact control.
+  **The back link's wordmark is `alt=""`** — the link already carries `aria-label="Back to One
+  Life"`, and an alt of "One Life" on top of it makes the accessible name "Back to One Life One
+  Life" — and declares intrinsic `width`/`height` so the bar cannot shift as it loads. The arrow
+  stays beside it: this is the only exit from a shell with no other chrome, and a bare wordmark
+  reads as a logo rather than a way out.
   **Below `md` the search field is a magnifier that expands over the bar** (spec §4): a persistent
   field cannot share a 360px row with the back link, the map name and two controls, and the
   overflow is clipped by the shell's `overflow-hidden` — pushing the friends button, the only route

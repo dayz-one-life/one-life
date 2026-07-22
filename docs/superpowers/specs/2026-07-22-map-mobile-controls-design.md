@@ -71,10 +71,13 @@ is presentation only.
 jsdom has no layout, so target sizes are class assertions and the real check is the browser
 pass (§5). What the suite can honestly pin:
 
-- The bottom bar renders Locate and Friends, and the top bar does not also render them —
-  i.e. the controls **move**, they are not duplicated into two live copies.
-- Exactly one grid chip is in the accessibility tree at a time (`display: none` removes the
-  hidden one, so this is real rather than cosmetic).
+- The bottom bar is `md:hidden`, is ordinary flow content (no `fixed`/`absolute`, no z-index —
+  it must not become a fourth altitude), and carries dark tokens.
+- **Correction to the design as approved:** Locate and Friends are built once and *placed*
+  twice — a copy in each bar, exactly as the `ControlsRail`/`ControlsSheet` pair already does.
+  Only one is ever visible, and `display: none` removes the hidden one from the accessibility
+  tree too. **jsdom applies no CSS, so the suite cannot prove that exclusivity** — it moves to
+  the browser checklist rather than being asserted by a test that would pass either way.
 - The wordmark declares intrinsic dimensions.
 - The back link's accessible name is exactly "Back to One Life" — not doubled.
 - The existing dark-token tests continue to hold for every control that moved.
@@ -91,3 +94,6 @@ layout, paint or stacking, and this repo has shipped green-but-broken rendering 
 4. At `md` and up, nothing has moved: Locate and Friends are still top-right, the chip still
    floats over the map.
 5. The friends sheet still opens over the bottom bar, takes focus, and closes on Escape.
+6. Locate and Friends appear exactly ONCE at any width — never one in each bar at the same
+   time, and never a stale duplicate announced by a screen reader.
+7. Leaflet's `+`/`−` are comfortably tappable on a phone and unchanged with a mouse.
