@@ -30,18 +30,19 @@ level in `.claude/settings.json` so every contributor picks it up from a clone r
 
 ## 3. Scope
 
-Five of Shipyard's six plugins:
+Four of Shipyard's six plugins:
 
 | Plugin | Owns | Config | Renders |
 |---|---|---|---|
 | `keel` | git lifecycle | `.keel.json` | lifecycle artifacts + a `PreToolUse` guard |
-| `rigging` | CI pipelines | `.rigging.json` | `.github/workflows/ci.yml` |
 | `stow` | baseline repo files | `.stow.json` | `.gitignore` (managed blocks) |
 | `hull` | secret scanning | `.hull.json` | `.github/workflows/security.yml` |
 | `bosun` | dependency updates | `.bosun.json` | `.github/dependabot.yml` |
 
 **`ballast` is deliberately excluded.** It renders `pytest.ini`; this is a TypeScript/pnpm
 monorepo with no Python. Adopting it would commit a config for a runner that never runs.
+
+**`rigging` is excluded too** — see §9, which is a correction to an earlier version of this spec.
 
 ## 4. What gets removed
 
@@ -91,7 +92,6 @@ documented mechanism for team-shared plugins:
   },
   "enabledPlugins": {
     "keel@shipyard": true,
-    "rigging@shipyard": true,
     "hull@shipyard": true,
     "stow@shipyard": true,
     "bosun@shipyard": true
@@ -121,12 +121,12 @@ A direct translation of the retired `workflow.json`:
 Every field maps 1:1 onto current behaviour: feature branches into `develop` squashed, releases into
 `main` merged, a changelog entry required on every contribution PR.
 
-### 5.3 The four generated configs
+### 5.3 The three generated configs
 
-`.rigging.json`, `.hull.json`, `.stow.json`, and `.bosun.json` are scaffolded by each plugin's
+`.hull.json`, `.stow.json`, and `.bosun.json` are scaffolded by each plugin's
 `init` skill, which never overwrites an existing file. Their rendered artifacts
-(`ci.yml`, `security.yml`, `.gitignore` blocks, `dependabot.yml`) are **generated output** — edit
-the config and re-render, never the artifact.
+(`security.yml`, `.gitignore` blocks, `dependabot.yml`) are **generated output** — edit the config
+and re-render, never the artifact.
 
 ## 6. `soloMaintainer` has no equivalent, and that is intentional
 
@@ -179,22 +179,46 @@ have. The rewrite covers: the one-time plugin install prompt (§8), `keel:start-
   machine. Project settings take precedence over user settings, so the repo-level declaration wins
   where they disagree. The user-scope install can stay; it is not a conflict.
 
-## 9. CI is the risky half
+## 9. CI: `rigging` is excluded, because it cannot express this repo
 
-`rigging` detects a "node" repo and renders a generic `ci.yml`. This repo is not generic: it is a
-pnpm + turbo monorepo whose DB suites require a live Postgres via `TEST_DATABASE_URL` and whose
-documented test command is `pnpm turbo run test --concurrency=1`. A stock render will very likely go
-red on the first PR, and this repo has **no `.github/` directory at all** today — so this introduces
-CI where none existed, rather than swapping one config for another.
+**This section corrects an earlier draft of this spec**, which planned to render CI with `rigging`
+and "tune `.rigging.json` until green." Reading the plugin's source showed there is nothing to tune.
 
-The agreed approach is to verify rather than assume: render, push the branch, watch the actual run,
-and tune `.rigging.json` (Postgres service, `TEST_DATABASE_URL`, concurrency) until it is green
-**before** the PR lands. A red gate merged "to fix later" is worse than no gate, because keel's
-changelog gate lands beside it and the two become indistinguishable when something fails.
+`.rigging.json` accepts exactly three top-level keys — `name`, `stacks`, `pushBranches` — and
+exactly one key per stack, `versions`. An unknown key is a hard `ConfigError` by design, so nothing
+further can be smuggled in. The CI steps themselves are frozen in `rigging/rigging/stacks.py`:
 
-This section is expected to be the majority of the implementation effort and nearly all of its risk.
-Splitting CI into a follow-up PR was offered and declined; if verification proves long, that split
-remains the escape hatch.
+```python
+"node": StackSpec(
+    detect_files=("package.json",),
+    default_versions=("20",),
+    steps=(Step(run="npm ci"), Step(run="npm test")),
+),
+```
+
+A search of the whole `rigging/` engine for `services`, `postgres`, `env`, `pnpm`, and `corepack`
+returns no matches. So rigging cannot express any of the three things this repo's CI requires:
+
+- **pnpm.** The repo is `pnpm@9.12.0` with a `pnpm-workspace.yaml` and no `package-lock.json`;
+  `npm ci` fails immediately on the missing lockfile.
+- **A Postgres service container.** The DB suites need a live server via `TEST_DATABASE_URL`.
+- **The real test command.** `turbo run test --concurrency=1`, not `npm test`.
+
+No value of `.rigging.json` produces a workflow that can pass. Enabling rigging would therefore
+commit a permanently-red required check next to keel's changelog gate, which is worse than having no
+CI: two gates that both fail become indistinguishable when one of them matters.
+
+**Decision: rigging is dropped from this change, and CI stays out of scope.** This repo has no
+`.github/workflows/ci.yml` today and will still have none after it. Two paths remain open, neither
+blocking:
+
+1. Extend rigging's registry upstream in `submtd/shipyard` — a pnpm stack, or service-container
+   support — then adopt it here. This is the correct long-term fix and the repo is ours, but it is a
+   separate project with its own spec, tests, and release.
+2. Hand-write a pnpm + Postgres workflow and leave rigging disabled. Faster, but the file is then
+   unmanaged, and enabling rigging later would render over it.
+
+`hull` still lands, so this change does create `.github/` — with `security.yml` only.
 
 ## 10. Sequencing
 
@@ -215,5 +239,7 @@ Therefore:
 - A fresh session in this repo shows keel's orientation, not the template's.
 - `.claude/` contains only `settings.json` and `skills/drafting-an-article`.
 - `git commit` on `main` is refused by `[keel/protected-write]`.
-- `CI` is green on the feature branch before the PR is opened.
+- `.github/workflows/security.yml` exists and its gitleaks run passes; no `ci.yml` is created.
+- `pnpm turbo run test --concurrency=1` and `pnpm turbo run typecheck` still pass locally —
+  this change touches no application code, so any failure is a regression from the file removals.
 - `CHANGELOG.md` and `CLAUDE.md` are updated, and the PR targets `develop`.
