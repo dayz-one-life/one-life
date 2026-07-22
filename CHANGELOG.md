@@ -18,6 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.41.2] - 2026-07-22
+
+### Changed
+
+- The map's bar is taller on desktop too, with larger controls — the phone got this in v0.40.1
+  and the desktop was left behind.
+
+### Fixed
+
+- Zooming the map with a scroll wheel is smooth again. It had been made continuous as a
+  side-effect of letting the map pull back to its exact edge, which meant every notch rescaled
+  the picture instead of stepping between levels. It steps again, and still stops exactly where
+  the terrain ends.
+
 ## [0.41.1] - 2026-07-22
 
 ### Changed

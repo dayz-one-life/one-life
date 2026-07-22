@@ -25,7 +25,7 @@ export function TopBar({ slug, servers, serversLoading, children }: {
     // 64px below `md`, 48 above. Sized from real use rather than from the 44px accessibility
     // floor: 44 was measured on a phone and still read as fiddly, so the touch targets are 52
     // and the bar has room to hold them. The map is the one screen used one-handed in a hurry.
-    <header className="relative z-40 flex h-[calc(4rem+env(safe-area-inset-top))] w-full min-w-0 shrink-0 items-center gap-2 border-b border-dark-edge bg-dark px-3 pt-[env(safe-area-inset-top)] md:h-[calc(3rem+env(safe-area-inset-top))] md:px-4">
+    <header className="relative z-40 flex h-[calc(4rem+env(safe-area-inset-top))] w-full min-w-0 shrink-0 items-center gap-2 border-b border-dark-edge bg-dark px-3 pt-[env(safe-area-inset-top)] md:h-[calc(3.5rem+env(safe-area-inset-top))] md:px-4">
       <Link
         href="/"
         aria-label="Back to One Life"
@@ -42,7 +42,7 @@ export function TopBar({ slug, servers, serversLoading, children }: {
           alt=""
           width={1641}
           height={499}
-          className="h-[32px] w-auto md:h-[20px]"
+          className="h-[32px] w-auto md:h-[26px]"
         />
       </Link>
       <MapSwitcher slug={slug} servers={servers} loading={serversLoading} />

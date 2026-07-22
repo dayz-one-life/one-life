@@ -36,7 +36,7 @@ export function FriendsPanel({ players, positions, now, loading, error }: {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         // ⚠️ DARK SURFACE (the top bar) — paper/cream tokens, never ink.
-        className="flex min-h-[52px] min-w-[52px] items-center justify-center gap-1.5 border border-dark-edge px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] text-paper md:min-h-0 md:min-w-0 md:px-2 md:text-[11px]"
+        className="flex min-h-[52px] min-w-[52px] items-center justify-center gap-1.5 border border-dark-edge px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] text-paper md:min-h-[40px] md:min-w-[40px] md:px-3 md:text-[13px]"
       >
         <span aria-hidden>☰</span>
         {/* "Online" — not "Friends": the panel lists every player on the server, friends first,

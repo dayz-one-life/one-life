@@ -32,7 +32,7 @@ const mapObj = {
   // to its error state, which reads as an unrelated failure.
   setMinZoom: vi.fn(),
   setMaxBounds: vi.fn(),
-  getBoundsZoom: vi.fn(() => 1),
+  getSize: vi.fn(() => ({ x: 1024, y: 512 })),
 
   on: (evt: string, fn: () => void) => { if (evt === "zoomend") zoomHandlers.push(fn); },
   createPane,
