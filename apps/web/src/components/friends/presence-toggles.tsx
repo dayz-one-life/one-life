@@ -1,7 +1,7 @@
 "use client";
 
 const LABEL = "font-mono text-[11px] uppercase tracking-[.05em] text-ink flex items-center gap-1.5";
-const NOTE = "font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted";
+const NOTE = "font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted";
 
 /** The per-user master switch. Off by default — nobody is visible until they opt in. */
 export function MasterShareSwitch(p: {
@@ -43,10 +43,11 @@ export function PresenceToggles(p: {
           checked={p.share}
           disabled={p.disabled || !p.masterOn}
           onChange={(e) => p.onChange({ share: e.target.checked })}
+          aria-describedby={p.masterOn ? undefined : "share-disabled-note"}
         />
         Share my status
       </label>
-      {p.masterOn ? null : <span className={NOTE}>Sharing is off for everyone</span>}
+      {p.masterOn ? null : <span className={NOTE} id="share-disabled-note">Sharing is off for everyone</span>}
       <label className={LABEL}>
         <input
           type="checkbox"

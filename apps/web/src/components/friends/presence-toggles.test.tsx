@@ -48,4 +48,16 @@ describe("PresenceToggles", () => {
     expect(screen.getByRole("checkbox", { name: /share my status/i })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: /notify me/i })).toBeDisabled();
   });
+
+  it("associates the explanation with the share checkbox when the master switch is off", () => {
+    render(<PresenceToggles share notify masterOn={false} onChange={noop} />);
+    const shareBox = screen.getByRole("checkbox", { name: /share my status/i });
+    expect(shareBox).toHaveAttribute("aria-describedby", "share-disabled-note");
+  });
+
+  it("does not associate the explanation when the master switch is on", () => {
+    render(<PresenceToggles share notify masterOn onChange={noop} />);
+    const shareBox = screen.getByRole("checkbox", { name: /share my status/i });
+    expect(shareBox).not.toHaveAttribute("aria-describedby");
+  });
 });
