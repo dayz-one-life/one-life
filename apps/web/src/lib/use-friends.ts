@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError, getFriends, getFriendStatus,
   sendFriendRequest, acceptFriendRequest, declineFriendRequest, deleteFriendship,
+  patchFriendPresence, patchPreferences,
 } from "@/lib/api";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendsFeed, FriendStatusDto } from "@/lib/types";
@@ -62,7 +63,7 @@ export function useFriends(page = 1): { data: FriendsFeed | null; loading: boole
  * any mounted profile control describe the same relationship and must never disagree.
  * Same discipline as SelfUnbanButton invalidating ["tokens"] + ["player-page"].
  */
-type FriendAction = "send" | "accept" | "decline" | "remove";
+type FriendAction = "send" | "accept" | "decline" | "remove" | "presence" | "master";
 
 export function useFriendActions() {
   const qc = useQueryClient();
@@ -76,7 +77,16 @@ export function useFriendActions() {
   const acc = useMutation({ mutationFn: (id: number) => acceptFriendRequest(id), ...opts });
   const dec = useMutation({ mutationFn: (id: number) => declineFriendRequest(id), ...opts });
   const del = useMutation({ mutationFn: (id: number) => deleteFriendship(id), ...opts });
-  const all = [send, acc, dec, del];
+  const pres = useMutation({
+    mutationFn: (v: { id: number; share?: boolean; notify?: boolean }) =>
+      patchFriendPresence(v.id, { share: v.share, notify: v.notify }),
+    ...opts,
+  });
+  const master = useMutation({
+    mutationFn: (sharePresence: boolean) => patchPreferences({ sharePresence }),
+    ...opts,
+  });
+  const all = [send, acc, dec, del, pres, master];
 
   // errorCode must describe only the most recently invoked action — TanStack Query does
   // not clear one mutation's isError when a *different* mutation succeeds, so without this
@@ -86,6 +96,8 @@ export function useFriendActions() {
     : lastAction === "accept" ? acc
     : lastAction === "decline" ? dec
     : lastAction === "remove" ? del
+    : lastAction === "presence" ? pres
+    : lastAction === "master" ? master
     : null;
   const failed = lastMutation?.isError ? lastMutation : undefined;
 
@@ -122,6 +134,22 @@ export function useFriendActions() {
     removeFriend: (id: number, onSettled?: Settled) => {
       setLastAction("remove");
       del.mutate(id, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    setPresence: (
+      id: number, body: { share?: boolean; notify?: boolean }, onSettled?: Settled,
+    ) => {
+      setLastAction("presence");
+      pres.mutate({ id, ...body }, {
+        onSuccess: () => onSettled?.(true, null),
+        onError: (err) => onSettled?.(false, codeOf(err)),
+      });
+    },
+    setSharePresence: (value: boolean, onSettled?: Settled) => {
+      setLastAction("master");
+      master.mutate(value, {
         onSuccess: () => onSettled?.(true, null),
         onError: (err) => onSettled?.(false, codeOf(err)),
       });

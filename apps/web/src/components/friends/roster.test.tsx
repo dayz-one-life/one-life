@@ -6,7 +6,7 @@ import { RosterView, Roster } from "./roster";
 
 const entry = (id: number, gamertag: string) => ({
   id, gamertag, slug: gamertag.toLowerCase(), status: "friends" as const,
-  since: "2026-07-01T00:00:00Z",
+  since: "2026-07-01T00:00:00Z", sharesPresence: false, notifyPresence: false,
 });
 const actions = { onAccept: () => {}, onDecline: () => {}, onRemove: () => {}, onCancel: () => {} };
 
@@ -24,14 +24,14 @@ describe("RosterView", () => {
   });
 
   it("says so plainly when the roster really is empty", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25 }} {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} {...actions} />);
     expect(screen.getByText(/no friends yet/i)).toBeInTheDocument();
   });
 
   it("lists incoming requests with Accept and Decline", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
       />,
     );
@@ -47,7 +47,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [entry(2, "FriendOne")], incoming: [],
-          outgoing: [entry(3, "PendingOne")], total: 1, page: 1, pageSize: 25,
+          outgoing: [entry(3, "PendingOne")], total: 1, page: 1, pageSize: 25, sharePresence: false,
         }}
         {...actions}
       />,
@@ -66,7 +66,7 @@ describe("RosterView", () => {
     const onCancel = vi.fn();
     render(
       <RosterView
-        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [], outgoing: [entry(3, "PendingOne")], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
         onRemove={onRemove}
         onCancel={onCancel}
@@ -78,14 +78,14 @@ describe("RosterView", () => {
   });
 
   it("announces the last completed action", () => {
-    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25 }} announcement="Friend request accepted" {...actions} />);
+    render(<RosterView data={{ friends: [], incoming: [], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }} announcement="Friend request accepted" {...actions} />);
     expect(screen.getByRole("status")).toHaveTextContent("Friend request accepted");
   });
 
   it("uses role=\"list\" so Tailwind preflight's list-style:none can't strip the implicit list role", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
       />,
     );
@@ -95,7 +95,7 @@ describe("RosterView", () => {
   it("disables row controls while a mutation is pending", () => {
     render(
       <RosterView
-        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 }}
+        data={{ friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false }}
         pending
         {...actions}
       />,
@@ -105,7 +105,7 @@ describe("RosterView", () => {
   });
 
   it("requires a confirm step before removing a friend", () => {
-    const data = { friends: [entry(2, "FriendOne")], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25 };
+    const data = { friends: [entry(2, "FriendOne")], incoming: [], outgoing: [], total: 1, page: 1, pageSize: 25, sharePresence: false };
     const { rerender } = render(<RosterView data={data} {...actions} />);
     expect(screen.getByRole("button", { name: /^remove$/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /remove friend/i })).toBeNull();
@@ -118,7 +118,7 @@ describe("RosterView", () => {
     const friends = Array.from({ length: 25 }, (_, i) => entry(i + 1, `Friend${i + 1}`));
     render(
       <RosterView
-        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25 }}
+        data={{ friends, incoming: [], outgoing: [], total: 30, page: 1, pageSize: 25, sharePresence: false }}
         {...actions}
       />,
     );
@@ -131,7 +131,7 @@ describe("RosterView", () => {
       <RosterView
         data={{
           friends: [], incoming: [entry(1, "InOne")], outgoing: [entry(2, "OutOne")],
-          total: 0, page: 1, pageSize: 25,
+          total: 0, page: 1, pageSize: 25, sharePresence: false,
         }}
         {...actions}
       />,
@@ -175,7 +175,7 @@ describe("Roster container", () => {
     return { ...render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>), qc };
   }
 
-  const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25 };
+  const feed = { friends: [], incoming: [entry(1, "IncomingOne")], outgoing: [], total: 0, page: 1, pageSize: 25, sharePresence: false };
 
   it("announces success only after a successful accept resolves — never at click time", async () => {
     mockAccount.value = {
@@ -256,8 +256,8 @@ describe("Roster container", () => {
     getFriends.mockImplementation((page: number) =>
       Promise.resolve(
         page === 1
-          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25 }
-          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25 },
+          ? { friends: page1Friends, incoming: [], outgoing: [], total: 26, page: 1, pageSize: 25, sharePresence: false }
+          : { friends: [entry(26, "Friend26")], incoming: [], outgoing: [], total: 26, page: 2, pageSize: 25, sharePresence: false },
       ),
     );
     const { qc } = wrap(<Roster />);
@@ -268,7 +268,7 @@ describe("Roster container", () => {
 
     // Simulate the server-side effect of removing that last friend on page 2: total drops to
     // 25 (one full page), and page 2 now has no rows.
-    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25 });
+    qc.setQueryData(["friends", 2], { friends: [], incoming: [], outgoing: [], total: 25, page: 2, pageSize: 25, sharePresence: false });
 
     // The roster clamps back to page 1 (already cached) rather than rendering an empty
     // section with no way back.
