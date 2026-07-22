@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAP_WORLD_SIZE, worldSize, worldToPixel, pixelToWorld } from "./dayz-projection";
+import { MAP_WORLD_SIZE, worldSize, worldToPixel, pixelToWorld, worldToLatLng } from "./dayz-projection";
 
 describe("worldSize", () => {
   it("knows the three maps we run", () => {
@@ -55,5 +55,22 @@ describe("pixelToWorld", () => {
     const [x, y] = pixelToWorld(px, py, 12800, 16384);
     expect(x).toBeCloseTo(4000, 6);
     expect(y).toBeCloseTo(9000, 6);
+  });
+});
+
+describe("worldToLatLng", () => {
+  it("agrees with the vendored place data — the independent check on this projection", () => {
+    // map-places.json stores Chernogorsk at lat -217.3037679, lng 112.9769857, produced by
+    // DZMap rather than by us. If our metres -> CRS.Simple conversion disagrees with that,
+    // every flown-to target lands somewhere the labels are not.
+    const { lat, lng } = worldToLatLng(6780, 2320, 15360, 16384, 6);
+    expect(lat).toBeCloseTo(-217.3, 1);
+    expect(lng).toBeCloseTo(112.98, 1);
+  });
+
+  it("scales with zoom, not with the map size alone", () => {
+    const a = worldToLatLng(6780, 2320, 15360, 16384, 6);
+    const b = worldToLatLng(6780, 2320, 15360, 16384, 5);
+    expect(b.lng).toBeCloseTo(a.lng * 2, 6);
   });
 });

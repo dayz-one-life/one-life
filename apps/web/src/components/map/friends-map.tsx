@@ -64,6 +64,8 @@ export default function FriendsMap({ data, now, focus }: {
     return all;
   }
 
+  // The legend is NOT rendered here any more: it lives in the top bar's FriendsPanel, which
+  // is its only home now that the map fills the viewport. It stays exported for that panel.
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="relative min-h-0 flex-1">
@@ -79,7 +81,6 @@ export default function FriendsMap({ data, now, focus }: {
         <span aria-hidden className="map-crosshair" />
         <CoordChip world={world} />
       </div>
-      <FriendsMapLegend positions={data.positions} now={now} />
     </div>
   );
 }

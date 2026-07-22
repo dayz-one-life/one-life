@@ -20,8 +20,8 @@ import "leaflet/dist/leaflet.css";
  *  MAX_ZOOM) is wrong for the mirrored pyramid and this is the constant to correct —
  *  worldToPixel takes canvasPx as a parameter precisely so this stays a one-line fix.
  *  Do NOT touch worldToPixel itself: it is unit-tested and correct by construction. */
-const MAX_ZOOM = 6;
-const CANVAS_PX = 256 * 2 ** MAX_ZOOM;
+export const MAX_ZOOM = 6;
+export const CANVAS_PX = 256 * 2 ** MAX_ZOOM;
 
 // Vendored verbatim from deploy/dzmap.yaml's top-level `attribution:` — the same string
 // DZMap's own upstream config attaches to these tiles. Attribution is a real obligation

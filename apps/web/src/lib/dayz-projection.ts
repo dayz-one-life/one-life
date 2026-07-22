@@ -39,3 +39,18 @@ export function pixelToWorld(
   const k = canvasPx / size;
   return [px / k, size - py / k];
 }
+
+/**
+ * World metres → the Leaflet `CRS.Simple` latLng that `MapCanvas` draws in.
+ *
+ * For consumers that need to NAME a point ("fly to my dot") without holding a map instance —
+ * the Leaflet lifecycle stays sealed in map-canvas.tsx. CRS.Simple divides the pixel plane by
+ * 2**zoom and flips y, which is why this is not just `worldToPixel`.
+ */
+export function worldToLatLng(
+  x: number, y: number, size: number, canvasPx: number, maxZoom: number,
+): { lat: number; lng: number } {
+  const [px, py] = worldToPixel(x, y, size, canvasPx);
+  const scale = 2 ** maxZoom;
+  return { lat: -py / scale, lng: px / scale };
+}
