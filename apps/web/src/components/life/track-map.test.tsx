@@ -27,6 +27,13 @@ const divIcon = vi.fn((o: unknown) => o);
 const mapObj = {
   unproject, fitBounds, setView, remove: removeMap,
   getZoom: () => 3,
+  // The world-bounds pass (map-canvas.tsx) runs on every map, so these belong in every
+  // double — a missing one throws inside the load promise and degrades the whole component
+  // to its error state, which reads as an unrelated failure.
+  setMinZoom: vi.fn(),
+  setMaxBounds: vi.fn(),
+  getBoundsZoom: vi.fn(() => 1),
+
   on: (evt: string, fn: () => void) => { if (evt === "zoomend") zoomHandlers.push(fn); },
   createPane,
 };
@@ -165,31 +172,37 @@ describe("TrackMap", () => {
   it("does NOT latch the first-fit flag on an empty first draw — fits real fixes once they arrive", async () => {
     // An owner opening an alive life before any position fix has landed gets an empty
     // `all` on the first draw. The bug: `hasFitRef` latched unconditionally there too, so
-    // `setView` (a fixed centred view) ran once and the flag never let `fitBounds` run
-    // again — real fixes arriving on the next 60s poll would render tiny and off-centre
-    // forever. `setView` should keep running (nothing to latch) until a draw actually has
-    // points to fit, at which point `fitBounds` runs exactly once.
+    // the default view ran once and the flag never let the real fit run again — fixes
+    // arriving on the next 60s poll would render tiny and off-centre forever. The default
+    // view should keep running (nothing to latch) until a draw actually has points to fit.
+    // Both branches now call fitBounds — the empty one fits the WHOLE WORLD (a fixed
+    // setView(centre, 1) framed each map differently and left Livonia a stamp in a grey
+    // field), the real one fits the points WITH PADDING. The padding argument is what tells
+    // them apart.
+    const fitsOfPoints = () => fitBounds.mock.calls.filter((c) => c[1] !== undefined).length;
+    const fitsOfWorld = () => fitBounds.mock.calls.filter((c) => c[1] === undefined).length;
+
     const empty = { ...track, segments: [], markers: [] };
     const { rerender } = render(<TrackMap track={empty} />);
-    await waitFor(() => expect(setView).toHaveBeenCalledTimes(1));
-    expect(fitBounds).not.toHaveBeenCalled();
+    await waitFor(() => expect(fitsOfWorld()).toBe(1));
+    expect(fitsOfPoints()).toBe(0);
 
-    // Still empty on a second poll: setView keeps being called (flag never latched).
+    // Still empty on a second poll: the world fit keeps running (flag never latched).
     const stillEmpty = { ...empty, segments: [] };
     rerender(<TrackMap track={stillEmpty} />);
-    await waitFor(() => expect(setView).toHaveBeenCalledTimes(2));
-    expect(fitBounds).not.toHaveBeenCalled();
+    await waitFor(() => expect(fitsOfWorld()).toBe(2));
+    expect(fitsOfPoints()).toBe(0);
 
-    // Now real fixes land: fitBounds should finally run, exactly once.
+    // Now real fixes land: the points fit should finally run, exactly once.
     rerender(<TrackMap track={track} />);
-    await waitFor(() => expect(fitBounds).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(fitsOfPoints()).toBe(1));
 
     // A further poll with fixes must NOT re-fit — the deliberate never-refit-after-a-
     // real-first-draw behaviour must survive this fix.
     const moreFixes: LifeTrack = { ...track, segments: [...track.segments] };
     rerender(<TrackMap track={moreFixes} />);
     await waitFor(() => expect(clearLayers).toHaveBeenCalled());
-    expect(fitBounds).toHaveBeenCalledTimes(1);
+    expect(fitsOfPoints()).toBe(1);
   });
 
   it("surfaces an explicit status line when the Leaflet chunk fails to load, instead of a blank box", async () => {
