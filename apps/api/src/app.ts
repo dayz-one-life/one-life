@@ -22,6 +22,7 @@ import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerLifeTrackRoutes } from "./routes/life-track.js";
 import { registerFriendRoutes } from "./routes/friends.js";
 import { registerPreferenceRoutes } from "./routes/preferences.js";
+import { registerFriendMapRoutes } from "./routes/friend-map.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
 
 export interface AuthOptions {
@@ -50,6 +51,7 @@ export function buildApp(db: Database, opts?: AuthOptions, newsPreviewToken = ""
     registerLifeTrackRoutes(app, db, opts.auth);
     registerFriendRoutes(app, db, opts.auth);
     registerPreferenceRoutes(app, db, opts.auth);
+    registerFriendMapRoutes(app, db, opts.auth);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);

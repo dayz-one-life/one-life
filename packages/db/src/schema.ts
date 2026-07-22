@@ -510,8 +510,8 @@ export const friendships = pgTable("friendships", {
   requestSeq: integer("request_seq").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
-  aSharesLocation: boolean("a_shares_location").notNull().default(false),
-  bSharesLocation: boolean("b_shares_location").notNull().default(false),
+  aSharesLocation: boolean("a_shares_location").notNull().default(true),
+  bSharesLocation: boolean("b_shares_location").notNull().default(true),
   aSharesPresence: boolean("a_shares_presence").notNull().default(true),
   bSharesPresence: boolean("b_shares_presence").notNull().default(true),
   aNotifyPresence: boolean("a_notify_presence").notNull().default(true),
@@ -532,5 +532,6 @@ export const friendships = pgTable("friendships", {
 export const userPreferences = pgTable("user_preferences", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   sharePresence: boolean("share_presence").notNull().default(false),
+  shareLocation: boolean("share_location").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

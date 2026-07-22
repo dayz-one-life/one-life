@@ -82,4 +82,20 @@ describe("FriendsPanel", () => {
     render(<FriendsPanel requestCount={2} />);
     expect(screen.queryByLabelText(/pending friend requests/i)).toBeNull();
   });
+
+  it("links to /maps and swaps its tokens between the light rail and the dark sheet", () => {
+    const { container: light } = render(<FriendsPanel friendCount={1} requestCount={0} />);
+    const lightMapLink = screen.getByRole("link", { name: /map/i });
+    expect(lightMapLink).toHaveAttribute("href", "/maps");
+    expect(lightMapLink.className).toMatch(/\btext-ink-muted\b/);
+    expect(lightMapLink.className).not.toMatch(/\btext-cream-muted\b/);
+    void light;
+
+    const { container: dark } = render(<FriendsPanel friendCount={1} requestCount={0} boxed />);
+    const darkMapLink = dark.querySelector('a[href="/maps"]') as HTMLElement;
+    expect(darkMapLink).not.toBeNull();
+    expect(darkMapLink.className).toMatch(/\btext-cream-muted\b/);
+    expect(darkMapLink.className).not.toMatch(/\btext-ink-muted\b/);
+    expect(darkMapLink.className).toContain("min-h-[44px]");
+  });
 });

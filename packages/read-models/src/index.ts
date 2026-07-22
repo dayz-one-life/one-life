@@ -21,3 +21,5 @@ export * from "./player-articles.js";
 export * from "./life-track-shape.js";
 export * from "./life-track.js";
 export * from "./sitemap.js";
+export { getFriendPositions } from "./friend-positions.js";
+export type { FriendPosition } from "./friend-positions.js";

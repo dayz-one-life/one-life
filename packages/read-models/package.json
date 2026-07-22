@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@onelife/db": "workspace:*", "@onelife/domain": "workspace:*", "drizzle-orm": "^0.36.0" },
+  "dependencies": { "@onelife/db": "workspace:*", "@onelife/domain": "workspace:*", "@onelife/friends": "workspace:*", "drizzle-orm": "^0.36.0" },
   "devDependencies": {
     "@onelife/test-support": "workspace:*",
     "typescript": "^5.6.0",

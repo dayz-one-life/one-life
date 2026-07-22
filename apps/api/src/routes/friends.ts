@@ -3,7 +3,7 @@ import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { z } from "zod";
 import {
-  request, cancel, accept, decline, remove, setPresenceFlags,
+  request, cancel, accept, decline, remove, setPresenceFlags, setLocationFlag,
   listFriends, statusFor, FriendError,
 } from "@onelife/friends";
 import { getSession } from "../auth-plugin.js";
@@ -16,6 +16,7 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 const presenceBody = z.object({
   share: z.boolean().optional(),
   notify: z.boolean().optional(),
+  shareLocation: z.boolean().optional(),
 });
 
 const ERROR_STATUS: Record<string, number> = {
@@ -108,7 +109,14 @@ export function registerFriendRoutes(app: FastifyInstance, db: Database, auth: A
     const { id } = idParam.parse(req.params);
     const body = presenceBody.parse(req.body ?? {});
     try {
-      await setPresenceFlags(db, { userId: session.user.id, friendshipId: id, ...body });
+      await setPresenceFlags(db, {
+        userId: session.user.id, friendshipId: id, share: body.share, notify: body.notify,
+      });
+      if (body.shareLocation !== undefined) {
+        await setLocationFlag(db, {
+          userId: session.user.id, friendshipId: id, share: body.shareLocation,
+        });
+      }
       return { ok: true };
     } catch (e) {
       return onFriendError(e, reply);
