@@ -1,6 +1,6 @@
 "use client";
 import MapCanvas, { type DrawContext, type MapFocus } from "./map-canvas";
-import type { FriendMap } from "@/lib/types";
+import type { FriendPositionDto } from "@/lib/types";
 
 const SELF_COLOR = "#2563eb";
 const FRIEND_COLOR = "#c8102e";
@@ -11,8 +11,15 @@ export function positionAge(recordedAt: string, now: Date): string {
   return mins < 1 ? "just now" : `${mins}m ago`;
 }
 
-export default function FriendsMap({ data, now, focus, onCenterChange }: {
-  data: FriendMap;
+/**
+ * ⚠️ Takes the codename and the dots SEPARATELY, not one `FriendMap` payload, because they now
+ * come from different places and one of them is optional. The codename comes from the PUBLIC
+ * server list, so terrain and towns draw for everyone; the dots come from the session-gated
+ * `/me/maps/:slug`, so a signed-out or unverified visitor renders the same map with none.
+ */
+export default function FriendsMap({ mapCodename, positions, now, focus, onCenterChange }: {
+  mapCodename: string;
+  positions: readonly FriendPositionDto[];
   now: Date;
   focus?: MapFocus | null;
   /** Passed straight through to MapCanvas. The centre is owned by MapPage, because the chip
@@ -22,7 +29,7 @@ export default function FriendsMap({ data, now, focus, onCenterChange }: {
 
   function draw({ L, group, pt }: DrawContext): unknown[] {
     const all: unknown[] = [];
-    for (const p of data.positions) {
+    for (const p of positions) {
       const at = pt(p.x, p.y);
       const c = L.circleMarker(at, {
         radius: 7, color: p.self ? SELF_COLOR : FRIEND_COLOR, weight: 2, fill: false,
@@ -49,9 +56,9 @@ export default function FriendsMap({ data, now, focus, onCenterChange }: {
     <div className="flex h-full min-h-0 flex-col">
       <div className="relative min-h-0 flex-1">
         <MapCanvas
-          mapCodename={data.mapCodename}
+          mapCodename={mapCodename}
           draw={draw}
-          drawKey={data}
+          drawKey={positions}
           focus={focus}
           onCenterChange={onCenterChange}
           className="h-full w-full"

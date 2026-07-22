@@ -2,15 +2,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
-import type { MapServerDto } from "@/lib/types";
 
-/** Current map plus a menu of the others, with each map's friend count.
+/** Just enough of a server to switch to it. Deliberately NOT `MapServerDto` (the gated
+ *  `/me/maps` shape): the switcher is driven by the PUBLIC server list so it works signed out,
+ *  and it never showed the friend count anyway — see the note in the menu below. */
+export type SwitchableMap = { slug: string; name: string };
+
+/** Current map plus a menu of the others.
  *
  *  ⚠️ This sits on the DARK top bar: paper/cream text and dark-edge borders, never the light
  *  rail's ink tokens. A panel written in `text-ink` renders present, functional and invisible —
  *  and RTL asserts the DOM, not contrast, so only an explicit token test catches it. */
 export function MapSwitcher({ slug, servers, loading }: {
-  slug: string; servers?: MapServerDto[]; loading: boolean;
+  slug: string; servers?: readonly SwitchableMap[]; loading: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const panelRef = useModalBehavior(open, () => setOpen(false));
@@ -50,7 +54,9 @@ export function MapSwitcher({ slug, servers, loading }: {
                   the online list became the ☰ button's count meant the same bar showed two
                   different counts about the same server, one of them unlabelled ("LIVONIA … 0"
                   beside "ONLINE 12"). This menu switches maps; the count belongs where it is
-                  named. The labelled "N sharing" on the /maps picker page is untouched. */}
+                  named. (The switcher now reads the public `SwitchableMap` shape, which carries
+                  no count at all — the count-bearing picker page it once coexisted with is
+                  gone.) */}
               {s.name}
             </Link>
           ))}

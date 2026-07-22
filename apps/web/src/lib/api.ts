@@ -7,7 +7,7 @@ import type {
   AppNotification, NotificationsFeed,
   NewsFeed, NewsArticle, LifeTrack,
   SitemapData,
-  FriendsFeed, FriendStatusDto, FriendMap, MapServerDto,
+  FriendsFeed, FriendStatusDto, FriendMap,
 } from "./types";
 
 export class ApiError extends Error {
@@ -247,4 +247,3 @@ export const patchPreferences = (body: { sharePresence?: boolean; shareLocation?
 
 export const getFriendMap = (slug: string) =>
   apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);
-export const getMapServers = () => apiGet<{ servers: MapServerDto[] }>("/api/me/maps");

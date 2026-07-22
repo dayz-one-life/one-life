@@ -13,10 +13,10 @@ vi.mock("@/components/controls/mobile-account", () => ({
 }));
 
 describe("Masthead", () => {
-  it("renders the wordmark home link and all five nav items", () => {
+  it("renders the wordmark home link and all six nav items", () => {
     render(<Masthead />);
     expect(screen.getByRole("link", { name: "One Life — home" })).toHaveAttribute("href", "/");
-    for (const label of ["News", "Obituaries", "Fresh Spawns", "Survivors", "About"]) {
+    for (const label of ["News", "Obituaries", "Fresh Spawns", "Survivors", "Maps", "About"]) {
       expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
     }
   });
