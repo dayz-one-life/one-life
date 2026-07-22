@@ -14,12 +14,15 @@ is updated last, before opening the PR.
 Skills, in lifecycle order: `keel:start-work` → `keel:finish-work`, then `keel:review`,
 `keel:land`, `keel:release`, `keel:ship`. `keel:doctor` explains any block or warning.
 
-Also enabled: `stow` (`.gitignore`), `hull` (secret scanning), `bosun` (Dependabot). Their rendered
-artifacts are **generated output** — edit the `.<plugin>.json` config and re-render, never the
-artifact.
+Also enabled: `stow` (`.gitignore`) only. Its rendered artifacts are **generated output** — edit
+`.stow.json` and re-render, never the artifact. `hull` (secret scanning) and `bosun` (Dependabot)
+were evaluated and deferred: hull's gitleaks action requires an org license its renderer has no
+slot to emit, and bosun's config can't target `develop`, so it would open Dependabot PRs straight
+against `main`.
 
-**`rigging` (CI) is deliberately not enabled.** It cannot express pnpm, service containers, or a
-custom test command, so this repo has no CI workflow — see
+**`rigging` (CI) is deliberately not enabled**, and there is still no test/build CI. It cannot
+express pnpm, service containers, or a custom test command. keel's changelog gate does run in
+CI (`.github/workflows/changelog.yml`) — see
 `docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` §9 for the full reasoning and the
 two open paths.
 

@@ -30,14 +30,19 @@ level in `.claude/settings.json` so every contributor picks it up from a clone r
 
 ## 3. Scope
 
-Four of Shipyard's six plugins:
+Two of Shipyard's six plugins:
 
 | Plugin | Owns | Config | Renders |
 |---|---|---|---|
 | `keel` | git lifecycle | `.keel.json` | lifecycle artifacts + a `PreToolUse` guard |
 | `stow` | baseline repo files | `.stow.json` | `.gitignore` (managed blocks) |
-| `hull` | secret scanning | `.hull.json` | `.github/workflows/security.yml` |
-| `bosun` | dependency updates | `.bosun.json` | `.github/dependabot.yml` |
+
+**`hull` and `bosun` were evaluated and deferred.** `hull` renders a gitleaks Action that calls
+`process.exit(1)` whenever the repo owner is a GitHub Organization and `GITLEAKS_LICENSE` is
+unset; `dayz-one-life/one-life` is an organization, and hull's config schema has no slot to emit
+that variable, so the rendered workflow would be permanently red. `bosun`'s config cannot express
+`target-branch`, so its rendered `dependabot.yml` would open PRs against the default branch `main`
+— the production branch — bypassing `develop`, the changelog convention, and any test CI.
 
 **`ballast` is deliberately excluded.** It renders `pytest.ini`; this is a TypeScript/pnpm
 monorepo with no Python. Adopting it would commit a config for a runner that never runs.
@@ -92,15 +97,23 @@ documented mechanism for team-shared plugins:
   },
   "enabledPlugins": {
     "keel@shipyard": true,
-    "hull@shipyard": true,
     "stow@shipyard": true,
-    "bosun@shipyard": true
+    "hull@shipyard": false,
+    "bosun@shipyard": false,
+    "rigging@shipyard": false,
+    "ballast@shipyard": false
   }
 }
 ```
 
 `autoUpdate: true` is what buys the central-update property that motivated the whole change; without
 it a contributor's cached copy pins at whatever commit they first installed.
+
+The four unadopted plugins are listed explicitly as `false`, not omitted. Project scope only
+overrides user scope where the two **disagree** — omission is not disagreement — so a contributor
+with shipyard installed at user scope (where `hull`/`bosun`/`rigging`/`ballast` may be enabled)
+would still load them from a config that merely left them out. The explicit `false` is what makes
+"not adopted here" actually true for every contributor.
 
 ### 5.2 `.keel.json`
 
@@ -121,12 +134,11 @@ A direct translation of the retired `workflow.json`:
 Every field maps 1:1 onto current behaviour: feature branches into `develop` squashed, releases into
 `main` merged, a changelog entry required on every contribution PR.
 
-### 5.3 The three generated configs
+### 5.3 The one generated config
 
-`.hull.json`, `.stow.json`, and `.bosun.json` are scaffolded by each plugin's
-`init` skill, which never overwrites an existing file. Their rendered artifacts
-(`security.yml`, `.gitignore` blocks, `dependabot.yml`) are **generated output** — edit the config
-and re-render, never the artifact.
+`.stow.json` is scaffolded by stow's `init` skill, which never overwrites an existing file. Its
+rendered artifact (`.gitignore` managed blocks) is **generated output** — edit the config and
+re-render, never the artifact.
 
 ## 6. `soloMaintainer` has no equivalent, and that is intentional
 
@@ -218,7 +230,11 @@ blocking:
 2. Hand-write a pnpm + Postgres workflow and leave rigging disabled. Faster, but the file is then
    unmanaged, and enabling rigging later would render over it.
 
-`hull` still lands, so this change does create `.github/` — with `security.yml` only.
+**keel's changelog gate IS adopted**, though. Its two templates (`changelog.yml`,
+`check_changelog.py`) are vendored verbatim into `.github/workflows/changelog.yml` and
+`scripts/check_changelog.py`, so `.github/workflows/changelog.yml` exists and enforces a
+`CHANGELOG.md` entry on every contribution PR — server-side, independent of `rigging`, needing no
+secrets. Test/build CI still does not exist.
 
 ## 10. Sequencing
 
@@ -239,7 +255,9 @@ Therefore:
 - A fresh session in this repo shows keel's orientation, not the template's.
 - `.claude/` contains only `settings.json` and `skills/drafting-an-article`.
 - `git commit` on `main` is refused by `[keel/protected-write]`.
-- `.github/workflows/security.yml` exists and its gitleaks run passes; no `ci.yml` is created.
+- `.github/workflows/changelog.yml` exists, vendored verbatim from keel's templates, and its check
+  passes on a PR that adds a `CHANGELOG.md` entry; no `ci.yml`, `security.yml`, or
+  `dependabot.yml` is created — `.github/workflows/` contains `changelog.yml` only.
 - `pnpm turbo run test --concurrency=1` and `pnpm turbo run typecheck` still pass locally —
   this change touches no application code, so any failure is a regression from the file removals.
 - `CHANGELOG.md` and `CLAUDE.md` are updated, and the PR targets `develop`.

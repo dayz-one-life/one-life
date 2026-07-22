@@ -11,11 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Replaced the committed workflow template (hooks, seven workflow skills, `workflow.json`) with the
-  [Shipyard](https://github.com/submtd/shipyard) plugin suite — `keel`, `stow`, `hull`, `bosun` —
-  declared at repository level in `.claude/settings.json` so the lifecycle logic lives outside the
-  repo it guards and updates centrally. `.keel.json` is now the source of truth for branch topology.
-  `rigging` (CI) was evaluated and excluded: it cannot express pnpm, service containers, or a custom
-  test command. Contributors approve a one-time plugin install prompt on their first session.
+  [Shipyard](https://github.com/submtd/shipyard) plugin suite — `keel` and `stow` — declared at
+  repository level in `.claude/settings.json` so the lifecycle logic lives outside the repo it
+  guards and updates centrally. `.keel.json` is now the source of truth for branch topology.
+  `hull` (secret scanning) and `bosun` (Dependabot) were evaluated and deferred: hull's gitleaks
+  action requires an org license its renderer has no slot to emit, and bosun's config can't
+  target `develop`, so it would open Dependabot PRs straight against `main`. `rigging` (CI) was
+  evaluated and excluded: it cannot express pnpm, service containers, or a custom test command.
+  keel's changelog CI gate is adopted (`.github/workflows/changelog.yml`,
+  `scripts/check_changelog.py`), so a PR without a `CHANGELOG.md` entry now fails in CI rather
+  than relying only on the in-Claude advisory hook. Contributors approve a one-time plugin install
+  prompt on their first session.
 - Rewrote `README.md`, which still described this repo as the upstream workflow *template* rather
   than One Life, and pointed at the now-removed `workflow-setup` skill and `.claude/workflow.json`.
 

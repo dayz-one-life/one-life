@@ -8,7 +8,9 @@
   "enabledPlugins": {
     "keel@shipyard": true,
     "stow@shipyard": true,
-    "hull@shipyard": true,
-    "bosun@shipyard": true
+    "hull@shipyard": false,
+    "bosun@shipyard": false,
+    "rigging@shipyard": false,
+    "ballast@shipyard": false
   }
 }

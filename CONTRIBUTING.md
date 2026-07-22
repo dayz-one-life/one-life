@@ -13,6 +13,12 @@ on.
 If you skip the prompt, the plugins simply don't load: you lose the guard and the skills, but
 nothing breaks.
 
+keel's hooks (and `scripts/check_changelog.py`, which its changelog CI gate runs) are invoked as
+`python3 …`; without `python3` on `PATH` you lose the guard and the orientation with no error.
+
+The canonical repo is `dayz-one-life/one-life`. If you fork by hand rather than through
+`keel:start-work`, add it as your `upstream` remote so keel can find it.
+
 ## Flow
 
 1. `keel:start-work` — creates a correctly-named `feature/*` branch off an up-to-date `develop`.
@@ -41,5 +47,7 @@ branches by *name*, so it will refuse a push to your own fork's `main`; use `kee
 
 ## CI
 
-There is none yet, deliberately. See
+The only CI is keel's changelog gate (`.github/workflows/changelog.yml`), which checks that a PR
+adds a `CHANGELOG.md` entry. There is no test or build CI yet, so run the test and typecheck
+commands locally before opening a PR. See
 `docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` §9.
