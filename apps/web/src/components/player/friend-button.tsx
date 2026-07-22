@@ -6,13 +6,14 @@ import type { FriendStatusValue } from "@/lib/types";
 
 const DAY_MS = 86_400_000;
 
-/** Whole days remaining, floored (never rounded up past the actual wait) and floored at
- *  1 — "in 0 days" is never a useful thing to read. */
+/** Whole days remaining, rounded UP — rounding down understates the wait (a 1-day-6-hour
+ *  cooldown must never read "in 1 day", or the user retries ~6h early and the server refuses
+ *  them) — and floored at 1: "in 0 days" is never a useful thing to read. */
 export function friendButtonLabel(
   status: FriendStatusValue, cooldownUntil: string | null, now: Date,
 ): string {
   if (status !== "cooldown" || !cooldownUntil) return "";
-  const days = Math.max(1, Math.floor((new Date(cooldownUntil).getTime() - now.getTime()) / DAY_MS));
+  const days = Math.max(1, Math.ceil((new Date(cooldownUntil).getTime() - now.getTime()) / DAY_MS));
   return `You can send another request in ${days} ${days === 1 ? "day" : "days"}`;
 }
 

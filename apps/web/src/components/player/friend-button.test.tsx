@@ -13,7 +13,7 @@ describe("friendButtonLabel", () => {
     expect(friendButtonLabel("cooldown", "2026-07-08T00:00:00Z", now))
       .toBe("You can send another request in 7 days");
     expect(friendButtonLabel("cooldown", "2026-07-02T06:00:00Z", now))
-      .toBe("You can send another request in 1 day");
+      .toBe("You can send another request in 2 days");
   });
 });
 
