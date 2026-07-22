@@ -6,7 +6,7 @@ export default function NotFound() {
   return (
     <>
       <Masthead />
-      <main className="mx-auto max-w-2xl flex-1 px-6 py-16 text-center">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-2xl flex-1 px-6 py-16 text-center">
         <p className="font-display text-sm font-bold uppercase tracking-[.14em] text-red-deep">404</p>
         <h1 className="mt-1 font-display text-4xl font-bold uppercase text-ink">Not found</h1>
         <p className="mt-2 font-mono text-xs uppercase tracking-[.04em] text-ink-muted">

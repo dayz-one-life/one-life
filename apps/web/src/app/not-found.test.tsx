@@ -14,4 +14,14 @@ describe("NotFound", () => {
     expect(screen.getByTestId("footer")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /not found/i })).toBeInTheDocument();
   });
+
+  test("provides the #main-content target the root layout's skip link points at", () => {
+    // This page renders against the ROOT layout, outside the (site) group that owns
+    // #main-content — without this id the skip link lands nowhere.
+    render(<NotFound />);
+    const main = document.getElementById("main-content");
+    expect(main).not.toBeNull();
+    expect(main!.tagName).toBe("MAIN");
+    expect(main!.getAttribute("tabindex")).toBe("-1");
+  });
 });
