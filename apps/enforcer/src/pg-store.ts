@@ -8,6 +8,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
     .select({
       serverId: lives.serverId,
       gamertag: players.gamertag,
+      dayzId: players.dayzId,
       startedAt: lives.startedAt,
       endedAt: lives.endedAt,
       deathCause: lives.deathCause,
@@ -42,6 +43,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
     out.push({
       serverId: r.serverId,
       gamertag: r.gamertag,
+      dayzId: r.dayzId,
       startedAt: r.startedAt,
       endedAt: r.endedAt,
       deathCause: r.deathCause,
@@ -59,6 +61,7 @@ export async function insertBan(db: Database, plan: BanPlan, dryRun: boolean): P
     .values({
       serverId: plan.serverId,
       gamertag: plan.gamertag,
+      dayzId: plan.dayzId,
       lifeStartedAt: plan.lifeStartedAt,
       reason: "qualified_death",
       qualifiedBy: plan.qualifiedBy,

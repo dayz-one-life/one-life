@@ -3,6 +3,7 @@ import { isLifeQualified, type QualificationInput } from "@onelife/read-models";
 export type EndedLife = {
   serverId: number;
   gamertag: string;
+  dayzId: string | null;
   startedAt: Date;
   endedAt: Date;
   deathCause: string | null;
@@ -15,6 +16,7 @@ export type QualifiedBy = "playtime" | "kill" | "pvp-death";
 export type BanPlan = {
   serverId: number;
   gamertag: string;
+  dayzId: string | null;
   lifeStartedAt: Date;
   bannedAt: Date;
   expiresAt: Date;
@@ -47,6 +49,7 @@ export function planBans(lives: EndedLife[], banDurationHours: number): BanPlan[
     plans.push({
       serverId: life.serverId,
       gamertag: life.gamertag,
+      dayzId: life.dayzId,
       lifeStartedAt: life.startedAt,
       bannedAt: life.endedAt,
       expiresAt: new Date(life.endedAt.getTime() + banDurationHours * 3600_000),

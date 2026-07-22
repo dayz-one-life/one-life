@@ -4,6 +4,7 @@ import { planBans, planExpiries, type EndedLife } from "../src/decide.js";
 const base: EndedLife = {
   serverId: 1,
   gamertag: "Steveo12491",
+  dayzId: null,
   startedAt: new Date("2026-07-11T10:00:00Z"),
   endedAt: new Date("2026-07-11T12:00:00Z"),
   deathCause: "infected",
@@ -38,6 +39,28 @@ describe("planBans", () => {
   it("uses BAN_DURATION_HOURS for expiry", () => {
     const plans = planBans([{ ...base, effectivePlaytimeSeconds: 400 }], 12);
     expect(plans[0]!.expiresAt.toISOString()).toBe("2026-07-12T00:00:00.000Z");
+  });
+
+  it("carries dayzId from the life onto the plan", () => {
+    const life = {
+      serverId: 1, gamertag: "Ronald", dayzId: "ABC123",
+      startedAt: new Date("2026-07-20T00:00:00Z"),
+      endedAt: new Date("2026-07-20T02:00:00Z"),
+      deathCause: "pvp", effectivePlaytimeSeconds: 7200, playerKills: [],
+    };
+    expect(planBans([life], 24)[0]!.dayzId).toBe("ABC123");
+  });
+
+  it("carries a null dayzId through rather than dropping the ban", () => {
+    const life = {
+      serverId: 1, gamertag: "Ronald", dayzId: null,
+      startedAt: new Date("2026-07-20T00:00:00Z"),
+      endedAt: new Date("2026-07-20T02:00:00Z"),
+      deathCause: "pvp", effectivePlaytimeSeconds: 7200, playerKills: [],
+    };
+    const plans = planBans([life], 24);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]!.dayzId).toBeNull();
   });
 });
 
