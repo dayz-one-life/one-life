@@ -41,6 +41,25 @@
 
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 
+/* Permanent gamertag labels on the friends map. Leaflet's own tooltip is a white bubble with a
+   drop shadow and an arrow; on a dark tile canvas that reads as a UI popup rather than a map
+   label. Scoped `.leaflet-tooltip.friend-label` to win on specificity over Leaflet's own rule
+   (its stylesheet is imported inside map-canvas.tsx's chunk, so source order is not reliable). */
+.leaflet-tooltip.friend-label {
+  background: rgb(var(--dark) / 0.85);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: rgb(var(--paper));
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 1px 4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.leaflet-tooltip.friend-label::before { display: none; } /* the arrow, which has no bubble now */
+
 :focus-visible {
   outline: 2px solid rgb(var(--red));
   outline-offset: 2px;

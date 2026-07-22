@@ -40,6 +40,7 @@ export interface LeafletMap {
 export interface LeafletLayer {
   addTo: (target: unknown) => LeafletLayer;
   bindPopup?: (text: string) => void;
+  bindTooltip?: (text: string, opts?: Record<string, unknown>) => void;
   clearLayers?: () => void;
 }
 export interface LeafletModule {
@@ -71,11 +72,15 @@ export type DrawFn = (ctx: DrawContext) => unknown[];
  * (map lifecycle vs. redraw split, the first-fit latch, the LayerGroup pattern, the dynamic
  * import, the error/unmapped-terrain states, the stacking context) lives here.
  */
-export default function MapCanvas({ mapCodename, draw, drawKey }: {
+export default function MapCanvas({ mapCodename, draw, drawKey, className }: {
   mapCodename: string;
   draw: DrawFn;
   /** Changes whenever the data to draw changes; drives the redraw effect. */
   drawKey: unknown;
+  /** Sizing only — the container's own box. Defaults to the life-trail's fixed panel; the
+   *  friends map passes `h-full w-full` to fill a flex parent. Leaflet reads the element's
+   *  computed size on creation, so a parent chain with no definite height collapses it to 0. */
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const size = worldSize(mapCodename);
@@ -205,5 +210,10 @@ export default function MapCanvas({ mapCodename, draw, drawKey }: {
   // overlays). Leaflet assigns its panes 200-700 and its controls 1000, absolutely
   // positioned — without a stacking context here it paints straight over the masthead,
   // the notification popover and the ControlsSheet.
-  return <div ref={ref} className="isolate h-[420px] w-full border border-ink bg-dark-well" />;
+  return (
+    <div
+      ref={ref}
+      className={`isolate border border-ink bg-dark-well ${className ?? "h-[420px] w-full"}`}
+    />
+  );
 }

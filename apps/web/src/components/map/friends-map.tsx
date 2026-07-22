@@ -43,15 +43,28 @@ export default function FriendsMap({ data, now }: { data: FriendMap; now: Date }
       });
       c.addTo(group);
       c.bindPopup?.(`${p.gamertag}${p.self ? " (you)" : ""} · ${positionAge(p.recordedAt, now)}`);
+      // Permanent label: a dot with no callsign is unreadable on a squad map, and requiring a
+      // click to learn who it is defeats the point. The age stays in the popup/legend — the
+      // label carries identity only, so a crowded map does not become a wall of text.
+      c.bindTooltip?.(`${p.gamertag}${p.self ? " (you)" : ""}`, {
+        permanent: true, direction: "top", offset: [0, -8], className: "friend-label",
+      });
       all.push(at);
     }
     return all;
   }
 
   return (
-    <>
-      <MapCanvas mapCodename={data.mapCodename} draw={draw} drawKey={data} />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1">
+        <MapCanvas
+          mapCodename={data.mapCodename}
+          draw={draw}
+          drawKey={data}
+          className="h-full w-full"
+        />
+      </div>
       <FriendsMapLegend positions={data.positions} now={now} />
-    </>
+    </div>
   );
 }
