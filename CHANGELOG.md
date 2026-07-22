@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.37.2] - 2026-07-22
+
+### Fixed
+
+- Deploy: the migrate and `--rebuild` phases now receive the database connection string
+  explicitly. Both ran as child processes that never inherited it — migrations had been
+  working only because of a hardcoded fallback, and `--rebuild` would have failed outright.
+  Both phases run after the services are stopped, so either would have aborted a deploy
+  mid-flight.
 - A friend whose gamertag has been recorded under two different capitalisations no longer
   appears twice on the map, in two different places at once. Only one — the most recently
   active — is shown.
@@ -31,8 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input, so pointing the suite at a different database can no longer replay a cached pass and
   report success without running anything. Database migrations likewise refuse to run against
   a guessed connection string instead of silently targeting the wrong database.
-
-### Security
 
 ## [0.37.1] - 2026-07-22
 
