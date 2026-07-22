@@ -1256,6 +1256,17 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   no footer, no way back, clipped inside `overflow-hidden`, and every one of its ink tokens
   invisible on the dark shell. It is a list page and belongs with the site chrome; `next build`
   confirms both routes still resolve and that no URL gained a `(site)` segment.
+  **⚠️ The online sheet's ✕ and its backdrop are the ONLY way out on a touch device.** Below
+  `md` the sheet is `fixed bottom-0` and covers the bottom bar holding the ☰ that opened it, so
+  tapping the trigger again is impossible — and a phone has no Escape key, which was the only
+  dismissal `useModalBehavior` provided. It shipped in v0.41.0 with no exit at all, after a
+  review flagged "neither panel closes on an outside click" as Minor during M1 (true on a
+  desktop, where the trigger stays reachable above an anchored popover; a trap on a phone).
+  The backdrop is `aria-hidden` with no role — a gesture target, not content, and the dialog is
+  already `aria-modal` — and sits at the **same z-50 overlay altitude**, painted under the sheet
+  by DOM order, so it adds no fourth altitude to the LAYER LEGEND.
+  **The ☰ count INCLUDES the viewer**: it has to agree with the list directly beneath it and
+  with the server's own player count.
   **⚠️ The whole shell is DARK — there is no paper anywhere on `/maps`.** `MapPageView`'s state
   notes, the friends legend, the switcher, the search box, the locate button and the friends panel
   all carry cream/paper tokens, and each swap has its own test: RTL asserts the DOM, not contrast,
