@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The map no longer zooms out past its own edges into empty grey, and no longer pans off the
+  side of the world. It now stops at the point where the terrain still fills the screen, and
+  opens showing the whole map rather than at a fixed zoom that framed each of the three maps
+  differently — Livonia, the smallest, used to open as a small square adrift in grey.
+
 ### Security
 
 ## [0.39.0] - 2026-07-22

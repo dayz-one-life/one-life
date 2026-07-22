@@ -28,6 +28,13 @@ const mapObj = {
   project: vi.fn((_l: unknown, _z: number) => ({ x: 8192, y: 8192 })),
   getCenter: vi.fn(() => ({ lat: -128, lng: 128 })),
   getZoom: () => currentZoom,
+  // The world-bounds pass (map-canvas.tsx) runs on every map, so these belong in every
+  // double — a missing one throws inside the load promise and degrades the whole component
+  // to its error state, which reads as an unrelated failure.
+  setMinZoom: vi.fn(),
+  setMaxBounds: vi.fn(),
+  getBoundsZoom: vi.fn(() => 1),
+
   on: (evt: string, fn: () => void) => { if (evt === "zoomend") zoomHandlers.push(fn); },
   createPane: vi.fn(() => document.createElement("div")),
 };
