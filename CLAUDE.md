@@ -87,6 +87,16 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
   (never rebuilt).
+  **⚠️ Bans are placed against `bans.dayz_id` (the stable DayZ account hash) AND the gamertag,
+  via the batched `addBans`/`removeBans` — never the single-entry `addBan`/`removeBan`, which
+  would be one whole-field read-modify-write of the Nitrado ban list per entry, with a
+  lost-update window between them.** The ID is what survives a gamertag rename: an audit of
+  production found two accounts using five gamertags between them and 22 connections under a
+  different name during an active ban window. `dayz_id` is frozen onto the ban row at creation
+  (migration `0023`), never resolved through `players` later, because the deferred identity-merge
+  work will make a historical gamertag stop resolving. A null `dayz_id` degrades to name-only.
+  Nitrado's ban list accepting a player ID was **verified empirically** against a live server —
+  public documentation says console servers are gamertag-only, and is wrong.
 - **SP4 — Unban-token economy** ✅: `@onelife/tokens` (ledger; balance = SUM of deltas; idempotent
   grants) + `apps/granter` sweeps. Token on verification, monthly + referral grants, self-unban
   (redeem → ban `lift_pending` → enforcer removes under the dry-run gate), and transfers. API
