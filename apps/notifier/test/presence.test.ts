@@ -217,6 +217,7 @@ describe("presenceGenerator", () => {
     });
     // "s_b" must still be notified — "sXb"'s unrelated row must not satisfy its cooldown.
     const drafts = await presenceGenerator(deps());
+    expect(drafts).toHaveLength(2);
     expect(drafts.some((d) => d.userId === "s_b")).toBe(true);
   });
 });
