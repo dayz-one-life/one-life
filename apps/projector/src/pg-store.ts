@@ -11,8 +11,12 @@ export class PgProjectionStore implements ProjectionStore {
   constructor(private tx: Database) {}
 
   async getPlayer(gamertag: string): Promise<PlayerRow | null> {
+    // Case-insensitive: Xbox reserves gamertags case-insensitively, so a re-cased name is
+    // the same human. Under players_gamertag_uniq on lower(gamertag) a bare eq() here would
+    // miss, fall through to createPlayer, and 23505 inside the fold transaction — which an
+    // event-log fold retries forever.
     const r = await this.tx.select().from(players)
-      .where(eq(players.gamertag, gamertag));
+      .where(sql`lower(${players.gamertag}) = lower(${gamertag})`);
     return r[0] ? { id: r[0].id, gamertag: r[0].gamertag, lastSeenAt: r[0].lastSeenAt } : null;
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {

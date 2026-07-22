@@ -28,7 +28,8 @@ export class MemoryStore implements ProjectionStore {
   private seq = 1;
 
   async getPlayer(gamertag: string): Promise<PlayerRow | null> {
-    return this.players.find((p) => p.gamertag === gamertag) ?? null;
+    const want = gamertag.toLowerCase();
+    return this.players.find((p) => p.gamertag.toLowerCase() === want) ?? null;
   }
   async getPlayerById(playerId: number): Promise<PlayerRow | null> {
     return this.players.find((p) => p.id === playerId) ?? null;

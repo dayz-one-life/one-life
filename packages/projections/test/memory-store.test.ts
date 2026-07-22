@@ -25,4 +25,12 @@ describe("MemoryStore global players", () => {
     expect((await s.getPlayer("Bob"))?.id).toBe(p.id);
     expect("currentLifeId" in (await s.getPlayer("Bob"))!).toBe(false);
   });
+
+  it("resolves an existing player when the ADM re-cases their gamertag", async () => {
+    const s = new MemoryStore();
+    await s.createPlayer("Sasha", "HASH1", new Date("2026-07-01T00:00:00Z"));
+    const found = await s.getPlayer("sasha");
+    expect(found).not.toBeNull();
+    expect(found!.gamertag).toBe("Sasha"); // canonical casing preserved, not rewritten
+  });
 });
