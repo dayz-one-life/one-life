@@ -13,15 +13,25 @@ const circleMarker = vi.fn((..._a: unknown[]) => ({ addTo, bindPopup }));
 const tileLayer = vi.fn((..._a: unknown[]) => ({ addTo }));
 const fitBounds = vi.fn();
 const setView = vi.fn();
+const removeMap = vi.fn();
+const clearLayers = vi.fn();
 const unproject = vi.fn((p: [number, number]) => ({ lat: p[1], lng: p[0] }));
+const mapFn = vi.fn((..._a: unknown[]) => ({ unproject, fitBounds, setView, remove: removeMap }));
+// Every `L.map(...)` call gets its own layer group instance recording its own
+// `clearLayers` calls, so a test can assert redraw-without-recreate (a NEW track object
+// clears+redraws the SAME map's layer group rather than a fresh `L.map(...)` call).
+interface LayerGroupObj { addTo: () => LayerGroupObj; clearLayers: typeof clearLayers }
+const layerGroupObj: LayerGroupObj = { addTo: () => layerGroupObj, clearLayers };
+const layerGroup = vi.fn((..._a: unknown[]) => layerGroupObj);
 
 vi.mock("leaflet", () => ({
   default: {
     CRS: { Simple: "SIMPLE" },
-    map: () => ({ unproject, fitBounds, setView, remove: vi.fn() }),
+    map: (...a: unknown[]) => mapFn(...a),
     tileLayer: (...a: unknown[]) => tileLayer(...a),
     polyline: (...a: unknown[]) => polyline(...a),
     circleMarker: (...a: unknown[]) => circleMarker(...a),
+    layerGroup: (...a: unknown[]) => layerGroup(...a),
     latLngBounds: (v: unknown) => v,
   },
 }));
@@ -104,5 +114,42 @@ describe("TrackMap", () => {
     render(<TrackMap track={{ ...track, mapCodename: "banov" }} />);
     expect(screen.getByText(/unmapped terrain/i)).toBeInTheDocument();
     expect(tileLayer).not.toHaveBeenCalled();
+  });
+
+  it("passes the vendored upstream attribution string and enables the attribution control", async () => {
+    render(<TrackMap track={track} />);
+    await waitFor(() => expect(tileLayer).toHaveBeenCalled());
+    const opts = tileLayer.mock.calls[0]![1] as { attribution?: string };
+    expect(opts.attribution).toContain("Xam.nu");
+    const mapOpts = mapFn.mock.calls[0]![1] as { attributionControl?: boolean };
+    expect(mapOpts.attributionControl).toBe(true);
+  });
+
+  it("does NOT recreate the map on a re-render with a new track object — only redraws layers", async () => {
+    // The bug: the effect depended on [track, size], and react-query hands back a fresh
+    // object every 60s poll, so cleanup called map.remove() and the whole map
+    // re-initialised — snapping fitBounds back and closing any open popup, forever,
+    // with zero user input. `L.map(...)` must be called exactly once across a track
+    // update; only the layer group should clear and redraw.
+    const { rerender } = render(<TrackMap track={track} />);
+    await waitFor(() => expect(mapFn).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(polyline).toHaveBeenCalledTimes(2));
+
+    const newTrack: LifeTrack = { ...track, segments: [...track.segments] };
+    rerender(<TrackMap track={newTrack} />);
+
+    await waitFor(() => expect(clearLayers).toHaveBeenCalled());
+    expect(mapFn).toHaveBeenCalledTimes(1);
+    expect(removeMap).not.toHaveBeenCalled();
+    // Layers were redrawn (polyline called again for the new track), not just left as-is.
+    expect(polyline.mock.calls.length).toBeGreaterThan(2);
+  });
+
+  it("surfaces an explicit status line when the Leaflet chunk fails to load, instead of a blank box", async () => {
+    mapFn.mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    render(<TrackMap track={track} />);
+    expect(await screen.findByRole("status")).toHaveTextContent(/couldn't load the map/i);
   });
 });

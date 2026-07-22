@@ -40,10 +40,24 @@ export function isOwnerOf(
 
 export function LocationPanel({ mapSlug, lifeNumber, pageGamertag, alive }: Props) {
   const { data: session } = useSession();
-  const { data: links } = useGamertagLinks(!!session?.user);
+  const { data: links, isPending: linksPending } = useGamertagLinks(!!session?.user);
   const isOwner = isOwnerOf(!!session?.user, links, pageGamertag);
 
   const { data: track, isPending, isError } = useLifeTrack(mapSlug, lifeNumber, isOwner, alive);
+
+  // While the owner's own links are still loading, `links` is `undefined` and `isOwnerOf`
+  // reads that as false — which would otherwise show the OWNER their own "positions
+  // withheld" bar for the few hundred ms before the fetch resolves. That's loading
+  // rendered as permission-refused, exactly what this panel forbids for the track fetch
+  // below. Only gate on this while signed in — a signed-out visitor never fetches links
+  // (`useGamertagLinks(false)`) and must keep seeing today's instant withheld bar.
+  if (session?.user && linksPending) {
+    return (
+      <p className="mt-5 border border-hairline bg-bone px-4 py-3 font-mono text-[11px] text-ink-soft">
+        Pulling your fixes…
+      </p>
+    );
+  }
 
   // Non-owners get exactly today's DOM: the bar on an alive life, nothing on a dead one.
   if (!isOwner) return alive ? <WithheldBar /> : null;

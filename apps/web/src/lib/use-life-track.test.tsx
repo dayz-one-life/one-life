@@ -2,7 +2,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
-import { useLifeTrack } from "./use-life-track";
+import { useLifeTrack, pollIntervalFor } from "./use-life-track";
+import type { LifeTrack } from "./types";
 
 const getLifeTrack = vi.fn();
 vi.mock("@/lib/api", async () => {
@@ -43,5 +44,30 @@ describe("useLifeTrack", () => {
     renderHook(() => useLifeTrack("sakhal", 3, false, true), { wrapper });
     await new Promise((r) => setTimeout(r, 10));
     expect(getLifeTrack).not.toHaveBeenCalled();
+  });
+
+});
+
+describe("pollIntervalFor", () => {
+  const aliveTrack: LifeTrack = { mapCodename: "sakhal", segments: [], markers: [], sampleCount: 1, truncated: false, alive: true };
+  const deadTrack: LifeTrack = { ...aliveTrack, alive: false };
+
+  test("before any fetch has resolved, falls back to the page's `alive` prop", () => {
+    expect(pollIntervalFor(undefined, true)).toBe(60_000);
+    expect(pollIntervalFor(undefined, false)).toBe(false);
+  });
+
+  test("once a track has been FETCHED, its own `alive` field wins over a stale `alive` prop", () => {
+    // The `alive` prop is only the server-rendered page's snapshot at build time — it
+    // goes stale the moment this very life ends mid-poll. The fetched track's own
+    // `alive` must win, in both directions, or either a dead life polls forever or a
+    // life that just qualified/kept going never gets a second look.
+    expect(pollIntervalFor(deadTrack, true)).toBe(false);
+    expect(pollIntervalFor(aliveTrack, false)).toBe(60_000);
+  });
+
+  test("a resolved not-owner (null) response stops polling, regardless of the prop", () => {
+    expect(pollIntervalFor(null, true)).toBe(false);
+    expect(pollIntervalFor(null, false)).toBe(false);
   });
 });

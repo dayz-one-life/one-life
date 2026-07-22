@@ -144,6 +144,51 @@ describe("getLifeTrack", () => {
     expect(xs).not.toContain(9999);
   });
 
+  it("emits a marker from a RAW fix, even when thinning would have suppressed it", async () => {
+    // A player parked in their base: a dense run of fixes all within THIN_MIN_METERS of
+    // the first one, so thinning collapses the whole middle of the run down to just the
+    // first kept point (the true final raw fix is always kept too, but that's minutes
+    // AFTER this life's kill). If markers were matched against the THINNED track, the
+    // kill marker would resolve to that ancient first sample (~2.5h old) and be
+    // suppressed by MARKER_MAX_AGE_SECONDS, even though a raw fix landed 60s before the
+    // kill and placed the player to within a couple of metres.
+    const [dl] = await db.insert(lives).values({
+      serverId, playerId: pid, lifeNumber: 3, startedAt: mins(300), endedAt: mins(600),
+      deathCause: "pvp", deathByGamertag: "Killer", playtimeSeconds: 18000,
+    }).returning();
+    await db.insert(sessions).values({
+      serverId, playerId: pid, lifeId: dl!.id, connectedAt: mins(300), disconnectedAt: mins(600),
+      durationSeconds: 18000, closeReason: "death",
+    });
+    // Dense stationary run every 3 minutes from mins(300) to mins(597), all within a
+    // couple of metres of (100,100) — thinning collapses this entire run to its first point.
+    const denseFixes = Array.from({ length: 100 }, (_, i) => ({
+      serverId, playerId: pid, gamertag: tag, x: 100 + (i % 2), y: 100, recordedAt: mins(300 + i * 3),
+    }));
+    await db.insert(positions).values(denseFixes);
+    // The true final raw fix, moments before death — always survives thinning
+    // unconditionally, so it does NOT discriminate the death marker (both pass); it's
+    // the KILL marker below (mid-life, well before this fix) that exposes the bug.
+    await db.insert(positions).values({
+      serverId, playerId: pid, gamertag: tag, x: 105, y: 100, recordedAt: new Date(mins(599).getTime() + 30_000),
+    });
+    // Kill at mins(451) — 60s after the dense fix at mins(450) (i=50, x=100), and ~2.5h
+    // after the dense run's first kept point (mins(300)).
+    await db.insert(kills).values({
+      serverId, killerGamertag: tag, victimGamertag: "BaseVictim", weapon: "KAS-74U", distance: 40,
+      occurredAt: mins(451),
+    });
+
+    const t = await getLifeTrack(db, serverId, tag, 3);
+    const kill = t!.markers.find((m) => m.kind === "kill");
+    const death = t!.markers.find((m) => m.kind === "death");
+    expect(kill).toBeDefined();
+    expect(kill!.x).toBe(100);
+    expect(kill!.sampleAgeSeconds).toBe(60);
+    expect(death).toBeDefined();
+    expect(death!.x).toBe(105);
+  });
+
   it("returns null for a life number that gamertag does not have", async () => {
     expect(await getLifeTrack(db, serverId, tag, 99)).toBeNull();
   });

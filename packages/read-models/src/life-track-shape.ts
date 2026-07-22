@@ -52,12 +52,6 @@ export function thinTrackWithMeta(points: TrackPoint[]): { points: TrackPoint[];
   return { points: [...kept.slice(0, TRACK_POINT_CAP - 1), last], truncated: true };
 }
 
-/** Behaviourally identical to `thinTrackWithMeta` minus the truncation fact — kept for
- *  existing callers that only need the points. */
-export function thinTrack(points: TrackPoint[]): TrackPoint[] {
-  return thinTrackWithMeta(points).points;
-}
-
 /** One polyline per session. Joining across a session gap would draw a straight line
  *  across a logout/login the player never walked. */
 export function segmentBySession(

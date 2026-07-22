@@ -227,10 +227,17 @@ link is printed to `journalctl -u onelife-api`, not emailed. Configure SMTP late
 
 ## Owner-only life map tiles (DayZ terrain mirror)
 
+**This release needs no migration and no `--rebuild`** — the owner-only life map read
+models query existing `positions`/`kills`/`lives` rows only; there is no new or
+reshaped projection table. A plain `./deploy/deploy.sh` is the whole deploy.
+
 The per-life map (owner-only, `/players/[slug]/[map]/lives/[n]`) renders a player's
 trail over a self-hosted mirror of DayZ's own terrain tiles. This is **host
 configuration, not a release artifact** — it is a one-time prerequisite (redone only
-when a map's terrain changes upstream), never touched by `deploy/deploy.sh`.
+when a map's terrain changes upstream), never touched by `deploy/deploy.sh`. Tile
+mirroring is independent of the release train: it may be run before or after any given
+`deploy.sh`, in either order, and **skipping it degrades rather than blocks** — see
+"Things to know before relying on this" below for exactly how it degrades.
 
 **Prerequisite:** install [`dzmap-loader`](https://github.com/WoozyMasta/dzmap) on
 the host and put it on `PATH` first. `deploy/mirror-tiles.sh` checks for it and
@@ -288,6 +295,19 @@ Things to know before relying on this:
   should. If the trail renders uniformly offset or scaled, `CANVAS_PX` (and/or
   `MAX_ZOOM`) needs correcting for the mirrored pyramid — see the comment beside
   it in `track-map.tsx`. This step is still outstanding as of this writing.
+
+### Verify the tile mirror after running `mirror-tiles.sh`
+
+Don't guess a tile path — `mirror-tiles.sh` prints per-map tile counts and a final
+success/failure summary, and exits non-zero if it mirrored zero maps. Find and curl a
+tile that actually exists rather than assuming a fixed `z/x/y`:
+
+```bash
+find /var/www/tiles/chernarusplus -name '*.webp' | head -1
+# => /var/www/tiles/chernarusplus/topographic/3/4/4.webp   (example — yours will differ)
+curl -sI https://dayzonelife.com/tiles/chernarusplus/topographic/3/4/4.webp | head -1
+# => expect: HTTP/2 200
+```
 
 ## TLS
 

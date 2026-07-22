@@ -40,7 +40,11 @@ async function buildInit(base: RequestInit): Promise<{ url: (p: string) => strin
       init: { ...base, cache: "no-store", headers: { ...base.headers, cookie: cookieHeader } },
     };
   }
-  return { url: (p) => p, init: { ...base, credentials: "include" } };
+  // Defence-in-depth (spec §3.3): every response here can carry `Cache-Control:
+  // no-store, private` (e.g. the owner-only life track), and the browser's own HTTP
+  // cache must never be the reason a stale/foreign response is served. `credentials:
+  // "include"` alone doesn't disable caching.
+  return { url: (p) => p, init: { ...base, credentials: "include", cache: "no-store" } };
 }
 
 async function parse<T>(res: Response): Promise<T> {

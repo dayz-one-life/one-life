@@ -64,11 +64,15 @@ mkdir -p "$DEST" || {
   echo "       writable by the running user, or re-run this script under sudo." >&2
   exit 1
 }
+
+OK_MAPS=()
+FAILED_MAPS=()
 for m in "${MAPS[@]}"; do
   SRC="$WORK/maps/$m/topographic"
   if [[ ! -d "$SRC" ]]; then
     echo "warning: no tiles produced for $m (source unreachable, or the map name" >&2
     echo "         doesn't match dzmap.yaml) — skipping, existing tiles untouched" >&2
+    FAILED_MAPS+=("$m")
     continue
   fi
 
@@ -79,8 +83,29 @@ for m in "${MAPS[@]}"; do
   mkdir -p "$DEST/$m"
   rm -rf "$DEST/$m/topographic"
   mv "$SRC" "$DEST/$m/topographic"
-  echo "==> $m: $(find "$DEST/$m/topographic" -name '*.webp' | wc -l | tr -d ' ') tiles mirrored"
+  TILE_COUNT="$(find "$DEST/$m/topographic" -name '*.webp' | wc -l | tr -d ' ')"
+  echo "==> $m: $TILE_COUNT tiles mirrored"
+  if [[ "$TILE_COUNT" -eq 0 ]]; then
+    FAILED_MAPS+=("$m")
+  else
+    OK_MAPS+=("$m")
+  fi
 done
 
-echo "==> done. Verify one tile is readable:"
-echo "    curl -sI https://<host>/tiles/chernarusplus/topographic/3/4/4.webp | head -1"
+if [[ ${#OK_MAPS[@]} -gt 0 ]]; then
+  echo "==> summary: ${#OK_MAPS[@]}/${#MAPS[@]} maps mirrored (${OK_MAPS[*]})"
+else
+  echo "==> summary: 0/${#MAPS[@]} maps mirrored"
+fi
+if [[ ${#FAILED_MAPS[@]} -gt 0 ]]; then
+  echo "==> failed/empty: ${FAILED_MAPS[*]}" >&2
+fi
+
+if [[ ${#OK_MAPS[@]} -eq 0 ]]; then
+  echo "error: zero maps were mirrored — this run produced nothing usable." >&2
+  exit 1
+fi
+
+echo "==> done. Verify a real tile is readable, e.g.:"
+echo "    find $DEST/${OK_MAPS[0]} -name '*.webp' | head -1"
+echo "    curl -sI https://<host>/tiles/\$(find $DEST/${OK_MAPS[0]} -name '*.webp' | head -1 | sed \"s|^$DEST/||\") | head -1"

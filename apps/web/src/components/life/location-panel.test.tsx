@@ -15,7 +15,7 @@ const props = { mapSlug: "sakhal", lifeNumber: 1, pageGamertag: "Hero", alive: t
 
 beforeEach(() => {
   useSession.mockReturnValue({ data: null });
-  useGamertagLinks.mockReturnValue({ data: [] });
+  useGamertagLinks.mockReturnValue({ data: [], isPending: false });
   useLifeTrack.mockReturnValue({ data: null, isPending: false, isError: false });
 });
 
@@ -49,6 +49,26 @@ describe("LocationPanel", () => {
   it("shows the withheld bar to a signed-in NON-owner", () => {
     useSession.mockReturnValue({ data: { user: { id: "u1" } } });
     useGamertagLinks.mockReturnValue({ data: [{ gamertag: "SomeoneElse", status: "verified" }] });
+    render(<LocationPanel {...props} />);
+    expect(screen.getByText("Positions withheld")).toBeInTheDocument();
+  });
+
+  it("shows a loading line, never the withheld bar, to the OWNER while gamertag links are still loading", () => {
+    // A stale-data race: `data` is undefined while useGamertagLinks is still fetching, so
+    // isOwnerOf reads that as "not the owner" — without a dedicated loading gate this
+    // renders the owner's own "positions withheld" bar for a few hundred ms, which is
+    // loading rendered as permission-refused (the exact collapse this panel forbids
+    // everywhere else).
+    useSession.mockReturnValue({ data: { user: { id: "u1" } } });
+    useGamertagLinks.mockReturnValue({ data: undefined, isPending: true });
+    render(<LocationPanel {...props} />);
+    expect(screen.getByText(/pulling your fixes/i)).toBeInTheDocument();
+    expect(screen.queryByText("Positions withheld")).toBeNull();
+  });
+
+  it("keeps the instant withheld bar for a signed-out visitor (no links fetch happens)", () => {
+    useSession.mockReturnValue({ data: null });
+    useGamertagLinks.mockReturnValue({ data: undefined, isPending: true });
     render(<LocationPanel {...props} />);
     expect(screen.getByText("Positions withheld")).toBeInTheDocument();
   });

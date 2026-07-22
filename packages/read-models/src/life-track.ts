@@ -30,6 +30,7 @@ export async function getLifeTrack(
   const [row] = await db
     .select({
       lifeId: lives.id,
+      playerId: players.id,
       startedAt: lives.startedAt,
       endedAt: lives.endedAt,
       map: servers.map,
@@ -65,12 +66,20 @@ export async function getLifeTrack(
   }));
 
   const windowEnd = row.endedAt ?? cap;
+  // Filtered by `player_id`, not `lower(gamertag)` — this is the ONLY predicate shape
+  // that can use `positions_player_idx` (server_id, player_id, recorded_at) end-to-end.
+  // A `lower(gamertag) = lower($1)` predicate defeats that index past its `server_id`
+  // prefix and forces Postgres to scan and filter every position ever recorded on the
+  // server — on the highest-volume, never-truncated table in the system, on a 60s poll.
+  // It also happens to close a latent correctness gap: `players_gamertag_uniq` is
+  // case-SENSITIVE, so folding case here could otherwise merge two distinct players'
+  // fixes; keying on the resolved numeric player id sidesteps that entirely.
   const posRows = await db
     .select({ x: positions.x, y: positions.y, recordedAt: positions.recordedAt })
     .from(positions)
     .where(and(
       eq(positions.serverId, serverId),
-      sql`lower(${positions.gamertag}) = lower(${gamertag})`,
+      eq(positions.playerId, row.playerId),
       gte(positions.recordedAt, row.startedAt),
       lte(positions.recordedAt, windowEnd),
     ))
@@ -80,6 +89,11 @@ export async function getLifeTrack(
   const { points: thinned, truncated } = thinTrackWithMeta(raw);
   const segments = segmentBySession(thinned, windows);
 
+  // `kills` has no `player_id` column (only `killer_gamertag`/`victim_gamertag`), so this
+  // predicate cannot be rewritten to use `kills_killer_idx` (server_id, killer_gamertag)
+  // end-to-end without a schema change — out of scope here (no migrations in this task).
+  // Left as `lower()` deliberately; a kills table gets nowhere near the volume of
+  // `positions`, so this is a known, accepted gap rather than an oversight.
   const killRows = await db
     .select({ victimGamertag: kills.victimGamertag, occurredAt: kills.occurredAt })
     .from(kills)
@@ -91,9 +105,16 @@ export async function getLifeTrack(
     ))
     .orderBy(asc(kills.occurredAt));
 
+  // Markers are matched against the RAW fixes, never `thinned` (spec §4.3). Thinning
+  // keeps only the first sample within THIN_MIN_METERS of the last kept one — a
+  // stationary player parked in a base for hours produces a dense run of raw fixes that
+  // collapses to a single ancient kept sample, which would push every marker for that
+  // whole span past MARKER_MAX_AGE_SECONDS and suppress it. `thinned` is for the drawn
+  // polylines only; the marker's whole claim is "this is where the last KNOWN fix put
+  // you," and the most recent raw fix is always the best-known one.
   const markers: TrackMarker[] = [];
   for (const k of killRows) {
-    const m = markerAt(thinned, "kill", k.occurredAt, k.victimGamertag);
+    const m = markerAt(raw, "kill", k.occurredAt, k.victimGamertag);
     if (m) markers.push(m);
   }
   // The `now` marker IS the last fix, so its sampleAgeSeconds is legitimately 0 — the
@@ -102,9 +123,9 @@ export async function getLifeTrack(
   // `sampleAt` so it keeps ticking between the 60s polls. Deliberately no request-time
   // `now` on this read model — see the presence-cap note above.
   const terminal = row.endedAt
-    ? markerAt(thinned, "death", row.endedAt, null)
-    : thinned.length > 0
-      ? markerAt(thinned, "now", thinned[thinned.length - 1]!.at, null)
+    ? markerAt(raw, "death", row.endedAt, null)
+    : raw.length > 0
+      ? markerAt(raw, "now", raw[raw.length - 1]!.at, null)
       : null;
   if (terminal) markers.push(terminal);
 
