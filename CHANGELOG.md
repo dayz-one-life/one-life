@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.42.2] - 2026-07-22
+
+### Fixed
+
+- The gamertag-identity release (0.42.1) could not deploy: its rebuild step tried to clear a
+  table that the same release had not yet created, and stopped the deploy before it began. The
+  step no longer refers to that table by name, so the release deploys cleanly.
+
 ## [0.42.1] - 2026-07-22
 
 ### Fixed
