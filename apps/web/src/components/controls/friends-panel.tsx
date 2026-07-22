@@ -55,6 +55,12 @@ export function FriendsPanel(p: FriendsPanelProps) {
           </span>
         ) : null}
       </Link>
+      <Link
+        href="/maps"
+        className={`flex items-center font-mono text-[11px] uppercase tracking-[.05em] ${muted} ${minH}`}
+      >
+        Map →
+      </Link>
     </div>
   );
 }
