@@ -1470,7 +1470,7 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   frozen (the existing `lower()` comparisons are unaffected). Slug resolution
   (`resolveSlugMatch`/`resolveGamertagBySlug`, `packages/read-models/src/player-aggregate.ts`) now
   falls back through `player_gamertags` for a former name, and an old player-page URL 308-redirects
-  to the current one. Player-scoped stats (kill counts, priors, leaderboards' kill join, life
+  to the current one. Player-scoped stats (kill counts, priors, life
   tracks) key on `kills.killer_player_id`/`victim_player_id` — populated by the fold, so they are
   identity-correct after a rebuild — rather than the gamertag text; `killer_player_id` is nullable
   and every site uses `eq()`, which correctly excludes NULL rather than matching it. Three
