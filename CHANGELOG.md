@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `enforce_admins=false` under the `review` policy (GitHub can't require a `COMMENTED` review; keeps
   a solo maintainer able to merge their own PR). Documented the enforced-vs-advisory split in
   `CLAUDE.md`.
+- **Dependencies (safe patch batch):** bumped `react`/`react-dom` 19.2.7 → 19.2.8,
+  `@tanstack/react-query` 5.101.2 → 5.101.4, and `postcss` 8.5.19 → 8.5.22 in `apps/web` (caret
+  floors raised to match). Supersedes Dependabot PRs #249 and #250. Web typecheck + 914 tests green.
 
 ## [0.43.0] - 2026-07-23
 
