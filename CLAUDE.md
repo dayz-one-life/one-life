@@ -7,12 +7,22 @@ This repo's git lifecycle is owned by **keel**, part of the
 `.claude/settings.json`. **`.keel.json` is the source of truth for the topology** — read it rather
 than trusting a summary here, because a summary is how a committed copy drifts from the plugin.
 
-Shorthand: work happens on `feature/*` off `develop`; PRs into `develop` are squash-merged;
-releases go `develop` → `main`. Every contribution PR needs a `CHANGELOG.md` entry, and this file
-is updated last, before opening the PR.
+Shorthand: work happens on `feature/*` off `main`; PRs into `main` are squash-merged; releases are
+cut and tagged from `main`. `main` is the single long-lived branch (**trunk topology** — there is
+no `develop`; it was retired 2026-07-23). Every contribution PR needs a `CHANGELOG.md` entry, and
+this file is updated last, before opening the PR.
 
 Skills, in lifecycle order: `keel:start-work` → `keel:finish-work`, then `keel:review`,
-`keel:land`, `keel:release`, `keel:ship`. `keel:doctor` explains any block or warning.
+`keel:land`, `keel:release`, `keel:ship`. `keel:doctor` explains any block or warning. Under trunk
+there is no `keel:release` step (no integration branch to accumulate on) — cut releases straight
+from `main` with `keel:ship`.
+
+**⚠️ `mergeStrategy.toProduction` MUST stay `"squash"`, not `"merge"`.** keel's merge-strategy
+guard short-circuits under trunk (`rules.py`, the `and not cfg.is_trunk` clause): *every* PR into
+`main` is judged against `toProduction`, and `toIntegration` is never consulted. Since every PR
+here is a feature PR (releases are tags, not merges), setting `toProduction: "merge"` would force a
+merge commit per feature and **block `gh pr merge --squash` outright**. `main` stays a clean
+one-commit-per-feature history only while this is `squash`.
 
 Also enabled: `stow` (`.gitignore`), `rigging` (CI), `hull` (secret scanning), and `bosun`
 (Dependabot). Only `ballast` (pytest) stays off — there is no Python here. Every plugin's rendered
@@ -38,8 +48,8 @@ file is **generated output** — edit the `.<plugin>.json` config and re-render,
   gitleaks: this is an org-owned repo, and gitleaks-action hard-exits without a `GITLEAKS_LICENSE`
   org license; trufflehog needs no license and only `contents: read`, so it also runs on fork PRs.
 - **`bosun`** → `.bosun.json` + `.github/dependabot.yml`. `github-actions` + `npm` ecosystems,
-  weekly, `targetBranch: develop` (read from `.keel.json` — under gitflow the default branch is
-  `main`/production, so an untargeted Dependabot would bypass `develop` and the changelog gate).
+  weekly, `targetBranch: main` (read from `.keel.json` — under trunk topology `main` is the
+  integration branch where the changelog gate runs, so Dependabot PRs target it directly).
 
 The three previously-deferred plugins were unblocked by Shipyard 0.6.0–0.9.0 (issue #24 + the
 `services.<id>.database` follow-up); see
@@ -63,11 +73,13 @@ prompt on their first session. See `CONTRIBUTING.md`.
   `main` is refused. `keel:sync` rebases against `upstream/<base>` instead.
 - keel has **no role concept** — fork and same-repo PRs are judged identically. A solo release PR
   satisfies `reviewPolicy: "review"` by posting a `COMMENTED` review on your own PR.
-- **Orphan roots (reconciled 2026-07-14):** `main` and `develop` were originally created as
-  independent orphan commits with no shared history, which forced a one-off `git rebase --onto` on
-  every cross-branch PR through the v0.1.0 release. After v0.1.0, `develop` was re-rooted onto
-  `main` so they now share history — feature→`develop`, release→`main`, and `main`→`develop`
-  back-merge PRs no longer need any rebasing.
+- **Trunk conversion (2026-07-23):** the repo ran gitflow (`feature/*` → `develop` → `main`) until
+  this date, when it switched to trunk topology and retired `develop` (which was content-identical
+  to `main` at the time). All history below that predates the switch and describes the old two-branch
+  flow. Historically relevant: `main` and `develop` were originally independent orphan commits with
+  no shared history, forcing a one-off `git rebase --onto` on every cross-branch PR through v0.1.0;
+  after v0.1.0 `develop` was re-rooted onto `main` (reconciled 2026-07-14) and back-merge PRs no
+  longer needed rebasing.
 
 ---
 

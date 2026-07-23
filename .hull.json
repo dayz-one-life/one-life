@@ -1,5 +1,5 @@
 {
   "name": "security",
   "scanner": "trufflehog",
-  "pushBranches": ["main", "develop"]
+  "pushBranches": ["main"]
 }

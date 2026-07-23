@@ -184,7 +184,7 @@ only in the systemd env is too late — the wrong values are already frozen in t
 
 ### ⚠️ A change to `deploy.sh` never applies to the deploy that installs it
 
-> **Read this page from `develop` on GitHub, not from the host.** The checked-out copy is by
+> **Read this page from `main` on GitHub, not from the host.** The checked-out copy is by
 > definition the *old* release's, so it cannot describe the release you are about to install.
 > This document is subject to the same lag it documents.
 

@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Git topology: gitflow → trunk.** `main` is now the single long-lived branch; `feature/*`
+  branches cut from and squash-merge back into `main`, and releases are tagged from `main`. The
+  `develop` integration branch is retired (it was content-identical to `main` at conversion). Config
+  updated across `.keel.json` (`topology: "trunk"`), `.bosun.json` (`targetBranch: main`),
+  `.hull.json`/`.rigging.json` (`pushBranches: ["main"]`) and their rendered artifacts
+  (`dependabot.yml`, `ci.yml`, `security.yml`); workflow docs in `CLAUDE.md`, `CONTRIBUTING.md`, and
+  `deploy/README.md` revised to match.
+
 ## [0.43.0] - 2026-07-23
 
 ### Added
