@@ -183,6 +183,13 @@
       "when": 1785500000000,
       "tag": "0025_player_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785600000000,
+      "tag": "0026_dayz_id_unique",
+      "breakpoints": true
     }
   ]
 }
