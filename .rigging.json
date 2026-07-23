@@ -1,0 +1,16 @@
+{
+  "name": "ci",
+  "stacks": {
+    "node": {
+      "packageManager": "pnpm",
+      "services": {
+        "postgres": {
+          "version": "16",
+          "urlEnv": "TEST_DATABASE_URL",
+          "database": "onelife_test"
+        }
+      }
+    }
+  },
+  "pushBranches": ["main", "develop"]
+}

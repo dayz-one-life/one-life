@@ -4,6 +4,15 @@
 **Status:** Implemented on `feature/shipyard-plugins`. Corrected twice during implementation —
 `rigging` dropped before work began (§9), `hull` and `bosun` dropped at final review (§3).
 
+> **Superseded 2026-07-23:** all three deferrals have been reversed. Shipyard 0.6.0–0.8.0 closed the
+> `rigging`/`hull`/`bosun` renderer gaps reported in issue #24, and 0.9.0 added the
+> `services.<id>.database` key (requested from this repo —
+> `docs/superpowers/notes/2026-07-23-rigging-service-database-key-prompt.md`) that lets rigging emit
+> a `*_test` database URL the harness guard accepts. `rigging`, `hull`, and `bosun` are now **enabled
+> and rendering** (`ci.yml` / `security.yml` / `dependabot.yml`); the full test suite passes green in
+> the rigging job. §3 and §9 below record the original deferral reasoning, not the current state —
+> see `CLAUDE.md` for what ships today.
+
 ## 1. Problem
 
 This repo was created from a Claude Code workflow template. The template committed its

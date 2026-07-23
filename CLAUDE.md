@@ -14,17 +14,28 @@ is updated last, before opening the PR.
 Skills, in lifecycle order: `keel:start-work` → `keel:finish-work`, then `keel:review`,
 `keel:land`, `keel:release`, `keel:ship`. `keel:doctor` explains any block or warning.
 
-Also enabled: `stow` (`.gitignore`) only. Its rendered artifacts are **generated output** — edit
-`.stow.json` and re-render, never the artifact. `hull` (secret scanning) and `bosun` (Dependabot)
-were evaluated and deferred: hull's gitleaks action requires an org license its renderer has no
-slot to emit, and bosun's config can't target `develop`, so it would open Dependabot PRs straight
-against `main`.
+Also enabled: `stow` (`.gitignore`), `rigging` (CI), `hull` (secret scanning), and `bosun`
+(Dependabot). Only `ballast` (pytest) stays off — there is no Python here. Every plugin's rendered
+file is **generated output** — edit the `.<plugin>.json` config and re-render, never the artifact:
 
-**`rigging` (CI) is deliberately not enabled**, and there is still no test/build CI. It cannot
-express pnpm, service containers, or a custom test command. keel's changelog gate does run in
-CI (`.github/workflows/changelog.yml`) — see
-`docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` §9 for the full reasoning and the
-two open paths.
+- **`rigging`** → `.rigging.json` + `.github/workflows/ci.yml`. A pnpm + turbo test job on Node 20
+  with a `postgres:16` service; `services.postgres.database: "onelife_test"` makes rigging emit
+  `TEST_DATABASE_URL=…/onelife_test`, which the `assertTestDatabase` `_test` guard requires (the
+  harness self-creates + migrates that DB). Runs `pnpm install --frozen-lockfile` then `pnpm test`
+  (the root `turbo run test --concurrency=1` script — deliberately **not** a custom `testCommand`,
+  because a bare `turbo` has no `node_modules/.bin` on PATH in a `run:` step). This is the repo's
+  first real test CI.
+- **`hull`** → `.hull.json` + `.github/workflows/security.yml`. Scanner is **`trufflehog`**, not
+  gitleaks: this is an org-owned repo, and gitleaks-action hard-exits without a `GITLEAKS_LICENSE`
+  org license; trufflehog needs no license and only `contents: read`, so it also runs on fork PRs.
+- **`bosun`** → `.bosun.json` + `.github/dependabot.yml`. `github-actions` + `npm` ecosystems,
+  weekly, `targetBranch: develop` (read from `.keel.json` — under gitflow the default branch is
+  `main`/production, so an untargeted Dependabot would bypass `develop` and the changelog gate).
+
+The three previously-deferred plugins were unblocked by Shipyard 0.6.0–0.9.0 (issue #24 + the
+`services.<id>.database` follow-up); see
+`docs/superpowers/specs/2026-07-21-shipyard-plugins-design.md` §9 for the full history. keel's
+changelog gate also runs in CI (`.github/workflows/changelog.yml`).
 
 **⚠️ `.github/workflows/changelog.yml` and `scripts/check_changelog.py` are vendored verbatim** from
 keel's own templates (`plugins/keel/templates/` in the Shipyard repo). They are not authored here.
