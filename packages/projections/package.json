@@ -5,6 +5,6 @@
   "main": "src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@onelife/domain": "workspace:*", "zod": "^3.23.8" },
+  "dependencies": { "@onelife/domain": "workspace:*", "zod": "^4.4.3" },
   "devDependencies": { "typescript": "^5.6.0", "vitest": "^2.1.0" }
 }
