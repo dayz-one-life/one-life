@@ -8,8 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Test CI** (`rigging` → `.github/workflows/ci.yml`): a pnpm + turbo test job on Node 20 with a
-  `postgres:16` service container. rigging's per-service `database` key (Shipyard 0.9.0) emits
+- **Test CI** (`rigging` → `.github/workflows/ci.yml`): a pnpm + turbo test job on Node 24 with a
+  `postgres:16` service container. (Node 24, not the `engines.node >=20` floor: vitest's config
+  loader natively `import()`s a `.ts` setup module, which needs the runtime's own type stripping —
+  Node 20 can't, Node 22.18+/24 can.) rigging's per-service `database` key (Shipyard 0.9.0) emits
   `TEST_DATABASE_URL=…/onelife_test`, which the repo's `_test` database guard requires; the job runs
   `pnpm install --frozen-lockfile` then `pnpm test`. This is the repo's first automated test CI —
   previously only the changelog gate ran.

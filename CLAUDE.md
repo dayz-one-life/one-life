@@ -18,13 +18,17 @@ Also enabled: `stow` (`.gitignore`), `rigging` (CI), `hull` (secret scanning), a
 (Dependabot). Only `ballast` (pytest) stays off — there is no Python here. Every plugin's rendered
 file is **generated output** — edit the `.<plugin>.json` config and re-render, never the artifact:
 
-- **`rigging`** → `.rigging.json` + `.github/workflows/ci.yml`. A pnpm + turbo test job on Node 20
+- **`rigging`** → `.rigging.json` + `.github/workflows/ci.yml`. A pnpm + turbo test job on **Node 24**
   with a `postgres:16` service; `services.postgres.database: "onelife_test"` makes rigging emit
   `TEST_DATABASE_URL=…/onelife_test`, which the `assertTestDatabase` `_test` guard requires (the
   harness self-creates + migrates that DB). Runs `pnpm install --frozen-lockfile` then `pnpm test`
   (the root `turbo run test --concurrency=1` script — deliberately **not** a custom `testCommand`,
   because a bare `turbo` has no `node_modules/.bin` on PATH in a `run:` step). This is the repo's
-  first real test CI.
+  first real test CI. **Node 24, not the `engines.node >=20` floor:** vitest configs import
+  `@onelife/test-support/setup-path` (a `.ts` file) that Vite's config loader resolves with a plain
+  native `import()`, so the runtime must strip TS types itself — Node 20 throws
+  `ERR_UNKNOWN_FILE_EXTENSION`, Node 22.18+/24 do not. The real test-runtime floor is above what
+  `engines` declares.
 - **`hull`** → `.hull.json` + `.github/workflows/security.yml`. Scanner is **`trufflehog`**, not
   gitleaks: this is an org-owned repo, and gitleaks-action hard-exits without a `GITLEAKS_LICENSE`
   org license; trufflehog needs no license and only `contents: read`, so it also runs on fork PRs.
