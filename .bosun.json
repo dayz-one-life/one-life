@@ -3,5 +3,5 @@
     "githubActions": { "interval": "weekly" },
     "node": { "interval": "weekly" }
   },
-  "targetBranch": "develop"
+  "targetBranch": "main"
 }

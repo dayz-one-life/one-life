@@ -1,6 +1,6 @@
 {
-  "topology": "gitflow",
-  "branches": { "production": "main", "integration": "develop" },
+  "topology": "trunk",
+  "branches": { "production": "main" },
   "prefixes": { "feature": "feature/", "release": "release/" },
   "contributions": "both",
   "reviewPolicy": "review",

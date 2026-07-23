@@ -21,12 +21,12 @@ The canonical repo is `dayz-one-life/one-life`. If you fork by hand rather than 
 
 ## Flow
 
-1. `keel:start-work` — creates a correctly-named `feature/*` branch off an up-to-date `develop`.
+1. `keel:start-work` — creates a correctly-named `feature/*` branch off an up-to-date `main`.
    It picks fork or same-repo based on your GitHub permissions.
 2. Do the work, test-driven. Tests: `pnpm turbo run test --concurrency=1` (DB suites need
    `TEST_DATABASE_URL`). Typecheck: `pnpm turbo run typecheck`.
 3. `keel:finish-work` — runs checks, updates the changelog, prompts for `CLAUDE.md` impact, and
-   opens the PR against `develop`.
+   opens the PR against `main`.
 4. A maintainer reviews (`keel:review`). Address feedback and push; approved PRs are
    squash-merged (`keel:land`).
 

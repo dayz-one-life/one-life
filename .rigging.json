@@ -13,5 +13,5 @@
       }
     }
   },
-  "pushBranches": ["main", "develop"]
+  "pushBranches": ["main"]
 }
