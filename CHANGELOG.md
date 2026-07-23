@@ -16,11 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.42.3] - 2026-07-22
+
+### Fixed
+
 - The one-player-per-account guarantee behind the gamertag-identity change is now enforced by
   the database itself, closing the gap where it was only maintained while data was being
   processed.
-
-### Security
 
 ## [0.42.2] - 2026-07-22
 
