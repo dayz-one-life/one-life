@@ -67,8 +67,15 @@ prompt on their first session. See `CONTRIBUTING.md`.
 ## Honest limitations
 
 - keel's guard is **advisory** and runs only inside Claude Code; plain `git`/`gh` in a terminal, or
-  CI, bypasses it entirely. The real boundary is GitHub branch protection (`keel:protect`), which is
-  not configured for this repo yet.
+  CI, bypasses it entirely. The real boundary is GitHub branch protection, **configured on `main`
+  as of 2026-07-23** (`keel:protect`): PRs are required, and `node (24)` + `changelog` + `trufflehog`
+  must pass before merge (`strict` — a PR must be up to date with `main` first). **Two deliberate
+  gaps under `reviewPolicy: "review"`:** the required approving-review count is **`0`**, because
+  GitHub forbids self-approval and understands only `APPROVED` (not `COMMENTED`), so requiring `1`
+  would lock a solo maintainer out — the comment-review convention stays hook/practice-enforced, not
+  server-side; and `enforce_admins=false`, which is what lets the maintainer merge their own
+  commented PR but also means **an admin can still bypass with a direct push** (fork/non-admin
+  contributors are fully bound).
 - `protected-write` keys on branch **name**, not repository identity, so pushing to your own fork's
   `main` is refused. `keel:sync` rebases against `upstream/<base>` instead.
 - keel has **no role concept** — fork and same-repo PRs are judged identically. A solo release PR

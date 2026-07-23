@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.hull.json`/`.rigging.json` (`pushBranches: ["main"]`) and their rendered artifacts
   (`dependabot.yml`, `ci.yml`, `security.yml`); workflow docs in `CLAUDE.md`, `CONTRIBUTING.md`, and
   `deploy/README.md` revised to match.
+- **Branch protection on `main`** (`keel:protect`): PRs required, with `node (24)` + `changelog` +
+  `trufflehog` as required status checks (`strict`). Required approving reviews `0` and
+  `enforce_admins=false` under the `review` policy (GitHub can't require a `COMMENTED` review; keeps
+  a solo maintainer able to merge their own PR). Documented the enforced-vs-advisory split in
+  `CLAUDE.md`.
 
 ## [0.43.0] - 2026-07-23
 
