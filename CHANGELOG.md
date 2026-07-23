@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (CI + prod), deliberately not Dependabot's 26, so the type surface can't advertise Node APIs the
   runtime lacks. Supersedes Dependabot #253 (declined in favour of 24) and the reopened `jsdom` /
   `jest-dom` bumps. Full typecheck + all 23 package test suites green.
+- **Dependencies (`pino` 9 → 10):** bumped `pino` `^9.4.0` → `^10.3.1` across all 9 apps. v10's
+  breaking changes (dropped Node 18, removed deprecated APIs) don't touch the minimal
+  `pino({ level })` usage here. Full typecheck + all 23 package test suites green.
 
 ## [0.43.0] - 2026-07-23
 
