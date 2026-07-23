@@ -1508,12 +1508,19 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   from event 0, and since the fold now resolves by `dayz_id` first, the collapse happens for free.
   **Deploy is `./deploy/deploy.sh --rebuild` — the rebuild IS the merge**, not an optional cleanup
   step; skipping it leaves the pre-merge duplicate rows in place.
-  **⚠️ `players.dayz_id` is NOT YET UNIQUE.** `deploy.sh` migrates before it rebuilds, so at
-  migrate time the database still holds the duplicate hashes the old gamertag-keyed fold produced
-  — a unique constraint added in this release would abort the deploy outright. Migration `0026`,
-  next release, promotes `dayz_id` to unique, gated on confirming
-  `SELECT dayz_id, count(*) FROM players GROUP BY 1 HAVING count(*) > 1` returns zero rows after
-  this release's rebuild.
+  **`players.dayz_id` is UNIQUE (`players_dayz_id_uniq`, migration `0026`) — the two-release
+  sequence is complete.** `0025` (v0.42.2) made `dayz_id` the identity and re-folded to collapse
+  the historical duplicates; `0026` then promoted it to unique (it could not land in the same
+  release — `deploy.sh` migrates before it rebuilds, so the duplicates still existed at `0025`'s
+  migrate time). `0026` dropped the non-unique `players_dayz_id_idx`; the unique index serves
+  `getPlayerByDayzId`'s `eq()` lookup in its place. **Nulls-distinct** — a null `dayz_id` (never
+  observed; the fold's `dayzId != null` guard permits it) is allowed and does not collide, so the
+  column stays nullable. **`createPlayer` is still a plain `INSERT`, NOT an `ON CONFLICT
+  (dayz_id)` target**: the unique index is a loud-fail backstop for a race the single-instance,
+  hash-first, transactional fold cannot actually produce — an `ON CONFLICT … DO UPDATE` here would
+  reintroduce the silent-attribution hazard `0025` removed. `0026` deploys with a plain
+  `./deploy/deploy.sh` (**no `--rebuild`** — index-only, no projection-shape change, so none of the
+  rebuild-before-migrate ordering hazard).
   **Deferred — still key on gamertag text, not player id:** `player-articles.ts` (both the subject
   and killer arms), `leaderboards.ts`, `obituaries.ts`, and the broader articles/notifications/
   friends surfaces generally. A rename is therefore not yet reflected in those surfaces' history.

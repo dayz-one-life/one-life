@@ -148,3 +148,25 @@ describe("stats follow the identity across a rename", () => {
     await db.delete(servers).where(eq(servers.id, srv!.id));
   });
 });
+
+describe("players_dayz_id_uniq", () => {
+  const dtag = `Dz${Math.floor(Math.random() * 1e8)}`;
+
+  afterAll(async () => {
+    await db.delete(players).where(inArray(players.gamertag, [`${dtag}A`, `${dtag}B`, `${dtag}N1`, `${dtag}N2`]));
+  });
+
+  it("rejects a second players row with the same dayz_id", async () => {
+    await db.insert(players).values({ gamertag: `${dtag}A`, dayzId: `HASH-${dtag}`, firstSeenAt: new Date(), lastSeenAt: new Date() });
+    await expect(
+      db.insert(players).values({ gamertag: `${dtag}B`, dayzId: `HASH-${dtag}`, firstSeenAt: new Date(), lastSeenAt: new Date() }),
+    ).rejects.toThrow(/players_dayz_id_uniq/);
+  });
+
+  it("still allows two rows with a NULL dayz_id (nulls-distinct)", async () => {
+    await db.insert(players).values({ gamertag: `${dtag}N1`, dayzId: null, firstSeenAt: new Date(), lastSeenAt: new Date() });
+    await db.insert(players).values({ gamertag: `${dtag}N2`, dayzId: null, firstSeenAt: new Date(), lastSeenAt: new Date() });
+    const rows = await db.select().from(players).where(inArray(players.gamertag, [`${dtag}N1`, `${dtag}N2`]));
+    expect(rows).toHaveLength(2);
+  });
+});

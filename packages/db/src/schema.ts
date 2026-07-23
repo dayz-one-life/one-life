@@ -77,9 +77,10 @@ export const players = pgTable("players", {
   // unique here would 23505 inside the fold transaction on a rename. Kept as a plain expression
   // index because slug/case-insensitive resolution still reads by lower(gamertag).
   byGamertag: index("players_gamertag_idx").on(sql`lower(${t.gamertag})`),
-  // No unique here — the duplicates still exist at migrate time (deploy.sh migrates
-  // before it rebuilds). Promoting this to unique is migration 0026, next release.
-  byDayzId: index("players_dayz_id_idx").on(t.dayzId),
+  // Identity is one players row per account hash — enforced here since 0026 (v0.42.x), after
+  // the 0025 rebuild collapsed the historical duplicates. Nulls-distinct: a null dayz_id (never
+  // observed) is allowed and does not collide. This also serves getPlayerByDayzId's eq() lookup.
+  uniqDayzId: uniqueIndex("players_dayz_id_uniq").on(t.dayzId),
 }));
 
 // Alias history for a player's gamertags. A projection, not durable data — rebuilt
