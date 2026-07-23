@@ -4,6 +4,6 @@
   "prefixes": { "feature": "feature/", "release": "release/" },
   "contributions": "both",
   "reviewPolicy": "review",
-  "mergeStrategy": { "toIntegration": "squash", "toProduction": "merge" },
+  "mergeStrategy": { "toIntegration": "squash", "toProduction": "squash" },
   "requireChangelog": true
 }

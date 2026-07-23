@@ -13,7 +13,16 @@ no `develop`; it was retired 2026-07-23). Every contribution PR needs a `CHANGEL
 this file is updated last, before opening the PR.
 
 Skills, in lifecycle order: `keel:start-work` → `keel:finish-work`, then `keel:review`,
-`keel:land`, `keel:release`, `keel:ship`. `keel:doctor` explains any block or warning.
+`keel:land`, `keel:release`, `keel:ship`. `keel:doctor` explains any block or warning. Under trunk
+there is no `keel:release` step (no integration branch to accumulate on) — cut releases straight
+from `main` with `keel:ship`.
+
+**⚠️ `mergeStrategy.toProduction` MUST stay `"squash"`, not `"merge"`.** keel's merge-strategy
+guard short-circuits under trunk (`rules.py`, the `and not cfg.is_trunk` clause): *every* PR into
+`main` is judged against `toProduction`, and `toIntegration` is never consulted. Since every PR
+here is a feature PR (releases are tags, not merges), setting `toProduction: "merge"` would force a
+merge commit per feature and **block `gh pr merge --squash` outright**. `main` stays a clean
+one-commit-per-feature history only while this is `squash`.
 
 Also enabled: `stow` (`.gitignore`), `rigging` (CI), `hull` (secret scanning), and `bosun`
 (Dependabot). Only `ballast` (pytest) stays off — there is no Python here. Every plugin's rendered
