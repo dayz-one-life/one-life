@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependencies (safe patch batch):** bumped `react`/`react-dom` 19.2.7 → 19.2.8,
   `@tanstack/react-query` 5.101.2 → 5.101.4, and `postcss` 8.5.19 → 8.5.22 in `apps/web` (caret
   floors raised to match). Supersedes Dependabot PRs #249 and #250. Web typecheck + 914 tests green.
+- **Dependencies (dev/test tooling majors):** bumped `jsdom` 25 → 29 and `@testing-library/jest-dom`
+  6 → 7 in `apps/web`, and `@types/node` 20 → **24** at the root — pinned to the Node **24** runtime
+  (CI + prod), deliberately not Dependabot's 26, so the type surface can't advertise Node APIs the
+  runtime lacks. Supersedes Dependabot #253 (declined in favour of 24) and the reopened `jsdom` /
+  `jest-dom` bumps. Full typecheck + all 23 package test suites green.
 
 ## [0.43.0] - 2026-07-23
 
