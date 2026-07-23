@@ -1,0 +1,279 @@
+# Retire the template workflow; adopt Shipyard as a repo-level plugin suite
+
+**Date:** 2026-07-21
+**Status:** Implemented on `feature/shipyard-plugins`. Corrected twice during implementation —
+`rigging` dropped before work began (§9), `hull` and `bosun` dropped at final review (§3).
+
+> **Superseded 2026-07-23:** all three deferrals have been reversed. Shipyard 0.6.0–0.8.0 closed the
+> `rigging`/`hull`/`bosun` renderer gaps reported in issue #24, and 0.9.0 added the
+> `services.<id>.database` key (requested from this repo —
+> `docs/superpowers/notes/2026-07-23-rigging-service-database-key-prompt.md`) that lets rigging emit
+> a `*_test` database URL the harness guard accepts. `rigging`, `hull`, and `bosun` are now **enabled
+> and rendering** (`ci.yml` / `security.yml` / `dependabot.yml`); the full test suite passes green in
+> the rigging job. §3 and §9 below record the original deferral reasoning, not the current state —
+> see `CLAUDE.md` for what ships today.
+
+## 1. Problem
+
+This repo was created from a Claude Code workflow template. The template committed its
+enforcement logic *into the repo it guards*: a `PreToolUse` hook, a `SessionStart` hook, a shared
+`workflow_lib.py`, seven workflow skills, and a `workflow.json` config — roughly a thousand lines of
+tooling that has nothing to do with DayZ, One Life, or any of the sub-projects this repo exists to
+build.
+
+Two structural problems follow from committing it rather than installing it:
+
+- **A template repo never updates.** A fix authored upstream today cannot reach a repo created from
+  the template last month. Every derived repo forks the logic permanently.
+- **A guard that ships inside the repo it guards can disable itself.** The template's hook matches
+  only `Bash`, so an `Edit` to its own source turns enforcement off.
+
+`submtd/shipyard` is the rewrite of exactly this pattern as a plugin suite — its README says so
+directly. Adopting it moves the logic outside the repo, where it updates centrally, and leaves
+behind only small committed config files describing the topology we want.
+
+## 2. Goal
+
+Remove the committed template workflow and replace it with Shipyard, declared at the **repository**
+level in `.claude/settings.json` so every contributor picks it up from a clone rather than running
+`/plugin marketplace add` and `/plugin install` by hand.
+
+## 3. Scope
+
+Two of Shipyard's six plugins:
+
+| Plugin | Owns | Config | Renders |
+|---|---|---|---|
+| `keel` | git lifecycle | `.keel.json` | lifecycle artifacts + a `PreToolUse` guard |
+| `stow` | baseline repo files | `.stow.json` | `.gitignore` (managed blocks) |
+
+**`hull` and `bosun` were evaluated and deferred — this is a late correction, like §9.** Both were
+originally in scope, and both were actually scaffolded and committed during implementation
+(`.hull.json` + `.github/workflows/security.yml`, `.bosun.json` + `.github/dependabot.yml`) before
+the final whole-branch review caught the problems below and they were deleted. The reasoning is kept
+here rather than quietly dropped, so the record shows what was tried.
+
+`hull` renders a gitleaks Action that calls
+`process.exit(1)` whenever the repo owner is a GitHub Organization and `GITLEAKS_LICENSE` is
+unset; `dayz-one-life/one-life` is an organization, and hull's config schema has no slot to emit
+that variable, so the rendered workflow would be permanently red. `bosun`'s config cannot express
+`target-branch`, so its rendered `dependabot.yml` would open PRs against the default branch `main`
+— the production branch — bypassing `develop`, the changelog convention, and any test CI.
+
+**`ballast` is deliberately excluded.** It renders `pytest.ini`; this is a TypeScript/pnpm
+monorepo with no Python. Adopting it would commit a config for a runner that never runs.
+
+**`rigging` is excluded too** — see §9, which is a correction to an earlier version of this spec.
+
+## 4. What gets removed
+
+| Path | Replaced by |
+|---|---|
+| `.claude/hooks/guard.py` | keel's plugin-side `PreToolUse` guard |
+| `.claude/hooks/session_start.py` | keel's plugin-side `SessionStart` orientation |
+| `.claude/hooks/workflow_lib.py` | (internal to the above) |
+| `.claude/hooks/tests/` | keel's own test suite, upstream |
+| `.claude/workflow.json` | `.keel.json` |
+| `.claude/skills/starting-work` | `keel:start-work` |
+| `.claude/skills/finishing-a-feature` | `keel:finish-work` |
+| `.claude/skills/reviewing-a-contribution` | `keel:review` |
+| `.claude/skills/merging-a-contribution` | `keel:land` |
+| `.claude/skills/drafting-a-release` | `keel:release` |
+| `.claude/skills/cutting-a-release` | `keel:ship` |
+| `.claude/skills/workflow-setup` | `keel:init` |
+| `CLAUDE.md` lines 1–52 (through the `---`) | §7 below |
+
+### 4.1 Two things that must survive the deletion
+
+**`.claude/skills/drafting-an-article` is NOT a template skill.** It is this project's editorial
+newsroom ritual — it drives the `newsroom` CLI, reads the brand bible, and is referenced by the
+Editorial newsroom sub-project in `CLAUDE.md`. It sits in the same directory as the seven template
+skills and is easy to delete by accident. It stays.
+
+**The "Orphan roots (reconciled 2026-07-14)" note is project git history, not template
+boilerplate.** It records that `main` and `develop` began as independent orphan commits and were
+re-rooted after v0.1.0, which is why cross-branch PRs no longer need a `git rebase --onto`. It
+currently lives inside the template preamble being deleted. It moves into the surviving One Life
+section of `CLAUDE.md`.
+
+## 5. What replaces it
+
+### 5.1 `.claude/settings.json`
+
+Rewritten from a hooks registration into a plugin declaration. Both keys are top-level and are the
+documented mechanism for team-shared plugins:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "shipyard": {
+      "source": { "source": "github", "repo": "submtd/shipyard" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "keel@shipyard": true,
+    "stow@shipyard": true,
+    "hull@shipyard": false,
+    "bosun@shipyard": false,
+    "rigging@shipyard": false,
+    "ballast@shipyard": false
+  }
+}
+```
+
+`autoUpdate: true` is what buys the central-update property that motivated the whole change; without
+it a contributor's cached copy pins at whatever commit they first installed.
+
+The four unadopted plugins are listed explicitly as `false`, not omitted. Project scope only
+overrides user scope where the two **disagree** — omission is not disagreement — so a contributor
+with shipyard installed at user scope (where `hull`/`bosun`/`rigging`/`ballast` may be enabled)
+would still load them from a config that merely left them out. The explicit `false` is what makes
+"not adopted here" actually true for every contributor.
+
+### 5.2 `.keel.json`
+
+A direct translation of the retired `workflow.json`:
+
+```json
+{
+  "topology": "gitflow",
+  "branches": { "production": "main", "integration": "develop" },
+  "prefixes": { "feature": "feature/", "release": "release/" },
+  "contributions": "both",
+  "reviewPolicy": "review",
+  "mergeStrategy": { "toIntegration": "squash", "toProduction": "merge" },
+  "requireChangelog": true
+}
+```
+
+Every field maps 1:1 onto current behaviour: feature branches into `develop` squashed, releases into
+`main` merged, a changelog entry required on every contribution PR.
+
+### 5.3 The one generated config
+
+`.stow.json` is scaffolded by stow's `init` skill, which never overwrites an existing file. Its
+rendered artifact (`.gitignore` managed blocks) is **generated output** — edit the config and
+re-render, never the artifact.
+
+## 6. `soloMaintainer` has no equivalent, and that is intentional
+
+The template's `soloMaintainer: true` synthesised a `solo` role holding the union of contributor and
+maintainer permissions, and exempted the maintainer's own release and back-merge PRs from the
+changelog and review gates.
+
+**keel has no role concept at all.** It does not infer contributor/maintainer/solo from remote URLs;
+capability comes from GitHub (`gh repo view --json viewerPermission`), and fork and same-repo PRs
+are judged identically. That is a deliberate design property — it is what stops a maintainer's own
+same-repo PR from quietly skipping the review gate.
+
+Consequences for this repo, accepted:
+
+- Under `reviewPolicy: "review"`, a merge needs a posted review in state `APPROVED` **or**
+  `COMMENTED`. GitHub forbids self-approval, so a solo release PR is satisfied by posting a
+  `COMMENTED` review on your own PR — the same workaround the template already depended on.
+- keel's `changelog` rule already exempts release and back-merge PRs under gitflow, so that half of
+  the old `soloMaintainer` exemption is preserved for free.
+- `reviewPolicy: "approval"` was rejected: it would hard-block every solo release. `"none"` was
+  rejected: keel cannot tell a contributor PR from your own, so it would drop the gate for everyone.
+
+## 7. `CLAUDE.md` and `CONTRIBUTING.md`
+
+`CLAUDE.md`'s first 52 lines are template preamble and are removed wholesale, except the orphan-roots
+note (§4.1). A short replacement section states that the repo's lifecycle is owned by keel, points at
+`.keel.json` as the source of truth, and names the plugins in use — deliberately *without*
+restating keel's rules, since restating them is how the committed copy drifts from the plugin.
+
+`CONTRIBUTING.md` is rewritten in the same PR. Leaving it would document seven skills that no longer
+exist and continue to claim the Superpowers plugin is mandatory — a template guard keel does not
+have. The rewrite covers: the one-time plugin install prompt (§8), `keel:start-work` →
+`keel:finish-work`, and the changelog requirement.
+
+## 8. Honest limitations
+
+- **Contributors get a one-time install prompt.** As of Claude Code v2.1.195, a plugin that only the
+  project's `.claude/settings.json` enables, sourced externally, does not load until that contributor
+  installs it. This is one approval instead of two manual commands — not zero-touch, and not silent.
+  It must be documented in `CONTRIBUTING.md` rather than discovered.
+- **keel's guard is advisory, not a security control.** It runs only inside Claude Code; plain
+  `git`/`gh` in a terminal, or CI, bypasses it entirely. It does not parse `bash -c`, `eval`,
+  subshells, or command substitution — deliberately, because the predecessor tried and a review found
+  ~20 verified evasions alongside false positives. The real boundary is GitHub branch protection,
+  configured via `keel:protect`. That is out of scope here and is worth its own pass.
+- **`protected-write` keys on branch name, not repository identity.** It blocks a push to any branch
+  named `main` or `develop` regardless of which repo it belongs to, so pushing to your *own fork's*
+  `main` is denied. `keel:sync` works around this by rebasing against `upstream/<base>`.
+- **Repo scope beats user scope.** Shipyard is currently installed at user scope on the maintainer's
+  machine. Project settings take precedence over user settings, so the repo-level declaration wins
+  where they disagree. The user-scope install can stay; it is not a conflict.
+
+## 9. CI: `rigging` is excluded, because it cannot express this repo
+
+**This section corrects an earlier draft of this spec**, which planned to render CI with `rigging`
+and "tune `.rigging.json` until green." Reading the plugin's source showed there is nothing to tune.
+
+`.rigging.json` accepts exactly three top-level keys — `name`, `stacks`, `pushBranches` — and
+exactly one key per stack, `versions`. An unknown key is a hard `ConfigError` by design, so nothing
+further can be smuggled in. The CI steps themselves are frozen in `rigging/rigging/stacks.py`:
+
+```python
+"node": StackSpec(
+    detect_files=("package.json",),
+    default_versions=("20",),
+    steps=(Step(run="npm ci"), Step(run="npm test")),
+),
+```
+
+A search of the whole `rigging/` engine for `services`, `postgres`, `env`, `pnpm`, and `corepack`
+returns no matches. So rigging cannot express any of the three things this repo's CI requires:
+
+- **pnpm.** The repo is `pnpm@9.12.0` with a `pnpm-workspace.yaml` and no `package-lock.json`;
+  `npm ci` fails immediately on the missing lockfile.
+- **A Postgres service container.** The DB suites need a live server via `TEST_DATABASE_URL`.
+- **The real test command.** `turbo run test --concurrency=1`, not `npm test`.
+
+No value of `.rigging.json` produces a workflow that can pass. Enabling rigging would therefore
+commit a permanently-red required check next to keel's changelog gate, which is worse than having no
+CI: two gates that both fail become indistinguishable when one of them matters.
+
+**Decision: rigging is dropped from this change, and CI stays out of scope.** This repo has no
+`.github/workflows/ci.yml` today and will still have none after it. Two paths remain open, neither
+blocking:
+
+1. Extend rigging's registry upstream in `submtd/shipyard` — a pnpm stack, or service-container
+   support — then adopt it here. This is the correct long-term fix and the repo is ours, but it is a
+   separate project with its own spec, tests, and release.
+2. Hand-write a pnpm + Postgres workflow and leave rigging disabled. Faster, but the file is then
+   unmanaged, and enabling rigging later would render over it.
+
+**keel's changelog gate IS adopted**, though. Its two templates (`changelog.yml`,
+`check_changelog.py`) are vendored verbatim into `.github/workflows/changelog.yml` and
+`scripts/check_changelog.py`, so `.github/workflows/changelog.yml` exists and enforces a
+`CHANGELOG.md` entry on every contribution PR — server-side, independent of `rigging`, needing no
+secrets. Test/build CI still does not exist.
+
+## 10. Sequencing
+
+The template's `guard.py` is registered as a live `PreToolUse` Bash hook **for the duration of the
+current session**. Deleting the file mid-session leaves the registration pointing at a missing
+script, which can fail every subsequent `Bash` call and strand the work.
+
+Therefore:
+
+1. Create the feature branch and complete all git operations that need a working shell.
+2. Write configs and documentation.
+3. Delete the hook files, skills, and `workflow.json` **last**.
+4. Restart the Claude Code session to load the new plugin-based configuration.
+5. Verify orientation and the guard come from keel, then push and open the PR.
+
+## 11. Success criteria
+
+- A fresh session in this repo shows keel's orientation, not the template's.
+- `.claude/` contains only `settings.json` and `skills/drafting-an-article`.
+- `git commit` on `main` is refused by `[keel/protected-write]`.
+- `.github/workflows/changelog.yml` exists, vendored verbatim from keel's templates, and its check
+  passes on a PR that adds a `CHANGELOG.md` entry; no `ci.yml`, `security.yml`, or
+  `dependabot.yml` is created — `.github/workflows/` contains `changelog.yml` only.
+- `pnpm turbo run test --concurrency=1` and `pnpm turbo run typecheck` still pass locally —
+  this change touches no application code, so any failure is a regression from the file removals.
+- `CHANGELOG.md` and `CLAUDE.md` are updated, and the PR targets `develop`.

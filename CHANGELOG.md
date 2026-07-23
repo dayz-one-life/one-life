@@ -6,13 +6,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-07-23
+
 ### Added
 
+- **Test CI** (`rigging` → `.github/workflows/ci.yml`): a pnpm + turbo test job on Node 24 with a
+  `postgres:16-alpine` service container. (Node 24, not the `engines.node >=20` floor: vitest's
+  config loader natively `import()`s a `.ts` setup module, which needs the runtime's own type
+  stripping — Node 20 can't, Node 22.18+/24 can. And `-alpine`, not glibc `postgres:16`: it matches
+  the dev/prod image, whose musl/C collation orders a `_` in a callsign the way the friends
+  `friendships_ordered` constraint and its tests assume.) rigging's per-service `database` key (Shipyard 0.9.0) emits
+  `TEST_DATABASE_URL=…/onelife_test`, which the repo's `_test` database guard requires; the job runs
+  `pnpm install --frozen-lockfile` then `pnpm test`. This is the repo's first automated test CI —
+  previously only the changelog gate ran.
+- **Secret scanning** (`hull` → `.github/workflows/security.yml`): a `trufflehog` scan on push to
+  `main`/`develop` and every PR. trufflehog (not gitleaks) because this is an org-owned repo —
+  gitleaks-action requires a `GITLEAKS_LICENSE` org license; trufflehog needs none and only
+  `contents: read`, so it also runs on fork PRs.
+- **Dependabot** (`bosun` → `.github/dependabot.yml`): weekly `github-actions` and `npm` updates
+  targeting `develop` (read from `.keel.json`), so dependency PRs flow through integration and the
+  changelog gate rather than landing on production.
+
 ### Changed
+
+- Replaced the committed workflow template (hooks, seven workflow skills, `workflow.json`) with the
+  [Shipyard](https://github.com/submtd/shipyard) plugin suite, declared at repository level in
+  `.claude/settings.json` so the lifecycle logic lives outside the repo it guards and updates
+  centrally. `.keel.json` is now the source of truth for branch topology. **`keel`, `stow`,
+  `rigging`, `hull`, and `bosun` are enabled** (`ballast`, a pytest runner, stays off — no Python
+  here); `rigging`/`hull`/`bosun` were initially deferred over renderer gaps (no pnpm/service/
+  test-command support; the gitleaks org-license gate; Dependabot's inability to target `develop`)
+  and adopted once Shipyard 0.6.0–0.9.0 closed all of them (issue #24 + the `services.<id>.database`
+  follow-up). keel's changelog CI gate is adopted (`.github/workflows/changelog.yml`,
+  `scripts/check_changelog.py`), so a PR without a `CHANGELOG.md` entry now fails in CI rather
+  than relying only on the in-Claude advisory hook. Contributors approve a one-time plugin install
+  prompt on their first session.
+- Rewrote `README.md`, which still described this repo as the upstream workflow *template* rather
+  than One Life, and pointed at the now-removed `workflow-setup` skill and `.claude/workflow.json`.
 
 ### Deprecated
 
 ### Removed
+
+- `.claude/hooks/` (`guard.py`, `session_start.py`, `workflow_lib.py`, and their tests),
+  `.claude/workflow.json`, and the seven template workflow skills. The project's own
+  `drafting-an-article` skill is unaffected.
 
 ### Fixed
 

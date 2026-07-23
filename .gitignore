@@ -28,3 +28,18 @@ data/
 # OS / editor cruft
 .DS_Store
 **/.DS_Store
+
+# >>> stow:base >>>
+# managed by stow — edits inside this block are overwritten; put custom entries outside it
+.DS_Store
+Thumbs.db
+# <<< stow:base <<<
+
+# >>> stow:node >>>
+# managed by stow — edits inside this block are overwritten; put custom entries outside it
+node_modules/
+npm-debug.log*
+dist/
+coverage/
+.env
+# <<< stow:node <<<

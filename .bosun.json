@@ -1,0 +1,7 @@
+{
+  "ecosystems": {
+    "githubActions": { "interval": "weekly" },
+    "node": { "interval": "weekly" }
+  },
+  "targetBranch": "develop"
+}
