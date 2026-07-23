@@ -13,7 +13,7 @@ jobs:
         node: ["24"]
     services:
       postgres:
-        image: "postgres:16"
+        image: "postgres:16-alpine"
         env:
           POSTGRES_PASSWORD: "postgres"
           POSTGRES_DB: "onelife_test"

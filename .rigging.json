@@ -6,7 +6,7 @@
       "versions": ["24"],
       "services": {
         "postgres": {
-          "version": "16",
+          "version": "16-alpine",
           "urlEnv": "TEST_DATABASE_URL",
           "database": "onelife_test"
         }

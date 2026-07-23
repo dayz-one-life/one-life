@@ -19,7 +19,12 @@ Also enabled: `stow` (`.gitignore`), `rigging` (CI), `hull` (secret scanning), a
 file is **generated output** — edit the `.<plugin>.json` config and re-render, never the artifact:
 
 - **`rigging`** → `.rigging.json` + `.github/workflows/ci.yml`. A pnpm + turbo test job on **Node 24**
-  with a `postgres:16` service; `services.postgres.database: "onelife_test"` makes rigging emit
+  with a **`postgres:16-alpine`** service (musl libc — matching dev and production's docker-compose
+  image, **not** rigging's `postgres:16`/glibc default: the friends `friendships_ordered`
+  constraint orders user ids by the DB collation, and glibc's locale collation sorts a `_` in a
+  callsign differently from musl/C, red-failing a notifier test that shipped assuming ASCII order —
+  CI must test the Postgres the app runs on); `services.postgres.database: "onelife_test"` makes
+  rigging emit
   `TEST_DATABASE_URL=…/onelife_test`, which the `assertTestDatabase` `_test` guard requires (the
   harness self-creates + migrates that DB). Runs `pnpm install --frozen-lockfile` then `pnpm test`
   (the root `turbo run test --concurrency=1` script — deliberately **not** a custom `testCommand`,
