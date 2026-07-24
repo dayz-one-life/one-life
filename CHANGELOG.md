@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-07-24
+
 ### Fixed
 
 - **Self-unban unreachable after a respawn race.** When a player died on a qualified life (placing a
