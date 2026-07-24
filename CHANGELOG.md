@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Self-unban unreachable after a respawn race.** When a player died on a qualified life (placing a
+  real 24h ban) and then respawned and played a new life past the 5-minute qualification threshold
+  before the ban landed, that server's standing rendered as **Alive** instead of **Banned** — hiding
+  the self-unban control for the entire ban. Because a life ends on death (never on disconnect or on
+  being banned), the open life and `profile.alive` persisted for the full 24h, so the ban stayed
+  invisible on both the public dossier and the account rail. `getPlayerPage`
+  (`packages/read-models/src/player-page.ts`) now ranks an active **real** (`dry_run=false`) ban
+  above a newer open life (`banned > alive > idle`); the standing self-heals back to Alive once the
+  ban lifts or expires, and the new life still counts in totals.
+
 ### Changed
 
 - **Git topology: gitflow → trunk.** `main` is now the single long-lived branch; `feature/*`

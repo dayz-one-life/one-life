@@ -200,6 +200,47 @@ describe("getPlayerPage banned card with unidentified triggering life", () => {
   });
 });
 
+describe("getPlayerPage: active ban outranks a newer open qualified life (respawn race)", () => {
+  const svcRace = Math.floor(Math.random() * 1e8) + 55e7;
+  let raceServer: number;
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcRace, name: "pp-race", map: "chernarusplus", slug: `race-${svcRace}`, active: true }).returning();
+    raceServer = s!.id;
+    const [pl] = await db.insert(players).values({ gamertag: "Racer", firstSeenAt: hoursAgo(200), lastSeenAt: now }).returning();
+    // Life #1: qualified PvP death that triggered a REAL ban.
+    const [dead] = await db
+      .insert(lives)
+      .values({ serverId: raceServer, playerId: pl!.id, lifeNumber: 1, startedAt: hoursAgo(30), endedAt: hoursAgo(2), playtimeSeconds: 14520, deathCause: "pvp" })
+      .returning();
+    await db.insert(bans).values({ serverId: raceServer, gamertag: "Racer", lifeStartedAt: dead!.startedAt, reason: "qualified_death", qualifiedBy: "pvp-death", bannedAt: hoursAgo(2), expiresAt: hoursAgo(-22), status: "applied", dryRun: false });
+    // Life #2: respawned before the ban landed and played past qualification — an OPEN qualified
+    // life (open session an hour long ⇒ livePlaytime ≥ 300s ⇒ profile.alive true).
+    const [open] = await db
+      .insert(lives)
+      .values({ serverId: raceServer, playerId: pl!.id, lifeNumber: 2, startedAt: hoursAgo(1), endedAt: null, playtimeSeconds: 0 })
+      .returning();
+    await db.insert(sessions).values({ serverId: raceServer, playerId: pl!.id, lifeId: open!.id, connectedAt: hoursAgo(1) });
+  });
+  afterAll(async () => {
+    await db.delete(sessions).where(eq(sessions.serverId, raceServer));
+    await db.delete(bans).where(eq(bans.serverId, raceServer));
+    await db.delete(lives).where(eq(lives.serverId, raceServer));
+    await db.delete(players).where(eq(players.gamertag, "Racer"));
+    await db.delete(servers).where(eq(servers.id, raceServer));
+  });
+
+  it("renders the server as banned so the self-unban control is reachable", async () => {
+    const pg = (await getPlayerPage(db, "Racer", now))!;
+    const card = pg.standing.find((s) => s.serverId === raceServer)!;
+    expect(card).toBeDefined();
+    expect(card.state).toBe("banned");
+    expect(card.ban).not.toBeNull();
+    expect(card.ban!.triggeringLifeNumber).toBe(1);
+    // The banned branch must not also carry the alive payload.
+    expect(card.alive).toBeNull();
+  });
+});
+
 describe("getPlayerPage pagination", () => {
   const svcP = Math.floor(Math.random() * 1e8) + 49e7;
   let srv: number;
