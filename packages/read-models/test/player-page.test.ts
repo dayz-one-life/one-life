@@ -238,6 +238,9 @@ describe("getPlayerPage: active ban outranks a newer open qualified life (respaw
     expect(card.ban!.triggeringLifeNumber).toBe(1);
     // The banned branch must not also carry the alive payload.
     expect(card.alive).toBeNull();
+    // The hidden open life must not leak back as an "alive anywhere" signal (the hero's
+    // `Alive ×N` badge derives from this) — a banned player is not counted as alive.
+    expect(pg.aliveAnywhere).toBe(false);
   });
 });
 

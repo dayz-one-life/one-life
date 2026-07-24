@@ -649,7 +649,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      (`profile.alive`) persist for the whole 24h. If the alive branch won, the card would read
      "Alive" and the self-unban control (which renders only on a `banned` card) would be unreachable
      for the entire ban. Do not reorder these branches back; the standing self-heals to Alive once
-     the ban lifts/expires. Pinned by the "respawn race" test in `test/player-page.test.ts`.
+     the ban lifts/expires. Pinned by the "respawn race" test in `test/player-page.test.ts`. Two
+     intended second-order effects, not regressions: such a server no longer counts toward
+     `aliveAnywhere` / the hero `Alive ×N` badge (a banned player isn't alive); and an
+     expired-but-still-`applied` ban the enforcer hasn't reconciled yet now also outranks an open
+     life (bounded — `banCountdown` degrades to "Lifting…", self-heals on the next enforcer poll).
   2. **Presence-implying durations cap at `lastSeenAt ?? connectedAt ?? now`**, matching
      `survivors.ts`'s `livePlaytime` cap and the dossier's `queries.ts` cap EXACTLY — **no clamp to
      `now`** (a `Math.min(now, …)` clamp diverges from those two under clock skew, since
