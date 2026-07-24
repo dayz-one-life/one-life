@@ -641,6 +641,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      A dry-run ban must never render as banned or be spendable. Backlog: the enforcer's expire arm
      only touches `status='applied'`, so a dry-run `pending` ban never expires (moot now that it's
      invisible to both display and spend); already-spent phantom redemptions are not migrated.
+     **⚠️ And an active real ban OUTRANKS a newer open life in the per-server standing**
+     (`getPlayerPage`, `player-page.ts`): the branch order is `banned > alive > idle`, NOT
+     `alive > banned`. A life ends on DEATH — never on disconnect or on being banned — so after a
+     player dies on a qualified life (real ban placed) and respawns past the 5-minute threshold
+     before the enforcer poll lands, both an active `bans` row and an open qualified life
+     (`profile.alive`) persist for the whole 24h. If the alive branch won, the card would read
+     "Alive" and the self-unban control (which renders only on a `banned` card) would be unreachable
+     for the entire ban. Do not reorder these branches back; the standing self-heals to Alive once
+     the ban lifts/expires. Pinned by the "respawn race" test in `test/player-page.test.ts`.
   2. **Presence-implying durations cap at `lastSeenAt ?? connectedAt ?? now`**, matching
      `survivors.ts`'s `livePlaytime` cap and the dossier's `queries.ts` cap EXACTLY — **no clamp to
      `now`** (a `Math.min(now, …)` clamp diverges from those two under clock skew, since
