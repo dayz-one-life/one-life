@@ -104,12 +104,20 @@ export async function getPlayerPage(
     // standing
     const openLife = livesRows.find((l) => l.endedAt === null) ?? null;
     let card: ServerStanding;
-    if (openLife && profile?.alive) {
-      const killList = await getLifeKills(db, s.id, gamertag, openLife.startedAt, null);
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, openLife.startedAt, null), alive: { lifeId: openLife.id, lifeNumber: openLife.lifeNumber, startedAt: openLife.startedAt, timeAliveSeconds: profile.currentLifeSeconds, kills: killList.length, longestKillMeters: longest(killList), killList }, ban: null, lastLifeNumber: openLife.lifeNumber };
-    } else if (serverBan) {
+    // An active REAL ban outranks a newer open life. When a qualified life dies the enforcer
+    // bans the player, but the ban lands on a poll — in the window the player can respawn and
+    // play a new life past qualification, so both an active `bans` row AND an open qualified
+    // life (`profile.alive`) exist at once. A life ends on DEATH, not on disconnect or ban, so
+    // that open life (and `profile.alive`) persists for the whole 24h. If `alive` won here the
+    // card would read "Alive" and the self-unban control — which renders only on a `banned`
+    // card — would be unreachable for the entire ban (the exact bug this ordering fixes). Ban
+    // precedence self-heals: once the ban lifts/expires this falls through to the alive branch.
+    if (serverBan) {
       const trig = livesRows.find((l) => l.startedAt.getTime() === serverBan.lifeStartedAt.getTime()) ?? null;
       card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", character: trig ? await charShape(db, s.id, gamertag, trig.startedAt, trig.endedAt) : null, alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null }, lastLifeNumber: trig?.lifeNumber ?? null };
+    } else if (openLife && profile?.alive) {
+      const killList = await getLifeKills(db, s.id, gamertag, openLife.startedAt, null);
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, openLife.startedAt, null), alive: { lifeId: openLife.id, lifeNumber: openLife.lifeNumber, startedAt: openLife.startedAt, timeAliveSeconds: profile.currentLifeSeconds, kills: killList.length, longestKillMeters: longest(killList), killList }, ban: null, lastLifeNumber: openLife.lifeNumber };
     } else {
       const recent = livesRows[0] ?? null;
       card = { serverId: s.id, map: s.map, slug: s.slug, state: "idle", character: recent ? await charShape(db, s.id, gamertag, recent.startedAt, recent.endedAt) : null, alive: null, ban: null, lastLifeNumber: recent?.lifeNumber ?? null };
