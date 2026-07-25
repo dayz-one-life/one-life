@@ -794,6 +794,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   viewer's own position and every friend sharing with them. Migration `0022` adds
   `user_preferences.share_location` and flips the two dormant `friendships.*_shares_location`
   defaults to `true` with a backfill.
+  **⚠️⚠️ F2'S CONSENT MODEL WAS REPLACED WHOLESALE BY SUB-PROJECT E (2026-07-25). Read the E
+  entry below before touching anything in this section.** `user_preferences.share_location`,
+  `friendships.a_/b_shares_location` and `shouldShareLocation` **no longer exist** — dropped by
+  migration `0028`, along with every existing consent decision. Sharing is a **session-scoped
+  grant** now. Everything in invariants 1, 3, 5 and 6 below is still current and still
+  load-bearing; **invariants 2 and 4 describe deleted machinery** and are kept only as the record
+  of why the replacement looks the way it does.
   **⚠️ Invariants a future change would break by accident:**
   1. **ONE coordinate egress point per audience, and neither takes a subject.**
      `GET /me/maps[/:mapSlug]` takes a **server slug and no player identifier** — the subject set
@@ -1401,6 +1408,65 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   deleted. ⚠️ `MapPage` must drop its own `#main-content` when it moves (the `(site)` layout
   supplies it, and two elements with that id make the skip link resolve to whichever comes first).
 
+- **Sub-project E — Session location sharing** ✅ (spec
+  `docs/superpowers/specs/2026-07-25-e-session-location-sharing-design.md`; PRs #274 + #275):
+  **replaces F2's standing consent model wholesale.** Sharing your position stops being a setting
+  you turn on once and becomes a grant you hand ONE person during ONE game session.
+  **The predicate — three conditions, all required:** a `location_shares` row exists, the granter
+  is **online on that server**, and the row's stored session snapshot still equals that session's
+  `connected_at`. The third clause is what makes it self-expiring: **no cleanup worker, no TTL, no
+  `expires_at`.**
+  **⚠️ THE SNAPSHOT IS A TIMESTAMP, NEVER `sessions.id`.** `rebuild.ts` truncates `sessions`
+  `WITH RESTART IDENTITY`, so ids are reassigned by a projection rebuild and an id-keyed share
+  could be resurrected against an unrelated session. `connected_at` is folded from the ADM line
+  and survives a rebuild unchanged.
+  **⚠️ It is compared for EQUALITY, not `granted_at >= connected_at`.** Those two would come from
+  different clocks — the API's wall clock versus an ADM timestamp with `servers.clock_offset_ms`
+  applied, which is seconds apart — so the inequality can silently never match for a grant made in
+  the first seconds of a session: a share the UI calls active that never works. Both sides of the
+  equality are the same value.
+  **⚠️ The predicate is a JOIN in `getFriendPositions`, never a post-filter.** An expired grant
+  produces NO ROW, so no intermediate value in the call path ever holds a lapsed subject's
+  coordinates. Do not "simplify" it into fetch-then-filter.
+  **⚠️ `location_shares` is DURABLE — never add it to `REBUILD_TRUNCATE_TABLES`.** Rows
+  self-invalidate, so a rebuild leaves rows that simply stop matching (harmless); truncating them
+  would revoke live shares mid-session.
+  **⚠️ THE GRANT ROUTES TAKE A GAMERTAG, AND THAT DOES NOT BREACH THE NO-SUBJECT RULE.** That rule
+  governs coordinate **egress** — `GET /me/maps/:slug` must not let a caller name whose position to
+  READ. `POST /me/maps/:slug/shares` names who may see the CALLER'S OWN position, the opposite
+  direction, and discloses nothing in its response (pinned by a test). Revoking a grant that cannot
+  exist is a **no-op, not a 404** — a 404 there would confirm whether a gamertag is verified to
+  anyone who can call it.
+  **⚠️ THE TWO DIRECTIONS ARE SEPARATE AND MUST STAY SO.** On `OnlinePlayerDto`, `sharing` is what
+  THEY gave the viewer; `sharedWithThem` is what the viewer gave them. Merging them would let
+  someone believe that seeing a dot means being seen — in a game where being seen gets you killed.
+  Two tests use rows where the directions disagree, so a merged implementation fails rather than
+  passing by coincidence.
+  **Deleted outright** (migration `0028`): `user_preferences.share_location`,
+  `friendships.a_/b_shares_location`, `shouldShareLocation`, both routes' `shareLocation` fields,
+  the roster's location controls, and `theyShareLocation` — which had been the ONE place this
+  codebase reported anything about another user's settings. **The migration discards every
+  existing consent decision, by design**, and is not reversible by redeploy.
+  `verifyLink`'s `share_location` reset became a **DELETE of the user's grants**; one-directional,
+  clearing what they share and never what others share with them (otherwise re-verifying would let
+  anyone revoke another player's sharing).
+  **The chip counts EFFECTIVE grants, not rows**, and renders only once the payload resolves — a
+  "0 can see you" drawn from a loading or failed fetch is a claim about your privacy made from an
+  unknown.
+  **Notification kind 13** `location_shared`, written inline in the grant's transaction (live on
+  deploy, NOT gated behind `NOTIFIER_SINCE`). Natural key ends in the same session snapshot the
+  predicate uses, so re-granting within a session is idempotent while the next session notifies
+  again.
+  **Every F2 coordinate rail is retained:** one egress route with no subject parameter,
+  `cache-control: no-store, private`, last-known-position only (never a trail),
+  `MARKER_MAX_AGE_SECONDS`, the verified-link inner join, and both defensive collapses.
+  **Deploy:** migration `0028` touches no projection table — plain `./deploy/deploy.sh`, **no
+  `--rebuild`**. No operator gate; live on deploy but **inert until used** (no rows, nobody
+  visible). ⚠️ **Outstanding:** the end-to-end grant → dot → session-end → dot-gone round trip is
+  not integration-tested — it needs two signed-in verified accounts on a live server. Every piece
+  is unit- and route-tested and the predicate is mutation-tested at both layers, but exercise it on
+  staging before telling players it works.
+
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
 - **packages:** `db` (schema + migrations; gained two durable
@@ -1418,8 +1484,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
   `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
   character sightings), `friends` (friendship pair ordering + viewer-relative projection,
-  presence + location consent flags and the `shouldNotifyPresence`/`shouldShareLocation`
-  predicates,
+  presence consent flags and `shouldNotifyPresence`; session-scoped location GRANTS
+  (`location_shares`) and their `isShareEffective` predicate — F2's `shouldShareLocation` and its
+  two switches were deleted by sub-project E;
   transitions, read queries; writes its own notifications inline — see the Friends F1 entry, whose
   ten invariants are all load-bearing).
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
