@@ -19,7 +19,7 @@ describe("SurvivorsBoard", () => {
     render(<SurvivorsBoard page={page} slug={null} tabs={[]} />);
     expect(screen.getByRole("heading", { level: 1, name: "Survivors" })).toBeInTheDocument();
     expect(
-      screen.getByText(/still drawing breath\. Every name is one bad decision from Obituaries\./)
+      screen.getByText(/still drawing breath\. Every name is one bad decision from the archive\./)
     ).toBeInTheDocument();
   });
 

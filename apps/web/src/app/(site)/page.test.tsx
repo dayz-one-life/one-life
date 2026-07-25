@@ -19,7 +19,7 @@ describe("Home page: a feed-fetch error is not the same as genuine emptiness", (
   test("a genuinely empty (resolved) survivors board shows its own quiet-coast copy, no banner", async () => {
     getSurvivors.mockResolvedValue({ rows: [], page: 1, pageSize: 5, total: 0 });
     render(await Home());
-    expect(screen.getByRole("heading", { level: 1, name: "One life. Then the obituary." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
     expect(screen.getByText("THE COAST IS QUIET. NO QUALIFIED SURVIVORS ON RECORD.")).toBeInTheDocument();
     expect(screen.queryByText(/temporarily unreachable/i)).not.toBeInTheDocument();
   });
@@ -27,7 +27,7 @@ describe("Home page: a feed-fetch error is not the same as genuine emptiness", (
   test("a REJECTED survivors fetch shows a distinguishing banner (still renders the quiet-coast copy underneath)", async () => {
     getSurvivors.mockRejectedValue(new Error("503"));
     render(await Home());
-    expect(screen.getByRole("heading", { level: 1, name: "One life. Then the obituary." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
     expect(screen.getByText(/survivors board is temporarily unreachable/i)).toBeInTheDocument();
     expect(screen.getByText("THE COAST IS QUIET. NO QUALIFIED SURVIVORS ON RECORD.")).toBeInTheDocument();
   });

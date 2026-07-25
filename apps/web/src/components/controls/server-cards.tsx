@@ -46,7 +46,7 @@ export function ServerCard({
           <>
             {" · "}
             <Link href={`/players/${ownSlug}`} className="font-bold text-red-deep">
-              Obituary →
+              Dossier →
             </Link>
           </>
         )}

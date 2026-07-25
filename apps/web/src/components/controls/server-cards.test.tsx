@@ -39,12 +39,12 @@ describe("ServerCard", () => {
     expect(screen.getByText("Spawn in any time. First 5 minutes are free.")).toBeInTheDocument();
   });
 
-  test("banned: red chip, died line with obituary link, countdown, spend CTA", () => {
+  test("banned: red chip, died line with dossier link, countdown, spend CTA", () => {
     const onRedeem = vi.fn();
     render(<ServerCard card={banned} {...base} onRedeem={onRedeem} />);
     expect(screen.getByText("Banned")).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`Died ${diedAtLabel("2026-07-16T09:47:00Z")}`))).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /obituary/i })).toHaveAttribute("href", "/players/bootscoldwater");
+    expect(screen.getByRole("link", { name: /dossier/i })).toHaveAttribute("href", "/players/bootscoldwater");
     expect(screen.getByText("Ban lifts in")).toBeInTheDocument();
     expect(screen.getByText("13h 58m")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Spend 1 token — skip the wait" }));

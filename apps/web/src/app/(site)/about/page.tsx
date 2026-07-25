@@ -10,7 +10,7 @@ import { SignInCta } from "@/components/front-page/signin-cta";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "How One Life works — one life per server, a 24-hour ban when it ends, and an obituary that stands forever.",
+    "How One Life works — one life per server, a 24-hour ban when it ends, and a record that stands forever.",
 };
 
 const STEPS = (maps: string) => [
@@ -20,8 +20,8 @@ const STEPS = (maps: string) => [
     body: (
       <>
         Wash ashore on {maps}. Survive the five-minute grace period and your life is{" "}
-        <em className="not-italic font-semibold">qualified</em> — a birth announcement runs, and every
-        hour after is tracked and ranked on <Link href="/survivors" className="underline decoration-red decoration-2 underline-offset-2">Survivors</Link>.
+        <em className="not-italic font-semibold">qualified</em> — from then on every hour is tracked
+        and ranked on <Link href="/survivors" className="underline decoration-red decoration-2 underline-offset-2">Survivors</Link>.
       </>
     ),
   },
@@ -31,9 +31,8 @@ const STEPS = (maps: string) => [
     body: (
       <>
         A qualified death bans you from that server for{" "}
-        <em className="not-italic font-semibold">24 hours</em> and the Morgue Desk publishes the
-        obituary — cause, weapon, distance, the lot. The other servers don't care. The obituary is
-        permanent.
+        <em className="not-italic font-semibold">24 hours</em> and the life goes into the record —
+        cause, weapon, distance, the lot. The other servers don't care. The record is permanent.
       </>
     ),
   },
@@ -44,7 +43,7 @@ const STEPS = (maps: string) => [
       <>
         Sit out the 24 hours, or spend one <em className="not-italic font-semibold">unban token</em>{" "}
         to walk back in immediately. Tokens are earned, sent between players, and hoarded for the day
-        it's you in the dirt. The obituary still stands.
+        it's you in the dirt. The record still stands.
       </>
     ),
   },
@@ -77,14 +76,14 @@ export default async function AboutPage() {
     <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10 md:py-14">
       {/* Manifesto header */}
       <header className="border-b-[3px] border-ink pb-8">
-        <Kicker>About the paper</Kicker>
+        <Kicker>About One Life</Kicker>
         <h1 className="mt-3 font-display text-5xl font-bold uppercase leading-[.9] md:text-7xl">
           Everyone here dies. We write it down.
         </h1>
         <p className="mt-5 max-w-3xl font-sans text-lg leading-relaxed text-ink-soft">
-          One Life is a set of hardcore DayZ servers with a newsroom bolted on. You get one life per
-          server. When a qualified life ends — and it will — you're banned for 24 hours and the
-          obituary writes itself. The living are ranked. The dead are remembered, unkindly.
+          One Life is a set of hardcore DayZ servers that keep score. You get one life per server.
+          When a qualified life ends — and it will — you're banned for 24 hours and the life is
+          filed. The living are ranked. The dead are remembered, unkindly.
         </p>
       </header>
 
@@ -120,7 +119,9 @@ export default async function AboutPage() {
           <h2 id="servers-heading" className="border-b-[3px] border-ink pb-2 font-display text-2xl font-bold uppercase">
             {countWord(servers.length)} server{servers.length === 1 ? "" : "s"}
           </h2>
-          <div className="grid gap-4 py-5 md:grid-cols-3">
+          {/* auto-fit, not a fixed column count: the fleet is three servers today and four when
+              Badlands ships, and a hardcoded `md:grid-cols-3` orphans the fourth on its own row. */}
+          <div className="grid gap-4 py-5 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
             {servers.map((s) => (
               <div key={s.id} className="border border-hairline bg-paper p-5">
                 <h3 className="font-display text-[22px] font-bold uppercase">{mapLabel(s.map)}</h3>

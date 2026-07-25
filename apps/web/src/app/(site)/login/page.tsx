@@ -11,9 +11,9 @@ export default async function LoginPage() {
   return (
     <main className="mx-auto w-full max-w-md px-6 py-12">
       <p className="font-display text-sm font-bold uppercase tracking-[.14em] text-red-deep">The front desk</p>
-      <h1 className="mt-1 font-display text-4xl font-bold uppercase leading-[.95] text-ink">Get in the paper.</h1>
+      <h1 className="mt-1 font-display text-4xl font-bold uppercase leading-[.95] text-ink">Get on the board.</h1>
       <p className="mt-2 font-mono text-[11.5px] uppercase tracking-[.03em] text-ink-muted">
-        Sign in, claim your gamertag, and your deaths make the paper.
+        Sign in, claim your gamertag, and your lives get tracked.
       </p>
       <div className="mt-6">
         {methods ? (

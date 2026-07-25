@@ -4,14 +4,13 @@ import { Kicker } from "@/components/tabloid/kicker";
 export function Hero() {
   return (
     <section className="border-b-[3px] border-ink px-6 py-10 md:px-10 md:py-14">
-      <Kicker>The paper of record</Kicker>
+      <Kicker>The record of record</Kicker>
       <h1 className="mt-3 font-display text-5xl font-bold uppercase leading-[.95] md:text-7xl">
-        One life. Then the obituary.
+        One life. No respawns.
       </h1>
       <p className="mt-5 max-w-3xl font-sans text-lg leading-relaxed text-ink-soft">
-        Hardcore permadeath DayZ, covered like celebrity scandal. One life per server; when it
-        ends, the ban is real and the write-up is forever. The living are ranked below. The
-        presses are warming up.
+        Hardcore permadeath DayZ, tracked to the minute. One life per server; when it ends, the
+        ban is real and the record is permanent. The living are ranked below.
       </p>
       <Link
         href="/about"

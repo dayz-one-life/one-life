@@ -27,7 +27,7 @@ describe("ControlsRail", () => {
   test("signed out: CTA panel only", () => {
     (useControls as Mock).mockReturnValue({ ...base, status: { kind: "signedOut" } });
     render(<ControlsRail />);
-    expect(screen.getByText("Get in the paper.")).toBeInTheDocument();
+    expect(screen.getByText("Get on the board.")).toBeInTheDocument();
     expect(screen.queryByText("Unban tokens")).not.toBeInTheDocument();
   });
 

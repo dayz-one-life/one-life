@@ -19,7 +19,7 @@ export async function currentPushSubscription(): Promise<PushSubscription | null
  *  Ordering is load-bearing: `DELETE /me/push-subscriptions` is scoped to the session user,
  *  so it must run while that session is still valid. Called after signOut() it matches zero
  *  rows, the row survives, and the next person to use the machine receives the previous
- *  user's notifications — including obituary headlines carrying their gamertag.
+ *  user's notifications, which carry their gamertag.
  *
  *  Never throws. A failed teardown must not be able to trap someone in a session. */
 export async function teardownPush(): Promise<void> {

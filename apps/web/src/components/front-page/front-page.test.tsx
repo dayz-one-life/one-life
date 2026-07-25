@@ -16,8 +16,8 @@ const row = (over: Partial<SurvivorRow>): SurvivorRow => ({
 describe("Hero", () => {
   it("runs the manifesto screamer with a kicker and About link", () => {
     render(<Hero />);
-    expect(screen.getByText("The paper of record")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "One life. Then the obituary." })).toBeInTheDocument();
+    expect(screen.getByText("The record of record")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "How it works →" })).toHaveAttribute("href", "/about");
   });
 });
@@ -40,7 +40,7 @@ describe("SignInCta", () => {
   it("renders for signed-out visitors", () => {
     mockStatus.mockReturnValue({ kind: "signedOut" });
     render(<SignInCta />);
-    expect(screen.getByText("Get in the paper.")).toBeInTheDocument();
+    expect(screen.getByText("Get on the board.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sign in →" })).toHaveAttribute("href", "/login");
   });
   it("renders nothing for verified users", () => {
