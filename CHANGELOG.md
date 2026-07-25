@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The content engine.** Obituaries, birth notices, the news vertical, the editorial newsroom, the
+  Discord obituary notifier and the article image pipeline are removed entirely. `apps/newsdesk`,
+  the article read-models, the `/obituaries`, `/fresh-spawns` and `/news` routes, the "In The Paper"
+  section of the player profile, and the `obituary_published` / `birth_notice_published`
+  notification kinds all go. The home page reverts to the manifesto hero plus the top-5 survivors
+  board; nav becomes Survivors / Maps / About.
+- The `NEWSDESK_*`, `OPENROUTER_API_KEY`, `DISCORD_OBITUARY_WEBHOOK_URL` and `NEWS_PREVIEW_TOKEN`
+  environment variables, and the `onelife-newsdesk` worker.
+
+### Note
+
+- The `articles` and `article_images` tables are **retained** by this release and dropped in the
+  next one, so a problem here is a revert rather than a restore.
+
 ## [0.43.1] - 2026-07-24
 
 ### Fixed
