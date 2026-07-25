@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Your fresh life is now visible during the five-minute grace period.** Until now a life inside
+  the grace window was filtered out of your standing entirely, so the server you were actively
+  playing on showed as **idle** — "Spawn in any time" — while you were standing on it. It now shows
+  as a life in progress, marked **Not yet** (qualified), with the time left before death starts
+  costing you 24 hours. Provisional lives are deliberately excluded from public totals, the
+  "Alive xN" badge and the survivors board, which remain qualified-only.
+
 ### Changed
 
 - **New app shell.** Navigation is now **Home · Maps · Leaderboard · About**. On phones a bottom

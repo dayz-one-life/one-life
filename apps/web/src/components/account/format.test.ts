@@ -14,10 +14,15 @@ const standing = (over: Partial<ServerStanding>): ServerStanding => ({
   character: null, alive: null, ban: null, lastLifeNumber: null, ...over,
 });
 
-const aliveStanding = (slug: string, map: string, secs: number, kills = 0): ServerStanding =>
+const aliveStanding = (slug: string, map: string, secs: number, kills = 0, qualified = true): ServerStanding =>
   standing({
     slug, map, state: "alive",
-    alive: { lifeId: 1, lifeNumber: 1, startedAt: "2026-07-16T05:00:00Z", timeAliveSeconds: secs, kills, longestKillMeters: null, killList: [] },
+    alive: {
+      lifeId: 1, lifeNumber: 1, startedAt: "2026-07-16T05:00:00Z", timeAliveSeconds: secs, kills,
+      longestKillMeters: null, killList: [],
+      qualified,
+      qualifiedAt: qualified ? { at: "2026-07-16T05:05:00Z", by: "playtime" } : null,
+    },
   });
 
 const bannedStanding = (slug: string, map: string, expiresAt: string | null): ServerStanding =>
@@ -83,7 +88,7 @@ const serverForLifeNumber = (slug: string): Server => server({ slug, map: "sakha
 
 const aliveStandingForLifeNumber = (slug: string): ServerStanding => standing({
   map: "sakhal", slug, state: "alive",
-  alive: { lifeId: 9, lifeNumber: 4, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 100, kills: 0, longestKillMeters: null, killList: [] },
+  alive: { lifeId: 9, lifeNumber: 4, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 100, kills: 0, longestKillMeters: null, killList: [], qualified: true, qualifiedAt: { at: "2026-07-01T00:05:00Z", by: "playtime" } },
 });
 
 const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number | null): ServerStanding => standing({
@@ -140,5 +145,36 @@ describe("serverCards lifeNumber", () => {
       lastLifeNumber: 9,
     });
     expect(serverCards([serverForLifeNumber("sakhal")], [conflicting])[0]!.lifeNumber).toBeNull();
+  });
+});
+
+describe("serverFactLine: a provisional life must not claim to be qualified", () => {
+  // The whole point of the provisional state: during the grace window death is FREE and a reroll
+  // costs nothing. Saying "Qualified" there would tell the player the opposite.
+  test("an unqualified open life denies qualification and says death is still free", () => {
+    const [c] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 120, 0, false)]);
+    const line = serverFactLine(c!);
+    // Must DENY qualification, not assert it. `/qualified/i` alone would pass for both readings.
+    expect(line).toMatch(/not yet qualified/i);
+    expect(line).not.toMatch(/^Qualified/);
+    expect(line).toMatch(/free/i);
+  });
+
+  test("the remaining time rounds UP, so it never reads 0m while still provisional", () => {
+    // A resolved "0m" would be indistinguishable from qualified — the exact claim this denies.
+    const [c] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 299, 0, false)]);
+    expect(serverFactLine(c!)).toMatch(/another 1m/);
+  });
+
+  test("a qualified open life is unchanged", () => {
+    const [c] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 22920, 1)]);
+    expect(serverFactLine(c!)).toBe("Qualified · 6h 22m this life · 1 kill");
+  });
+
+  test("serverCards carries the qualified flag through", () => {
+    const [prov] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 120, 0, false)]);
+    expect(prov!.alive!.qualified).toBe(false);
+    const [q] = serverCards([server({})], [aliveStanding("chernarus", "chernarusplus", 400, 0, true)]);
+    expect(q!.alive!.qualified).toBe(true);
   });
 });
