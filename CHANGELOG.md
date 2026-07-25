@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The `articles` and `article_images` tables, and the orphaned `obituary_published` /
+  `birth_notice_published` notification rows. Migration `0027`. This completes the content-engine
+  retirement begun in 0.44.0 — that release removed every reader; this one drops the storage.
+
 ### Fixed
 
 - **Deploy runbook: stop the newsdesk BEFORE deploying v0.44.0, not after.** The v0.44.0 notes put

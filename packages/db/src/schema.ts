@@ -1,6 +1,6 @@
 import {
   pgTable, bigserial, integer, text, timestamp, boolean, jsonb,
-  bigint, uniqueIndex, index, doublePrecision, customType,
+  bigint, uniqueIndex, index, doublePrecision,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -377,91 +377,6 @@ export const characters = pgTable("characters", {
   byCharId: index("characters_char_idx").on(t.serverId, t.charId),
 }));
 
-// ── Content engine (R5). Durable side-table — generated editorial content (obituaries first).
-// Like `bans`, it references ONLY `servers` and keys the life by the rebuild-stable natural tuple
-// (server_id, gamertag, life_started_at) — NO players/lives FK, so a projector rebuild
-// (TRUNCATE players,lives ... RESTART IDENTITY CASCADE) neither cascade-wipes it nor stales its
-// keys. One row per (kind, life); a failed generation writes a status='failed' stub (content null,
-// attempts bumped) so retries are bounded. ──
-export const articles = pgTable("articles", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  kind: text("kind").notNull(),                       // 'obituary' | 'birth_notice' | 'news'
-  status: text("status").notNull().default("published"),  // published|failed|retracted
-  slug: text("slug"),                                                // null on a failed stub
-  serverId: integer("server_id").references(() => servers.id),
-  gamertag: text("gamertag"),                                        // NULL for an institutional editorial piece
-  map: text("map"),                                                  // servers.map codename; NULL when no single server
-  mapSlug: text("map_slug"),                                         // servers.slug (nullable)
-  lifeNumber: integer("life_number"),
-  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }), // natural-key: which life
-  deathAt: timestamp("death_at", { withTimezone: true }),               // obituaries: lives.ended_at (feed order); birth notices: NULL while alive
-  timeAliveSeconds: integer("time_alive_seconds").notNull().default(0),
-  kills: integer("kills").notNull().default(0),
-  longestKillMeters: doublePrecision("longest_kill_meters"),
-  cause: text("cause"),
-  headline: text("headline"),
-  lede: text("lede"),
-  body: text("body"),
-  pullQuoteText: text("pull_quote_text"),
-  pullQuoteAttribution: text("pull_quote_attribution"),
-  tags: text("tags").array(),
-  facts: jsonb("facts"),                                             // ObituaryFacts snapshot
-  promptVersion: text("prompt_version"),
-  model: text("model"),
-  attempts: integer("attempts").notNull().default(0),
-  lastError: text("last_error"),
-  imageUrl: text("image_url"),                                       // reserved for R5c
-  imagePrompt: text("image_prompt"),                                // reserved for R5c
-  imageKind: text("image_kind"),                                    // reserved for R5c
-  imageCaption: text("image_caption"),                              // deadpan caps line under the hero (R5c)
-  imageModel: text("image_model"),                                  // image-model provenance (R5c)
-  imageAttempts: integer("image_attempts").notNull().default(0),    // image-pass retries, independent of text attempts
-  imageError: text("image_error"),                                  // last image-pass failure
-  generatedAt: timestamp("generated_at", { withTimezone: true }),
-  discordPostedAt: timestamp("discord_posted_at", { withTimezone: true }), // set when the obituary link was posted to Discord; NULL = unposted
-  // R5d — kind-agnostic dedupe key for article kinds NOT keyed by a life (news items key on a
-  // source-derived string). NULL for obituaries/birth notices, which keep the life natural key.
-  naturalKey: text("natural_key"),
-  // R5d — rich body as an ordered block array (para|subhead|quote|list). NULL on every pre-R5d
-  // row; the web renderer falls back to splitting flat `body` on blank lines when it is NULL.
-  bodyBlocks: jsonb("body_blocks"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  // PARTIAL: only the two life-keyed kinds are constrained by the life tuple. A news row carries
-  // no life and must not collide. Because this index is partial, EVERY onConflictDoUpdate that
-  // targets it must pass a matching `targetWhere` — see apps/newsdesk/src/{pg-store,birth-pg-store}.ts.
-  uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq")
-    .on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt)
-    .where(sql`${t.kind} IN ('obituary','birth_notice')`),
-  uniqNaturalKey: uniqueIndex("articles_natural_key_uniq").on(t.naturalKey).where(sql`${t.naturalKey} IS NOT NULL`),
-  uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
-  feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
-  bornIdx: index("articles_kind_status_born_idx").on(t.kind, t.status, t.lifeStartedAt),
-  createdIdx: index("articles_kind_status_created_idx").on(t.kind, t.status, t.createdAt),
-  discordUnpostedIdx: index("articles_discord_unposted_idx").on(t.deathAt).where(sql`${t.kind} = 'obituary' AND ${t.status} = 'published' AND ${t.discordPostedAt} IS NULL`),
-  imageMissingIdx: index("articles_image_missing_idx").on(t.createdAt).where(sql`${t.status} = 'published' AND ${t.imageUrl} IS NULL`),
-  // In The Paper (player profile): "which published articles name this player".
-  // Expression indexes because both comparisons are case-insensitive; partial because nothing
-  // but a published article is ever surfaced.
-  subjectIdx: index("articles_subject_idx")
-    .on(sql`lower(${t.gamertag})`, t.createdAt.desc())
-    .where(sql`${t.status} = 'published'`),
-  killerIdx: index("articles_killer_idx")
-    .on(sql`lower(${t.facts}->>'killerGamertag')`, t.createdAt.desc())
-    .where(sql`${t.status} = 'published' AND ${t.facts}->>'killerGamertag' IS NOT NULL`),
-}));
-
-// One generated photo per article. Durable like `articles` (never truncated on rebuild); bytes
-// live in Postgres so the archive promise and the pg_dump backup cover images too.
-export const articleImages = pgTable("article_images", {
-  articleId: bigint("article_id", { mode: "number" }).primaryKey().references(() => articles.id, { onDelete: "cascade" }),
-  bytes: customType<{ data: Buffer }>({ dataType: () => "bytea" })("bytes").notNull(),
-  contentType: text("content_type").notNull(),                      // from the API media_type (png observed)
-  width: integer("width"),                                          // parsed from PNG IHDR; null for non-png
-  height: integer("height"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
 // ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate
 // list, so a --rebuild never drops a player's inbox. Dedup is the natural_key unique
 // index — a PLAIN unique index, so onConflictDoNothing against it takes no targetWhere.
@@ -493,8 +408,8 @@ export const notifications = pgTable("notifications", {
   unpushedIdx: index("notifications_unpushed_idx").on(t.createdAt).where(sql`${t.pushedAt} IS NULL`),
   // F1 friend-request rate limit (migration 0019): supports the LIKE 'prefix%' prefix scan
   // in packages/friends/src/mutations.ts. text_pattern_ops has no drizzle-orm 0.36 builder
-  // API, so this is expressed as a raw expression the same way articles_subject_idx is —
-  // this entry documents the index; the migration SQL is the source of truth.
+  // API, so this is expressed as a raw expression; this entry documents the index and the
+  // migration SQL is the source of truth.
   naturalKeyPatternIdx: index("notifications_natural_key_pattern_idx")
     .on(sql`${t.naturalKey} text_pattern_ops`),
 }));
