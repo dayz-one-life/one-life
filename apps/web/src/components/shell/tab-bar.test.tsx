@@ -83,6 +83,22 @@ describe("TabBar", () => {
     expect(nav.className).toMatch(/h-\[calc\(4rem\+env\(safe-area-inset-bottom\)\)\]/);
   });
 
+  // The icon is decoration over the label (mobile-shell mock): aria-hidden so the accessible
+  // name stays the bare label, red-soft on the active tab (dark surface — never red-deep).
+  test("stacks an aria-hidden icon over each label, red-soft when active", () => {
+    status("verified");
+    mockPathname.mockReturnValue("/friends");
+    render(<TabBar />);
+    const active = screen.getByRole("link", { name: "Friends" });
+    const icon = active.querySelector("[aria-hidden]")!;
+    expect(icon.textContent).not.toBe("");
+    expect(icon.className).toMatch(/text-red-soft/);
+    expect(active.className).toMatch(/text-paper/);
+    const idle = screen.getByRole("link", { name: "Home" });
+    expect(idle.querySelector("[aria-hidden]")!.className).not.toMatch(/text-red-soft/);
+    expect(idle.className).toMatch(/text-cream-dim/);
+  });
+
   test("every destination clears the 52px touch floor", () => {
     status("verified");
     render(<TabBar />);

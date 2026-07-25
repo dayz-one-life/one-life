@@ -132,12 +132,33 @@ function AliveHero({ card, ownSlug, previousBestSeconds }: {
   );
 }
 
+/** The compact alive treatment for a page a ban leads (mock D): a row, not a hero — the ban is
+ *  the story, and two heroes stacked under it bury the countdown. Time alive stays the only
+ *  stat (amendment 2); "Map" is the one affordance. */
+function AliveRow({ card }: { card: ServerCardData }) {
+  const a = card.alive!;
+  return (
+    <div className="flex min-h-[36px] items-center gap-3 border-t border-ink/10 px-3.5 py-2.5 first:border-t-0">
+      <Pip tone="blue" />
+      <span className="min-w-[96px] font-display text-[15px] font-medium uppercase text-ink">{mapLabel(card.map)}</span>
+      <span className="font-mono text-[12px] font-bold tabular-nums text-ink">{formatRunLength(a.timeAliveSeconds)}</span>
+      <Link
+        href={`/maps/${card.slug}`}
+        className="ml-auto border border-ink px-2.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[.1em] text-ink"
+      >
+        Map
+      </Link>
+    </div>
+  );
+}
+
 function IdleRow({ card, now, joinServers }: {
   card: ServerCardData; now: Date; joinServers?: ServersView;
 }) {
   const [open, setOpen] = useState(false);
+  // "died 2d ago · life 11" — the life number names WHICH run ended, per the mobile mock.
   const diedLine = card.lastEndedAt
-    ? `· died ${relativeTime(card.lastEndedAt, now).toLowerCase()}`
+    ? `· died ${relativeTime(card.lastEndedAt, now).toLowerCase()}${card.lifeNumber !== null ? ` · life ${card.lifeNumber}` : ""}`
     : "· never played";
   return (
     <div className="border-t border-ink/10 px-3.5 py-2.5 first:border-t-0">
@@ -183,6 +204,8 @@ export function StandingGroups({
   joinServers?: ServersView;
 }) {
   const groups = groupServerCards(cards);
+  const hasBan = groups.some((g) => g.state === "banned");
+  const allIdle = cards.length > 0 && cards.every((c) => c.state === "idle");
   return (
     <div className="flex flex-col gap-3">
       {groups.map((g) => {
@@ -211,7 +234,20 @@ export function StandingGroups({
           );
         }
         if (g.state === "alive") {
-          // One hero PER life — each alive server gets its own headed block, per the mock.
+          // A ban outranks a life as the page's story (mock D): alive collapses to a compact
+          // row group so the countdown leads. Otherwise, one hero PER life, per the mock.
+          if (hasBan) {
+            return (
+              <section key="alive" aria-label="Alive" className="border border-hairline border-l-4 border-l-blue bg-bone">
+                <div className="px-3.5 pb-1 pt-2.5">
+                  <span className={cn(OV, "text-ink-muted")}>Alive · {plural(g.cards.length, "server")}</span>
+                </div>
+                {g.cards.map((card) => (
+                  <AliveRow key={card.slug} card={card} />
+                ))}
+              </section>
+            );
+          }
           return g.cards.map((card) => (
             <AliveHero key={card.slug} card={card} ownSlug={ownSlug} previousBestSeconds={previousBestSeconds} />
           ));
@@ -219,7 +255,9 @@ export function StandingGroups({
         return (
           <section key="idle" aria-label="No life" className="border border-hairline border-l-4 border-l-dash bg-white">
             <div className="px-3.5 pb-1 pt-2.5">
-              <span className={cn(OV, "text-ink-muted")}>No life · {plural(g.cards.length, "server")}</span>
+              <span className={cn(OV, "text-ink-muted")}>
+                {allIdle ? "Your servers · nothing running" : `No life · ${plural(g.cards.length, "server")}`}
+              </span>
             </div>
             {g.cards.map((card) => (
               <IdleRow key={card.slug} card={card} now={now} joinServers={joinServers} />
