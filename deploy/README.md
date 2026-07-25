@@ -393,12 +393,23 @@ Sanity check: `sudo certbot renew --dry-run`.
 
 ### One-time operator step for the content-engine removal
 
-The `onelife-newsdesk` systemd unit is not checked into the repo, so `deploy.sh` cannot remove
-it. On the host, once:
+**⚠️ Run this BEFORE `./deploy/deploy.sh`, not after.** The `onelife-newsdesk` systemd unit is not
+checked into the repo, so `deploy.sh` cannot remove it — and v0.44.0 also dropped `newsdesk` from
+the `SERVICES` array, so `stop_services` no longer stops it either. A newsdesk that is running when
+the deploy lands **keeps running**: `git checkout` deletes its source, but the node process already
+has its modules resident, so it ticks on with the old code. Every tick it publishes new articles
+into `articles` and **posts a Discord link to `/obituaries/<slug>`, which the deploy just turned
+into a 404** — measured cadence at the time of the removal was ~4 obituaries/day, i.e. a dead
+public link roughly every six hours until someone notices.
+
+On the host, once, before deploying:
 
     sudo systemctl disable --now onelife-newsdesk
     sudo rm /etc/systemd/system/onelife-newsdesk.service
     sudo systemctl daemon-reload
+
+If the deploy has already gone out, run it now — the damage is bounded to the dead Discord links
+already posted, which are ordinary messages and can be deleted from the channel by hand.
 
 ## Rollback (re-expose the old Tribune)
 

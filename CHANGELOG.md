@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Deploy runbook: stop the newsdesk BEFORE deploying v0.44.0, not after.** The v0.44.0 notes put
+  the `systemctl disable onelife-newsdesk` step after the deploy. That is the wrong order: v0.44.0
+  also removed `newsdesk` from `deploy.sh`'s `SERVICES` array, so the deploy neither stops nor
+  starts it, and a running worker keeps its modules resident after the checkout deletes its source.
+  It therefore keeps publishing and keeps posting Discord links to obituary URLs the same deploy
+  turned into 404s.
+
 ## [0.44.0] - 2026-07-24
 
 ### Removed
