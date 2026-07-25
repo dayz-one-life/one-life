@@ -8,8 +8,6 @@ import { rosterByClass } from "@onelife/domain";
 
 export const SURVIVORS_PAGE_SIZE = 25;
 
-export type SurvivorSort = "kills" | "time" | "longest";
-
 export interface SurvivorCharacter {
   name: string | null; // "Helga"
   head: string | null; // roster head key, e.g. "f_helga"
@@ -31,7 +29,6 @@ export interface SurvivorsPage {
   total: number;
   page: number;
   pageSize: number;
-  sort: SurvivorSort;
 }
 
 /** Internal candidate row: carries `serverId`/`startedAt` for Task 2's character enrichment —
@@ -41,23 +38,20 @@ interface SurvivorCandidate extends SurvivorRow {
   startedAt: Date;
 }
 
-function metricFor(sort: SurvivorSort, row: SurvivorCandidate): number {
-  switch (sort) {
-    case "kills":
-      return row.killsThisLife;
-    case "time":
-      return row.timeAliveSeconds;
-    case "longest":
-      // nulls sort last under descending order
-      return row.longestKillMeters ?? -Infinity;
-  }
-}
-
-const TIE_ORDER: Record<SurvivorSort, SurvivorSort[]> = {
-  time: ["time", "kills", "longest"],
-  kills: ["kills", "time", "longest"],
-  longest: ["longest", "time", "kills"],
-};
+/**
+ * ⚠️ ONE order, and it is not configurable. Sub-project D deleted the whole sort layer
+ * (`kills`/`time`/`longest`, the combined board, and the rule that no server slug may ever be one
+ * of those three words): a permadeath tool ranks by the only number that means anything here —
+ * how long you have stayed alive. Kills and longest kill remain TIE-BREAKS, not orderings.
+ *
+ * `-Infinity` for a missing longest kill sorts it last under descending order; the skip-if-equal
+ * comparator below never subtracts two of them, which would be NaN.
+ */
+const METRICS: ((row: SurvivorCandidate) => number)[] = [
+  (row) => row.timeAliveSeconds,
+  (row) => row.killsThisLife,
+  (row) => row.longestKillMeters ?? -Infinity,
+];
 
 /**
  * Currently-alive survivors: players with an open, qualified life on an active, slugged server.
@@ -65,11 +59,10 @@ const TIE_ORDER: Record<SurvivorSort, SurvivorSort[]> = {
  */
 export async function getAliveSurvivors(
   db: Database,
-  opts: { slug?: string; sort: SurvivorSort; page: number; pageSize?: number },
+  opts: { slug?: string; page: number; pageSize?: number },
   now: Date,
 ): Promise<SurvivorsPage> {
   const pageSize = opts.pageSize ?? SURVIVORS_PAGE_SIZE;
-  const sort = opts.sort;
   const page = Math.max(1, Math.trunc(opts.page) || 1);
 
   const serverFilter = opts.slug
@@ -96,7 +89,7 @@ export async function getAliveSurvivors(
     .where(and(isNull(lives.endedAt), serverFilter));
 
   if (openLives.length === 0) {
-    return { rows: [], total: 0, page, pageSize, sort };
+    return { rows: [], total: 0, page, pageSize };
   }
 
   const serverIds = [...new Set(openLives.map((r) => r.serverId))];
@@ -150,9 +143,9 @@ export async function getAliveSurvivors(
   }
 
   candidates.sort((a, b) => {
-    for (const key of TIE_ORDER[sort]) {
-      const av = metricFor(key, a);
-      const bv = metricFor(key, b);
+    for (const metric of METRICS) {
+      const av = metric(a);
+      const bv = metric(b);
       if (av !== bv) return bv - av; // descending; skip-if-equal avoids -Infinity−(-Infinity)=NaN
     }
     return a.gamertag.localeCompare(b.gamertag);
@@ -171,5 +164,5 @@ export async function getAliveSurvivors(
     }),
   );
 
-  return { rows, total, page, pageSize, sort };
+  return { rows, total, page, pageSize };
 }

@@ -3,7 +3,6 @@ import { getServersCached, getSitemapData } from "@/lib/api";
 import { absoluteUrl, SITE_URL } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { boardHref } from "@/components/survivors/links";
-import { SORTS } from "@/lib/board-params";
 
 /**
  * Rendered per request; the hourly window lives on the FETCH (`apiGetCached`'s
@@ -41,16 +40,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: p === "/" ? SITE_URL : absoluteUrl(p),
   }));
 
-  // Boards. `boardHref` collapses the default sort to the bare path, so mapping every SORT through
-  // it yields the canonical set and never `/survivors/time`, which redirects.
+  // Boards: one per slugged server. ⚠️ NOT the bare `/survivors`, which is a per-viewer REDIRECT
+  // and must never be advertised — the sitemap may only carry URLs that resolve directly. The
+  // sort paths and the combined board are gone entirely (sub-project D).
   try {
     const servers = await getServersCached();
-    const slugs: (string | null)[] = [
-      null,
-      ...servers.filter((s) => s.slug !== null).map((s) => s.slug as string),
-    ];
-    for (const slug of slugs) {
-      for (const sort of SORTS) entries.push({ url: absoluteUrl(boardHref(slug, sort, 1)) });
+    for (const s of servers) {
+      if (s.slug !== null) entries.push({ url: absoluteUrl(boardHref(s.slug, 1)) });
     }
   } catch {
     // A partial sitemap beats no sitemap: an API blip must never look like a site with no pages.

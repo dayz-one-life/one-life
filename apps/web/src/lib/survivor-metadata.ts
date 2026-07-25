@@ -1,12 +1,5 @@
 import type { Metadata } from "next";
-import type { SurvivorSort } from "./types";
 import { boardHref } from "@/components/survivors/links";
-
-const SORT_LABELS: Record<SurvivorSort, string> = {
-  kills: "Kills",
-  time: "Time alive",
-  longest: "Longest kill",
-};
 
 /** Title-cases a map slug: "chernarus" -> "Chernarus". */
 function mapLabel(slug: string): string {
@@ -14,8 +7,7 @@ function mapLabel(slug: string): string {
 }
 
 export interface SurvivorMetadataArgs {
-  slug: string | null;
-  sort: SurvivorSort;
+  slug: string;
   page: number;
   total: number;
   pageSize: number;
@@ -25,31 +17,32 @@ export interface SurvivorMetadataArgs {
 /**
  * Pure builder for a survivors-board page's Next `Metadata`.
  *
- * - Title: `Top {Map} survivors by {sortLabel}` (combined board drops the map name),
- *   with `· Page N` appended when N > 1.
- * - Canonical is **self-referential** — `boardHref(slug, sort, page)`, NOT collapsed
- *   to page 1 (so paginated URLs canonicalise to themselves).
+ * - Title: `Top {Map} survivors`, with `· Page N` appended when N > 1. The `by {sort}` clause is
+ *   gone with the sort layer (sub-project D) — there is one ranking, so naming it in every title
+ *   said nothing.
+ * - Canonical is **self-referential** — `boardHref(slug, page)`, NOT collapsed to page 1, so
+ *   paginated URLs canonicalise to themselves.
  * - prev/next paginated links are surfaced via the `other` field when they exist.
+ *
+ * ⚠️ `slug` is required: there is no combined board, so there is no board without a map.
  */
 export function buildSurvivorMetadata(args: SurvivorMetadataArgs): Metadata {
-  const { slug, sort, page, total, pageSize, leaderName } = args;
+  const { slug, page, total, pageSize, leaderName } = args;
 
-  const sortLabel = SORT_LABELS[sort];
-  const scope = slug ? `${mapLabel(slug)} survivors` : "survivors";
-  const baseTitle = `Top ${scope} by ${sortLabel}`;
+  const map = mapLabel(slug);
+  const baseTitle = `Top ${map} survivors`;
   const title = page > 1 ? `${baseTitle} · Page ${page}` : baseTitle;
 
-  const where = slug ? `on ${mapLabel(slug)}` : "across every One Life server";
   const leaderClause = leaderName ? ` ${leaderName} leads the pack.` : "";
-  const description = `The survivors currently alive ${where}, ranked by ${sortLabel.toLowerCase()}.${leaderClause}`;
+  const description = `The survivors currently alive on ${map}, ranked by time alive.${leaderClause}`;
 
-  const canonical = boardHref(slug, sort, page);
+  const canonical = boardHref(slug, page);
 
   const hasPrev = page > 1;
   const hasNext = page * pageSize < total;
   const other: Record<string, string> = {};
-  if (hasPrev) other.prev = boardHref(slug, sort, page - 1);
-  if (hasNext) other.next = boardHref(slug, sort, page + 1);
+  if (hasPrev) other.prev = boardHref(slug, page - 1);
+  if (hasNext) other.next = boardHref(slug, page + 1);
 
   return {
     title,

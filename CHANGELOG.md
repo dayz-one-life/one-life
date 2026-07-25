@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The leaderboard's sort options are gone.** It ranked three ways — time alive, kills, longest
+  kill — and had a combined board across every server. It is now one board per map, ranked by the
+  only number that means anything in a permadeath game: how long you have stayed alive. Kills and
+  longest kill still break ties, they just aren't rankings of their own. **`/survivors/kills`,
+  `/survivors/longest` and `/survivors/<map>/<sort>` no longer exist**, and the combined
+  `/survivors` board is now a redirect to your map's board.
+
 ### Changed
 
 - **`/maps` now sends you to the map you actually play.** It used to remember the last map you

@@ -23,15 +23,21 @@ describe("Hero", () => {
 });
 
 describe("TopSurvivors", () => {
-  it("ranks rows with gamertag links, map, and time alive", () => {
-    render(<TopSurvivors rows={[row({}), row({ gamertag: "Khushie", map: "chernarusplus", timeAliveSeconds: 30300 })]} />);
+  it("ranks rows with gamertag links and time alive", () => {
+    render(<TopSurvivors slug="sakhal" map="sakhal" rows={[row({}), row({ gamertag: "Khushie", timeAliveSeconds: 30300 })]} />);
     expect(screen.getByRole("link", { name: "YrJustBad" })).toHaveAttribute("href", "/players/yrjustbad");
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ALL →" })).toHaveAttribute("href", "/survivors");
+    // ⚠️ Links to THIS map's board, never a bare /survivors (a per-viewer redirect).
+    expect(screen.getByRole("link", { name: "ALL →" })).toHaveAttribute("href", "/survivors/sakhal");
+  });
+  it("names the map it is scoped to, so the list is not silently partial", () => {
+    render(<TopSurvivors slug="livonia" map="enoch" rows={[row({})]} />);
+    // `enoch` is labelled Livonia — the heading uses the label, never the mission codename.
+    expect(screen.getByText(/Still breathing on Livonia/i)).toBeInTheDocument();
   });
   it("shows the quiet-coast empty state", () => {
-    render(<TopSurvivors rows={[]} />);
+    render(<TopSurvivors slug="sakhal" map="sakhal" rows={[]} />);
     expect(screen.getByText(/THE COAST IS QUIET/)).toBeInTheDocument();
   });
 });

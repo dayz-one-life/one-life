@@ -143,10 +143,9 @@ export type ServerStanding = { serverId: number; map: string; slug: string; stat
 export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
 export type PlayerPage = { gamertag: string; verified: boolean; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number };
 
-export type SurvivorSort = "kills" | "time" | "longest";
 export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
-export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; sort: SurvivorSort; }
+export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; }
 
 export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
 

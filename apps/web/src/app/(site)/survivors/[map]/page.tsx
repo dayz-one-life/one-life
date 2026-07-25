@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getServers, getSurvivors } from "@/lib/api";
 import type { Server } from "@/lib/types";
 import { SurvivorsBoard } from "@/components/survivors/survivors-board";
@@ -24,10 +24,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   const sp = await searchParams;
   const page = parsePage(sp.page);
-  const data = await getSurvivors({ slug: route.slug ?? undefined, sort: route.sort, page }).catch(() => null);
+  const data = await getSurvivors({ slug: route.slug, page }).catch(() => null);
   return buildSurvivorMetadata({
     slug: route.slug,
-    sort: route.sort,
     page,
     total: data?.total ?? 0,
     pageSize: data?.pageSize ?? 25,
@@ -35,18 +34,21 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   });
 }
 
+/**
+ * `/survivors/<slug>` is the board — one map, time alive, living players only. It is the STABLE,
+ * shareable, indexable URL and never redirects; `/survivors` resolves to one of these.
+ *
+ * ⚠️ There is no `[sort]` segment any more, and no explicit-default redirect to preserve `?page`
+ * across. Sub-project D deleted the sort layer.
+ */
 export default async function SurvivorsMapPage({ params, searchParams }: Props) {
   const { map } = await params;
   const { servers, route } = await resolve(map);
+  if (route.kind === "notFound") notFound();
 
   const sp = await searchParams;
   const page = parsePage(sp.page);
-
-  // Preserve ?page across the explicit-default redirect (e.g. /survivors/time?page=2).
-  if (route.kind === "redirect") redirect(page > 1 ? `${route.to}?page=${page}` : route.to);
-  if (route.kind === "notFound") notFound();
-
-  const data = await getSurvivors({ slug: route.slug ?? undefined, sort: route.sort, page });
+  const data = await getSurvivors({ slug: route.slug, page });
 
   return <SurvivorsBoard page={data} slug={route.slug} tabs={buildTabs(servers)} />;
 }

@@ -33,22 +33,26 @@ describe("sitemap", () => {
     }
   });
 
-  it("includes the three canonical combined-board URLs", async () => {
-    const u = await urls();
-    expect(u).toContain("https://dayzonelife.com/survivors");
-    expect(u).toContain("https://dayzonelife.com/survivors/kills");
-    expect(u).toContain("https://dayzonelife.com/survivors/longest");
-  });
-
-  it("never advertises an explicit-default sort path, which redirects", async () => {
-    const u = await urls();
-    expect(u.some((x) => x.endsWith("/time"))).toBe(false);
-  });
-
-  it("includes per-map boards for every slugged server", async () => {
+  it("includes one board URL per slugged server", async () => {
     const u = await urls();
     expect(u).toContain("https://dayzonelife.com/survivors/sakhal");
-    expect(u).toContain("https://dayzonelife.com/survivors/livonia/kills");
+    expect(u).toContain("https://dayzonelife.com/survivors/livonia");
+  });
+
+  // ⚠️ The sitemap may only carry URLs that resolve DIRECTLY. `/survivors` is now a per-viewer
+  // redirect, so advertising it would train crawlers on a 30x — the same reason the old
+  // explicit-default sort path was excluded.
+  it("never advertises the bare /survivors, which redirects", async () => {
+    expect(await urls()).not.toContain("https://dayzonelife.com/survivors");
+  });
+
+  // The sort paths are gone entirely (sub-project D) — these would 404, which is worse than the
+  // redirect they used to be.
+  it("never advertises a sort path", async () => {
+    const u = await urls();
+    for (const word of ["time", "kills", "longest"]) {
+      expect(u.some((x) => x.endsWith(`/${word}`))).toBe(false);
+    }
   });
 
   it("builds a player URL with the slugified gamertag", async () => {
@@ -69,7 +73,7 @@ describe("sitemap", () => {
   it("returns static and board entries when the API call fails, never throwing", async () => {
     vi.mocked(getSitemapData).mockRejectedValue(new Error("api down"));
     const u = await urls();
-    expect(u).toContain("https://dayzonelife.com/survivors");
+    expect(u).toContain("https://dayzonelife.com/survivors/sakhal");
     expect(u).toContain("https://dayzonelife.com");
     expect(u.some((x) => x.includes("/players/"))).toBe(false);
   });

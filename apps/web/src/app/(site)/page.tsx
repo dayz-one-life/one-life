@@ -4,6 +4,7 @@ import { Hero } from "@/components/front-page/hero";
 import { TopSurvivors } from "@/components/front-page/top-survivors";
 import { ColdFork } from "@/components/front-page/cold-fork";
 import { serversView } from "@/components/servers/how-to-connect";
+import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
 import { HomeSidebar } from "@/components/account/home-sidebar";
 
@@ -34,11 +35,20 @@ function FeedFailedBanner({ children }: { children: string }) {
 export default async function Home() {
   // Fetched here rather than through `useControls`, whose servers query is `enabled: signedIn` —
   // the cold fork's How to connect panel is shown to signed-OUT visitors, who would otherwise
-  // never get a list. Independent of the survivors fetch: losing one must not cost the other.
-  const [survivors, servers] = await Promise.all([
-    settleFeed(getSurvivors({ sort: "time", page: 1 })),
-    settleFeed(getServers()),
-  ]);
+  // never get a list.
+  const servers = await settleFeed(getServers());
+
+  // ⚠️ The board strip is now ONE map's — there is no combined board (sub-project D) — resolved
+  // through the same rule `/maps` and `/survivors` use, against the list we already have.
+  const boardSlug = await resolveDestinationFrom(servers.data);
+  const boardServer = boardSlug ? servers.data?.find((s) => s.slug === boardSlug) ?? null : null;
+
+  // Only fetch a board once we know which one. A failed SERVERS fetch therefore costs the strip
+  // too — unavoidable, since there is no map to ask about — but it is reported as a failure
+  // rather than as an empty coast.
+  const survivors = boardSlug
+    ? await settleFeed(getSurvivors({ slug: boardSlug, page: 1 }))
+    : { data: null, failed: servers.failed };
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -47,7 +57,13 @@ export default async function Home() {
         {survivors.failed && (
           <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
         )}
-        <TopSurvivors rows={survivors.data?.rows.slice(0, 5) ?? []} />
+        {boardSlug && boardServer && (
+          <TopSurvivors
+            rows={survivors.data?.rows.slice(0, 5) ?? []}
+            slug={boardSlug}
+            map={boardServer.map}
+          />
+        )}
         <ColdFork servers={serversView(servers.data, { failed: servers.failed })} />
         <div className="px-6 py-8 md:px-10">
           <AccountPanels />

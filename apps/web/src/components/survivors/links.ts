@@ -1,23 +1,14 @@
-import type { SurvivorSort } from "@/lib/types";
-import { DEFAULT_SORT } from "@/lib/board-params";
-
 /**
- * Pure href builder for the survivors board.
- * - slug null -> "/survivors", else "/survivors/<slug>"
- * - sort appended as a path segment only when not the default ("time")
- * - ?page included only when > 1
+ * Pure href builder for the survivors board — the single source of board URLs, so the tabs,
+ * pagination, canonical/OG/JSON-LD and the sitemap can never disagree.
+ *
+ * - `/survivors/<slug>`, always slugged: there is no combined board (sub-project D).
+ * - `?page` only when > 1, so page 1 has exactly one URL.
+ *
+ * ⚠️ The sitemap must never advertise a URL that 404s or redirects, which is why it builds board
+ * URLs through here rather than assembling strings. Hand-building used to risk emitting
+ * `/survivors/time`, a redirect; that path no longer exists at all.
  */
-export function boardHref(slug: string | null, sort: SurvivorSort, page: number): string {
-  let base = slug === null ? "/survivors" : `/survivors/${slug}`;
-  if (sort !== DEFAULT_SORT) base += `/${sort}`;
-  const params = new URLSearchParams();
-  if (page > 1) params.set("page", String(page));
-  const query = params.toString();
-  return query ? `${base}?${query}` : base;
+export function boardHref(slug: string, page: number): string {
+  return page > 1 ? `/survivors/${slug}?page=${page}` : `/survivors/${slug}`;
 }
-
-export const MAP_TABS: { slug: string | null; label: string }[] = [
-  { slug: null, label: "All maps" },
-  { slug: "chernarus", label: "Chernarus" },
-  { slug: "sakhal", label: "Sakhal" },
-];
