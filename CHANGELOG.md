@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Contributor docs (`CLAUDE.md`) described the old always-on location-sharing model as current.
+
 ### Added
 
 - **Hand someone your position from the map.** Open the online list on a map and every player
