@@ -1,4 +1,4 @@
-import type { Server, ServerStanding } from "@/lib/types";
+import type { DeathVerdictDto, Server, ServerStanding } from "@/lib/types";
 import { formatDuration } from "@/components/player/format";
 
 /** Mirrors QUALIFY_SECONDS in @onelife/read-models — apps/web cannot import from that package.
@@ -26,8 +26,10 @@ export type ServerCardData = {
   lifeNumber: number | null;
   /** `qualified: false` is a PROVISIONAL life — inside the five-minute grace window, where death
    *  is free and a reroll costs nothing. It must never be described as qualified. */
-  alive: { timeAliveSeconds: number; kills: number; qualified: boolean } | null;
-  ban: { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean } | null;
+  alive: { timeAliveSeconds: number; kills: number; qualified: boolean; startedAt: string | null } | null;
+  ban: { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean; verdict: DeathVerdictDto | null } | null;
+  /** When the most recent qualified life here ended — the idle row's "died Xd ago". */
+  lastEndedAt: string | null;
 };
 
 export function serverCards(servers: Server[], standing: ServerStanding[]): ServerCardData[] {
@@ -47,10 +49,11 @@ export function serverCards(servers: Server[], standing: ServerStanding[]): Serv
           st?.state === "alive" ? (st.alive?.lifeNumber ?? null)
           : st?.state === "banned" ? (st.ban?.triggeringLifeNumber ?? null)
           : (st?.lastLifeNumber ?? null),
-        alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills, qualified: st.alive.qualified } : null,
+        alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills, qualified: st.alive.qualified, startedAt: st.alive.startedAt ?? null } : null,
         ban: st?.ban
-          ? { banId: st.ban.banId, bannedAt: st.ban.bannedAt, expiresAt: st.ban.expiresAt, liftPending: st.ban.liftPending }
+          ? { banId: st.ban.banId, bannedAt: st.ban.bannedAt, expiresAt: st.ban.expiresAt, liftPending: st.ban.liftPending, verdict: st.ban.verdict ?? null }
           : null,
+        lastEndedAt: st?.lastEndedAt ?? null,
       };
     });
 }

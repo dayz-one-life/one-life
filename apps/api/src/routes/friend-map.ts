@@ -91,6 +91,42 @@ export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth
     return { servers: out };
   });
 
+  /** Which friends are online right now, across the fleet — the home sidebar's friends panel.
+   *  Same composition as the per-map payload (positions first, online derived from them), so
+   *  `sharing` here and the map's dots are one fact. No coordinates leave this route; `sharing`
+   *  is the same boolean the map payload already discloses. */
+  app.get("/me/friends/online", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    if (!(await verifiedGamertag(db, session.user.id))) {
+      return reply.code(403).send({ error: "not_verified" });
+    }
+
+    const rows = await db
+      .select({ slug: servers.slug, map: servers.map, id: servers.id })
+      .from(servers)
+      .where(and(eq(servers.active, true), isNotNull(servers.slug)))
+      .orderBy(asc(servers.name));
+
+    const now = new Date();
+    const friends = [];
+    for (const s of rows) {
+      const positions = await getFriendPositions(db, {
+        viewerUserId: session.user.id, serverId: s.id, now,
+      });
+      const online = await getOnlinePlayers(db, {
+        viewerUserId: session.user.id, serverId: s.id, now, positions,
+      });
+      for (const o of online) {
+        if (o.friend && !o.self) {
+          friends.push({ gamertag: o.gamertag, slug: s.slug as string, map: s.map, sharing: o.sharing });
+        }
+      }
+    }
+    reply.header("cache-control", "no-store, private");
+    return { friends };
+  });
+
   app.get("/me/maps/:mapSlug", async (req, reply) => {
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });

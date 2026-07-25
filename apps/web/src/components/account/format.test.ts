@@ -11,7 +11,7 @@ const server = (over: Partial<Server>): Server => ({
 
 const standing = (over: Partial<ServerStanding>): ServerStanding => ({
   serverId: 1, map: "chernarusplus", slug: "chernarus", state: "idle",
-  character: null, alive: null, ban: null, lastLifeNumber: null, ...over,
+  character: null, alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null, ...over,
 });
 
 const aliveStanding = (slug: string, map: string, secs: number, kills = 0, qualified = true): ServerStanding =>
@@ -28,7 +28,7 @@ const aliveStanding = (slug: string, map: string, secs: number, kills = 0, quali
 const bannedStanding = (slug: string, map: string, expiresAt: string | null): ServerStanding =>
   standing({
     slug, map, state: "banned",
-    ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt, liftPending: false, triggeringLifeNumber: 1 },
+    ban: { banId: 9, bannedAt: "2026-07-16T09:47:00Z", expiresAt, liftPending: false, triggeringLifeNumber: 1, verdict: null },
   });
 
 describe("initialOf", () => {
@@ -92,7 +92,7 @@ const aliveStandingForLifeNumber = (slug: string): ServerStanding => standing({
 
 const bannedStandingForLifeNumber = (slug: string, triggeringLifeNumber: number | null): ServerStanding => standing({
   map: "sakhal", slug, state: "banned",
-  ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber },
+  ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber, verdict: null },
   lastLifeNumber: triggeringLifeNumber,
 });
 
@@ -140,7 +140,7 @@ describe("serverCards lifeNumber", () => {
   test("a banned card never falls through to lastLifeNumber even when it conflicts with a null trigger", () => {
     const conflicting: ServerStanding = standing({
       map: "sakhal", slug: "sakhal", state: "banned",
-      ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber: null },
+      ban: { banId: 3, bannedAt: "2026-07-01T00:00:00Z", expiresAt: "2026-07-02T00:00:00Z", liftPending: false, triggeringLifeNumber: null, verdict: null },
       lastLifeNumber: 9,
     });
     expect(serverCards([serverForLifeNumber("sakhal")], [conflicting])[0]!.lifeNumber).toBeNull();

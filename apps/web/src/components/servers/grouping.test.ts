@@ -4,8 +4,9 @@ import { groupServerCards, isSoleRow } from "./grouping";
 
 const card = (slug: string, state: ServerCardData["state"], qualified = true): ServerCardData => ({
   slug, map: "sakhal", state, lifeNumber: 1,
-  alive: state === "alive" ? { timeAliveSeconds: 100, kills: 0, qualified } : null,
-  ban: state === "banned" ? { banId: 1, bannedAt: "2026-07-01T00:00:00Z", expiresAt: null, liftPending: false } : null,
+  alive: state === "alive" ? { timeAliveSeconds: 100, kills: 0, qualified, startedAt: null } : null,
+  ban: state === "banned" ? { banId: 1, bannedAt: "2026-07-01T00:00:00Z", expiresAt: null, liftPending: false, verdict: null } : null,
+  lastEndedAt: null,
 });
 
 describe("groupServerCards", () => {

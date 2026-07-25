@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { FriendsPanelContainer } from "@/components/friends/friends-panel";
+import { OnlineFriendsContainer } from "@/components/friends/online-friends";
 import { relativeTime } from "@/components/notifications/row";
 import { useNotifications } from "@/lib/use-notifications";
 import { useAccountStatus } from "@/lib/use-account-status";
@@ -119,7 +119,7 @@ export function HomeSidebar({ board }: { board: SidebarBoard | null }) {
       className="hidden py-8 pl-7 xl:sticky xl:top-0 xl:block xl:max-h-screen xl:self-start xl:overflow-y-auto"
     >
       <div className="flex flex-col gap-5">
-        <FriendsPanelContainer />
+        <OnlineFriendsContainer />
         {board && <BoardBlock board={board} />}
         <NotificationsBlock />
       </div>

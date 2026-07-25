@@ -22,6 +22,10 @@ export type Controls = {
    * (spec: live-data honesty §5).
    */
   standingLoading: boolean;
+  /** Longest ENDED life across all servers (0 until the player page resolves, and 0 is also the
+   *  genuine no-ended-life answer — the alive hero only uses it for a flourish, so no separate
+   *  loading flag is warranted). */
+  previousBestSeconds: number;
   /**
    * True while the server list behind `servers` is unresolved (loading or errored) for a signed-in
    * user. `servers` itself stays `[]` in this case, and `[]` is ALSO the genuinely-resolved "the
@@ -59,6 +63,7 @@ export function useControls(): Controls {
     balance: tokens.data?.balance ?? null,
     servers: servers.data ?? [],
     standing: player.data?.standing ?? [],
+    previousBestSeconds: player.data?.previousBestSeconds ?? 0,
     standingLoading: gamertag !== null && (player.isLoading || player.isError),
     // Mirrors the servers query's own `enabled` predicate above (`signedIn`), the same way
     // `standingLoading` mirrors the player-page query's `gamertag !== null`.
