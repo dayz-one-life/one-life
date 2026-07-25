@@ -117,16 +117,35 @@ function ServerGroups({
  *
  * Sub-project C restructures this into the three-mode home; B only rehouses it so nothing is lost.
  */
-export function AccountPanels() {
+export function AccountPanels({ signInFallback = false }: {
+  /** True when the SERVER believed a session existed (cookie present) and therefore suppressed
+   *  the cold pitch. If the session then resolves signed-OUT (stale cookie), the page has no
+   *  pitch and no panels — render a sign-in link rather than a blank home. */
+  signInFallback?: boolean;
+} = {}) {
   const c = useControls();
   const a = useControlsActions();
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
 
-  // A signed-out visitor gets nothing here: Home already carries the hero and `ColdFork`, and a
+  // A signed-out visitor normally gets nothing here: Home carries the hero and `ColdFork`, and a
   // sign-in panel here would be a SECOND call to action on the same page. The old rail could
-  // afford one because it was a separate column; in the main flow it is a duplicate.
-  if (c.status.kind === "signedOut") return null;
+  // afford one because it was a separate column; in the main flow it is a duplicate. The
+  // exception is the stale-cookie case above, where this is the ONLY call to action left.
+  if (c.status.kind === "signedOut") {
+    if (!signInFallback) return null;
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <p className="font-sans text-base text-ink-soft">Your session has expired.</p>
+        <Link
+          href="/login"
+          className="border-b-2 border-red font-display text-sm font-semibold uppercase tracking-[.06em] text-ink hover:text-red"
+        >
+          Sign in →
+        </Link>
+      </div>
+    );
+  }
 
   let body: ReactNode;
   if (c.status.kind === "loading") {

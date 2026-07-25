@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Signed-in players no longer land on the cold-visitor pitch.** The hero, the top-5 board strip
+  and the "already playing / new here" fork now render only for signed-out visitors — a signed-in
+  player's home starts with their own standing, as the design mockups always had it. If a stale
+  session cookie fools the check, the page shows a sign-in link rather than going blank.
+
 ## [0.47.0] - 2026-07-25
 
 ### Changed

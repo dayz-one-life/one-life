@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { getServers, getSurvivors } from "@/lib/api";
 import { settleFeed } from "@/lib/settle-feed";
 import { Hero } from "@/components/front-page/hero";
@@ -33,6 +34,15 @@ function FeedFailedBanner({ children }: { children: string }) {
  * Sub-project C replaces the hero / board / CTA arrangement with the three-mode home.
  */
 export default async function Home() {
+  // ⚠️ THE PITCH IS FOR COLD VISITORS ONLY (home-is-the-app spec / verified-desktop mock): a
+  // signed-in player's home STARTS with their own standing, never with marketing they must
+  // scroll past. Detected server-side by session-COOKIE PRESENCE (Better Auth's
+  // `…session_token`, `__Secure-`-prefixed on HTTPS) rather than a session API call — zero
+  // extra latency and no hydration flash. A stale cookie over-detects; `AccountPanels`'
+  // `signInFallback` covers that with a sign-in link instead of a blank page.
+  const cookieStore = await cookies();
+  const signedIn = cookieStore.getAll().some((c) => c.name.includes("session_token"));
+
   // Fetched here rather than through `useControls`, whose servers query is `enabled: signedIn` —
   // the cold fork's How to connect panel is shown to signed-OUT visitors, who would otherwise
   // never get a list.
@@ -53,20 +63,24 @@ export default async function Home() {
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px]">
       <main className="mx-auto w-full min-w-0 max-w-5xl xl:border-r xl:border-ink xl:pr-8">
-        <Hero />
-        {survivors.failed && (
-          <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
+        {!signedIn && (
+          <>
+            <Hero />
+            {survivors.failed && (
+              <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
+            )}
+            {boardSlug && boardServer && (
+              <TopSurvivors
+                rows={survivors.data?.rows.slice(0, 5) ?? []}
+                slug={boardSlug}
+                map={boardServer.map}
+              />
+            )}
+            <ColdFork servers={serversView(servers.data, { failed: servers.failed })} />
+          </>
         )}
-        {boardSlug && boardServer && (
-          <TopSurvivors
-            rows={survivors.data?.rows.slice(0, 5) ?? []}
-            slug={boardSlug}
-            map={boardServer.map}
-          />
-        )}
-        <ColdFork servers={serversView(servers.data, { failed: servers.failed })} />
         <div className="px-6 py-8 md:px-10">
-          <AccountPanels />
+          <AccountPanels signInFallback={signedIn} />
         </div>
       </main>
       <HomeSidebar

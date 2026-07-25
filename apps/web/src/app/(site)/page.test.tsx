@@ -13,7 +13,12 @@ vi.mock("@/lib/api", () => ({
   getServers: (...a: unknown[]) => getServers(...a),
   getLastPlayedMap: (...a: unknown[]) => getLastPlayedMap(...a),
 }));
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
+// Mutable cookie jar: [] = cold visitor (the default for these feed tests); push a
+// `…session_token` cookie to simulate a signed-in visitor for the pitch-gating tests below.
+const cookieJar: Array<{ name: string; value: string }> = [];
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined, getAll: () => cookieJar }),
+}));
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "loading" }) }));
 // The account surface has its own data layer and its own tests. This file is about feed honesty,
 // so stub the two account regions rather than mocking every query they reach for.
@@ -29,8 +34,29 @@ const survivor = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cookieJar.length = 0;
   getServers.mockResolvedValue([{ id: 1, name: "Chernarus", map: "chernarusplus", slug: "chernarus" }]);
   getLastPlayedMap.mockResolvedValue({ slug: null });
+});
+
+// ⚠️ The pitch is for COLD visitors only (home-is-the-app spec): a signed-in player's home
+// starts with their own standing. Signed-in is detected by session-cookie presence, so these
+// drive the mocked cookie jar.
+describe("Home page: the pitch renders for cold visitors only", () => {
+  test("a session cookie suppresses the hero, the board strip and the cold fork", async () => {
+    cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    render(await Home());
+    expect(screen.queryByRole("heading", { level: 1, name: "One life. No respawns." })).toBeNull();
+    expect(screen.queryByText(/still breathing/i)).toBeNull();
+    expect(screen.getByLabelText("Your account")).toBeInTheDocument();
+  });
+
+  test("no session cookie keeps the full cold landing", async () => {
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    render(await Home());
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
+  });
 });
 
 describe("Home page: a feed-fetch error is not the same as genuine emptiness", () => {
