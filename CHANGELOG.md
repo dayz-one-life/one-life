@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-07-24
+
 ### Removed
 
 - **The content engine.** Obituaries, birth notices, the news vertical, the editorial newsroom, the
