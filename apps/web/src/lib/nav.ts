@@ -1,6 +1,6 @@
 export const NAV_ITEMS = [
   { key: "home", href: "/", label: "Home" },
-  // `/maps` is a redirect that resolves the viewer's last-opened map — see lib/last-map.ts.
+  // `/maps` is a redirect that resolves where "here" is — see lib/map-resolution.ts.
   // The item is deliberately a plain static href: the nav renders in two places (the desktop
   // row and the mobile menu) and a stateful item would have to be threaded through both.
   { key: "maps", href: "/maps", label: "Maps" },

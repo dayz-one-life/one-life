@@ -117,6 +117,9 @@ export async function apiSend<T>(method: "POST" | "DELETE" | "PATCH", path: stri
 
 export const getAuthMethods = () => apiGet<AuthMethods>("/api/auth/providers");
 export const getServers = () => apiGet<Server[]>("/api/servers");
+/** Tier 2 of the map-resolution rule. Returns `{ slug: null }` (200) for a signed-out viewer —
+ *  it is a hint, not a protected resource. Takes no subject; the session is the only input. */
+export const getLastPlayedMap = () => apiGet<{ slug: string | null }>("/api/me/last-map");
 export const getRoster = (serverId: number) => apiGet<RosterEntry[]>(`/api/servers/${serverId}/roster`);
 export const getProfile = (serverId: number, gamertag: string) =>
   apiGet<Profile>(`/api/servers/${serverId}/players/${encodeURIComponent(gamertag)}`);

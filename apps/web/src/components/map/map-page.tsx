@@ -6,7 +6,7 @@ import { getFriendMap, getServers } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendPositionDto, Server } from "@/lib/types";
-import { rememberMap } from "@/lib/last-map";
+import { rememberMap } from "@/lib/map-resolution";
 import FriendsMap from "./friends-map";
 import type { MapFocus } from "./map-canvas";
 import { TopBar } from "./shell/top-bar";
