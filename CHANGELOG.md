@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-07-25
+
 ### Fixed
 
 - **The map page matches the map-in-shell mock.** The Locate and Online buttons now carry a
