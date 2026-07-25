@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`/maps` now sends you to the map you actually play.** It used to remember the last map you
+  *opened* for a whole year and otherwise guess Chernarus. It now resolves in three steps — the map
+  you looked at this browser session, then the map you last played on, then whichever map comes
+  first alphabetically. Only the first is a cookie, and it now expires with the session rather than
+  in a year's time.
+
 ### Added
 
 - **A How to connect panel, wherever you need it.** There is no "join server" button — a console

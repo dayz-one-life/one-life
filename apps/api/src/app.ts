@@ -7,6 +7,7 @@ import { registerPlayerRoutes } from "./routes/players.js";
 import { registerBoardRoutes } from "./routes/boards.js";
 import { registerAuthHandler } from "./auth-plugin.js";
 import { registerMeRoute } from "./routes/me.js";
+import { registerLastMapRoute } from "./routes/last-map.js";
 import { registerGamertagLinkRoutes } from "./routes/gamertag-links.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
 import { registerPlayerAggregateRoutes } from "./routes/player-aggregate.js";
@@ -45,6 +46,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerFriendRoutes(app, db, opts.auth);
     registerPreferenceRoutes(app, db, opts.auth);
     registerFriendMapRoutes(app, db, opts.auth);
+    registerLastMapRoute(app, db, opts.auth);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);
