@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The map page matches the map-in-shell mock.** The Locate and Online buttons now carry a
+  solid dark backing instead of floating transparent — and invisible — over pale terrain; the
+  online panel opens upward from its bottom-corner trigger on desktop instead of rendering off
+  the bottom of the page, and its rows wrap instead of overprinting a long gamertag with its
+  status; on a phone the online sheet stops above the tab bar, which stays tappable throughout;
+  the map runs truly edge to edge on wide desktops (the rest of the site keeps its centered
+  1440px box); and the page-title strip is gone — the map switcher now lives in the masthead,
+  beside the bell, so the terrain starts directly under the chrome.
+
 ### Changed
 
 - **The mobile home now matches the `verified-mobile-v2` mock.** The bottom tab bar stacks an

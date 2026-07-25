@@ -1,6 +1,17 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { Masthead } from "./header";
+
+// The masthead map switcher gates its servers query on being on a map route, but the hook
+// itself runs unconditionally (rules of hooks), so every render needs a client.
+const render = (ui: ReactElement) =>
+  rtlRender(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      {ui}
+    </QueryClientProvider>,
+  );
 
 const mockPathname = vi.fn(() => "/survivors");
 vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));

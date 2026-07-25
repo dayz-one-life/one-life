@@ -39,8 +39,11 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        // ⚠️ DARK SURFACE (the top bar) — paper/cream tokens, never ink.
-        className="flex min-h-[52px] min-w-[52px] items-center justify-center gap-1.5 border border-dark-edge px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] text-paper md:min-h-[40px] md:min-w-[40px] md:px-3 md:text-[13px]"
+        // ⚠️ DARK SURFACE — paper/cream tokens, never ink. The solid bg-dark/90 is load-bearing:
+        // this button floats over PALE terrain tiles, where a borderless-transparent control is
+        // paper-on-bone — present, functional, invisible (the map-in-shell mock backs every
+        // overlay control with rgba(12,12,8,.92) for exactly this reason).
+        className="flex min-h-[52px] min-w-[52px] items-center justify-center gap-1.5 border border-dark-edge bg-dark/90 px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] text-paper md:min-h-[40px] md:min-w-[40px] md:px-3 md:text-[13px]"
       >
         <span aria-hidden>☰</span>
         {/* "Online" — not "Friends": the panel lists every player on the server, friends first,
@@ -53,22 +56,25 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
       </button>
       {open && (
         <>
-          {/* ⚠️ THE WAY OUT ON A TOUCH DEVICE. Below `md` the sheet is `fixed bottom-0` and
-              COVERS the bottom bar holding the ☰ trigger, so tapping it again is impossible;
-              there is no Escape key either. This backdrop and the Close button below are the
-              only exits, and both must stay. Reported from a real phone.
-              `aria-hidden` + no role: it is a gesture target, not content — the dialog is
-              `aria-modal` so AT already ignores what is behind it, and announcing an empty
-              region would be noise. Same z-50 overlay altitude as the sheet, painted under it
-              by DOM order, so this adds no fourth altitude to the LAYER LEGEND. */}
+          {/* ⚠️ THE WAY OUT ON A TOUCH DEVICE. Below `md` the sheet is fixed and there is no
+              Escape key. This backdrop and the Close button below are exits and both must stay —
+              but per the map-in-shell mock, BOTH stop above the TabBar: the sheet opens over the
+              map, never over the bar that holds the way to leave the page, so the tabs stay
+              tappable throughout. `aria-hidden` + no role: it is a gesture target, not content —
+              the dialog is `aria-modal` so AT already ignores what is behind it. Same z-50
+              overlay altitude as the sheet, painted under it by DOM order, so this adds no
+              fourth altitude to the LAYER LEGEND. */}
           <div
             aria-hidden
             data-testid="online-backdrop"
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-50 md:hidden"
+            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] top-0 z-50 md:hidden"
           />
           {/* z-50 is the overlay altitude (LAYER LEGEND, components/header.tsx) — above the
-              z-40 bar this hangs from. A bottom sheet on a phone, an anchored panel from md up. */}
+              z-40 bar this hangs from. A bottom sheet on a phone (stopping above the TabBar's
+              4rem + safe-area row); from `md` up an anchored panel that opens UPWARD —
+              `bottom-full`, because the trigger sits at the bottom edge of the map, where a
+              `top-full` panel renders off the bottom of the page (shipped that way once). */}
           <div
             ref={panelRef}
             role="dialog"
@@ -77,7 +83,7 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
             // no-op on a div with no tabindex — the sheet would open with focus left behind.
             tabIndex={-1}
             aria-label="Who is online on this map"
-            className="fixed inset-x-0 bottom-0 z-50 max-h-[60dvh] overflow-y-auto border-t border-dark-edge bg-dark-well p-4 pb-[env(safe-area-inset-bottom)] md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-1 md:w-72 md:border"
+            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 max-h-[60dvh] overflow-y-auto border-y border-dark-edge bg-dark-well p-4 md:absolute md:inset-x-auto md:bottom-full md:right-0 md:mb-1 md:w-80 md:border"
           >
             <div className="mb-2 flex items-center justify-between gap-3 border-b border-dark-edge pb-2">
               <span className="font-mono text-[11px] uppercase tracking-[.08em] text-cream-muted">

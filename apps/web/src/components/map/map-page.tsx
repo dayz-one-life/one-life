@@ -5,12 +5,11 @@ import Link from "next/link";
 import { getFriendMap, getServers, shareLocationWith, stopSharingAll, stopSharingWith } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
-import type { FriendPositionDto, Server } from "@/lib/types";
+import type { FriendPositionDto } from "@/lib/types";
 import { rememberMap } from "@/lib/map-resolution";
 import { mapLabel } from "@/components/player/format";
 import FriendsMap from "./friends-map";
 import type { MapFocus } from "./map-canvas";
-import { MapSwitcher } from "./shell/map-switcher";
 import { LocateButton } from "./shell/locate-button";
 import { FriendsPanel } from "./shell/friends-panel";
 
@@ -142,9 +141,6 @@ export function MapPage({ slug }: { slug: string }) {
   // source of it was a session-gated payload. It also feeds the switcher, so changing maps works
   // logged out too.
   const servers = useQuery({ queryKey: ["servers"], queryFn: getServers });
-  const mapServers = servers.data
-    ?.filter((s): s is Server & { slug: string } => Boolean(s.slug))
-    .map((s) => ({ slug: s.slug, name: s.name }));
   const currentServer = servers.data?.find((s) => s.slug === slug);
   const mapCodename = currentServer?.map;
   // Only once the list has loaded can an unknown slug be told apart from a pending one.
@@ -196,21 +192,18 @@ export function MapPage({ slug }: { slug: string }) {
     // Leaflet, which measures its container on creation, got a 2px box.
     // `min-h-[420px]` is the short-viewport floor, where filling would leave a sliver.
     <div className="flex min-h-[420px] flex-1 flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
-        <h1 className="font-display text-2xl font-bold uppercase leading-none text-ink sm:text-3xl">
-          {mapCodename ? mapLabel(mapCodename) : "Map"}
-        </h1>
-        <MapSwitcher slug={slug} servers={mapServers} loading={servers.isPending} />
-      </header>
+      {/* No visible header strip — the mock's rule is "the dropdown is the only header
+          addition", and the switcher lives in the MASTHEAD right cluster (header.tsx's
+          MastheadMapSwitcher). The h1 stays for AT and SEO; the terrain is the page. */}
+      <h1 className="sr-only">{mapCodename ? mapLabel(mapCodename) : "Map"}</h1>
 
-      {/* Full-bleed: the negative margin cancels the (site) layout's `xl:px-10` so the terrain
-          runs edge to edge. A map is the one surface where page gutters are wasted space —
-          every pixel of margin is terrain you cannot see.
+      {/* The route sits OUTSIDE the (boxed) group, so the terrain runs edge to edge on any
+          viewport — no negative-margin escape needed.
 
           ⚠️ `isolate`: Leaflet's own controls sit at z-index 1000 and would otherwise paint over
           the z-40 masthead and the z-50 overlays. That was always true; with a masthead above
           the map it is now the thing standing between the two. See header.tsx's LAYER LEGEND. */}
-      <div className="relative isolate min-h-0 w-auto flex-1 border-y border-ink xl:-mx-10">
+      <div className="relative isolate min-h-0 w-auto flex-1 border-y border-ink">
         <MapPageView
           signedOut={account.kind === "signedOut"}
           unverified={account.kind === "unlinked" || account.kind === "pending"}

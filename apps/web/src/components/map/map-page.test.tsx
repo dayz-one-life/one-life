@@ -137,11 +137,19 @@ describe("MapPage inside the site shell", () => {
     expect(box.className).toMatch(/\bmin-h-0\b/);
   });
 
-  // A map is the one surface where page gutters are wasted space, so it cancels the (site)
-  // layout's `xl:px-10` and runs edge to edge.
-  it("runs full-bleed, cancelling the layout gutter", () => {
+  // The route sits OUTSIDE the (boxed) group, so the terrain reaches the viewport edge with no
+  // negative-margin escape — a restored -mx would double-bleed past the viewport.
+  it("carries no negative-margin bleed — full width comes from sitting outside (boxed)", () => {
     const { container } = render(<MapPage slug="sakhal" />, { wrapper: wrap });
-    expect(container.querySelector('[class*="isolate"]')!.className).toMatch(/xl:-mx-10/);
+    expect(container.querySelector('[class*="isolate"]')!.className).not.toMatch(/-mx/);
+  });
+
+  // The mock's rule: "the dropdown is the only header addition" — the switcher lives in the
+  // masthead, and the page spends no vertical space on a visible title strip.
+  it("keeps the h1 for AT but renders no visible header strip", () => {
+    const { container } = render(<MapPage slug="sakhal" />, { wrapper: wrap });
+    expect(container.querySelector("h1")!.className).toContain("sr-only");
+    expect(container.querySelector("header")).toBeNull();
   });
 
   // Leaflet's own controls sit at z-index 1000 and would otherwise paint over the z-40 masthead
