@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Your servers are grouped by what they need from you** — serving a ban, currently living, then
+  nothing running — instead of one flat list. A player on a single server sees one full-width row
+  rather than a group heading with a single item under it.
+
 ### Added
 
 - **Your fresh life is now visible during the five-minute grace period.** Until now a life inside
