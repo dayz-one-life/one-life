@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Your servers are grouped by what they need from you** — serving a ban, currently living, then
-  nothing running — instead of one flat list. A player on a single server sees one full-width row
-  rather than a group heading with a single item under it.
+  nothing running — instead of one flat list. When you only have one server row to show, the
+  heading is dropped rather than labelling a group of one.
 
 ### Added
 
