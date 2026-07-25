@@ -16,11 +16,11 @@ export function relativeTime(iso: string, now: Date): string {
     .toUpperCase();
 }
 
-const RED = new Set(["ban_applied", "obituary_published"]);
-const BLUE = new Set(["ban_lifted", "life_qualified", "survival_milestone", "birth_notice_published"]);
+const RED = new Set(["ban_applied"]);
+const BLUE = new Set(["ban_lifted", "life_qualified", "survival_milestone"]);
 
-/** R5b/R5c convention: red for death and the Morgue, blue for life and the Nursery, ink for
- *  account bookkeeping. Unknown kinds fall back to ink rather than throwing. */
+/** Red for death, blue for life, ink for account bookkeeping. Unknown kinds fall back to ink
+ *  rather than throwing. */
 export function accentFor(kind: string, onDark = false): string {
   if (RED.has(kind)) return "border-l-red";
   if (BLUE.has(kind)) return "border-l-blue";

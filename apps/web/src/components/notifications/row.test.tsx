@@ -22,7 +22,6 @@ describe("relativeTime", () => {
 describe("accentFor", () => {
   test("red for death, blue for life, ink for bookkeeping — paper on dark", () => {
     expect(accentFor("ban_applied")).toBe("border-l-red");
-    expect(accentFor("obituary_published")).toBe("border-l-red");
     expect(accentFor("ban_lifted")).toBe("border-l-blue");
     expect(accentFor("gamertag_verified")).toBe("border-l-ink");
     expect(accentFor("gamertag_verified", true)).toBe("border-l-paper");
