@@ -110,3 +110,43 @@ describe("useControls: balance loading honesty", () => {
     expect(result.current.balance).toBe(4);
   });
 });
+
+// The third instance of the same shape, added with the How to connect panel: `servers: []` is
+// both the unresolved fallback AND the genuinely-empty fleet, and the panel says "No servers are
+// currently listed" out loud — so an in-flight fetch would announce an empty fleet.
+describe("useControls: server-list loading honesty", () => {
+  test("servers query unresolved: serversLoading is true", async () => {
+    getServers.mockReturnValue(new Promise(() => {}));
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(getServers).toHaveBeenCalled());
+    expect(result.current.serversLoading).toBe(true);
+    expect(result.current.servers).toEqual([]); // unresolved fallback shape, but flagged
+  });
+
+  test("servers query errored: serversLoading is true", async () => {
+    getServers.mockRejectedValue(new Error("network down"));
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(result.current.serversLoading).toBe(true));
+  });
+
+  // The discriminating case: an empty array that RESOLVED is a real answer and must not be
+  // flagged, or the panel could never report an empty fleet at all.
+  test("servers query genuinely resolved empty: serversLoading is false", async () => {
+    getServers.mockResolvedValue([]);
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(result.current.serversLoading).toBe(false));
+    expect(result.current.servers).toEqual([]);
+  });
+
+  test("servers query resolved with a fleet: serversLoading is false and servers pass through", async () => {
+    const servers = [{ id: 1, name: "Chernarus", map: "chernarusplus", slug: "chernarus" }];
+    getServers.mockResolvedValue(servers);
+    getPlayerPage.mockResolvedValue({ standing: [] });
+    const { result } = renderHook(() => useControls(), { wrapper });
+    await waitFor(() => expect(result.current.serversLoading).toBe(false));
+    expect(result.current.servers).toEqual(servers);
+  });
+});

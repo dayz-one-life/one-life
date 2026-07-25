@@ -23,6 +23,13 @@ export type Controls = {
    */
   standingLoading: boolean;
   /**
+   * True while the server list behind `servers` is unresolved (loading or errored) for a signed-in
+   * user. `servers` itself stays `[]` in this case, and `[]` is ALSO the genuinely-resolved "the
+   * fleet is empty" shape — a consumer must check this flag before saying so out loud (the How to
+   * connect panel does), or an in-flight fetch renders as "no servers are currently listed".
+   */
+  serversLoading: boolean;
+  /**
    * True while the balance behind `balance` is unresolved (loading or errored) for a signed-in
    * user. `balance` itself stays `null` in this case (see below) — a consumer must check this
    * flag before treating `balance ?? 0` as a resolved fact, or it fabricates a "0" balance (and,
@@ -53,6 +60,9 @@ export function useControls(): Controls {
     servers: servers.data ?? [],
     standing: player.data?.standing ?? [],
     standingLoading: gamertag !== null && (player.isLoading || player.isError),
+    // Mirrors the servers query's own `enabled` predicate above (`signedIn`), the same way
+    // `standingLoading` mirrors the player-page query's `gamertag !== null`.
+    serversLoading: signedIn && (servers.isLoading || servers.isError),
     // Mirrors the tokens query's own `enabled` predicate above (`signedIn`), the same way
     // `standingLoading` mirrors the player-page query's `gamertag !== null`.
     balanceLoading: signedIn && (tokens.isLoading || tokens.isError),

@@ -4,15 +4,16 @@ import type { ReactNode } from "react";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
-import { ApiError } from "@/lib/api";
 import { useControls, useControlsActions } from "@/components/account/use-controls";
-import { serverCards, transferErrorLabel } from "@/components/account/format";
+import { serverCards } from "@/components/account/format";
 import { IdentityRow } from "@/components/account/identity-row";
 import { LinkTagPanel } from "@/components/account/link-panel";
 import { ProveItPanel } from "@/components/account/verify-panel";
-import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
+import { TokensSummary } from "@/components/account/tokens-summary";
+import { LadderFrame } from "@/components/account/ladder-frame";
 import { ServerCard } from "@/components/servers/server-cards";
 import { groupServerCards, isSoleRow, type ServerGroup } from "@/components/servers/grouping";
+import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
 function PanelsSkeleton() {
@@ -34,14 +35,6 @@ function ServerCardsSkeleton() {
       <div aria-hidden className="h-20 bg-bone motion-safe:animate-pulse" />
     </div>
   );
-}
-
-function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
-  return {
-    pending: m.isPending,
-    ok: m.isSuccess,
-    error: m.isError ? transferErrorLabel(m.error instanceof ApiError ? m.error.code : "") : null,
-  };
 }
 
 /** Shown in every signed-in state so a signed-in user can always sign out; the profile link only
@@ -119,9 +112,9 @@ export function AccountPanels() {
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
 
-  // A signed-out visitor gets nothing here: Home already carries the hero and `SignInCta`, and
-  // the old rail's SignInPanel would be a SECOND sign-in call to action on the same page. The
-  // rail could afford one because it was a separate column; in the main flow it is a duplicate.
+  // A signed-out visitor gets nothing here: Home already carries the hero and `ColdFork`, and a
+  // sign-in panel here would be a SECOND call to action on the same page. The old rail could
+  // afford one because it was a separate column; in the main flow it is a duplicate.
   if (c.status.kind === "signedOut") return null;
 
   let body: ReactNode;
@@ -131,11 +124,19 @@ export function AccountPanels() {
     body = (
       <>
         <IdentityRow name={c.name ?? "You"} provider={c.provider} tagLine="No gamertag" />
-        <LinkTagPanel
-          pending={a.claim.isPending}
-          error={a.claim.isError ? claimErrorMessage(a.claim.error) : null}
-          onClaim={(gt) => a.claim.mutate({ gamertag: gt })}
-        />
+        <LadderFrame kind="unlinked">
+          <div className="flex flex-col gap-4">
+            <LinkTagPanel
+              pending={a.claim.isPending}
+              error={a.claim.isError ? claimErrorMessage(a.claim.error) : null}
+              onClaim={(gt) => a.claim.mutate({ gamertag: gt })}
+            />
+            {/* The claim search only suggests gamertags the LOGS have seen, so a player who has
+             *  never connected finds nothing there. This is that empty state's answer — and the
+             *  only place "go play a session" belongs (it is deliberately not a ladder step). */}
+            <HowToConnect servers={serversView(c.servers, { loading: c.serversLoading })} />
+          </div>
+        </LadderFrame>
       </>
     );
   } else if (c.status.kind === "pending") {
@@ -143,15 +144,17 @@ export function AccountPanels() {
     body = (
       <>
         <IdentityRow name={link.gamertag} provider={c.provider} />
-        <ProveItPanel
-          gamertag={link.gamertag}
-          challenge={link.challenge}
-          now={now.getTime()}
-          onCancel={() => a.cancel.mutate(link.id)}
-          onReclaim={() => a.claim.mutate({ gamertag: link.gamertag })}
-          canceling={a.cancel.isPending}
-          reclaiming={a.claim.isPending}
-        />
+        <LadderFrame kind="pending">
+          <ProveItPanel
+            gamertag={link.gamertag}
+            challenge={link.challenge}
+            now={now.getTime()}
+            onCancel={() => a.cancel.mutate(link.id)}
+            onReclaim={() => a.claim.mutate({ gamertag: link.gamertag })}
+            canceling={a.cancel.isPending}
+            reclaiming={a.claim.isPending}
+          />
+        </LadderFrame>
       </>
     );
   } else {
@@ -160,30 +163,32 @@ export function AccountPanels() {
     body = (
       <>
         <IdentityRow name={gamertag} provider={c.provider} verified />
-        <TokensPanel
-          balance={c.balance ?? 0}
-          balanceLoading={c.balanceLoading}
-          send={mutView(a.send)}
-          referrer={mutView(a.refer)}
-          onSend={(gt) => a.send.mutate(gt)}
-          onSetReferrer={(gt) => a.refer.mutate(gt)}
-          myGamertag={gamertag}
-        />
+        {/* A SUMMARY, not the full panel: sending and the referrer live on /you, and spending is
+         *  afforded on the ban row itself, which already knows which ban to lift. */}
+        <TokensSummary balance={c.balance} loading={c.balanceLoading} />
         <h2 className="border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink">
           Your servers
         </h2>
         {c.standingLoading ? (
           <ServerCardsSkeleton />
         ) : (
-          <ServerGroups
-            groups={groupServerCards(cards)}
-            ownSlug={slug}
-            balance={c.balance ?? 0}
-            balanceLoading={c.balanceLoading}
-            now={now}
-            onRedeem={(banId) => a.redeem.mutate(banId)}
-            redeeming={a.redeem.isPending}
-          />
+          <>
+            <ServerGroups
+              groups={groupServerCards(cards)}
+              ownSlug={slug}
+              balance={c.balance ?? 0}
+              balanceLoading={c.balanceLoading}
+              now={now}
+              onRedeem={(banId) => a.redeem.mutate(banId)}
+              redeeming={a.redeem.isPending}
+            />
+            {/* An idle row's action. Rendered once below the groups rather than per row: the
+             *  instructions are identical for every server, and repeating them would bury the
+             *  rows that need attention. */}
+            {cards.some((card) => card.state === "idle") && (
+              <HowToConnect servers={serversView(c.servers, { loading: c.serversLoading })} />
+            )}
+          </>
         )}
       </>
     );
