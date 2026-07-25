@@ -14,7 +14,7 @@ import { SORTS } from "@/lib/board-params";
  * so the fetch times out and **the build fails** (verified: three 60s attempts, then
  * `Export encountered an error on /sitemap.xml/route`). Adding a fetch timeout only converts that
  * into a worse failure: the sitemap gets baked with the static + board entries alone and ISR
- * serves that gutted version — missing every player, life and article URL — until it revalidates.
+ * serves that gutted version — missing every player and life URL — until it revalidates.
  * Per-request rendering costs nothing here (~476 URLs, three indexed queries) and cannot bake a
  * bad snapshot.
  */
@@ -22,13 +22,7 @@ export const dynamic = "force-dynamic";
 
 /** Static pages carry no `lastmod` — they change constantly or not at all, and a fabricated
  *  value trains crawlers to ignore the field. */
-const STATIC_PATHS = ["/", "/about", "/obituaries", "/fresh-spawns", "/news"];
-
-const ARTICLE_PATHS: Record<string, string> = {
-  obituary: "/obituaries",
-  birth_notice: "/fresh-spawns",
-  news: "/news",
-};
+const STATIC_PATHS = ["/", "/about"];
 
 /**
  * `new Date(garbage)` yields an Invalid Date, and Next's sitemap serializer calls
@@ -64,8 +58,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // NOTE on <loc> safety: Next's sitemap serializer interpolates `url` into `<loc>` WITHOUT
   // XML-escaping it. A URL containing a raw `&` or `<` would emit a byte that breaks the XML
-  // parse for the ENTIRE sitemap, not just this one entry. Unreachable today — `playerSlug`,
-  // every article-slug generator, and hand-set `servers.slug` all produce `[a-z0-9-]+` — but if
+  // parse for the ENTIRE sitemap, not just this one entry. Unreachable today — `playerSlug` and
+  // hand-set `servers.slug` both produce `[a-z0-9-]+` — but if
   // a future slug/segment source can emit arbitrary characters, escape or reject it before it
   // reaches `absoluteUrl(...)` here.
   try {
@@ -81,11 +75,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: absoluteUrl(`/players/${playerSlug(l.gamertag)}/${l.mapSlug}/lives/${l.n}`),
         ...toLastModified(l.lastmod),
       });
-    }
-    for (const a of data.articles) {
-      const base = ARTICLE_PATHS[a.kind];
-      if (!base) continue; // an unknown kind has no interior route — never guess one
-      entries.push({ url: absoluteUrl(`${base}/${a.slug}`), ...toLastModified(a.lastmod) });
     }
   } catch {
     // Same reasoning as above.
