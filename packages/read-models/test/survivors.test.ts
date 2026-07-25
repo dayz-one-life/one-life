@@ -129,7 +129,7 @@ describe("getAliveSurvivors", () => {
     await insertLife({ serverId: chern.id, gamertag: "Dead", endedAt: hoursAgo(1), playtimeSeconds: 900, startedAt: hoursAgo(3) });
     await insertLife({ serverId: chern.id, gamertag: "Fresh", endedAt: null, playtimeSeconds: 60, startedAt: minutesAgo(1) });
 
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     expect(res.rows.map((r) => r.gamertag)).toEqual(["Alive"]);
     expect(res.total).toBe(1);
     expect(res.pageSize).toBe(25);
@@ -138,7 +138,7 @@ describe("getAliveSurvivors", () => {
   it("qualifies an open sub-300s life that has a kill in-window", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Sniper", endedAt: null, playtimeSeconds: 120, startedAt: minutesAgo(5) });
     await insertKill({ serverId: chern.id, killerGamertag: "Sniper", victimGamertag: "X", distance: 210, occurredAt: minutesAgo(2) });
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     expect(res.rows.map((r) => r.gamertag)).toContain("Sniper");
   });
 
@@ -149,7 +149,7 @@ describe("getAliveSurvivors", () => {
     await insertKill({ serverId: chern.id, killerGamertag: "Killer", victimGamertag: "B", distance: 350, occurredAt: minutesAgo(10) });
     // BEFORE this life started — must be excluded
     await insertKill({ serverId: chern.id, killerGamertag: "Killer", victimGamertag: "C", distance: 999, occurredAt: hoursAgo(5) });
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     const row = res.rows.find((r) => r.gamertag === "Killer")!;
     expect(row.killsThisLife).toBe(2);
     expect(row.longestKillMeters).toBe(350);
@@ -157,36 +157,46 @@ describe("getAliveSurvivors", () => {
 
   it("returns null longestKill when the life has no ranged kills", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Pacifist", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     expect(res.rows.find((r) => r.gamertag === "Pacifist")!.longestKillMeters).toBeNull();
   });
 
   it("emits two rows for a player alive on both maps; slug filter narrows", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Both", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
     await insertLife({ serverId: sakh.id, gamertag: "Both", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    const all = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const all = await getAliveSurvivors(db, { page: 1 }, now);
     expect(all.rows.filter((r) => r.gamertag === "Both").map((r) => r.slug).sort()).toEqual([chern.slug, sakh.slug].sort());
-    const onlySakh = await getAliveSurvivors(db, { slug: sakh.slug, sort: "kills", page: 1 }, now);
+    const onlySakh = await getAliveSurvivors(db, { slug: sakh.slug, page: 1 }, now);
     expect(onlySakh.rows.every((r) => r.slug === sakh.slug)).toBe(true);
     expect(onlySakh.rows.some((r) => r.gamertag === "Both")).toBe(true);
   });
 
-  it("sorts by the chosen metric desc with deterministic tie-break", async () => {
-    // two players with equal kills(0) — tie broken by timeAlive desc
+  // ⚠️ ONE order, not configurable: time alive desc. Sub-project D deleted the sort layer.
+  it("ranks by time alive, descending", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Longer", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
     await insertLife({ serverId: chern.id, gamertag: "Shorter", endedAt: null, playtimeSeconds: 600, startedAt: hoursAgo(1) });
-    const byKills = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
-    expect(byKills.rows.map((r) => r.gamertag)).toEqual(["Longer", "Shorter"]);
-    const byLongest = await getAliveSurvivors(db, { sort: "longest", page: 1 }, now);
-    expect(byLongest.rows[0]?.gamertag).toBeDefined(); // longest-kill sort runs without error
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["Longer", "Shorter"]);
+  });
+
+  it("a player with more kills does NOT outrank a longer-lived one", async () => {
+    // The discriminating case for "time alive is primary": Killer has 3 kills and Elder has 0,
+    // but Elder has been alive longer. Under the deleted kills sort, Killer led.
+    await insertLife({ serverId: chern.id, gamertag: "Elder_rank", endedAt: null, playtimeSeconds: 7200, startedAt: hoursAgo(3) });
+    await insertLife({ serverId: chern.id, gamertag: "Killer_rank", endedAt: null, playtimeSeconds: 900, startedAt: hoursAgo(1) });
+    for (const v of ["v1", "v2", "v3"]) {
+      await insertKill({ serverId: chern.id, killerGamertag: "Killer_rank", victimGamertag: v, distance: 800, occurredAt: minutesAgo(30) });
+    }
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["Elder_rank", "Killer_rank"]);
   });
 
   it("paginates with a stable total", async () => {
     for (let i = 0; i < 30; i++) {
       await insertLife({ serverId: chern.id, gamertag: `P${String(i).padStart(2, "0")}`, endedAt: null, playtimeSeconds: 600 + i, startedAt: hoursAgo(2) });
     }
-    const p1 = await getAliveSurvivors(db, { sort: "time", page: 1 }, now);
-    const p2 = await getAliveSurvivors(db, { sort: "time", page: 2 }, now);
+    const p1 = await getAliveSurvivors(db, { page: 1 }, now);
+    const p2 = await getAliveSurvivors(db, { page: 2 }, now);
     expect(p1.total).toBe(30);
     expect(p1.rows).toHaveLength(25);
     expect(p2.rows).toHaveLength(5);
@@ -197,7 +207,7 @@ describe("getAliveSurvivors", () => {
 
   it("character is null in the core query (enriched in Task 2)", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Anon", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     expect(res.rows[0]?.character).toBeNull();
   });
 
@@ -205,7 +215,7 @@ describe("getAliveSurvivors", () => {
     await insertLife({ serverId: chern.id, gamertag: "Helga_Main", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
     await insertSighting({ serverId: chern.id, gamertag: "Helga_Main", charId: 42, characterClass: "SurvivorF_Helga", observedAt: minutesAgo(30) });
     await insertCharacterRollup({ serverId: chern.id, charId: 42, characterClass: "SurvivorF_Helga" });
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     const row = res.rows.find((r) => r.gamertag === "Helga_Main")!;
     expect(row.character).toEqual({ name: "Helga", head: expect.any(String), gender: "female" });
   });
@@ -214,58 +224,57 @@ describe("getAliveSurvivors", () => {
     await insertLife({ serverId: chern.id, gamertag: "Modded", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
     await insertSighting({ serverId: chern.id, gamertag: "Modded", charId: 7, characterClass: "SurvivorM_ModPack_Xyz", observedAt: minutesAgo(20) });
     await insertCharacterRollup({ serverId: chern.id, charId: 7, characterClass: "SurvivorM_ModPack_Xyz" });
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     expect(res.rows.find((r) => r.gamertag === "Modded")!.character).toBeNull();
   });
 
-  it("time sort breaks ties by kills before gamertag", async () => {
-    // equal timeAlive; the higher-kills player (Zulu) sorts LATER alphabetically, so a
-    // time-then-gamertag tiebreak (old behavior) would put Alpha first. New: kills is the
-    // secondary key for a time sort -> Zulu (2 kills) beats Alpha (1 kill).
+  // The tie-break chain is time -> kills -> longest kill -> gamertag. Each test below pins one
+  // link by making the EARLIER keys equal and choosing gamertags whose alphabetical order
+  // contradicts the expected result, so a comparator that fell straight through to gamertag fails.
+  it("breaks a time tie by kills, ahead of gamertag", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Zulu_time", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
     await insertKill({ serverId: chern.id, killerGamertag: "Zulu_time", victimGamertag: "v1", distance: 100, occurredAt: minutesAgo(30) });
     await insertKill({ serverId: chern.id, killerGamertag: "Zulu_time", victimGamertag: "v2", distance: 100, occurredAt: minutesAgo(20) });
     await insertLife({ serverId: chern.id, gamertag: "Alpha_time", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
     await insertKill({ serverId: chern.id, killerGamertag: "Alpha_time", victimGamertag: "v3", distance: 100, occurredAt: minutesAgo(30) });
 
-    const res = await getAliveSurvivors(db, { sort: "time", page: 1 }, now);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
     expect(res.rows.map((r) => r.gamertag)).toEqual(["Zulu_time", "Alpha_time"]);
   });
 
-  it("kills sort breaks ties by time then longest kill before gamertag", async () => {
-    // equal kills (1) AND equal timeAlive; the longer-kill player (Zulu) sorts LATER
-    // alphabetically. Old code (kills -> time -> gamertag) would put Alpha first; new code's
-    // tertiary key for a kills sort is longest kill -> Zulu (900m) beats Alpha (100m).
-    await insertLife({ serverId: chern.id, gamertag: "Zulu_kills", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
-    await insertKill({ serverId: chern.id, killerGamertag: "Zulu_kills", victimGamertag: "v1", distance: 900, occurredAt: minutesAgo(30) });
-    await insertLife({ serverId: chern.id, gamertag: "Alpha_kills", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
-    await insertKill({ serverId: chern.id, killerGamertag: "Alpha_kills", victimGamertag: "v2", distance: 100, occurredAt: minutesAgo(30) });
+  it("breaks a time+kills tie by longest kill, ahead of gamertag", async () => {
+    await insertLife({ serverId: chern.id, gamertag: "Zulu_long", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    await insertKill({ serverId: chern.id, killerGamertag: "Zulu_long", victimGamertag: "v1", distance: 900, occurredAt: minutesAgo(30) });
+    await insertLife({ serverId: chern.id, gamertag: "Alpha_long", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    await insertKill({ serverId: chern.id, killerGamertag: "Alpha_long", victimGamertag: "v2", distance: 100, occurredAt: minutesAgo(30) });
 
-    const res = await getAliveSurvivors(db, { sort: "kills", page: 1 }, now);
-    expect(res.rows.map((r) => r.gamertag)).toEqual(["Zulu_kills", "Alpha_kills"]);
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["Zulu_long", "Alpha_long"]);
   });
 
-  it("longest sort breaks ties by time then kills before gamertag", async () => {
-    // equal longest kill (500) AND equal timeAlive; the higher-kill-count player (Zulu) sorts
-    // LATER alphabetically. Old code (longest -> time -> gamertag) would put Alpha first; new
-    // code's tertiary key for a longest sort is kills -> Zulu (2 kills) beats Alpha (1 kill).
-    await insertLife({ serverId: chern.id, gamertag: "Zulu_long", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
-    await insertKill({ serverId: chern.id, killerGamertag: "Zulu_long", victimGamertag: "v1", distance: 500, occurredAt: minutesAgo(30) });
-    await insertKill({ serverId: chern.id, killerGamertag: "Zulu_long", victimGamertag: "v2", distance: 300, occurredAt: minutesAgo(20) });
-    await insertLife({ serverId: chern.id, gamertag: "Alpha_long", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
-    await insertKill({ serverId: chern.id, killerGamertag: "Alpha_long", victimGamertag: "v3", distance: 500, occurredAt: minutesAgo(30) });
+  it("falls through to gamertag only when every metric is equal", async () => {
+    await insertLife({ serverId: chern.id, gamertag: "Zulu_tie", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    await insertLife({ serverId: chern.id, gamertag: "Alpha_tie", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["Alpha_tie", "Zulu_tie"]);
+  });
 
-    const res = await getAliveSurvivors(db, { sort: "longest", page: 1 }, now);
-    expect(res.rows.map((r) => r.gamertag)).toEqual(["Zulu_long", "Alpha_long"]);
+  it("two survivors with no ranged kills do not produce a NaN comparison", async () => {
+    // Both longest-kill metrics are -Infinity; subtracting them is NaN, which makes Array#sort
+    // behave arbitrarily. The comparator's skip-if-equal guard is what prevents it.
+    await insertLife({ serverId: chern.id, gamertag: "Aaa_nan", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    await insertLife({ serverId: chern.id, gamertag: "Bbb_nan", endedAt: null, playtimeSeconds: 3600, startedAt: hoursAgo(2) });
+    const res = await getAliveSurvivors(db, { page: 1 }, now);
+    expect(res.rows.map((r) => r.gamertag)).toEqual(["Aaa_nan", "Bbb_nan"]);
   });
 
   it("clamps page to >= 1 and returns empty rows with the real total for an out-of-range page", async () => {
     await insertLife({ serverId: chern.id, gamertag: "Solo", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    const clamped = await getAliveSurvivors(db, { sort: "kills", page: 0 }, now);
+    const clamped = await getAliveSurvivors(db, { page: 0 }, now);
     expect(clamped.page).toBe(1);
     expect(clamped.rows.map((r) => r.gamertag)).toEqual(["Solo"]);
 
-    const tooHigh = await getAliveSurvivors(db, { sort: "kills", page: 99 }, now);
+    const tooHigh = await getAliveSurvivors(db, { page: 99 }, now);
     expect(tooHigh.rows).toEqual([]);
     expect(tooHigh.total).toBe(1);
   });

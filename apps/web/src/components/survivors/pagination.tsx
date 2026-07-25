@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { SurvivorSort } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { pageBox, pageBoxLink, pageBoxOff } from "@/components/pagination-box";
 import { boardHref } from "./links";
@@ -17,13 +16,11 @@ function pageWindow(page: number, totalPages: number): number[] {
 
 export function Pagination({
   slug,
-  sort,
   page,
   total,
   pageSize,
 }: {
-  slug: string | null;
-  sort: SurvivorSort;
+  slug: string;
   page: number;
   total: number;
   pageSize: number;
@@ -40,7 +37,7 @@ export function Pagination({
       </span>
       <div className="flex flex-wrap gap-2">
         {showPrev ? (
-          <Link href={boardHref(slug, sort, page - 1)} className={cn(pageBox, pageBoxLink)}>
+          <Link href={boardHref(slug, page - 1)} className={cn(pageBox, pageBoxLink)}>
             <span aria-hidden>← </span>Prev
           </Link>
         ) : (
@@ -57,14 +54,14 @@ export function Pagination({
             );
           }
           return (
-            <Link key={n} href={boardHref(slug, sort, n)} className={cn(pageBox, pageBoxLink)}>
+            <Link key={n} href={boardHref(slug, n)} className={cn(pageBox, pageBoxLink)}>
               {n}
             </Link>
           );
         })}
 
         {showNext ? (
-          <Link href={boardHref(slug, sort, page + 1)} className={cn(pageBox, pageBoxLink)}>
+          <Link href={boardHref(slug, page + 1)} className={cn(pageBox, pageBoxLink)}>
             Next<span aria-hidden> →</span>
           </Link>
         ) : (

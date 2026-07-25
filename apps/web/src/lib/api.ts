@@ -1,7 +1,7 @@
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
   Me, GamertagLink, ClaimResult, PlayerPage,
-  GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
+  GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorsPage, LifeTimelineData,
   NotificationsFeed,
   LifeTrack,
   SitemapData,
@@ -194,8 +194,10 @@ export const getPlayerLife = (slug: string, map: string, n: number) =>
 export const getLifeTrack = (mapSlug: string, n: number) =>
   getOrNull<LifeTrack>(`/api/me/lives/${encodeURIComponent(mapSlug)}/${n}/track`);
 
-export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
-  apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);
+/** ⚠️ `slug` is REQUIRED — there is no combined board. A life is per-server, so a cross-server
+ *  board would rank lives that were never in the same race. */
+export const getSurvivors = (p: { slug: string; page: number }) =>
+  apiGet<SurvivorsPage>(`/api/survivors/${encodeURIComponent(p.slug)}?page=${p.page}`);
 
 /** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
  *  3600) so the fetch cache and the route's own ISR window agree. */

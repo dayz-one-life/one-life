@@ -16,12 +16,12 @@ function mapLabel(slug: string): string {
 }
 
 /** Minimal schema.org ItemList over the visible survivors, for SEO. */
-function itemListLd(page: SurvivorsPage, slug: string | null) {
+function itemListLd(page: SurvivorsPage, slug: string) {
   const startRank = (page.page - 1) * page.pageSize;
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    url: absoluteUrl(boardHref(slug, page.sort, page.page)),
+    url: absoluteUrl(boardHref(slug, page.page)),
     numberOfItems: page.total,
     itemListElement: page.rows.map((row, i) => ({
       "@type": "ListItem",
@@ -37,10 +37,11 @@ export function SurvivorsBoard({
   tabs,
 }: {
   page: SurvivorsPage;
-  slug: string | null;
-  tabs: { slug: string | null; label: string }[];
+  slug: string;
+  tabs: { slug: string; label: string }[];
 }) {
-  const heading = slug ? `${mapLabel(slug)} survivors` : "Survivors";
+  // Always a map name: there is no combined board, so there is no board without a map.
+  const heading = `${mapLabel(slug)} survivors`;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
@@ -55,7 +56,7 @@ export function SurvivorsBoard({
       </header>
 
       <div className="mt-4">
-        <SurvivorControls slug={slug} sort={page.sort} tabs={tabs} />
+        <SurvivorControls slug={slug} tabs={tabs} />
       </div>
 
       {page.rows.length === 0 ? (
@@ -66,19 +67,14 @@ export function SurvivorsBoard({
         <ol>
           {page.rows.map((row, i) => (
             <li key={`${row.gamertag}:${row.slug}`}>
-              <SurvivorRow
-                row={row}
-                rank={(page.page - 1) * page.pageSize + i + 1}
-                showMap={slug === null}
-                sort={page.sort}
-              />
+              <SurvivorRow row={row} rank={(page.page - 1) * page.pageSize + i + 1} />
             </li>
           ))}
         </ol>
       )}
 
       <div className="mt-5">
-        <Pagination slug={slug} sort={page.sort} page={page.page} total={page.total} pageSize={page.pageSize} />
+        <Pagination slug={slug} page={page.page} total={page.total} pageSize={page.pageSize} />
       </div>
     </main>
   );

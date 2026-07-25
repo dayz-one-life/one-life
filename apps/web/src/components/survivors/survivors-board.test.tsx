@@ -13,48 +13,41 @@ const row = {
   character: null,
 };
 
+const pageOf = (rows: typeof row[], total = rows.length): SurvivorsPage =>
+  ({ rows, total, page: 1, pageSize: 25 });
+
 describe("SurvivorsBoard", () => {
-  test("combined board h1 and dek", () => {
-    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "kills" };
-    render(<SurvivorsBoard page={page} slug={null} tabs={[]} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Survivors" })).toBeInTheDocument();
+  // ⚠️ Always map-scoped: there is no combined board, so there is no board without a map name.
+  test("the h1 names the map", () => {
+    render(<SurvivorsBoard page={pageOf([row])} slug="sakhal" tabs={[]} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Sakhal survivors" })).toBeInTheDocument();
+  });
+
+  test("an unknown slug title-cases rather than showing a raw slug", () => {
+    render(<SurvivorsBoard page={pageOf([row])} slug="livonia" tabs={[]} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Livonia survivors" })).toBeInTheDocument();
+  });
+
+  test("shows the dek line", () => {
+    render(<SurvivorsBoard page={pageOf([row])} slug="chernarus" tabs={[]} />);
     expect(
       screen.getByText(/still drawing breath\. Every name is one bad decision from the archive\./)
     ).toBeInTheDocument();
   });
 
-  test("map board h1 includes the map", () => {
-    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "kills" };
-    render(<SurvivorsBoard page={page} slug="sakhal" tabs={[]} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Sakhal survivors" })).toBeInTheDocument();
-  });
-
   test("empty board shows the quiet-coast line", () => {
-    const empty: SurvivorsPage = { rows: [], total: 0, page: 1, pageSize: 25, sort: "kills" };
-    render(<SurvivorsBoard page={empty} slug="sakhal" tabs={[]} />);
+    render(<SurvivorsBoard page={pageOf([], 0)} slug="sakhal" tabs={[]} />);
     expect(screen.getByText(/The coast is quiet\. No qualified survivors on record\./i)).toBeInTheDocument();
   });
 
   test("renders a row for each survivor", () => {
-    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "kills" };
-    render(<SurvivorsBoard page={page} slug={null} tabs={[]} />);
+    render(<SurvivorsBoard page={pageOf([row])} slug="chernarus" tabs={[]} />);
     expect(screen.getByText("Chad")).toBeInTheDocument();
   });
 
-  test("shows the per-row map only on the combined board", () => {
-    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "kills" };
-    const { rerender } = render(<SurvivorsBoard page={page} slug={null} tabs={[]} />);
-    // combined board -> per-row map shown
-    expect(screen.getByText("chernarus")).toBeInTheDocument();
-
-    rerender(<SurvivorsBoard page={page} slug="chernarus" tabs={[]} />);
-    // single-map board -> no per-row map text
+  // The map is in the heading and the tabs; repeating it on every row would be noise.
+  test("does not repeat the map on each row", () => {
+    render(<SurvivorsBoard page={pageOf([row])} slug="chernarus" tabs={[]} />);
     expect(screen.queryByText("chernarus")).not.toBeInTheDocument();
-  });
-
-  test("h1 stays map-scoped regardless of sort", () => {
-    const page: SurvivorsPage = { rows: [row], total: 1, page: 1, pageSize: 25, sort: "longest" };
-    render(<SurvivorsBoard page={page} slug="chernarus" tabs={[]} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Chernarus survivors" })).toBeInTheDocument();
   });
 });

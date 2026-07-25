@@ -1,45 +1,36 @@
-import type { SurvivorRow as SurvivorRowData, SurvivorSort } from "@/lib/types";
+import type { SurvivorRow as SurvivorRowData } from "@/lib/types";
 import { formatTimeAlive, tierFor } from "./format";
 import { GamertagLink } from "@/components/gamertag-link";
 import { CharacterImage } from "@/components/character-image";
 
-/** The single stat shown for a given sort. */
-function statFor(sort: SurvivorSort, row: SurvivorRowData): { label: string; value: string } {
-  switch (sort) {
-    case "kills":
-      return { label: "Kills", value: String(row.killsThisLife) };
-    case "longest":
-      return { label: "Longest kill", value: row.longestKillMeters === null ? "—" : `${row.longestKillMeters}m` };
-    case "time":
-    default:
-      return { label: "Time alive", value: formatTimeAlive(row.timeAliveSeconds) };
-  }
+/**
+ * The single stat every row shows. There is one ranking now — time alive — so this is no longer a
+ * switch over a sort (sub-project D deleted the sort layer). Kills and longest kill survive as
+ * TIE-BREAKS in the read-model, not as things a row displays.
+ */
+function statFor(row: SurvivorRowData): { label: string; value: string } {
+  return { label: "Time alive", value: formatTimeAlive(row.timeAliveSeconds) };
 }
 
-/** Mono sub-line under the gamertag: map (combined board) and, on the hero row, a kills flourish. */
-function subLine(row: SurvivorRowData, sort: SurvivorSort, showMap: boolean, hero: boolean): string | null {
-  const parts: string[] = [];
-  if (showMap) parts.push(row.slug);
-  if (hero && sort !== "kills" && row.killsThisLife > 0) parts.push(`${row.killsThisLife} kills`);
-  return parts.length ? parts.join(" · ") : null;
+/** Mono sub-line under the gamertag: on the hero row, a kills flourish. The map is never shown —
+ *  every board is a single map now, so naming it on every row would be noise. */
+function subLine(row: SurvivorRowData, hero: boolean): string | null {
+  if (hero && row.killsThisLife > 0) return `${row.killsThisLife} kills`;
+  return null;
 }
 
 export function SurvivorRow({
   row,
   rank,
-  showMap,
-  sort,
 }: {
   row: SurvivorRowData;
   rank: number;
-  showMap: boolean;
-  sort: SurvivorSort;
 }) {
   const tier = tierFor(rank);
-  const stat = statFor(sort, row);
+  const stat = statFor(row);
 
   if (tier === "hero") {
-    const sub = subLine(row, sort, showMap, true);
+    const sub = subLine(row, true);
     return (
       <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-bone px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[40px] font-bold leading-none text-red">{rank}</span>
@@ -57,7 +48,7 @@ export function SurvivorRow({
   }
 
   if (tier === "podium") {
-    const sub = subLine(row, sort, showMap, false);
+    const sub = subLine(row, false);
     return (
       <div className="grid grid-cols-[40px_60px_1fr_auto] items-center gap-x-3 border-b border-hairline px-2 py-3 sm:grid-cols-[56px_60px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[28px] font-bold leading-none text-red">{rank}</span>
@@ -76,7 +67,6 @@ export function SurvivorRow({
       <span aria-hidden className="text-center font-display text-xl font-bold leading-none text-ink">{rank}</span>
       <div className="min-w-0">
         <GamertagLink gamertag={row.gamertag} className="inline-block max-w-full truncate font-display text-[17px] font-semibold uppercase text-ink" />
-        {showMap && <span className="ml-2 font-mono text-[11px] uppercase text-ink-muted">{row.slug}</span>}
       </div>
       <div className="text-right font-mono text-[15px] font-bold tabular-nums text-ink">{stat.value}</div>
     </div>

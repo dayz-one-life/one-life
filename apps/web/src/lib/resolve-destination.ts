@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getLastPlayedMap, getServers } from "@/lib/api";
-import { SESSION_MAP_COOKIE, resolveMapDestination } from "@/lib/map-resolution";
+import { SESSION_MAP_COOKIE, resolveMapDestination, type SluggedServer } from "@/lib/map-resolution";
 
 /**
  * Server-side half of the one resolution rule, shared by `/maps` and `/survivors` so the two bare
@@ -19,14 +19,27 @@ import { SESSION_MAP_COOKIE, resolveMapDestination } from "@/lib/map-resolution"
  * slug that during an outage renders a broken page anyway. Resolve ONLY when we have the list.
  */
 export async function resolveDestinationSlug(): Promise<string | null> {
-  const session = (await cookies()).get(SESSION_MAP_COOKIE)?.value ?? null;
-
   let servers;
   try {
     servers = await getServers();
   } catch {
     return null;
   }
+  return resolveDestinationFrom(servers);
+}
+
+/**
+ * The same rule against a server list the caller ALREADY has.
+ *
+ * Home fetches `/servers` for the How-to-connect panel and would otherwise fetch it a second time
+ * just to resolve its board strip. A `null` list means the caller's own fetch failed — treated
+ * exactly like ours failing, i.e. no destination.
+ */
+export async function resolveDestinationFrom(
+  servers: readonly SluggedServer[] | null,
+): Promise<string | null> {
+  if (!servers) return null;
+  const session = (await cookies()).get(SESSION_MAP_COOKIE)?.value ?? null;
 
   let lastPlayed: string | null = null;
   try {

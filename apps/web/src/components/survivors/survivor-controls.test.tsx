@@ -2,103 +2,51 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { SurvivorControls } from "./survivor-controls";
 
+const TABS = [
+  { slug: "chernarus", label: "Chernarus" },
+  { slug: "sakhal", label: "Sakhal" },
+];
+
 describe("SurvivorControls", () => {
-  test("sort chip links reset page and mark active", () => {
-    render(
-      <SurvivorControls
-        slug="chernarus"
-        sort="kills"
-        tabs={[
-          { slug: null, label: "All maps" },
-          { slug: "chernarus", label: "Chernarus" },
-          { slug: "sakhal", label: "Sakhal" },
-        ]}
-      />
-    );
-    const longest = screen.getByRole("link", { name: /longest kill/i });
-    expect(longest).toHaveAttribute("href", "/survivors/chernarus/longest");
-    const chern = screen.getByRole("link", { name: "Chernarus" });
-    expect(chern).toHaveAttribute("aria-current", "page");
+  test("each tab links to its board at page 1", () => {
+    render(<SurvivorControls slug="chernarus" tabs={TABS} />);
+    expect(screen.getByRole("link", { name: "Sakhal" })).toHaveAttribute("href", "/survivors/sakhal");
+    expect(screen.getByRole("link", { name: "Chernarus" })).toHaveAttribute("href", "/survivors/chernarus");
   });
 
-  test("kills sort chip is active by default and other tabs are not aria-current", () => {
-    render(
-      <SurvivorControls
-        slug={null}
-        sort="kills"
-        tabs={[
-          { slug: null, label: "All maps" },
-          { slug: "chernarus", label: "Chernarus" },
-        ]}
-      />
-    );
-    const kills = screen.getByRole("link", { name: /^kills$/i });
-    expect(kills).toHaveAttribute("aria-current", "page");
-    const all = screen.getByRole("link", { name: "All maps" });
-    expect(all).toHaveAttribute("aria-current", "page");
-    const chern = screen.getByRole("link", { name: "Chernarus" });
-    expect(chern).not.toHaveAttribute("aria-current");
+  test("the current map is aria-current and the others are not", () => {
+    render(<SurvivorControls slug="chernarus" tabs={TABS} />);
+    expect(screen.getByRole("link", { name: "Chernarus" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Sakhal" })).not.toHaveAttribute("aria-current");
   });
 
-  test("sort chips render in order: time alive, kills, longest kill", () => {
-    render(
-      <SurvivorControls
-        slug={null}
-        sort="time"
-        tabs={[{ slug: null, label: "All maps" }]}
-      />
-    );
-    const chipLabels = ["Time alive", "Kills", "Longest kill"];
-    const rendered = screen
-      .getAllByRole("link")
-      .map((l) => l.textContent)
-      .filter((t) => chipLabels.includes(t ?? ""));
-    expect(rendered).toEqual(["Time alive", "Kills", "Longest kill"]);
+  test("active tab is solid ink; inactive is outlined", () => {
+    render(<SurvivorControls slug="chernarus" tabs={TABS} />);
+    expect(screen.getByRole("link", { name: "Chernarus" }).className).toContain("bg-ink");
+    const sakhal = screen.getByRole("link", { name: "Sakhal" });
+    expect(sakhal.className).toContain("border-ink");
+    expect(sakhal.className).not.toContain(" bg-ink");
   });
 
-  test("time alive chip link points at sort=time and resets page", () => {
-    render(
-      <SurvivorControls
-        slug={null}
-        sort="longest"
-        tabs={[{ slug: null, label: "All maps" }]}
-      />
-    );
-    const time = screen.getByRole("link", { name: /time alive/i });
-    expect(time).toHaveAttribute("href", "/survivors");
+  // ⚠️ The sort pills and the "All maps" tab are gone with the sort layer and the combined board
+  // (sub-project D). Every link here is a map board.
+  test("renders no sort pills", () => {
+    render(<SurvivorControls slug="chernarus" tabs={TABS} />);
+    for (const label of [/time alive/i, /^kills$/i, /longest kill/i]) {
+      expect(screen.queryByRole("link", { name: label })).toBeNull();
+    }
   });
 
-  test("active map tab is solid ink; inactive is outlined", () => {
-    render(
-      <SurvivorControls
-        slug={null}
-        sort="time"
-        tabs={[
-          { slug: null, label: "All maps" },
-          { slug: "chernarus", label: "Chernarus" },
-        ]}
-      />
-    );
-    const all = screen.getByRole("link", { name: "All maps" });
-    expect(all).toHaveAttribute("aria-current", "page");
-    expect(all.className).toContain("bg-ink");
-    const cherno = screen.getByRole("link", { name: "Chernarus" });
-    expect(cherno.className).toContain("border-ink");
-    expect(cherno.className).not.toContain(" bg-ink");
+  test("renders no All maps tab, and no link escapes to a bare /survivors", () => {
+    render(<SurvivorControls slug="chernarus" tabs={TABS} />);
+    expect(screen.queryByRole("link", { name: "All maps" })).toBeNull();
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).toMatch(/^\/survivors\/[^/]+$/);
+    }
   });
 
-  test("active sort is red with a red underline; inactive is muted", () => {
-    render(
-      <SurvivorControls
-        slug={null}
-        sort="kills"
-        tabs={[{ slug: null, label: "All maps" }]}
-      />
-    );
-    const kills = screen.getByRole("link", { name: "Kills" });
-    expect(kills).toHaveAttribute("aria-current", "page");
-    expect(kills.className).toContain("text-red-deep");
-    expect(kills.className).toContain("border-red");
-    expect(screen.getByRole("link", { name: "Time alive" }).className).toContain("text-ink-muted");
+  test("scales past the current fleet", () => {
+    render(<SurvivorControls slug="chernarus" tabs={[...TABS, { slug: "badlands", label: "Badlands" }]} />);
+    expect(screen.getByRole("link", { name: "Badlands" })).toHaveAttribute("href", "/survivors/badlands");
   });
 });

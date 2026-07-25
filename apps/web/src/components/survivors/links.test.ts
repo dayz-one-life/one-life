@@ -2,15 +2,25 @@ import { describe, expect, test } from "vitest";
 import { boardHref } from "./links";
 
 describe("boardHref", () => {
-  test("emits sort as a path segment, omits default sort and page=1", () => {
-    // default sort (time) => no sort segment
-    expect(boardHref(null, "time", 1)).toBe("/survivors");
-    expect(boardHref("chernarus", "time", 1)).toBe("/survivors/chernarus");
-    // non-default sort => trailing path segment
-    expect(boardHref(null, "kills", 1)).toBe("/survivors/kills");
-    expect(boardHref("chernarus", "longest", 1)).toBe("/survivors/chernarus/longest");
-    // page > 1 stays a query param, after the sort segment
-    expect(boardHref("sakhal", "kills", 3)).toBe("/survivors/sakhal/kills?page=3");
-    expect(boardHref(null, "time", 2)).toBe("/survivors?page=2");
+  test("page 1 has exactly one URL — no ?page=1", () => {
+    expect(boardHref("chernarus", 1)).toBe("/survivors/chernarus");
+  });
+
+  test("page > 1 is a query param", () => {
+    expect(boardHref("sakhal", 3)).toBe("/survivors/sakhal?page=3");
+  });
+
+  // ⚠️ Every board URL is slugged. The combined board and the sort segments are gone
+  // (sub-project D), so no path this builds may resolve to a redirect or a 404.
+  test("never emits a bare /survivors, which is a per-viewer redirect", () => {
+    for (const page of [1, 2, 10]) {
+      expect(boardHref("livonia", page).startsWith("/survivors/livonia")).toBe(true);
+    }
+  });
+
+  test("never emits a sort segment", () => {
+    for (const word of ["time", "kills", "longest"]) {
+      expect(boardHref("chernarus", 1)).not.toContain(`/${word}`);
+    }
   });
 });

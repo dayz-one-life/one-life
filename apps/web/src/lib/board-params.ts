@@ -1,7 +1,4 @@
-import type { Server, SurvivorSort } from "./types";
-
-export const SORTS: SurvivorSort[] = ["kills", "time", "longest"];
-export const DEFAULT_SORT: SurvivorSort = "time";
+import type { Server } from "./types";
 
 /** Coerce a raw `page` query value to a 1-based page number (default/floor 1). */
 export function parsePage(raw: string | string[] | undefined): number {
@@ -11,58 +8,35 @@ export function parsePage(raw: string | string[] | undefined): number {
 }
 
 /**
- * Board tabs: an "All maps" tab (slug null) followed by one tab per active,
- * slugged server (label = server name), sorted alphabetically by label.
+ * Board tabs: one per active, slugged server (label = server name), alphabetically by label.
  * Unslugged servers never participate.
+ *
+ * ⚠️ There is no "All maps" tab any more. Sub-project D deleted the combined board: a life is
+ * per-server, so ranking across servers puts lives in one race that were never in it.
  */
-export function buildTabs(servers: Server[]): { slug: string | null; label: string }[] {
-  return [
-    { slug: null, label: "All maps" },
-    ...servers
-      .filter((s): s is Server & { slug: string } => s.slug !== null)
-      .map((s) => ({ slug: s.slug, label: s.name }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-  ];
+export function buildTabs(servers: Server[]): { slug: string; label: string }[] {
+  return servers
+    .filter((s): s is Server & { slug: string } => s.slug !== null)
+    .map((s) => ({ slug: s.slug, label: s.name }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export type SurvivorsRoute =
-  | { kind: "board"; slug: string | null; sort: SurvivorSort }
-  | { kind: "redirect"; to: string }
+  | { kind: "board"; slug: string }
   | { kind: "notFound" };
 
-function isSort(v: string): v is SurvivorSort {
-  return (SORTS as string[]).includes(v);
-}
-
 /**
- * Resolve the dynamic path segments after `/survivors` (sort lives in the path,
- * page does not) against the set of active server slugs.
- * - []                 -> combined board, default sort
- * - [sortWord]         -> combined board sorted by it (explicit default -> redirect to /survivors)
- * - [slug]             -> that map, default sort
- * - [slug, sortWord]   -> that map sorted (explicit default -> redirect to /survivors/<slug>)
- * - anything else      -> notFound
- * The three sort words are reserved and win over an identically-named slug.
+ * Resolve the dynamic segment after `/survivors`. Page lives in the query string; nothing else
+ * lives in the path.
+ *
+ * ⚠️ Sub-project D deleted the sort layer, and with it **the rule that a server's `servers.slug`
+ * may never be `kills`, `time` or `longest`**. Those words shadowed a slug in this exact position;
+ * with no sort segment there is nothing left to shadow, and the constraint must be treated as
+ * GONE rather than merely unenforced — a future maintainer honouring a dead rule is the failure
+ * mode this note exists to prevent.
  */
 export function resolveSurvivorsRoute(segments: string[], slugs: string[]): SurvivorsRoute {
-  if (segments.length === 0) return { kind: "board", slug: null, sort: DEFAULT_SORT };
-  if (segments.length === 1) {
-    const seg = segments[0]!;
-    if (isSort(seg)) {
-      return seg === DEFAULT_SORT
-        ? { kind: "redirect", to: "/survivors" }
-        : { kind: "board", slug: null, sort: seg };
-    }
-    if (slugs.includes(seg)) return { kind: "board", slug: seg, sort: DEFAULT_SORT };
-    return { kind: "notFound" };
-  }
-  if (segments.length === 2) {
-    const mapSeg = segments[0]!;
-    const sortSeg = segments[1]!;
-    if (!slugs.includes(mapSeg)) return { kind: "notFound" };
-    if (!isSort(sortSeg)) return { kind: "notFound" };
-    if (sortSeg === DEFAULT_SORT) return { kind: "redirect", to: `/survivors/${mapSeg}` };
-    return { kind: "board", slug: mapSeg, sort: sortSeg };
-  }
-  return { kind: "notFound" };
+  if (segments.length !== 1) return { kind: "notFound" };
+  const seg = segments[0]!;
+  return slugs.includes(seg) ? { kind: "board", slug: seg } : { kind: "notFound" };
 }
