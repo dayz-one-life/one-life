@@ -1,24 +1,17 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { getPlayerPage, getPlayerArticles } from "@/lib/api";
-import { settleFeed } from "@/lib/settle-feed";
+import { getPlayerPage } from "@/lib/api";
 import { absoluteUrl } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { playerPageHref, shouldRedirectSlug } from "@/lib/player-page-href";
 import { PlayerProfile } from "@/components/player/player-profile";
 import { formatDuration } from "@/components/player/format";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string; ap?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string }> };
 
 function parsePage(raw?: string): number {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 1 ? Math.trunc(n) : 1;
-}
-
-// A second, independent page parser for the In The Paper section's own `?ap=` param — it must
-// never share `page`, or clicking either section's pagination would silently move both.
-function parseAp(raw?: string): number {
-  return parsePage(raw);
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -42,24 +35,12 @@ export default async function PlayerPageRoute({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = await searchParams;
   const pageNum = parsePage(sp.page);
-  const apNum = parseAp(sp.ap);
-  const [page, articles] = await Promise.all([
-    getPlayerPage(slug, pageNum),
-    settleFeed(getPlayerArticles(slug, apNum)),
-  ]);
+  const page = await getPlayerPage(slug, pageNum);
   if (!page) notFound();
   if (shouldRedirectSlug(slug, page.gamertag)) {
     // 308, not 307: a rename is permanent, and shared links / crawlers should consolidate onto
-    // the current dossier. playerPageHref preserves ?page=/?ap= so pagination survives the bounce.
-    permanentRedirect(playerPageHref(playerSlug(page.gamertag), { page: pageNum, ap: apNum }));
+    // the current dossier. playerPageHref preserves ?page= so pagination survives the bounce.
+    permanentRedirect(playerPageHref(playerSlug(page.gamertag), pageNum));
   }
-  return (
-    <PlayerProfile
-      page={page}
-      now={new Date()}
-      articles={articles.data}
-      articlesFailed={articles.failed}
-      articlesPage={apNum}
-    />
-  );
+  return <PlayerProfile page={page} now={new Date()} />;
 }
