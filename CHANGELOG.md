@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Contributor docs (`CLAUDE.md`) still described the leaderboard's deleted sort layer as current,
+  including a rule constraining what a server may be slugged that no longer applies.
+
 ### Removed
 
 - **The leaderboard's sort options are gone.** It ranked three ways — time alive, kills, longest

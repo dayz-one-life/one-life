@@ -169,33 +169,42 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   Sourced from the DayZ Fandom wiki (CC BY-SA; attribution required if shipped public-facing).
 - **Survivors leaderboard** ✅: public, mobile-first live leaderboard of every currently-alive
   survivor (**alive** = open qualified life: `lives.endedAt IS NULL` and `isLifeQualified`), one row
-  per (player × server). **Sort lives in the URL path, not a query string** (page stays `?page=`,
-  25/page): `/survivors` (combined, all active slugged servers) and `/survivors/[map]` (single
-  server, by `servers.slug`) show the **default sort = time-alive descending**; a non-default sort is
-  a trailing path segment — `/survivors/kills`, `/survivors/sakhal/longest` (route
-  `/survivors/[map]/[sort]`). One pure `resolveSurvivorsRoute(segments, slugs)`
-  (`apps/web/src/lib/board-params.ts`) drives resolution: a depth-1 segment is a **reserved sort
-  word** (`kills|time|longest` → combined board sorted by it) or a **server slug** (→ that map,
-  default sort), else `notFound()`; an explicit-default path (`/survivors/time`,
-  `/survivors/[map]/time`) `redirect()`s to the bare path (preserving `?page`). **The three sort
-  words are reserved — a server's `servers.slug` must never be `kills`/`time`/`longest`** (slugs are
-  hand-set; such a slug would be shadowed by the sort route). All board URLs are built by the pure
-  `boardHref` (path-based; drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD). The
-  `SurvivorControls` map tabs are alphabetical by label with **All maps** first (`buildTabs`), and the
-  sort pills are ordered **Time alive → Kills → Longest kill**. Old
-  `?sort=` query links are ignored (render the default). **R2 restyle:** the visible `<h1>` is
-  `Survivors` / `{Map} survivors` (the full SEO phrase `Top {Map} survivors by {sort}` lives only in
-  `<title>`/OG via `survivor-metadata.ts`); rows are **tiered by global rank** (`tierFor`,
+  per (player × server).
+  **⚠️ REWRITTEN BY SUB-PROJECT D2 — the whole sort layer is deleted.** There is **one board per
+  map, ranked by time alive descending, and no combined board**. `/survivors/[map]` (by
+  `servers.slug`) is the board and is the stable, shareable, indexable URL; the bare `/survivors`
+  is a **per-viewer redirect** through the shared map-resolution rule (see the D1 entry), carries
+  `robots: { index: false }`, and must never appear in the sitemap. Gone entirely:
+  `/survivors/kills`, `/survivors/longest`, the `/survivors/[map]/[sort]` route tree, the
+  explicit-default redirect, the `GET /survivors` API route, `SORTS`/`DEFAULT_SORT`/`isSort`,
+  `TIE_ORDER`/`metricFor`, the sort pills, the **All maps** tab, and the per-row map label.
+  **⚠️ THE RESERVED-SLUG RULE IS GONE, NOT MERELY UNENFORCED.** A server's `servers.slug` **may
+  now be `kills`, `time` or `longest`**. Those words only ever mattered because they shadowed a
+  slug in the depth-1 segment; with no sort segment there is nothing to shadow. Do not
+  reintroduce the constraint "defensively" — a test in `board-params.test.ts` asserts such a slug
+  resolves to its own board.
+  One pure `resolveSurvivorsRoute(segments, slugs)` (`apps/web/src/lib/board-params.ts`) still
+  drives resolution, now trivially: exactly one segment, which must be a known slug, else
+  `notFound()`. It never returns a redirect. All board URLs are built by the pure
+  **`boardHref(slug, page)`** (drives `SurvivorControls`, `Pagination`, canonical/OG/JSON-LD, and
+  the sitemap); `buildTabs` returns one tab per slugged server, alphabetical by label.
+  **R2 restyle (still current):** the visible `<h1>` is `{Map} survivors` (the SEO phrase
+  `Top {Map} survivors` — no `by {sort}` clause since D2 — lives only in `<title>`/OG via
+  `survivor-metadata.ts`); rows are **tiered by global rank** (`tierFor`,
   `@/components/survivors/format`): rank 1 = hero row on tint with a 76px square portrait and the
   only stat label, ranks 2–3 = podium rows with 60px portraits, 4+ (and all of pages 2+) = compact
-  text rows with no portrait. Every row still shows **only the stat being sorted by** (kills / time
-  alive / longest kill, all **this-life** since `life.startedAt`); portraits are decorative
+  text rows with no portrait. **Every row shows time alive and nothing else** — kills and longest
+  kill survive as TIE-BREAKS in the read-model, never as a displayed stat; the hero row keeps a
+  kills flourish. Portraits are decorative
   (`alt=""`, no img role — tests query the DOM directly). Pagination is a mono-box bar with a
   clamped `showingLine` and non-focusable disabled edges; board + dossier routes have `loading.tsx`
   skeletons (`@/components/skeletons`). Backed by the `getAliveSurvivors` read-model
-  (`packages/read-models/src/survivors.ts`; **sort-aware tie-break** — primary sort → the other two
-  metrics in a fixed order → gamertag, via a NaN-safe skip-if-equal comparator) and the public
-  `GET /survivors[/:slug]` API route (Zod `sort` default `time`). Avatars resolve via
+  (`packages/read-models/src/survivors.ts`; **one tie-break chain** — time alive → kills → longest
+  kill → gamertag, via a NaN-safe skip-if-equal comparator, which is load-bearing because two
+  survivors with no ranged kills both metric to `-Infinity`) and the public
+  `GET /survivors/:slug` API route. **⚠️ The `sort` query parameter is DROPPED from the Zod
+  schema, not accepted-and-ignored** — silently tolerating a dead parameter is how a caller comes
+  to believe it still works. Avatars resolve via
   `rosterByClass(characterClass).name` → `/characters/<name>.webp` (silhouette fallback for an
   unknown/no character). Gamertag filtering was scoped out of this pass.
 - **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
@@ -1338,6 +1347,59 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `ColdFork` (`components/front-page/cold-fork.tsx`) renders for `signedOut` ONLY — not for
   `unlinked`/`pending` (already sold; they get the ladder) and not while `loading`, so a signed-in
   player never sees a sign-in pitch flash. `SignInCta` survives, still used by `/about`.
+
+- **Sub-project D — Maps + Leaderboard** (D1 + D2 shipped; D3 outstanding) (spec
+  `docs/superpowers/specs/2026-07-24-d-maps-leaderboard-design.md`): the two map-shaped surfaces
+  stop being separate products. Read-model + API + web; **no migration, no `--rebuild`**.
+  **D1 — ONE map-resolution rule, shared by `/maps` and `/survivors`:**
+  `last map viewed THIS SESSION → last map PLAYED → alphabetical by display label`. One pure
+  `resolveMapDestination` (`apps/web/src/lib/map-resolution.ts`) + one server-side
+  `resolveDestinationSlug`/`resolveDestinationFrom` (`lib/resolve-destination.ts`), so the two bare
+  paths cannot drift. Both bare paths `redirect()`; `/maps/<slug>` and `/survivors/<slug>` are
+  stable and never redirect.
+  **⚠️ Tier 3 sorts by `mapLabel`, NEVER the codename** — `enoch` is labelled "Livonia" and sorts
+  under L, not E. Today's fleet does not discriminate the two orderings (both put Chernarus
+  first), so a naive test passes against the bug; the real test pairs `enoch` against a codename
+  falling between "enoch" and "Livonia". `DEFAULT_MAP_CODENAME = "chernarusplus"` is **retired**:
+  it happened to be first anyway, so it bought nothing and would go silently wrong the day the
+  fleet changed.
+  **`ol_last_map` is retired for `ol_map_session`** — a real session cookie (no `max-age`). A year
+  is the wrong memory for "where was I?": it lets a map you opened once last spring outrank the one
+  you have played all week.
+  **⚠️ `GET /me/last-map` takes NO subject parameter** — the session is the only input, so serving
+  another player's map history is unexpressible rather than merely rejected (the same shape the
+  coordinate routes hold). It answers a signed-out viewer `{ slug: null }` with a **200, not a
+  401**: it is a resolution HINT and both callers are public pages, which would have to translate
+  a 401 back to "no memory" anyway. `cache-control: no-store, private`.
+  **⚠️ `getLastPlayedMapSlug` (`packages/read-models/src/last-played.ts`) resolves the IDENTITY
+  first, then queries sessions** — a gamertag is a current label since migration `0025`, so a
+  recycled name can match two `players` rows and a direct join would mix a departed holder's
+  history in. Most-recently-seen wins, `id` ascending as the tie-break (the same rule `getPlayer`,
+  `resolveSlugMatch` and `friend-positions` apply). Its `servers` join is INNER and filters
+  `active` + slugged, so a session on a retired server yields NO ROW rather than a slug the router
+  must re-reject. Ordered `connected_at DESC` — never `disconnected_at` (null on an open session,
+  the very case this exists for).
+  **⚠️ No `(player_id, connected_at)` index exists, and none is needed AT THIS FLEET SIZE**: the
+  `servers` join bounds the work to one lookup per active server against `sessions_open_idx`.
+  Measured on a production dump: **0.083 ms**, a nested loop over 3 servers. **At tens of servers
+  this degrades linearly and wants a real index** — that is a migration, and this line is its
+  trigger.
+  **⚠️ The two fetches in `resolveDestinationSlug` degrade INDEPENDENTLY.** Losing `getServers`
+  loses the resolution (we render an honest failure and never guess a path — a remembered slug is
+  never trusted without the live list). Losing `getLastPlayedMap` loses only a TIER. And
+  `redirect()` throws `NEXT_REDIRECT`, so it must stay OUTSIDE the fetch error handling — inside
+  it, the catch swallows the redirect and every visitor gets the error page. That is why the
+  fetching lives in the resolver and the throw lives in the page.
+  **D2 — the leaderboard.** See the rewritten Survivors leaderboard entry above; the load-bearing
+  parts are that the reserved-slug rule is GONE (not unenforced) and that `sort` is dropped from
+  the API rather than ignored. Home's board strip follows the same rule and **names the map it is
+  scoped to** — an unlabelled top-5 would be silently partial. ⚠️ A failed `getServers` now costs
+  that strip too (there is no map to ask a board about), which narrows an independence claim made
+  in sub-project C; what still holds is that it renders as a **failure**, never as an empty coast.
+  **D3 (outstanding):** `/maps/[map]` moves into `app/(site)/`, gaining the masthead and footer;
+  `TopBar`/`MapBottomBar`/`CoordChip`/the `onCenterChange` path/`PlaceSearch`/`searchPlaces` are
+  deleted. ⚠️ `MapPage` must drop its own `#main-content` when it moves (the `(site)` layout
+  supplies it, and two elements with that id make the skip link resolve to whichever comes first).
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
