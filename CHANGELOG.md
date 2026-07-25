@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-07-25
+
 ### Changed
 
 - **The verified home now matches the design mockups.** The whole control panel was rebuilt to
