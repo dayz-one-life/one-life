@@ -6,9 +6,13 @@ export const metadata: Metadata = {
   robots: { index: false }, // per-viewer coordinates have no business in a search index
 };
 
+/**
+ * ⚠️ Inside the `(site)` route group since sub-project D3, so it renders the masthead, footer and
+ * tab bar like every other page. **The URL is unchanged** — route groups are not path segments —
+ * and `/maps` (the redirect) already lived in the group, so the two halves of `/maps*` finally
+ * share a layout instead of one opting out.
+ */
 export default async function MapRoute({ params }: { params: Promise<{ map: string }> }) {
   const { map } = await params;
-  // The map IS the application: no heading, no page padding, no site chrome. The shell's
-  // height comes from app/maps/layout.tsx; MapPage owns the bar and the map region.
   return <MapPage slug={map} />;
 }

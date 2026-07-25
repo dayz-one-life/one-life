@@ -12,7 +12,6 @@ import { SrStatus } from "@/components/shared/sr-status";
 export function GamertagAutocomplete({
   value,
   onChange,
-  onPick,
   fetchSuggestions,
   exclude,
   placeholder,
@@ -28,7 +27,6 @@ export function GamertagAutocomplete({
   /** Fires ONLY when a suggestion is actually chosen (click or Enter on a highlighted
    *  option) — `onChange` cannot be used to detect this, because a pick arrives as an
    *  onChange carrying text a keystroke could equally have produced. */
-  onPick?: (v: string) => void;
   fetchSuggestions: (q: string) => Promise<string[]>;
   exclude?: string;
   placeholder?: string;
@@ -97,7 +95,6 @@ export function GamertagAutocomplete({
     skipSearch.current = true;
     searchSeq.current++; // invalidate any in-flight search
     onChange(s);
-    onPick?.(s);
     setSuggestions([]);
     setOpen(false);
     setHighlightedIndex(-1);

@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The map is a page again, not a separate application.** `/maps/<map>` had its own full-screen
+  chrome — a top bar with a back arrow, and a second bar along the bottom — which duplicated the
+  site's own masthead and tab bar badly. It now sits in the ordinary site shell, with the masthead,
+  footer and a normal page heading — and the terrain runs **edge to edge**, filling everything the
+  masthead and footer leave. **The URL has not changed.** The map switcher moved into the page
+  heading, and Locate and Online now sit in the map's bottom-right corner.
+
+### Removed
+
+- **Place search is gone from the map**, along with the coordinate readout and the centre
+  crosshair that went with it. Town labels are unchanged.
+
 ### Fixed
 
 - Contributor docs (`CLAUDE.md`) still described the leaderboard's deleted sort layer as current,

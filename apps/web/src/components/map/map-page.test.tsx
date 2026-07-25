@@ -1,8 +1,21 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MapPageView } from "./map-page";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { MapPageView, MapPage } from "./map-page";
 
 vi.mock("./friends-map", () => ({ default: () => <div data-testid="friends-map" /> }));
+vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "signedOut" }) }));
+vi.mock("@/lib/api", () => ({
+  getServers: async () => [{ id: 1, name: "Sakhal", map: "sakhal", slug: "sakhal" }],
+  getFriendMap: async () => ({ positions: [], online: [] }),
+}));
+vi.mock("@/lib/map-resolution", () => ({ rememberMap: () => {} }));
+
+function wrap({ children }: { children: ReactNode }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
 
 const NOW = new Date("2026-07-22T12:00:00Z");
 const MAP = "sakhal";
@@ -91,5 +104,50 @@ describe("MapPageView", () => {
     const link = screen.getByRole("link", { name: /sign in/i });
     expect(link.className).toMatch(/\btext-red\b/);
     expect(link.className).not.toMatch(/\btext-red-deep\b/);
+  });
+});
+
+describe("MapPage inside the site shell", () => {
+  // ⚠️ MapPage used to render its own `#main-content`, because it sat OUTSIDE the (site) route
+  // group and the root layout's skip link had no other target. Inside the group the layout
+  // supplies that id, and a second element carrying it would make the skip link resolve to
+  // whichever comes first in the document — silently sending keyboard users to the wrong place.
+  //
+  // `(site)/layout.test.tsx` asserts there is exactly one, but it renders the layout ALONE, so
+  // it cannot see a duplicate contributed by a page. This is that assertion.
+  it("renders no #main-content of its own", () => {
+    const { container } = render(<MapPage slug="sakhal" />, { wrapper: wrap });
+    expect(container.querySelector("#main-content")).toBeNull();
+  });
+
+  // Leaflet measures its container on creation, so a parent chain with no resolved height
+  // collapses the canvas to zero. The map fills the space the masthead and footer leave, which
+  // only works if the page is a flex column with a definite height and the map box grows into
+  // it. jsdom computes no layout, so this pins the classes that produce that chain.
+  it("is a flex column with a height, and the map box grows to fill it", () => {
+    const { container } = render(<MapPage slug="sakhal" />, { wrapper: wrap });
+    const page = container.querySelector('[class*="min-h-[420px]"]')!;
+    expect(page.className).toMatch(/\bflex\b/);
+    expect(page.className).toMatch(/\bflex-col\b/);
+    expect(page.className).toMatch(/\bflex-1\b/);
+    const box = container.querySelector('[class*="isolate"]')!;
+    expect(box.className).toMatch(/\bflex-1\b/);
+    // Without `min-h-0` a flex item will not shrink below its content, so the map would push
+    // the page taller than the viewport instead of fitting inside it.
+    expect(box.className).toMatch(/\bmin-h-0\b/);
+  });
+
+  // A map is the one surface where page gutters are wasted space, so it cancels the (site)
+  // layout's `xl:px-10` and runs edge to edge.
+  it("runs full-bleed, cancelling the layout gutter", () => {
+    const { container } = render(<MapPage slug="sakhal" />, { wrapper: wrap });
+    expect(container.querySelector('[class*="isolate"]')!.className).toMatch(/xl:-mx-10/);
+  });
+
+  // Leaflet's own controls sit at z-index 1000 and would otherwise paint over the z-40 masthead
+  // and the z-50 overlays. With a masthead above the map this is the thing between the two.
+  it("keeps the isolate stacking context on the map box", () => {
+    const { container } = render(<MapPage slug="sakhal" />, { wrapper: wrap });
+    expect(container.querySelector('[class*="isolate"]')).not.toBeNull();
   });
 });
