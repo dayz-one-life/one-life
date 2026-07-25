@@ -11,8 +11,6 @@ const schema = z.object({
   // the failure it prevents is silent (subscribe() throws, the toggle swallows it, the
   // notifier reports success because it finds zero subscriptions).
   VAPID_PUBLIC_KEY: z.string().default(""),
-  // Empty = preview disabled entirely. Never a default value: a guessable default would publish
-  // every draft to anyone who typed ?preview=preview.
 });
 export type Config = {
   databaseUrl: string;
