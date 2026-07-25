@@ -5,7 +5,7 @@ import { absoluteUrl } from "@/lib/seo";
  * The `Sitemap:` line is how a crawler finds the sitemap without Search Console. The host comes
  * from SITE_URL, so a staging deployment advertises its own sitemap, not production's.
  *
- * AI crawlers (GPTBot, CCBot, ClaudeBot) are deliberately NOT blocked — the paper wants citations.
+ * AI crawlers (GPTBot, CCBot, ClaudeBot) are deliberately NOT blocked.
  */
 export default function robots(): MetadataRoute.Robots {
   return {

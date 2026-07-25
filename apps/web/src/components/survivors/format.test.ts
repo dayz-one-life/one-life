@@ -20,8 +20,8 @@ describe("tierFor", () => {
 
 describe("dekLine", () => {
   test("counts still drawing breath", () => {
-    expect(dekLine(56)).toBe("56 still drawing breath. Every name is one bad decision from Obituaries.");
-    expect(dekLine(1)).toBe("1 still drawing breath. Every name is one bad decision from Obituaries.");
+    expect(dekLine(56)).toBe("56 still drawing breath. Every name is one bad decision from the archive.");
+    expect(dekLine(1)).toBe("1 still drawing breath. Every name is one bad decision from the archive.");
   });
 });
 

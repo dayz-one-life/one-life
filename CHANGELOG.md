@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Site copy no longer promises a paper that does not exist.** With the content engine retired,
+  the home hero ("One life. Then the obituary"), the About page ("the Morgue Desk publishes the
+  obituary", "a newsroom bolted on", "a birth announcement runs"), the Survivors subhead, the
+  sign-in CTAs and the site meta description all described features that had been deleted. They now
+  describe what the site actually does. The About page's server grid also auto-fits instead of
+  assuming exactly three servers.
+
 ## [0.45.0] - 2026-07-24
 
 ### Removed

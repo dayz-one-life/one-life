@@ -25,7 +25,7 @@ describe("IdentityRow", () => {
 describe("SignInPanel", () => {
   test("renders the CTA headline and login link", () => {
     render(<SignInPanel />);
-    expect(screen.getByText("Get in the paper.")).toBeInTheDocument();
+    expect(screen.getByText("Get on the board.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/login");
   });
 });

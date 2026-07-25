@@ -15,7 +15,7 @@ export function tierFor(rank: number): RowTier {
 }
 
 export function dekLine(total: number): string {
-  return `${total} still drawing breath. Every name is one bad decision from Obituaries.`;
+  return `${total} still drawing breath. Every name is one bad decision from the archive.`;
 }
 
 export function showingLine(page: number, pageSize: number, total: number): string {

@@ -1,6 +1,6 @@
 import type { DeathVerdictDto } from "./types";
 
-/** Mechanism token -> display label. The single shared copy (obituary/birth formats import it). */
+/** Mechanism token -> display label. Shared by the life timeline and the funeral cards. */
 export function causeLabel(cause: string | null): string {
   if (cause === "pvp") return "Killed";
   if (cause === "fall") return "Fell";

@@ -6,7 +6,7 @@ export const absoluteUrl = (path: string) => `${SITE_URL}${path.startsWith("/") 
 /**
  * Serialize a JSON-LD object for embedding in a `<script type="application/ld+json">` tag.
  * `JSON.stringify` alone does NOT escape `<`, so a value containing `</script>` (e.g. an
- * LLM-authored obituary headline) could break out of the script element. Escaping `<`, `>`,
+ * player-supplied gamertag) could break out of the script element. Escaping `<`, `>`,
  * and `&` to their `\uXXXX` forms keeps the payload inert while staying valid JSON. Use this
  * for every JSON-LD sink — never raw `JSON.stringify` in `dangerouslySetInnerHTML`.
  */
