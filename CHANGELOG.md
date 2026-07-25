@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **New app shell.** Navigation is now **Home · Maps · Leaderboard · About**. On phones a bottom
+  tab bar (Home · Map · Board · Friends · You) replaces the hamburger menu and the account sheet,
+  and About moves into the footer. The account controls move to a dedicated **`/you`** page,
+  reachable from the masthead at every width. The controls rail becomes a Home-only sidebar, so
+  the leaderboard, player dossiers, Friends, Notifications and About all get their full width
+  back. "Leaderboard" is a rename of "Survivors" — the URL is unchanged.
+
+### Changed
+
 - **Site copy no longer promises a paper that does not exist.** With the content engine retired,
   the home hero ("One life. Then the obituary"), the About page ("the Morgue Desk publishes the
   obituary", "a newsroom bolted on", "a birth announcement runs"), the Survivors subhead, the

@@ -300,13 +300,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   renders in every signed-in state** (rail `SignedInFooter` + mobile sheet) — the profile link only
   appears when verified — so an unlinked/pending user can always log out. Presentational
   pieces are props-only + unit-tested; `useControls`/containers are thin (untested, per convention).
-  **⚠️ THE TWO SURFACES HAVE OPPOSITE BACKGROUNDS.** The rail is the light paper surface; the
-  **`ControlsSheet` is `bg-dark`**. Any panel mounted in both MUST carry a surface variant and swap
-  its text/border/tint tokens — `TokensPanel` does this with `boxed`. A panel written only in
-  `text-ink`/`border-ink`/`bg-bone` renders **ink-on-dark: present in the DOM, fully functional,
-  invisible on a phone** — which is exactly how the notifications panel shipped in v0.26.0. **RTL
-  asserts the DOM, not contrast, so the whole web suite stays green** on this class of bug; a panel
-  added to the sheet needs a test pinning the token swap itself.
+  **⚠️ THE TWO-SURFACE TOKEN RULE — NARROWED BY SUB-PROJECT B, NOT DELETED.** It used to govern
+  the rail (light paper) versus `ControlsSheet` (`bg-dark`): any panel mounted on both had to swap
+  its text/border/tint tokens or render **ink-on-dark — present in the DOM, fully functional,
+  invisible on a phone**, exactly how the notifications panel shipped in v0.26.0. B deleted the
+  sheet, so every account panel is light-surface only and the `boxed` variants are gone.
+  **The failure mode is still live for `NotificationRow`/`NotificationList`**, whose bell popover
+  is dark and whose `/notifications` inbox is light — those two still need their variants.
+  **RTL asserts the DOM, not contrast, so the whole web suite stays green** on this class of bug;
+  any component mounted on both a dark and a light surface needs a test pinning the swap itself.
   **The notifications restructure removed the notifications panel from both the rail and the mobile
   sheet** (`controls/notifications-panel.tsx` deleted; `useControls` dropped its notification fields
   + `markRead`) — notifications moved to a masthead bell + the permanent `/notifications` inbox
@@ -435,11 +437,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   affordances) are unchanged.
   **⚠️ THE APP HAS EXACTLY THREE Z-ALTITUDES — the LAYER LEGEND at the `<header>` in
   `header.tsx` is the source of truth.** `z-auto` page content → **`z-40` masthead** → **`z-50`
-  full-screen overlays** (the skip-to-content link in `app/layout.tsx`, `ControlsSheet` in
-  `controls/sheet.tsx`). The masthead **must** be a positioned layer: the bell popover's own
+  full-screen overlays** (the skip-to-content link in `app/layout.tsx`). Since sub-project B the
+  `z-40` layer has two occupants — the masthead and the mobile `TabBar`
+  (`components/shell/tab-bar.tsx`) — which never overlap spatially and so share it rather than
+  adding a fourth altitude. The masthead **must** be a positioned layer: the bell popover's own
   `z-50` only ranks it *inside* the right cluster, whose `-translate-y-1/2` opens a stacking
   context — so without a layer on the header, any later-in-DOM positioned-at-`z-auto` element
-  paints over the popover (the `xl:sticky` `ControlsRail` — **`sticky` opens a stacking context
+  paints over the popover (the `xl:sticky` `HomeSidebar` — **`sticky` opens a stacking context
   regardless of z-index** — and any later `relative` wrapper). That was the v0.29.6 bug: notifications rendered *behind* the
   page. The masthead must equally stay **strictly below 50** — the skip link renders *before*
   the header, so an equal value is decided by DOM order and silently buries the only control
@@ -1225,6 +1229,50 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   nullable, unconstrained, and a fold-derived count that renumbers. The regression test lived in
   `life-timeline.test.ts` and went with the feature. **The convention still governs `bans`**, which
   keys the same way for the same reason.
+
+- **Sub-project B — App shell** ✅ (spec `docs/superpowers/specs/2026-07-24-b-app-shell-design.md`,
+  plan `docs/superpowers/plans/2026-07-24-b-app-shell.md`): the chrome the rest of the pure-player
+  rebuild hangs off. **Presentation only** — no migration, no API route, no env var, no worker;
+  plain `./deploy/deploy.sh`.
+  **Nav is Home · Maps · Leaderboard · About.** "Leaderboard" is a **label-only** rename of
+  Survivors — the route is still `/survivors`, because sub-project D owns the move to a per-map
+  board. **⚠️ `activeNavKey` matches Home by EXACT path, never `inSection`**: every path starts
+  with `/`, so a prefix rule lights Home up on every page in the site.
+  **`components/controls/` no longer exists.** The rail, the `ControlsSheet`, its `MobileAccount`
+  trigger, the rail's `SignInPanel` and `useSheetDrag` are deleted; the surviving panels moved to
+  `components/account/` (identity, link, verify, tokens, `use-controls`, `format`,
+  `verification-announcer`), `components/servers/` (server cards), `components/friends/` and
+  `components/shared/` (`GamertagAutocomplete`).
+  **Below `md` a fixed `TabBar`** (`components/shell/tab-bar.tsx`) carries Home · Map · Board ·
+  Friends · You, dropping to four (Home · Map · Board · Sign in) when signed out and rendering
+  **nothing** while identity resolves. It **shares the `z-40` chrome layer with the masthead**
+  (they never overlap spatially) rather than adding a fourth altitude, and its height is
+  `h-[calc(4rem+env(safe-area-inset-bottom))]` — **the inset must stay inside the calc**, since as
+  padding under `border-box` it is subtracted from the box and collapses the row on a notched
+  phone. The site layout carries a matching `pb-[calc(...)]` gutter below `md`; without it the bar
+  covers the last rows of every scrollable page. **This is NOT a return of the retired
+  `ControlsPill`** — that was a floating account surface; this is app-wide navigation that renders
+  for signed-out visitors too.
+  **The hamburger and its full-screen menu are gone**, and **About moved to the footer**, which is
+  its only route below `md`.
+  **`/you` is the account page** (identity, tokens, sign-out), reached from a masthead avatar that
+  renders at **every** width — the old `MobileAccount` trigger was `xl:hidden` because the rail
+  covered desktop, and with the rail gone a width gate would strand desktop users.
+  **⚠️ The claim/verify ladder deliberately stays on Home, not `/you`** — `unlinked`/`pending` are
+  onboarding states that sub-project C's three-mode home owns, and `/you` must never be the only
+  route to claiming a gamertag. Sign-out renders in every signed-in state.
+  **The sidebar is Home-only.** The two-column `xl` grid moved out of `app/(site)/layout.tsx` into
+  `app/(site)/page.tsx`, so Survivors, the dossier, Friends, Notifications and About all regained
+  their full width. **⚠️ Nothing actionable may live only in `HomeSidebar`** — it does not render
+  below `xl`, so anything reachable solely from it is unreachable on a phone. That is why
+  `AccountPanels` sits in Home's main column.
+  **`PageHeader`** (`components/shared/page-header.tsx`) is the shared *title · count · control*
+  strip. Its `count` is a **discriminated union** (`loading | ready | failed`), not a number, so
+  loading, resolved-zero and failed are three distinct renders defined once — this repo's
+  most-repeated bug class. It carries **no z-index and no sticky**. Adopted by `/you` and
+  `/friends`; the board keeps its own larger header until D restyles it.
+  **⚠️ The real-device pass (plan Task 10) is OUTSTANDING**, and it absorbs M1's own outstanding
+  browser pass. jsdom cannot see the tab-bar gutter, the safe-area calc, paint order or contrast.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
