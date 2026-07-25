@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { FriendsPanel } from "./friends-panel";
 
 const players = [
-  { gamertag: "You", friend: false, sharing: true, self: true },
-  { gamertag: "Mate", friend: true, sharing: false, self: false },
+  { gamertag: "You", friend: false, sharing: true, sharedWithThem: false, self: true },
+  { gamertag: "Mate", friend: true, sharing: false, sharedWithThem: false, self: false },
 ];
 const NOW = new Date("2026-07-22T12:00:00.000Z");
 
@@ -23,7 +23,7 @@ describe("FriendsPanel", () => {
 
   it("passes fixes through so a sharer's row can show its age", async () => {
     const positions = [
-      { gamertag: "You", x: 0, y: 0, recordedAt: "2026-07-22T11:59:00.000Z", self: true },
+      { gamertag: "You", x: 0, y: 0, recordedAt: "2026-07-22T11:59:00.000Z", sharedWithThem: false, self: true },
     ];
     const now = new Date("2026-07-22T12:00:00.000Z");
     render(<FriendsPanel players={players} positions={positions} now={now} loading={false} />);

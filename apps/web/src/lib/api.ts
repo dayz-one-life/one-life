@@ -228,5 +228,15 @@ export const patchFriendPresence = (
 export const patchPreferences = (body: { sharePresence?: boolean }) =>
   apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);
 
+/** ⚠️ These three name a GRANTEE, which does not breach the no-subject rule: that rule governs
+ *  coordinate EGRESS (whose position you may READ). These say who may see YOUR position, and
+ *  disclose nothing in their responses. */
+export const shareLocationWith = (mapSlug: string, gamertag: string) =>
+  apiSend<{ ok: true }>("POST", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares`, { gamertag });
+export const stopSharingWith = (mapSlug: string, gamertag: string) =>
+  apiSend<{ ok: true }>("DELETE", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares/${encodeURIComponent(gamertag)}`);
+export const stopSharingAll = (mapSlug: string) =>
+  apiSend<{ ok: true }>("DELETE", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares`);
+
 export const getFriendMap = (slug: string) =>
   apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);

@@ -7,12 +7,17 @@ import { positionAge } from "../friends-map";
  *  ⚠️ DARK SURFACE — cream/paper tokens only.
  *  Order comes from the server (self → friends sharing → friends → sharing → rest); do not
  *  re-sort here, or the rule lives in two places. */
-export function OnlineList({ players, positions, now }: {
+export function OnlineList({ players, positions, now, onShare, onStopSharing, pendingFor }: {
   players: OnlinePlayerDto[];
   /** Fixes for the players who are sharing — the ONLY source of a fix age. A row not present
    *  here has no fix and must show none: absence, not a fabricated "unknown". */
   positions?: FriendPositionDto[];
   now?: Date;
+  /** Absent ⇒ no grant controls (a viewer who cannot grant, e.g. while offline). */
+  onShare?: (gamertag: string) => void;
+  onStopSharing?: (gamertag: string) => void;
+  /** The gamertag whose grant is in flight, if any. */
+  pendingFor?: string | null;
 }) {
   if (players.length === 0) {
     return (
@@ -43,11 +48,38 @@ export function OnlineList({ players, positions, now }: {
             {/* Not colour alone — WCAG 1.4.1. The words carry it. Age is reported ONLY when a
                 fix is actually known, so a stale bound (MARKER_MAX_AGE_SECONDS) is learnable
                 here, not just from mouse-driven canvas chrome. */}
-            {p.sharing && (
-              <span className="shrink-0 text-red">
-                On the map{fix && now ? ` · ${positionAge(fix.recordedAt, now)}` : ""}
-              </span>
-            )}
+            <span className="flex shrink-0 items-center gap-3">
+              {p.sharing && (
+                <span className="text-red">
+                  On the map{fix && now ? ` · ${positionAge(fix.recordedAt, now)}` : ""}
+                </span>
+              )}
+              {/* ⚠️ OUTBOUND, and worded as such. `sharing` above is what THEY have given the
+                  viewer; this is what the viewer has given them. Two directions, never merged
+                  into one "sharing" state — a control that conflated them would let someone
+                  believe seeing a dot means being seen. */}
+              {!p.self && onShare && onStopSharing && (
+                p.sharedWithThem ? (
+                  <button
+                    type="button"
+                    disabled={pendingFor === p.gamertag}
+                    onClick={() => onStopSharing(p.gamertag)}
+                    className="min-h-[44px] border border-dark-edge px-2 font-bold text-paper disabled:opacity-50 md:min-h-0 md:py-0.5"
+                  >
+                    Sharing · Stop
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={pendingFor === p.gamertag}
+                    onClick={() => onShare(p.gamertag)}
+                    className="min-h-[44px] border border-dark-edge px-2 text-cream-dim hover:text-paper disabled:opacity-50 md:min-h-0 md:py-0.5"
+                  >
+                    Share
+                  </button>
+                )
+              )}
+            </span>
           </li>
         );
       })}

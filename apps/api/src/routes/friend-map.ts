@@ -1,14 +1,46 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
-import { gamertagLinks, servers } from "@onelife/db";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { gamertagLinks, players, servers } from "@onelife/db";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getFriendPositions, getOnlinePlayers } from "@onelife/read-models";
+import {
+  activeGrantees, grantLocation, revokeAllLocation, revokeLocation,
+  locationSharedNotification, writeNotification,
+} from "@onelife/friends";
 import { getSession } from "../auth-plugin.js";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const params = z.object({ mapSlug: z.string().min(1) });
+const shareBody = z.object({ gamertag: z.string().min(1) });
+
+/** The viewer's own resolved `players` row for a gamertag, most-recently-seen first.
+ *  Mirrors the rule in getPlayer/resolveSlugMatch/friend-positions: a gamertag is a current
+ *  LABEL since migration 0025, so a recycled name can match two rows and the newest wins. */
+async function resolvePlayerId(db: Database, gamertag: string): Promise<number | null> {
+  const [row] = await db
+    .select({ id: players.id })
+    .from(players)
+    .where(sql`lower(${players.gamertag}) = lower(${gamertag})`)
+    .orderBy(sql`${players.lastSeenAt} desc nulls last`, players.id)
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** The verified user behind a gamertag, or null. Grants are only expressible between verified
+ *  identities — the same boundary every other coordinate surface enforces. */
+async function verifiedUserFor(db: Database, gamertag: string): Promise<string | null> {
+  const [row] = await db
+    .select({ userId: gamertagLinks.userId })
+    .from(gamertagLinks)
+    .where(and(
+      sql`lower(${gamertagLinks.gamertag}) = lower(${gamertag})`,
+      eq(gamertagLinks.status, "verified"),
+    ))
+    .limit(1);
+  return row?.userId ?? null;
+}
 
 /** The viewer's verified gamertag, or null. A pending link is deliberately insufficient:
  *  anyone can type any gamertag into the claim box, so only a link that survived emote
@@ -62,9 +94,8 @@ export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth
   app.get("/me/maps/:mapSlug", async (req, reply) => {
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });
-    if (!(await verifiedGamertag(db, session.user.id))) {
-      return reply.code(403).send({ error: "not_verified" });
-    }
+    const viewerTag = await verifiedGamertag(db, session.user.id);
+    if (!viewerTag) return reply.code(403).send({ error: "not_verified" });
 
     const parsed = params.safeParse(req.params);
     if (!parsed.success) return reply.code(404).send({ error: "not_found" });
@@ -81,9 +112,127 @@ export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth
       viewerUserId: session.user.id, serverId: server.id, now, positions,
     });
 
+    // Who the VIEWER is currently sharing with — the outbound direction, which nothing else on
+    // this payload reports. Effective grants only: a stale row from a previous session must not
+    // appear in the chip, or it claims people can see you who cannot.
+    const myPlayerId = await resolvePlayerId(db, viewerTag);
+    const grantees = myPlayerId === null ? [] : await activeGrantees(db, {
+      granterUserId: session.user.id, granterPlayerId: myPlayerId, serverId: server.id,
+    });
+    const granteeTags = await gamertagsForUsers(db, grantees);
+
     // A shared proxy or CDN caching this would hand one player's squad positions to the next
     // visitor — the classic way a correct auth check still leaks.
     reply.header("cache-control", "no-store, private");
-    return { mapCodename: server.map, positions, online };
+    return {
+      mapCodename: server.map,
+      positions,
+      online: online.map((o) => ({ ...o, sharedWithThem: granteeTags.has(o.gamertag.toLowerCase()) })),
+      sharingWith: [...granteeTags.values()],
+    };
   });
+
+  /**
+   * ⚠️ THIS ROUTE TAKES A GAMERTAG, AND THAT DOES NOT BREAK THE NO-SUBJECT RULE.
+   *
+   * The rule governs coordinate EGRESS: `GET /me/maps/:slug` must not let a caller name whose
+   * position to read. This is the opposite direction — it names who may see the CALLER'S OWN
+   * position, and it discloses nothing at all in its response. A reviewer seeing a gamertag on a
+   * `/me/maps` route should find this comment.
+   *
+   * The grant is anchored to the caller's CURRENT session (409 when they are not online), which
+   * is what makes it self-expiring.
+   */
+  app.post("/me/maps/:mapSlug/shares", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const viewerTag = await verifiedGamertag(db, session.user.id);
+    if (!viewerTag) return reply.code(403).send({ error: "not_verified" });
+
+    const p = params.safeParse(req.params);
+    if (!p.success) return reply.code(404).send({ error: "not_found" });
+    const server = await resolveServerBySlug(db, p.data.mapSlug);
+    if (!server) return reply.code(404).send({ error: "not_found" });
+
+    const body = shareBody.safeParse(req.body ?? {});
+    if (!body.success) return reply.code(400).send({ error: "bad_request" });
+
+    const granteeUserId = await verifiedUserFor(db, body.data.gamertag);
+    if (!granteeUserId) return reply.code(400).send({ error: "not_verified" });
+    // Sharing with yourself is meaningless — your own dot is always on your own map.
+    if (granteeUserId === session.user.id) return reply.code(400).send({ error: "self_share" });
+
+    const myPlayerId = await resolvePlayerId(db, viewerTag);
+    if (myPlayerId === null) return reply.code(409).send({ error: "not_online" });
+
+    // One transaction: the grant and its notification land together or not at all.
+    const connectedAt = await db.transaction(async (tx) => {
+      const at = await grantLocation(tx as unknown as Database, {
+        granterUserId: session.user.id, granterPlayerId: myPlayerId,
+        granteeUserId, serverId: server.id,
+      });
+      if (!at) return null;
+      await writeNotification(tx, locationSharedNotification({
+        granteeUserId, granterGamertag: viewerTag, sessionConnectedAt: at,
+        mapSlug: p.data.mapSlug, mapName: server.name,
+      }));
+      return at;
+    });
+
+    // A grant is always made DURING a session — that is what anchors its expiry — so being
+    // offline is a real conflict, not a silent no-op.
+    if (!connectedAt) return reply.code(409).send({ error: "not_online" });
+    return { ok: true };
+  });
+
+  /** Stop sharing with everyone on this server. Backs the map's "N can see you · Stop" chip. */
+  app.delete("/me/maps/:mapSlug/shares", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    if (!(await verifiedGamertag(db, session.user.id))) {
+      return reply.code(403).send({ error: "not_verified" });
+    }
+    const p = params.safeParse(req.params);
+    if (!p.success) return reply.code(404).send({ error: "not_found" });
+    const server = await resolveServerBySlug(db, p.data.mapSlug);
+    if (!server) return reply.code(404).send({ error: "not_found" });
+
+    await revokeAllLocation(db, { granterUserId: session.user.id, serverId: server.id });
+    return { ok: true };
+  });
+
+  /** Stop sharing with one person. Same direction, and the same non-disclosure, as POST. */
+  app.delete("/me/maps/:mapSlug/shares/:gamertag", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    if (!(await verifiedGamertag(db, session.user.id))) {
+      return reply.code(403).send({ error: "not_verified" });
+    }
+    const p = z.object({ mapSlug: z.string().min(1), gamertag: z.string().min(1) })
+      .safeParse(req.params);
+    if (!p.success) return reply.code(404).send({ error: "not_found" });
+    const server = await resolveServerBySlug(db, p.data.mapSlug);
+    if (!server) return reply.code(404).send({ error: "not_found" });
+
+    const granteeUserId = await verifiedUserFor(db, p.data.gamertag);
+    // Revoking a grant that cannot exist is a no-op, not an error — the caller ends up in the
+    // state they asked for either way, and a 404 here would confirm whether a gamertag is
+    // verified to anyone who can call it.
+    if (granteeUserId) {
+      await revokeLocation(db, {
+        granterUserId: session.user.id, granteeUserId, serverId: server.id,
+      });
+    }
+    return { ok: true };
+  });
+}
+
+/** Verified gamertags for a set of user ids, keyed by LOWERCASE gamertag for case-safe lookup. */
+async function gamertagsForUsers(db: Database, userIds: string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .select({ userId: gamertagLinks.userId, gamertag: gamertagLinks.gamertag })
+    .from(gamertagLinks)
+    .where(and(eq(gamertagLinks.status, "verified"), inArray(gamertagLinks.userId, userIds)));
+  return new Map(rows.map((r) => [r.gamertag.toLowerCase(), r.gamertag]));
 }

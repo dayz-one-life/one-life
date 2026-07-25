@@ -4,7 +4,7 @@ export {
 } from "./pair.js";
 export type { FriendshipRow, FriendStatus, FriendView } from "./pair.js";
 export { FriendError } from "./errors.js";
-export { writeNotification, requestNotification, acceptedNotification, playerSlug } from "./notify.js";
+export { writeNotification, requestNotification, acceptedNotification, locationSharedNotification, playerSlug } from "./notify.js";
 export type { FriendNotificationDraft } from "./notify.js";
 export { request, cancel, accept, decline, remove } from "./mutations.js";
 export { escapeLikePattern } from "./mutations.js";
@@ -17,5 +17,5 @@ export { setPresenceFlags, getSharePresence, setSharePresence } from "./presence
 // standing location setting — see the ⚠️ at the top of location.js.
 export {
   currentSessionStart, grantLocation, revokeLocation, revokeAllLocation,
-  clearLocationSharesFor, isShareEffective,
+  clearLocationSharesFor, isShareEffective, activeGrantees,
 } from "./location.js";

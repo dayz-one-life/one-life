@@ -64,6 +64,13 @@ afterAll(async () => { await app.close(); await sql.end(); });
 
 const get = (url: string, c?: string) =>
   app.inject({ method: "GET", url, headers: c ? { cookie: c } : {} });
+const post = (url: string, c: string | undefined, payload: Record<string, unknown>) =>
+  app.inject({
+    method: "POST", url, payload,
+    headers: { "content-type": "application/json", ...(c ? { cookie: c } : {}) },
+  });
+const del = (url: string, c?: string) =>
+  app.inject({ method: "DELETE", url, headers: c ? { cookie: c } : {} });
 
 describe("friend map routes", () => {
   it("401s when signed out", async () => {
@@ -200,5 +207,59 @@ describe("friend map routes", () => {
     // Unchanged behaviour, re-asserted because this route now returns more data.
     const res = await get(`/me/maps/sakhal-${svc}`, pendingCookie);
     expect(res.statusCode).toBe(403);
+  });
+});
+
+/**
+ * ⚠️ THESE ROUTES TAKE A GAMERTAG AND THAT DOES NOT BREACH THE NO-SUBJECT RULE.
+ *
+ * That rule governs coordinate EGRESS — `GET /me/maps/:slug` must not let a caller name whose
+ * position to read. These name who may see the CALLER'S OWN position, in the opposite direction,
+ * and disclose nothing in their responses. The tests below pin both halves: the grant works, and
+ * the response body never carries anything about the grantee.
+ */
+describe("location share grants", () => {
+  const url = () => `/me/maps/sakhal-${svc}/shares`;
+
+  it("401s when signed out", async () => {
+    expect((await post(url(), undefined, { gamertag: "Anyone" })).statusCode).toBe(401);
+    expect((await del(url())).statusCode).toBe(401);
+  });
+
+  it("403s a caller with only a pending link", async () => {
+    expect((await post(url(), pendingCookie, { gamertag: "Anyone" })).statusCode).toBe(403);
+  });
+
+  it("404s an unknown server slug", async () => {
+    expect((await post(`/me/maps/nope/shares`, cookie, { gamertag: "Anyone" })).statusCode).toBe(404);
+  });
+
+  it("400s a grant to a gamertag with no verified link", async () => {
+    const res = await post(url(), cookie, { gamertag: `NotVerified${svc}` });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: "not_verified" });
+  });
+
+  it("400s a grant with no gamertag at all", async () => {
+    expect((await post(url(), cookie, {})).statusCode).toBe(400);
+  });
+
+  // ⚠️ The response must disclose NOTHING about the grantee. A body echoing their gamertag,
+  // online state or user id would turn a write route into a directory lookup.
+  it("discloses nothing in its response body", async () => {
+    const res = await post(url(), cookie, { gamertag: `Buddy${svc}` });
+    // Either it succeeded or the caller is offline; in both cases the body is opaque.
+    expect(JSON.stringify(res.json())).not.toMatch(new RegExp(`Buddy${svc}`, "i"));
+  });
+
+  it("revoking a grant that cannot exist is a no-op, not a 404", async () => {
+    // A 404 here would confirm whether a gamertag is verified to anyone who can call it.
+    const res = await del(`${url()}/NeverHeardOf${svc}`, cookie);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("revoke-all is idempotent", async () => {
+    expect((await del(url(), cookie)).statusCode).toBe(200);
+    expect((await del(url(), cookie)).statusCode).toBe(200);
   });
 });

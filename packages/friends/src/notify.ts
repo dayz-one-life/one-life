@@ -78,3 +78,37 @@ export function acceptedNotification(a: {
     href: `/players/${playerSlug(a.accepterGamertag)}`,
   };
 }
+
+/**
+ * Kind 13 (sub-project E): someone handed you their position for this session.
+ *
+ * naturalKey is `location_shared:<granteeUserId>:<granterGamertag>:<granterSessionConnectedAt ISO>`
+ * — one per granter, per grantee, per GAME SESSION.
+ *
+ * ⚠️ The trailing component is the SAME session snapshot the visibility predicate uses. That is
+ * what makes re-granting inside one session idempotent (onConflictDoNothing swallows it) while a
+ * grant in a LATER session correctly notifies again. A key without it would tell the recipient
+ * once and then never again, however many sessions later; a key using `now` would spam them on
+ * every click.
+ *
+ * ⚠️ Not `sessions.id`: ids are reassigned by a projection rebuild (rebuild.ts truncates the
+ * table WITH RESTART IDENTITY), so an id-keyed notification could collide with a stale row and
+ * silently notify nobody. The timestamp is folded from the ADM line and survives a rebuild.
+ */
+export function locationSharedNotification(a: {
+  granteeUserId: string;
+  granterGamertag: string;
+  sessionConnectedAt: Date;
+  mapSlug: string;
+  mapName: string;
+}): FriendNotificationDraft {
+  return {
+    userId: a.granteeUserId,
+    kind: "location_shared",
+    naturalKey: `location_shared:${a.granteeUserId}:${a.granterGamertag}:${a.sessionConnectedAt.toISOString()}`,
+    title: `${a.granterGamertag} shared their position`,
+    // States the scope, because the scope is the point: it is not a standing permission.
+    body: `You can see them on ${a.mapName} until they log out.`,
+    href: `/maps/${a.mapSlug}`,
+  };
+}
