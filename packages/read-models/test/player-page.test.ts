@@ -288,3 +288,83 @@ describe("getPlayerPage pagination", () => {
     expect(pg.pastLives.length).toBe(2);
   });
 });
+
+// ── alive.qualified ────────────────────────────────────────────────────────────────────────────
+// THE GAP THIS CLOSES: `getPlayerLives` and `getPlayerProfile` both filter through
+// `isLifeQualified`, so before this change an open life inside the five-minute grace period was
+// INVISIBLE to the standing — the player's own home rendered that server as "idle" ("Spawn in any
+// time. First 5 minutes are free.") while they were standing on it. An omission, not a false
+// statement, but "idle" is still a positive claim that they have no life there.
+describe("getPlayerPage: a provisional (unqualified) open life is visible but marked", () => {
+  const svcQ = Math.floor(Math.random() * 1e8) + 61e7;
+  let srv: number; let pid: number;
+  const t = new Date("2026-07-14T12:00:00Z");
+  const bornAt = new Date(t.getTime() - 120_000); // 2 minutes ago — inside the 300s grace window
+
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcQ, name: "q-srv", map: "sakhal", slug: `q-${svcQ}`, active: true }).returning();
+    srv = s!.id;
+    const [p] = await db.insert(players).values({ gamertag: `Fresh${svcQ}`, firstSeenAt: bornAt, lastSeenAt: t }).returning();
+    pid = p!.id;
+    const [l] = await db.insert(lives).values({ serverId: srv, playerId: pid, lifeNumber: 1, startedAt: bornAt, endedAt: null, playtimeSeconds: 0 }).returning();
+    await db.insert(sessions).values({ serverId: srv, playerId: pid, lifeId: l!.id, connectedAt: bornAt });
+  });
+  afterAll(async () => {
+    await db.delete(kills).where(eq(kills.serverId, srv));
+    await db.delete(sessions).where(eq(sessions.serverId, srv));
+    await db.delete(lives).where(eq(lives.serverId, srv));
+    await db.delete(players).where(eq(players.id, pid));
+    await db.delete(servers).where(eq(servers.id, srv));
+  });
+
+  it("shows the server as ALIVE, not idle, during the grace window", async () => {
+    const pg = await getPlayerPage(db, `Fresh${svcQ}`, t);
+    const card = pg!.standing.find((s) => s.slug === `q-${svcQ}`)!;
+    expect(card.state).toBe("alive");
+  });
+
+  it("marks that life as not yet qualified", async () => {
+    const pg = await getPlayerPage(db, `Fresh${svcQ}`, t);
+    const card = pg!.standing.find((s) => s.slug === `q-${svcQ}`)!;
+    expect(card.alive!.qualified).toBe(false);
+    expect(card.alive!.qualifiedAt).toBeNull();
+  });
+
+  it("still counts the provisional life in NEITHER totals nor aliveAnywhere", async () => {
+    // `aliveAnywhere` feeds the public dossier's `Alive xN` badge and is leaderboard-facing; a
+    // grace-period player is not yet part of that count. `totals` come from the qualified-lives
+    // filter, which this change deliberately does not loosen.
+    const pg = await getPlayerPage(db, `Fresh${svcQ}`, t);
+    expect(pg!.aliveAnywhere).toBe(false);
+    expect(pg!.totals.lives).toBe(0);
+    expect(pg!.totals.deaths).toBe(0);
+  });
+
+  it("reports a live time-alive for the provisional life (profile.currentLifeSeconds is 0 here)", async () => {
+    const pg = await getPlayerPage(db, `Fresh${svcQ}`, t);
+    const card = pg!.standing.find((s) => s.slug === `q-${svcQ}`)!;
+    expect(card.alive!.timeAliveSeconds).toBeGreaterThanOrEqual(115);
+    expect(card.alive!.timeAliveSeconds).toBeLessThanOrEqual(125);
+  });
+
+  it("flips to qualified once the life crosses the playtime threshold", async () => {
+    const later = new Date(bornAt.getTime() + 400_000); // > QUALIFY_SECONDS
+    await db.update(players).set({ lastSeenAt: later }).where(eq(players.id, pid));
+    const pg = await getPlayerPage(db, `Fresh${svcQ}`, later);
+    const card = pg!.standing.find((s) => s.slug === `q-${svcQ}`)!;
+    expect(card.alive!.qualified).toBe(true);
+    expect(card.alive!.qualifiedAt).not.toBeNull();
+    expect(pg!.aliveAnywhere).toBe(true);
+    await db.update(players).set({ lastSeenAt: t }).where(eq(players.id, pid));
+  });
+
+  it("a kill qualifies the life immediately, before the time threshold", async () => {
+    // `lifeQualifiedAt` is `pvp OR playtime>=300 OR a kill in the window`, so a punch at 0h 0m
+    // qualifies. A UI countdown that assumed time alone would be wrong here.
+    await db.insert(kills).values({ serverId: srv, killerGamertag: `Fresh${svcQ}`, killerPlayerId: pid, victimGamertag: "SomeVictim", occurredAt: new Date(bornAt.getTime() + 30_000) });
+    const pg = await getPlayerPage(db, `Fresh${svcQ}`, t);
+    const card = pg!.standing.find((s) => s.slug === `q-${svcQ}`)!;
+    expect(card.alive!.qualified).toBe(true);
+    expect(card.alive!.qualifiedAt!.by).toBe("kill");
+  });
+});

@@ -6,10 +6,19 @@ import { getLifeCharacter } from "./character.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
 import { resolveGamertagBySlug } from "./player-aggregate.js";
 import { dossierForLife, dossierVerdict, type DeathVerdictSummary } from "./life-dossier.js";
+import { lifeQualifiedAt, type QualifiedAt } from "./qualified.js";
+import { livePlaytime } from "./playtime.js";
 import { rosterByClass } from "@onelife/domain";
 
 export interface PlayerCharacter { name: string | null; head: string | null; gender: string | null; }
-export interface AliveStanding { lifeId: number; lifeNumber: number; startedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; }
+/**
+ * `qualified` refines `state: "alive"`; the state union is deliberately NOT widened to a fourth
+ * member. A PROVISIONAL life (inside the five-minute grace window, no kill, no pvp death) is
+ * `qualified: false` — before this existed such a life was invisible and the server rendered as
+ * `idle`, which is a positive claim that the player has no life there while they are standing on
+ * it. `qualifiedAt` is null exactly when `qualified` is false.
+ */
+export interface AliveStanding { lifeId: number; lifeNumber: number; startedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; qualified: boolean; qualifiedAt: QualifiedAt | null; }
 export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null; }
 /**
  * `lastLifeNumber` is NOT "the player's most recent life" despite its name — its meaning is
@@ -85,7 +94,18 @@ export async function getPlayerPage(
     if (!s.slug) continue;
     const livesRows = (await getPlayerLives(db, s.id, gamertag)) ?? [];
     const serverBan = activeBans.find((b) => b.serverId === s.id) ?? null;
-    if (livesRows.length === 0 && !serverBan) continue;
+
+    // ⚠️ ADDITIVE lookup, deliberately separate from `getPlayerLives`. That function is the shared
+    // QUALIFIED-lives filter behind the dossier's past-life list, `totals` and `profile`; loosening
+    // it would leak provisional lives into a public profile's history and its lives/deaths counts.
+    // This row is used for the standing card ONLY and never reaches `totals`.
+    const anyOpenLife = p
+      ? (await db.select().from(lives)
+          .where(and(eq(lives.serverId, s.id), eq(lives.playerId, p.id), sql`${lives.endedAt} is null`))
+          .orderBy(sql`${lives.lifeNumber} desc`).limit(1))[0] ?? null
+      : null;
+
+    if (livesRows.length === 0 && !serverBan && !anyOpenLife) continue;
 
     const profile = await getPlayerProfile(db, s.id, gamertag, now);
 
@@ -115,9 +135,33 @@ export async function getPlayerPage(
     if (serverBan) {
       const trig = livesRows.find((l) => l.startedAt.getTime() === serverBan.lifeStartedAt.getTime()) ?? null;
       card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", character: trig ? await charShape(db, s.id, gamertag, trig.startedAt, trig.endedAt) : null, alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null }, lastLifeNumber: trig?.lifeNumber ?? null };
-    } else if (openLife && profile?.alive) {
-      const killList = await getLifeKills(db, s.id, gamertag, openLife.startedAt, null);
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, openLife.startedAt, null), alive: { lifeId: openLife.id, lifeNumber: openLife.lifeNumber, startedAt: openLife.startedAt, timeAliveSeconds: profile.currentLifeSeconds, kills: killList.length, longestKillMeters: longest(killList), killList }, ban: null, lastLifeNumber: openLife.lifeNumber };
+    } else if (anyOpenLife) {
+      // `openLife` (from the qualified-filtered list) being null while `anyOpenLife` is set is
+      // exactly the provisional case. `profile.currentLifeSeconds` is 0 there — getPlayerProfile
+      // filters the same way — so compute the live duration here instead.
+      const isQualified = openLife !== null && profile?.alive === true;
+      const killList = await getLifeKills(db, s.id, gamertag, anyOpenLife.startedAt, null);
+      const openSession = p
+        ? (await db.select().from(sessions)
+            .where(and(eq(sessions.serverId, s.id), eq(sessions.playerId, p.id), sql`${sessions.disconnectedAt} is null`)).limit(1))[0] ?? null
+        : null;
+      // Presence-implying durations cap at `lastSeenAt ?? connectedAt ?? now` and are NEVER
+      // clamped to `now` — matching survivors.ts's livePlaytime and queries.ts, which a
+      // Math.min(now, ...) would diverge from under servers.clockOffsetMs.
+      const upTo = p?.lastSeenAt ?? openSession?.connectedAt ?? now;
+      const seconds = isQualified
+        ? (profile?.currentLifeSeconds ?? 0)
+        : livePlaytime(anyOpenLife.playtimeSeconds, openSession ? { connectedAt: openSession.connectedAt } : null, upTo);
+      const sessionRows = await db.select().from(sessions).where(and(eq(sessions.serverId, s.id), eq(sessions.lifeId, anyOpenLife.id)));
+      const qAt = lifeQualifiedAt({
+        startedAt: anyOpenLife.startedAt,
+        endedAt: null,
+        deathCause: anyOpenLife.deathCause,
+        sessions: sessionRows.map((x) => ({ connectedAt: x.connectedAt, disconnectedAt: x.disconnectedAt, durationSeconds: x.durationSeconds })),
+        lastSeenAt: p?.lastSeenAt ?? null,
+        playerKills: killList.map((k) => ({ occurredAt: k.occurredAt })),
+      });
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, anyOpenLife.startedAt, null), alive: { lifeId: anyOpenLife.id, lifeNumber: anyOpenLife.lifeNumber, startedAt: anyOpenLife.startedAt, timeAliveSeconds: seconds, kills: killList.length, longestKillMeters: longest(killList), killList, qualified: qAt !== null, qualifiedAt: qAt }, ban: null, lastLifeNumber: anyOpenLife.lifeNumber };
     } else {
       const recent = livesRows[0] ?? null;
       card = { serverId: s.id, map: s.map, slug: s.slug, state: "idle", character: recent ? await charShape(db, s.id, gamertag, recent.startedAt, recent.endedAt) : null, alive: null, ban: null, lastLifeNumber: recent?.lifeNumber ?? null };
@@ -150,5 +194,7 @@ export async function getPlayerPage(
     pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), character: await charShape(db, serverId, gamertag, l.startedAt, l.endedAt), death: { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: dossierVerdict(dossier) }, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
   }
 
-  return { gamertag, verified: !!vf, firstSeenAt: p?.firstSeenAt ?? null, aliveAnywhere: standing.some((s) => s.state === "alive"), totals, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
+  return { gamertag, verified: !!vf, firstSeenAt: p?.firstSeenAt ?? null, // A provisional life does NOT count: this feeds the public dossier's `Alive xN` badge and is
+  // leaderboard-facing, so a grace-period player is not yet part of it.
+  aliveAnywhere: standing.some((s) => s.state === "alive" && s.alive?.qualified === true), totals, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
 }
