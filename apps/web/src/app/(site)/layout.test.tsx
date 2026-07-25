@@ -21,15 +21,13 @@ describe("SiteLayout", () => {
     expect(screen.getByTestId("tab-bar")).toBeInTheDocument();
   });
 
-  // Pill re-homing (UX review sub-project 4) removed the old `pb-24` gutter because no
-  // fixed-bottom chrome remained. The TabBar is fixed-bottom chrome again, so the gutter is back
-  // — but sized to the bar, and only below `md` where the bar renders. Without it the bar covers
-  // the last rows of every scrollable page.
-  test("reserves bottom space for the tab bar below md, and drops it at md", () => {
+  // ⚠️ The TabBar gutter belongs on the FOOTER, not here. The footer is a sibling after this
+  // column and so is the last in-flow element in the document; padding the column leaves the
+  // footer under the fixed bar. Verified in a browser: it hid the footer's About link, which is
+  // the only route to About below `md`. See footer.test.tsx for the gutter's own test.
+  test("does NOT carry the tab-bar gutter — that belongs to the footer", () => {
     render(<SiteLayout><div data-testid="child" /></SiteLayout>);
-    const main = document.getElementById("main-content")!;
-    expect(main.className).toMatch(/pb-\[calc\(4rem\+env\(safe-area-inset-bottom\)\)\]/);
-    expect(main.className).toMatch(/md:pb-0/);
+    expect(document.getElementById("main-content")!.className).not.toMatch(/\bpb-/);
   });
 
   // The controls rail used to live here and therefore rendered on every page in the group, which

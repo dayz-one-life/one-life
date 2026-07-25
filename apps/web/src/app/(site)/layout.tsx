@@ -16,14 +16,10 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <Masthead />
-      {/* The bottom padding reserves space for the fixed TabBar below `md`. Without it the bar
-       *  covers the last rows of every scrollable page. It drops away at `md`, where the bar is
-       *  hidden anyway. */}
-      <div
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-[1440px] flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0 xl:px-10"
-      >
+      {/* ⚠️ The TabBar gutter is NOT here — it is on the <Footer/>, which is the last in-flow
+       *  element in the document. Padding this column instead leaves the footer itself under the
+       *  fixed bar, which hid the footer's About link (its only route below `md`). */}
+      <div id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[1440px] flex-1 xl:px-10">
         {children}
       </div>
       <Footer />
