@@ -57,7 +57,12 @@ export function TabBar() {
             href={t.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex min-h-[52px] flex-1 items-center justify-center px-1 font-display text-[15px] font-semibold uppercase tracking-[.06em]",
+              // `min-w-0` is defensive, not cosmetic: a flex item defaults to `min-width: auto`,
+              // so `flex-1` alone will not shrink an item below its label's intrinsic width. With
+              // five tabs at 320px the widest labels ("Friends", "Sign in") would otherwise push
+              // the row wider than the viewport. Unverified on a real device — see the outstanding
+              // device pass in the B plan, Task 10.
+              "flex min-h-[52px] min-w-0 flex-1 items-center justify-center px-1 text-center font-display text-[15px] font-semibold uppercase tracking-[.06em]",
               active ? "text-red" : "text-paper",
             )}
           >
