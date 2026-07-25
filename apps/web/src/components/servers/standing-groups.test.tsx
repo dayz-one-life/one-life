@@ -88,10 +88,26 @@ describe("StandingGroups — the verified-desktop mock, with the amendments", ()
   });
 
   test("idle group: compact rows with died-ago / never-played datelines", () => {
-    render(<StandingGroups {...base} cards={[idleDied, idle]} />);
+    render(<StandingGroups {...base} cards={[idleDied, idle, alive]} />);
     expect(screen.getByText("No life · 2 servers")).toBeInTheDocument();
-    expect(screen.getByText(/· died 2d ago/)).toBeInTheDocument();
+    expect(screen.getByText(/· died 2d ago · life 3/)).toBeInTheDocument();
     expect(screen.getByText(/· never played/)).toBeInTheDocument();
+  });
+
+  test("when every server is idle the header says so — not a countable 'No life · N'", () => {
+    render(<StandingGroups {...base} cards={[idleDied, idle]} />);
+    expect(screen.getByText("Your servers · nothing running")).toBeInTheDocument();
+    expect(screen.queryByText(/No life · \d/)).toBeNull();
+  });
+
+  test("a ban collapses alive to a compact row group — the countdown leads the page", () => {
+    render(<StandingGroups {...base} cards={[alive, banned]} />);
+    expect(screen.getByText("Alive · 1 server")).toBeInTheDocument();
+    expect(screen.getByText("4d 2h")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Map" })).toHaveAttribute("href", "/maps/chernarus");
+    // No hero: neither of its buttons render.
+    expect(screen.queryByRole("link", { name: /open map/i })).toBeNull();
+    expect(screen.queryByText(/longest run yet/i)).toBeNull();
   });
 
   test("idle Join discloses the shared how-to-connect content in place", () => {
@@ -106,7 +122,14 @@ describe("StandingGroups — the verified-desktop mock, with the amendments", ()
   test("groups render banned → alive → idle", () => {
     render(<StandingGroups {...base} cards={[idle, alive, banned]} />);
     const labels = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
-    expect(labels).toEqual(["Serving a ban", "Alive on Chernarus", "No life"]);
+    expect(labels).toEqual(["Serving a ban", "Alive", "No life"]);
+  });
+
+  test("without a ban, alive keeps its full hero", () => {
+    render(<StandingGroups {...base} cards={[idle, alive]} />);
+    const labels = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
+    expect(labels).toEqual(["Alive on Chernarus", "No life"]);
+    expect(screen.getByRole("link", { name: /open map/i })).toBeInTheDocument();
   });
 
   test("spend fires with the ban id", () => {

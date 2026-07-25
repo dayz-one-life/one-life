@@ -4,20 +4,20 @@ import { usePathname } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
 import { cn } from "@/lib/utils";
 
-type Tab = { href: string; label: string };
+type Tab = { href: string; label: string; icon: string };
 
 const COMMON: Tab[] = [
-  { href: "/", label: "Home" },
+  { href: "/", label: "Home", icon: "⌂" },
   // Resolves through the existing `/maps` redirect, so the tab bar needs no knowledge of map
   // resolution — sub-project D changes that redirect's internals without touching this file.
-  { href: "/maps", label: "Map" },
+  { href: "/maps", label: "Map", icon: "◎" },
   // Route stays /survivors until D; the label matches the nav's "Leaderboard" in spirit but is
   // shortened to fit a five-item row on a 320px phone.
-  { href: "/survivors", label: "Board" },
+  { href: "/survivors", label: "Board", icon: "▤" },
 ];
 
-const SIGNED_IN: Tab[] = [...COMMON, { href: "/friends", label: "Friends" }, { href: "/you", label: "You" }];
-const SIGNED_OUT: Tab[] = [...COMMON, { href: "/login", label: "Sign in" }];
+const SIGNED_IN: Tab[] = [...COMMON, { href: "/friends", label: "Friends", icon: "◍" }, { href: "/you", label: "You", icon: "◉" }];
+const SIGNED_OUT: Tab[] = [...COMMON, { href: "/login", label: "Sign in", icon: "◉" }];
 
 /**
  * Mobile quick-access bar.
@@ -62,10 +62,15 @@ export function TabBar() {
               // five tabs at 320px the widest labels ("Friends", "Sign in") would otherwise push
               // the row wider than the viewport. Unverified on a real device — see the outstanding
               // device pass in the B plan, Task 10.
-              "flex min-h-[52px] min-w-0 flex-1 items-center justify-center px-1 text-center font-display text-[15px] font-semibold uppercase tracking-[.06em]",
-              active ? "text-red" : "text-paper",
+              // Icon-over-label stack per the mobile-shell mock; the active tab reads as paper
+              // text with a red-soft icon (dark surface — plain red/red-soft, never red-deep).
+              "flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-center font-mono text-[11px] uppercase tracking-[.08em]",
+              active ? "text-paper" : "text-cream-dim",
             )}
           >
+            <span aria-hidden className={cn("text-[17px] leading-none", active && "text-red-soft")}>
+              {t.icon}
+            </span>
             {t.label}
           </Link>
         );

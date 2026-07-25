@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The mobile home now matches the `verified-mobile-v2` mock.** The bottom tab bar stacks an
+  icon over each label (active tab: paper text, red-soft icon); idle server rows name the life
+  that ended ("died 2d ago · life 11"); when every server is idle the group is headed "Your
+  servers · nothing running" instead of a count; and when a ban leads the page, alive servers
+  collapse to a compact row group ("Alive · 1 server", time alive, a Map link) so the ban
+  countdown stays the story — the full alive hero still renders whenever there is no ban.
+
 ## [0.48.0] - 2026-07-25
 
 ### Changed
