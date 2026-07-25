@@ -1,23 +1,18 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { MastheadBell } from "@/components/notifications/bell";
-import { MobileAccount } from "@/components/controls/mobile-account";
+import { AccountAffordance } from "@/components/shell/account-affordance";
 
-function NavLinks({ active, onNavigate, className }: {
-  active: string | null; onNavigate?: () => void; className?: string;
-}) {
+function NavLinks({ active, className }: { active: string | null; className?: string }) {
   return (
     <>
       {NAV_ITEMS.map((item) => (
         <Link
           key={item.key}
           href={item.href}
-          onClick={onNavigate}
           aria-current={active === item.key ? "page" : undefined}
           className={cn(active === item.key ? "text-red" : "text-paper hover:text-red", className)}
         >
@@ -31,35 +26,23 @@ function NavLinks({ active, onNavigate, className }: {
 export function Masthead() {
   const pathname = usePathname();
   const active = activeNavKey(pathname ?? "/");
-  const [open, setOpen] = useState(false);
-  const panelRef = useModalBehavior(open, () => setOpen(false));
 
   return (
     // ⚠️ LAYER LEGEND — the app has exactly three altitudes, and they must stay in this order:
-    //   z-auto  page content — incl. the `xl:sticky` ControlsRail (`controls/rail.tsx`) and the
-    //           `relative` article-hero image wrappers. NOTE: `sticky` opens a stacking context
-    //           regardless of z-index, and z-auto contexts still paint in tree order, so any of
-    //           these positioned LATER in the DOM paints over an unlayered masthead.
-    //   z-40    this masthead — load-bearing, not decoration. The bell popover's own `z-50` only
-    //           ranks it INSIDE the right cluster, whose `-translate-y-1/2` opens a stacking
-    //           context; without a layer here the popover paints behind page content.
-    //   z-50    full-screen overlays that must cover the masthead: the skip-to-content link
-    //           (`app/layout.tsx`, and it renders BEFORE the header, so it would lose a z-50 tie)
-    //           and the `ControlsSheet` (`controls/sheet.tsx`).
-    // Keep the masthead strictly BELOW 50 — an equal value leaves those two decided by DOM order.
+    //   z-auto  page content — incl. the `xl:sticky` HomeSidebar (`account/home-sidebar.tsx`) and
+    //           the `relative` image wrappers. NOTE: `sticky` opens a stacking context regardless
+    //           of z-index, and z-auto contexts still paint in tree order, so any of these
+    //           positioned LATER in the DOM paints over an unlayered masthead.
+    //   z-40    chrome — this masthead AND the mobile TabBar (`shell/tab-bar.tsx`). They never
+    //           overlap spatially, so they share a layer. Load-bearing, not decoration: the bell
+    //           popover's own `z-50` only ranks it INSIDE the right cluster, whose
+    //           `-translate-y-1/2` opens a stacking context; without a layer here the popover
+    //           paints behind page content.
+    //   z-50    full-screen overlays that must cover the chrome: the skip-to-content link
+    //           (`app/layout.tsx`, which renders BEFORE the header and so would lose a z-50 tie).
+    // Keep the masthead strictly BELOW 50 — an equal value leaves that decided by DOM order.
     <header className="relative z-40 bg-dark">
       <div className="relative flex items-center justify-center px-4 pt-5 md:pt-7">
-        <button
-          type="button"
-          aria-label="Open menu"
-          aria-expanded={open}
-          onClick={() => setOpen(true)}
-          className="absolute left-4 flex flex-col gap-[5px] p-2 md:hidden"
-        >
-          <span aria-hidden className="block h-[3px] w-6 bg-paper" />
-          <span aria-hidden className="block h-[3px] w-6 bg-paper" />
-          <span aria-hidden className="block h-[3px] w-4 bg-red" />
-        </button>
         <Link href="/" aria-label="One Life — home">
           <img
             src="/brand/wordmark-primary@2x.png"
@@ -69,13 +52,12 @@ export function Masthead() {
             className="h-auto w-[150px] md:w-[280px]"
           />
         </Link>
-        {/* The bell and the account trigger share one right-cluster wrapper — each used to
+        {/* The bell and the account control share one right-cluster wrapper — each used to
          *  self-position `absolute right-4`, which made them collide. Only this wrapper
-         *  positions itself now; both children render as plain inline controls (see
-         *  bell.tsx / mobile-account.tsx). */}
+         *  positions itself; both children render as plain inline controls. */}
         <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1 md:top-auto md:translate-y-0">
           <MastheadBell />
-          <MobileAccount />
+          <AccountAffordance />
         </div>
       </div>
 
@@ -85,31 +67,9 @@ export function Masthead() {
       >
         <NavLinks active={active} />
       </nav>
-      {/* Mobile masthead has no nav row; the hamburger opens the menu (design 10b). */}
+      {/* Below md the nav row is replaced by the TabBar (shell/tab-bar.tsx), which carries Home,
+       *  Map, Board and the account destinations. About lives in the footer. */}
       <div className="mt-4 border-t border-dark-line md:hidden" />
-
-      {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu"
-          ref={panelRef}
-          tabIndex={-1}
-          className="fixed inset-0 z-50 flex flex-col items-center gap-8 bg-dark pt-24"
-        >
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-            className="absolute right-5 top-5 p-2 font-display text-2xl text-paper"
-          >
-            <span aria-hidden>×</span>
-          </button>
-          <nav aria-label="Primary" className="flex flex-col items-center gap-8 font-display text-2xl font-semibold uppercase tracking-[.12em]">
-            <NavLinks active={active} onNavigate={() => setOpen(false)} />
-          </nav>
-        </div>
-      )}
     </header>
   );
 }
