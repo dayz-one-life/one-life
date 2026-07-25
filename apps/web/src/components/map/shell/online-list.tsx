@@ -37,11 +37,14 @@ export function OnlineList({ players, positions, now, onShare, onStopSharing, pe
         return (
           <li
             key={p.gamertag}
-            className={`flex min-h-[52px] items-center justify-between gap-3 font-mono text-[15px] uppercase tracking-[.05em] md:min-h-0 md:text-[11px] ${
+            // `flex-wrap` + `break-all`: a long gamertag beside "On the map · 2m ago" and a
+            // grant button cannot fit one 320px row — without wrapping they overprint each
+            // other (shipped that way once, verified on the live site).
+            className={`flex min-h-[52px] flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1 font-mono text-[15px] uppercase tracking-[.05em] md:min-h-0 md:text-[11px] ${
               p.friend || p.self ? "text-paper" : "text-cream-dim"
             }`}
           >
-            <span className={p.friend || p.self ? "font-bold" : undefined}>
+            <span className={`min-w-0 break-all ${p.friend || p.self ? "font-bold" : ""}`}>
               {p.gamertag}
               {p.self ? " (you)" : ""}
             </span>

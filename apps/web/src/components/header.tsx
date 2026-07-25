@@ -1,10 +1,28 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { getServers } from "@/lib/api";
+import type { Server } from "@/lib/types";
 import { MastheadBell } from "@/components/notifications/bell";
 import { AccountAffordance } from "@/components/shell/account-affordance";
+import { MapSwitcher } from "@/components/map/shell/map-switcher";
+
+/** The map switcher, in the masthead — the mock's rule for `/maps/[map]`: "the dropdown is the
+ *  only header addition". It renders ONLY on a map route, so the servers query is gated on that
+ *  and costs every other page nothing (and shares the `["servers"]` cache with the map page). */
+function MastheadMapSwitcher({ pathname }: { pathname: string }) {
+  const seg = /^\/maps\/([^/]+)$/.exec(pathname)?.[1];
+  const slug = seg ? decodeURIComponent(seg) : null;
+  const servers = useQuery({ queryKey: ["servers"], queryFn: getServers, enabled: slug !== null });
+  if (slug === null) return null;
+  const mapServers = servers.data
+    ?.filter((s): s is Server & { slug: string } => Boolean(s.slug))
+    .map((s) => ({ slug: s.slug, name: s.name }));
+  return <MapSwitcher slug={slug} servers={mapServers} loading={servers.isPending} />;
+}
 
 function NavLinks({ active, className }: { active: string | null; className?: string }) {
   return (
@@ -71,7 +89,8 @@ export function Masthead() {
         </nav>
         {/* The bell and the account control share one right cluster; both render as plain
          *  inline controls (they used to self-position absolutely and collided). */}
-        <div className="ml-auto flex flex-none items-center gap-1">
+        <div className="ml-auto flex min-w-0 flex-none items-center gap-2">
+          <MastheadMapSwitcher pathname={pathname ?? "/"} />
           <MastheadBell />
           <AccountAffordance />
         </div>

@@ -10,13 +10,13 @@ export type SwitchableMap = { slug: string; name: string };
 
 /** Current map plus a menu of the others.
  *
- *  ⚠️ THIS IS A LIGHT-SURFACE COMPONENT, and it was a dark one until sub-project D3.
- *  It used to sit on the map's own dark top bar; that bar is gone and it now sits in the
- *  ordinary page header, on paper. It shipped once with its old `text-paper`/`border-dark-edge`
- *  tokens and rendered as an EMPTY BOX — paper on paper: present, functional and invisible.
- *  RTL asserts the DOM, not contrast, and the whole suite stayed green through it; only a
- *  browser (or the token test below it) catches this. Same failure as the v0.26.0 notifications
- *  panel, in the opposite direction. */
+ *  ⚠️ THIS IS A DARK-SURFACE COMPONENT — again. Its whole history is the two-surface token
+ *  trap: dark on the map's old top bar, then light when D3 first parked it in a paper page
+ *  header (where the un-swapped dark tokens rendered an EMPTY BOX — paper on paper, suite
+ *  green throughout), and now dark once more in the MASTHEAD right cluster, per the
+ *  map-in-shell mock ("the dropdown is the only header addition"). RTL asserts the DOM, not
+ *  contrast; the token test below is what stands between this component and its third
+ *  invisible release. */
 export function MapSwitcher({ slug, servers, loading }: {
   slug: string; servers?: readonly SwitchableMap[]; loading: boolean;
 }) {
@@ -32,7 +32,7 @@ export function MapSwitcher({ slug, servers, loading }: {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex min-h-[44px] min-w-0 items-center gap-2 border border-ink px-3 py-1.5 font-display text-sm font-bold uppercase tracking-[.06em] text-ink hover:bg-ink hover:text-paper md:min-h-[40px]"
+        className="flex min-h-[44px] min-w-0 items-center gap-2 border border-dark-edge px-3 py-1.5 font-mono text-[11px] uppercase tracking-[.08em] text-paper hover:border-dark-edge-bright md:min-h-[36px]"
       >
         <span className="truncate">{label}</span>
         <span aria-hidden>▾</span>
@@ -43,7 +43,7 @@ export function MapSwitcher({ slug, servers, loading }: {
           role="menu"
           // useModalBehavior focuses the panel; a div with no tabindex silently ignores it.
           tabIndex={-1}
-          className="absolute right-0 top-full z-50 mt-1 min-w-[200px] border border-ink bg-white"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[200px] border border-dark-edge bg-dark-well"
         >
           {(servers ?? []).map((s) => (
             <Link
@@ -51,7 +51,7 @@ export function MapSwitcher({ slug, servers, loading }: {
               role="menuitem"
               href={`/maps/${s.slug}`}
               onClick={() => setOpen(false)}
-              className="flex min-h-[44px] items-center justify-between gap-4 px-4 py-2 font-mono text-[13px] uppercase tracking-[.05em] text-ink-soft hover:bg-bone hover:text-ink md:min-h-[40px] md:px-3"
+              className="flex min-h-[44px] items-center justify-between gap-4 px-4 py-2 font-mono text-[13px] uppercase tracking-[.05em] text-cream-dim hover:bg-dark-hollow hover:text-paper md:min-h-[40px] md:px-3"
             >
               {/* NO COUNT HERE, deliberately. This used to render `friendCount` — friends
                   SHARING A POSITION on that server — as a bare unlabelled number, which since
@@ -65,7 +65,7 @@ export function MapSwitcher({ slug, servers, loading }: {
             </Link>
           ))}
           {loading && (
-            <p className="px-3 py-2 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+            <p className="px-3 py-2 font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
               Loading…
             </p>
           )}

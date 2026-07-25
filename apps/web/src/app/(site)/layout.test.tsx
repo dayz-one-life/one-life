@@ -30,6 +30,14 @@ describe("SiteLayout", () => {
     expect(document.getElementById("main-content")!.className).not.toMatch(/\bpb-/);
   });
 
+  // The 1440px box moved into (boxed)/layout.tsx so /maps/[map] — the one page outside that
+  // group — can run terrain edge to edge on a wide desktop. A max-w restored here would quietly
+  // re-box the map.
+  test("does NOT constrain width — the 1440px box belongs to (boxed)", () => {
+    render(<SiteLayout><div data-testid="child" /></SiteLayout>);
+    expect(document.getElementById("main-content")!.className).not.toMatch(/max-w/);
+  });
+
   // The controls rail used to live here and therefore rendered on every page in the group, which
   // is what made Survivors, the dossier, Friends and Notifications 380px narrower than they
   // needed to be. The sidebar belongs to Home alone now.

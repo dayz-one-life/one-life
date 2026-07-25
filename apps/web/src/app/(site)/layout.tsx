@@ -25,9 +25,11 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
        *  fell back to its min-height floor and Leaflet, which measures its container on creation,
        *  got a 2px box. Making this a column lets the page below grow instead of guessing.
        *
-       *  Safe for every other page: a block child of a column flex container keeps its automatic
-       *  height (nothing grows without `flex-grow`) and already stretched to full width. */}
-      <div id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col xl:px-10">
+       *  ⚠️ NO max-width here — the 1440px box lives in the nested `(boxed)/layout.tsx`, which
+       *  every page except `/maps/[map]` sits under. The map is the one surface where a centered
+       *  box is wasted terrain, and a negative-margin "full bleed" escape from a max-w parent
+       *  can't reach the viewport edge without risking horizontal overflow. */}
+      <div id="main-content" tabIndex={-1} className="flex w-full flex-1 flex-col">
         {children}
       </div>
       <Footer />

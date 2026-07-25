@@ -47,8 +47,10 @@ export function LocateButton({ self, loading, error, onLocate, mapCodename }: {
           const { lat, lng } = worldToLatLng(self.x, self.y, size, CANVAS_PX, MAX_ZOOM);
           onLocate({ lat, lng, zoom: LOCATE_ZOOM, nonce: nonce.current });
         }}
-        // ⚠️ DARK SURFACE (the top bar) — paper/cream tokens, never ink.
-        className={`flex min-h-[52px] min-w-[52px] items-center justify-center border border-dark-edge px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] md:min-h-[40px] md:min-w-[40px] md:px-3 md:text-[13px] ${
+        // ⚠️ DARK SURFACE — paper/cream tokens, never ink. bg-dark/90 is load-bearing: the
+        // button floats over pale terrain, where a transparent control disappears (mock: every
+        // overlay control is backed rgba(12,12,8,.92)).
+        className={`flex min-h-[52px] min-w-[52px] items-center justify-center border border-dark-edge bg-dark/90 px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] md:min-h-[40px] md:min-w-[40px] md:px-3 md:text-[13px] ${
           ready ? "text-paper" : "cursor-default text-cream-muted"
         }`}
       >

@@ -30,30 +30,29 @@ describe("MapSwitcher", () => {
     expect(screen.getByRole("button", { name: /loading|chernarus/i })).toBeInTheDocument();
   });
 
-  // ⚠️ INVERTED BY SUB-PROJECT D3. This asserted DARK tokens until the map's own dark top bar
-  // was deleted; the switcher now sits in the ordinary light page header. It shipped once with
-  // its old `text-paper` and rendered as an EMPTY BOX — paper on paper: present, functional and
-  // invisible, with the whole suite green. RTL asserts the DOM, not contrast, so this test is
-  // the only automated guard; the failure was found in a browser.
-  it("is written in LIGHT-surface tokens — the page header is paper", () => {
+  // ⚠️ INVERTED AGAIN — the component's third surface. Dark on the old map top bar; light when
+  // D3 first parked it in a paper page header (the un-swapped dark tokens rendered an EMPTY
+  // BOX, suite green throughout); dark once more now that it lives in the MASTHEAD right
+  // cluster, per the map-in-shell mock. RTL asserts the DOM, not contrast, so this test is the
+  // only automated guard against the fourth flip shipping half-swapped.
+  it("is written in DARK-surface tokens — it sits in the masthead", () => {
     render(<MapSwitcher slug="chernarus" servers={servers} loading={false} />);
     const btn = screen.getByRole("button", { name: /chernarus/i });
-    // Anchored to the BASE token: `hover:text-paper` is a legitimate inverted hover on an ink
-    // background (the board tabs do the same), so a bare /\btext-paper\b/ would reject it.
-    expect(btn.className).toMatch(/(^|\s)text-ink\b/);
-    expect(btn.className).not.toMatch(/(^|\s)text-paper\b/);
-    expect(btn.className).not.toMatch(/(^|\s)border-dark-edge\b/);
+    expect(btn.className).toMatch(/(^|\s)text-paper\b/);
+    expect(btn.className).not.toMatch(/(^|\s)text-ink\b/);
+    expect(btn.className).toMatch(/(^|\s)border-dark-edge\b/);
   });
 
-  it("the open menu is light too, not just the trigger", async () => {
+  it("the open menu is dark too, not just the trigger", async () => {
     // The trigger and the panel are separately styled; fixing one and not the other is exactly
     // how half a component ends up invisible.
     render(<MapSwitcher slug="chernarus" servers={servers} loading={false} />);
     screen.getByRole("button", { name: /chernarus/i }).click();
     const menu = await screen.findByRole("menu");
-    expect(menu.className).not.toMatch(/\bbg-dark-well\b/);
-    expect(menu.className).toMatch(/\bbg-white\b/);
+    expect(menu.className).toMatch(/\bbg-dark-well\b/);
+    expect(menu.className).not.toMatch(/\bbg-white\b/);
     const item = screen.getAllByRole("menuitem")[0]!;
-    expect(item.className).not.toMatch(/\btext-cream/);
+    expect(item.className).toMatch(/\btext-cream/);
+    expect(item.className).not.toMatch(/\btext-ink/);
   });
 });
