@@ -6,9 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+## [0.46.0] - 2026-07-25
 
-- Contributor docs (`CLAUDE.md`) described the old always-on location-sharing model as current.
+The rebuild from a tabloid into a player tool, slices A–E. The site is now onboarding, a control
+panel, a live map, friends and a leaderboard — and nothing else.
 
 ### Added
 
@@ -17,76 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   out, and no longer. A **"N can see you · Stop"** chip sits on the map whenever anyone can, so it
   is never something you forget you left on, and it clears itself every session. The person you
   share with gets a notification saying exactly how long it lasts.
-
-### Changed
-
-- **Location sharing is now per-session, not a standing setting.** It used to be two switches — a
-  master "share my location" and a per-friend toggle — and once on, they stayed on indefinitely.
-  They are gone. Sharing is now a grant you hand one person while you are both in a session, and
-  it dies when your session does: no expiry to remember, nothing left on for weeks. **Existing
-  location-sharing settings are discarded** — consent given under the old model does not carry
-  over. The Friends page keeps presence and the roster; location left it entirely.
-
-### Changed
-
-- **The map is a page again, not a separate application.** `/maps/<map>` had its own full-screen
-  chrome — a top bar with a back arrow, and a second bar along the bottom — which duplicated the
-  site's own masthead and tab bar badly. It now sits in the ordinary site shell, with the masthead,
-  footer and a normal page heading — and the terrain runs **edge to edge**, filling everything the
-  masthead and footer leave. **The URL has not changed.** The map switcher moved into the page
-  heading, and Locate and Online now sit in the map's bottom-right corner.
-
-### Removed
-
-- **Place search is gone from the map**, along with the coordinate readout and the centre
-  crosshair that went with it. Town labels are unchanged.
-
-### Fixed
-
-- Contributor docs (`CLAUDE.md`) still described the leaderboard's deleted sort layer as current,
-  including a rule constraining what a server may be slugged that no longer applies.
-
-### Removed
-
-- **The leaderboard's sort options are gone.** It ranked three ways — time alive, kills, longest
-  kill — and had a combined board across every server. It is now one board per map, ranked by the
-  only number that means anything in a permadeath game: how long you have stayed alive. Kills and
-  longest kill still break ties, they just aren't rankings of their own. **`/survivors/kills`,
-  `/survivors/longest` and `/survivors/<map>/<sort>` no longer exist**, and the combined
-  `/survivors` board is now a redirect to your map's board.
-
-### Changed
-
-- **`/maps` now sends you to the map you actually play.** It used to remember the last map you
-  *opened* for a whole year and otherwise guess Chernarus. It now resolves in three steps — the map
-  you looked at this browser session, then the map you last played on, then whichever map comes
-  first alphabetically. Only the first is a cookie, and it now expires with the session rather than
-  in a year's time.
-
-### Added
-
 - **A How to connect panel, wherever you need it.** There is no "join server" button — a console
   DayZ server has no join link — so the site now tells you what actually works: search **One Life**
   in the in-game server browser, pick your map from the list of live servers, and favourite them.
   It appears on the signed-out home page, under the gamertag claim box (where a player who has
   never connected would otherwise find an empty search), and beside any server you have no life on.
-
-### Changed
-
-- **The home page now has three modes.** Signed out, it forks: *already playing* sends you
-  straight to claiming your gamertag, *new here* shows you how to connect. Signed in without a
-  verified gamertag, it is a three-step ladder — signed in, claim your gamertag, prove it's you —
-  with the current step open and the rest collapsed to a line. Verified, it is your control panel.
-- **The home page's tokens block is now a summary** — your balance and what it is for. Sending a
-  token and setting a referrer stay on **You**, and spending one to lift a ban stays on the banned
-  server's own row, which already knows which ban you mean.
-
-- **Your servers are grouped by what they need from you** — serving a ban, currently living, then
-  nothing running — instead of one flat list. When you only have one server row to show, the
-  heading is dropped rather than labelling a group of one.
-
-### Added
-
 - **Your fresh life is now visible during the five-minute grace period.** Until now a life inside
   the grace window was filtered out of your standing entirely, so the server you were actively
   playing on showed as **idle** — "Spawn in any time" — while you were standing on it. It now shows
@@ -96,21 +32,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Location sharing is now per-session, not a standing setting.** It used to be two switches — a
+  master "share my location" and a per-friend toggle — and once on, they stayed on indefinitely.
+  They are gone. Sharing is now a grant you hand one person while you are both in a session, and
+  it dies when your session does: no expiry to remember, nothing left on for weeks. **Existing
+  location-sharing settings are discarded** — consent given under the old model does not carry
+  over. The Friends page keeps presence and the roster; location left it entirely.
 - **New app shell.** Navigation is now **Home · Maps · Leaderboard · About**. On phones a bottom
   tab bar (Home · Map · Board · Friends · You) replaces the hamburger menu and the account sheet,
   and About moves into the footer. The account controls move to a dedicated **`/you`** page,
   reachable from the masthead at every width. The controls rail becomes a Home-only sidebar, so
   the leaderboard, player dossiers, Friends, Notifications and About all get their full width
   back. "Leaderboard" is a rename of "Survivors" — the URL is unchanged.
-
-### Changed
-
+- **The home page now has three modes.** Signed out, it forks: *already playing* sends you
+  straight to claiming your gamertag, *new here* shows you how to connect. Signed in without a
+  verified gamertag, it is a three-step ladder — signed in, claim your gamertag, prove it's you —
+  with the current step open and the rest collapsed to a line. Verified, it is your control panel.
+- **The home page's tokens block is now a summary** — your balance and what it is for. Sending a
+  token and setting a referrer stay on **You**, and spending one to lift a ban stays on the banned
+  server's own row, which already knows which ban you mean.
+- **Your servers are grouped by what they need from you** — serving a ban, currently living, then
+  nothing running — instead of one flat list. When you only have one server row to show, the
+  heading is dropped rather than labelling a group of one.
+- **The map is a page again, not a separate application.** `/maps/<map>` had its own full-screen
+  chrome — a top bar with a back arrow, and a second bar along the bottom — which duplicated the
+  site's own masthead and tab bar badly. It now sits in the ordinary site shell, with the masthead,
+  footer and a normal page heading — and the terrain runs **edge to edge**, filling everything the
+  masthead and footer leave. **The URL has not changed.** The map switcher moved into the page
+  heading, and Locate and Online now sit in the map's bottom-right corner.
+- **`/maps` now sends you to the map you actually play.** It used to remember the last map you
+  *opened* for a whole year and otherwise guess Chernarus. It now resolves in three steps — the map
+  you looked at this browser session, then the map you last played on, then whichever map comes
+  first alphabetically. Only the first is a cookie, and it now expires with the session rather than
+  in a year's time. **`/survivors` follows the same rule**, so the map and the board agree about
+  where "here" is.
 - **Site copy no longer promises a paper that does not exist.** With the content engine retired,
   the home hero ("One life. Then the obituary"), the About page ("the Morgue Desk publishes the
   obituary", "a newsroom bolted on", "a birth announcement runs"), the Survivors subhead, the
   sign-in CTAs and the site meta description all described features that had been deleted. They now
   describe what the site actually does. The About page's server grid also auto-fits instead of
   assuming exactly three servers.
+
+### Removed
+
+- **The leaderboard's sort options are gone.** It ranked three ways — time alive, kills, longest
+  kill — and had a combined board across every server. It is now one board per map, ranked by the
+  only number that means anything in a permadeath game: how long you have stayed alive. Kills and
+  longest kill still break ties, they just aren't rankings of their own. **`/survivors/kills`,
+  `/survivors/longest` and `/survivors/<map>/<sort>` no longer exist**, and the combined
+  `/survivors` board is now a redirect to your map's board.
+- **Place search is gone from the map**, along with the coordinate readout and the centre
+  crosshair that went with it. Town labels are unchanged.
+
+### Fixed
+
+- Contributor docs (`CLAUDE.md`) described the old always-on location-sharing model, and the
+  leaderboard's deleted sort layer, as current — including a rule constraining what a server may
+  be slugged that no longer applies.
 
 ## [0.45.0] - 2026-07-24
 
