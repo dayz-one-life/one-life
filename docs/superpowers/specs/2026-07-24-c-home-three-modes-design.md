@@ -19,54 +19,67 @@ data to render the states honestly does not exist yet.
 
 ---
 
-## 2. The bug this fixes
+## 2. The gap this closes
 
-**`ServerStanding.state === "alive"` currently means "has an open life", not "has a qualified
-life".** `profile.alive` is `openLife !== null` (`packages/read-models/src/queries.ts:64`), and
-`getPlayerPage` branches on it directly.
+**Corrected 2026-07-24, after reading the code rather than inferring it.** An earlier draft of this
+spec claimed the standing renders **"Qualified"** during the five-minute grace period — i.e. that
+the site tells a player death costs 24 hours during the window where it is free. **That is wrong,
+and the opposite mistake is the real one.**
 
-So a player inside the five-minute grace period is rendered as **`Qualified · 0h 2m this life`**
-(`serverFactLine`, `components/account/format.ts`). That is not a cosmetic slip — it is backwards
-in the way that matters most:
+`getPlayerLives` (`packages/read-models/src/queries.ts:76`) already filters its rows through
+`isLifeQualified`. `getPlayerPage`'s `openLife` is drawn from that filtered list, so the `alive`
+branch is only ever reached for a life that has *already* qualified. The `Qualified · …` fact line
+is accurate wherever it appears.
 
-- The grace period is the one window where **death is free** and a reroll costs nothing.
-- The site currently tells the player, in that exact window, that their life is qualified — i.e.
-  that dying now costs them 24 hours.
+**The real behaviour: an unqualified life is invisible.** During the grace period the player's own
+home page shows that server as **idle** — "Spawn in any time. First 5 minutes are free." — or omits
+it entirely if they have no other qualified life there. A player who has just washed ashore, is
+holding the controller, and looks at the site, sees no sign of the life they are living.
 
-A player who believes that will not reroll a bad spawn. **This is a live-data-honesty violation of
-the same family as the dry-run phantom bans** (v0.29.4): the UI asserts a state the backend has not
-established. It has been shipped since the rail existed.
+That is a smaller bug than the one I first described, and a different kind: **an omission, not a
+false statement.** It still justifies the "not yet qualified" state, for two reasons:
 
-Fixing it is the reason "not yet qualified" is a distinct state in this design rather than a
-styling flourish.
+1. It is the only window in which a reroll is free, so it is the window where a player most wants
+   to know where they stand — and it is the one window the site is silent.
+2. "Idle" is a positive claim ("you have no life here") that is false while they are playing.
 
----
+**⚠️ Scope consequence.** Surfacing it is NOT a one-field addition. `getPlayerLives` is the shared
+qualified-lives filter behind the dossier's past-life list, the standing, and the totals; making it
+return unqualified lives would change all three. The change must therefore be **additive** — a
+separate lookup for the open unqualified life — rather than a loosening of that filter. §3 is
+written accordingly.
 
 ## 3. Read-model change
 
-`getPlayerPage`'s alive branch gains **`qualified: boolean`** and **`qualifiedAt: Date | null`** on
-`AliveStanding`, computed with the existing `lifeQualifiedAt()` over the open life's sessions and
-kills.
+`getPlayerPage` gains an **additive** lookup: when a server has no qualified open life, query for an
+**open life regardless of qualification**, and if one exists emit the card as
+`state: "alive"` with `alive.qualified: false` and `alive.qualifiedAt: null`.
 
-**⚠️ Qualification stays DERIVED at read time and is never materialized.** This is the
-`isLifeQualified` precedent, and it is load-bearing in three places already (the survivors board,
-the enforcer, the notifier's `life_qualified` generator). A fourth source of truth — a
-`lives.qualified` column — would drift from the other three the first time the fold changed.
+**⚠️ Do NOT loosen `getPlayerLives`.** It is the shared qualified-lives filter behind the dossier's
+past-life list, the standing and the totals; widening it would silently add provisional lives to a
+public profile's history and to the lives/deaths counts. The new lookup is a separate query whose
+result is used for the standing card only, and **it must not touch `totals`**.
 
-**⚠️ There is deliberately no SQL prefilter on `lives.playtime_seconds`.** That column only
-advances at session close, so it is stale mid-session — which is exactly the window this feature
-exists to describe. `apps/notifier/src/generators/lives.ts` documents the same trap.
+For a qualified open life the card gains `qualified: true` and the `qualifiedAt` instant, computed
+with the existing `lifeQualifiedAt()`.
 
-The `state` union is **not** widened to `"unqualified"`. The card's state stays
-`alive | banned | idle`, and `alive.qualified` refines it. Widening the union would force every
-existing consumer (`serverCards`, the dossier, `aliveAnywhere`) to handle a fourth case whose
-meaning is "alive, but".
+**⚠️ Qualification stays DERIVED at read time and is never materialized** — the `isLifeQualified`
+precedent, already load-bearing for the survivors board, the enforcer and the notifier's
+`life_qualified` generator. A `lives.qualified` column would be a fourth source of truth and would
+drift the first time the fold changed.
 
-**`aliveAnywhere` keeps its current meaning — an open life, qualified or not.** It feeds the
-dossier's `Alive ×N` badge, which is about presence, not leaderboard eligibility. Changing it here
-would silently alter a public page this sub-project does not otherwise touch.
+**⚠️ There is deliberately no SQL prefilter on `lives.playtime_seconds`.** That column only advances
+at session close, so it is stale mid-session — exactly the window this feature describes.
+`apps/notifier/src/generators/lives.ts` documents the same trap.
 
----
+The `state` union is **not** widened to `"unqualified"`; `alive.qualified` refines it. Widening it
+would force every existing consumer (`serverCards`, the dossier, `aliveAnywhere`) to handle a
+fourth case meaning "alive, but".
+
+**`aliveAnywhere` keeps its current meaning and must NOT count an unqualified life.** It feeds the
+dossier's public `Alive ×N` badge and the survivors board's notion of alive, both of which are
+leaderboard-facing. Counting provisional lives there would put grace-period players into a public
+count they are not yet part of.
 
 ## 4. The three modes
 
