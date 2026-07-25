@@ -12,6 +12,7 @@ import { LinkTagPanel } from "@/components/account/link-panel";
 import { ProveItPanel } from "@/components/account/verify-panel";
 import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
 import { ServerCard } from "@/components/servers/server-cards";
+import { groupServerCards, isSoleRow, type ServerGroup } from "@/components/servers/grouping";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
 function PanelsSkeleton() {
@@ -59,6 +60,50 @@ function SignedInFooter({ profileSlug }: { profileSlug?: string }) {
         Sign out
       </button>
     </div>
+  );
+}
+
+const GROUP_HEADING: Record<ServerGroup["state"], string> = {
+  banned: "Serving a ban",
+  alive: "Currently living",
+  idle: "Nothing running",
+};
+
+/**
+ * Server rows grouped by state. The heading is omitted for a sole row — with one group holding one
+ * row there is nothing to distinguish it from, and the heading would be pure chrome.
+ */
+function ServerGroups({
+  groups, ownSlug, balance, balanceLoading, now, onRedeem, redeeming,
+}: {
+  groups: ServerGroup[]; ownSlug: string; balance: number; balanceLoading: boolean; now: Date;
+  onRedeem: (banId: number) => void; redeeming: boolean;
+}) {
+  const sole = isSoleRow(groups);
+  return (
+    <>
+      {groups.map((g) => (
+        <section key={g.state} aria-label={GROUP_HEADING[g.state]} className="flex flex-col gap-2.5">
+          {!sole && (
+            <h3 className="font-mono text-[10.5px] uppercase tracking-[.08em] text-ink-muted">
+              {GROUP_HEADING[g.state]}
+            </h3>
+          )}
+          {g.cards.map((card) => (
+            <ServerCard
+              key={card.slug}
+              card={card}
+              ownSlug={ownSlug}
+              balance={balance}
+              balanceLoading={balanceLoading}
+              now={now}
+              onRedeem={onRedeem}
+              redeeming={redeeming}
+            />
+          ))}
+        </section>
+      ))}
+    </>
   );
 }
 
@@ -130,18 +175,15 @@ export function AccountPanels() {
         {c.standingLoading ? (
           <ServerCardsSkeleton />
         ) : (
-          cards.map((card) => (
-            <ServerCard
-              key={card.slug}
-              card={card}
-              ownSlug={slug}
-              balance={c.balance ?? 0}
-              balanceLoading={c.balanceLoading}
-              now={now}
-              onRedeem={(banId) => a.redeem.mutate(banId)}
-              redeeming={a.redeem.isPending}
-            />
-          ))
+          <ServerGroups
+            groups={groupServerCards(cards)}
+            ownSlug={slug}
+            balance={c.balance ?? 0}
+            balanceLoading={c.balanceLoading}
+            now={now}
+            onRedeem={(banId) => a.redeem.mutate(banId)}
+            redeeming={a.redeem.isPending}
+          />
         )}
       </>
     );
