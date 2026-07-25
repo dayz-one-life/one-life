@@ -17,14 +17,13 @@ export function positionAge(recordedAt: string, now: Date): string {
  * server list, so terrain and towns draw for everyone; the dots come from the session-gated
  * `/me/maps/:slug`, so a signed-out or unverified visitor renders the same map with none.
  */
-export default function FriendsMap({ mapCodename, positions, now, focus, onCenterChange }: {
+export default function FriendsMap({ mapCodename, positions, now, focus }: {
   mapCodename: string;
   positions: readonly FriendPositionDto[];
   now: Date;
   focus?: MapFocus | null;
   /** Passed straight through to MapCanvas. The centre is owned by MapPage, because the chip
    *  that reads it is chrome — on a phone it renders in the bottom bar, outside this map. */
-  onCenterChange?: (world: { x: number; y: number }) => void;
 }) {
 
   function draw({ L, group, pt }: DrawContext): unknown[] {
@@ -49,23 +48,23 @@ export default function FriendsMap({ mapCodename, positions, now, focus, onCente
     return all;
   }
 
-  // No legend/list is rendered here: it lives in the top/bottom bars' FriendsPanel (now the
-  // online list, @/components/map/shell/online-list), which is its only home now that the map
-  // fills the viewport.
+  // No legend/list is rendered here: it lives in the map's FriendsPanel (the online list,
+  // @/components/map/shell/online-list), which is its only home.
+  //
+  // ⚠️ `absolute inset-0`, NOT a `h-full` chain. The map fills a `flex-1` box, and a percentage
+  // height whose ancestor sizes by flex-grow is not reliably resolvable — this shipped as a
+  // 2px-tall Leaflet container with 77 markers drawn into it and every test green, because
+  // jsdom computes no layout. Absolute positioning against the caller's `relative` box has no
+  // such ambiguity. The caller MUST therefore be positioned; MapPage's map box is `relative`.
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="relative min-h-0 flex-1">
-        <MapCanvas
-          mapCodename={mapCodename}
-          draw={draw}
-          drawKey={positions}
-          focus={focus}
-          onCenterChange={onCenterChange}
-          className="h-full w-full"
-        />
-        {/* Decorative: the grid chip in the chrome carries the same information as text. */}
-        <span aria-hidden className="map-crosshair" />
-      </div>
+    <div className="absolute inset-0">
+      <MapCanvas
+        mapCodename={mapCodename}
+        draw={draw}
+        drawKey={positions}
+        focus={focus}
+        className="h-full w-full"
+      />
     </div>
   );
 }

@@ -19,7 +19,15 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
       {/* ⚠️ The TabBar gutter is NOT here — it is on the <Footer/>, which is the last in-flow
        *  element in the document. Padding this column instead leaves the footer itself under the
        *  fixed bar, which hid the footer's About link (its only route below `md`). */}
-      <div id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[1440px] flex-1 xl:px-10">
+      {/* ⚠️ `flex flex-col` is load-bearing for `/maps/[map]`, which fills the space the masthead
+       *  and footer leave. `flex-1` already gave THIS element a height, but it was `display:
+       *  block`, so a percentage height on a child had nothing to resolve against — the map page
+       *  fell back to its min-height floor and Leaflet, which measures its container on creation,
+       *  got a 2px box. Making this a column lets the page below grow instead of guessing.
+       *
+       *  Safe for every other page: a block child of a column flex container keeps its automatic
+       *  height (nothing grows without `flex-grow`) and already stretched to full width. */}
+      <div id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col xl:px-10">
         {children}
       </div>
       <Footer />
