@@ -78,6 +78,5 @@ export function transferErrorLabel(code: string): string {
   if (code === "not_verified") return "Not a verified player";
   if (code === "insufficient_tokens") return "Not enough tokens";
   if (code === "self_transfer") return "That's you";
-  if (code === "already_set") return "Already set";
   return "Something went wrong";
 }

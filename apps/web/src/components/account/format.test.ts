@@ -78,7 +78,6 @@ describe("transferErrorLabel", () => {
     expect(transferErrorLabel("not_verified")).toBe("Not a verified player");
     expect(transferErrorLabel("insufficient_tokens")).toBe("Not enough tokens");
     expect(transferErrorLabel("self_transfer")).toBe("That's you");
-    expect(transferErrorLabel("already_set")).toBe("Already set");
     expect(transferErrorLabel("boom")).toBe("Something went wrong");
   });
 });

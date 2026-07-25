@@ -152,8 +152,6 @@ export const redeemToken = (banId?: number) =>
   apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
 export const transferToken = (toGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
-export const setReferrer = (referrerGamertag: string) =>
-  apiSend<{ ok: true }>("POST", "/api/me/referrer", { referrerGamertag });
 
 export const getNotifications = (page = 1) =>
   apiGet<NotificationsFeed>(`/api/me/notifications?page=${page}`);

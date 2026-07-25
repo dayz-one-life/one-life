@@ -75,9 +75,15 @@ describe("YouPanel", () => {
     expect(screen.getByRole("link", { name: /home page/i })).toHaveAttribute("href", "/");
   });
 
-  test("verified: no 'claim it on Home' nudge — there is nothing left to claim", () => {
-    controls({ status: { kind: "verified", link: { gamertag: "Ghost" } }, balance: 0 });
+  // Home-is-the-app spec §3: tokens moved back to Home; /you is the avatar-menu seed and must
+  // not grow app surface back. The claim wording stays absent (nothing left to claim); the
+  // pointer home now names servers and tokens instead.
+  test("verified: no tokens panel — a pointer home to servers and tokens instead", () => {
+    controls({ status: { kind: "verified", link: { gamertag: "Ghost" } }, balance: 5 });
     render(<YouPanel />);
-    expect(screen.queryByRole("link", { name: /home page/i })).toBeNull();
+    expect(screen.queryByText(/unban tokens/i)).toBeNull();
+    expect(screen.queryByText(/claim/i)).toBeNull();
+    expect(screen.getByText(/your servers and tokens live on the/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /home page/i })).toHaveAttribute("href", "/");
   });
 });

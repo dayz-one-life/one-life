@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccountStatus } from "@/lib/use-account-status";
 import { useCancelLink, useClaimGamertag } from "@/lib/use-gamertag-links";
-import { getMe, getPlayerPage, getServers, getTokens, redeemToken, setReferrer, transferToken } from "@/lib/api";
+import { getMe, getPlayerPage, getServers, getTokens, redeemToken, transferToken } from "@/lib/api";
 import { playerSlug } from "@/lib/slug";
 import type { AccountStatus } from "@/lib/account-status";
 import type { Server, ServerStanding } from "@/lib/types";
@@ -78,7 +78,6 @@ export function useControlsActions() {
     mutationFn: (gt: string) => transferToken(gt),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["tokens"] }),
   });
-  const refer = useMutation({ mutationFn: (gt: string) => setReferrer(gt) });
   const redeem = useMutation({
     mutationFn: (banId: number) => redeemToken(banId),
     onSuccess: () => {
@@ -86,5 +85,5 @@ export function useControlsActions() {
       void qc.invalidateQueries({ queryKey: ["player-page"] });
     },
   });
-  return { claim, cancel, send, refer, redeem };
+  return { claim, cancel, send, redeem };
 }

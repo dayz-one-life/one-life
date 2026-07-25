@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The verified home is the app again**, matching the design-phase mockups the build had drifted
+  from. The alive card is now the hero — a big time-alive readout (time alive is the only stat;
+  kills and sessions are gone from home cards) with **Timeline** and **Open map** actions. Idle
+  server rows carry a **Join ▸** that expands the how-to-connect instructions in place. The full
+  **tokens panel (balance + Send)** moved back to Home from the account page, and the friends
+  panel now shows in Home's main column on phones, not just the desktop sidebar.
+- **The desktop sidebar earns its column**: friends, the top of the board Home resolves for you
+  (your own row marked), and your latest notifications.
+- **The account page (`/you`) slimmed down** to identity, your profile link and sign-out — the
+  seed of the future avatar menu. Servers and tokens live on Home.
+
+### Removed
+
+- **The manual "referred by" form.** Referral attribution returns as invite links in the upcoming
+  referral system; the form that asked you to type your referrer's gamertag is gone.
+
 ## [0.46.0] - 2026-07-25
 
 The rebuild from a tabloid into a player tool, slices A–E. The site is now onboarding, a control

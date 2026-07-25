@@ -2,22 +2,13 @@
 import Link from "next/link";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { playerSlug } from "@/lib/slug";
-import { ApiError } from "@/lib/api";
-import { useControls, useControlsActions } from "@/components/account/use-controls";
-import { transferErrorLabel } from "@/components/account/format";
+import { useControls } from "@/components/account/use-controls";
 import { IdentityRow } from "@/components/account/identity-row";
-import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
-
-function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
-  return {
-    pending: m.isPending,
-    ok: m.isSuccess,
-    error: m.isError ? transferErrorLabel(m.error instanceof ApiError ? m.error.code : "") : null,
-  };
-}
 
 /**
- * The account page body: identity, tokens and sign-out — the things a player changes rarely.
+ * The account page body — the seed of the avatar menu (home-is-the-app spec, amendment 4):
+ * identity, the profile link and sign-out. Account-control things (update avatar, …) land here
+ * later. Tokens and servers live on Home — this page must never grow app surface back.
  *
  * ⚠️ The claim/verify ladder is deliberately NOT here. `unlinked` and `pending` are onboarding
  * states, which sub-project C's three-mode home owns, and /you must never be the only route to
@@ -25,7 +16,6 @@ function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; 
  */
 export function YouPanel() {
   const c = useControls();
-  const a = useControlsActions();
 
   if (c.status.kind === "loading") {
     return <div aria-busy="true" aria-hidden className="h-40 bg-bone motion-safe:animate-pulse" />;
@@ -70,15 +60,13 @@ export function YouPanel() {
       )}
 
       {verified && (
-        <TokensPanel
-          balance={c.balance ?? 0}
-          balanceLoading={c.balanceLoading}
-          send={mutView(a.send)}
-          referrer={mutView(a.refer)}
-          onSend={(gt) => a.send.mutate(gt)}
-          onSetReferrer={(gt) => a.refer.mutate(gt)}
-          myGamertag={gamertag!}
-        />
+        <p className="font-sans text-base text-ink-soft">
+          Your servers and tokens live on the{" "}
+          <Link href="/" className="underline decoration-red decoration-2 underline-offset-2">
+            home page
+          </Link>
+          .
+        </p>
       )}
 
       {/* Sign-out renders in EVERY signed-in state — an unlinked or pending user must always be
