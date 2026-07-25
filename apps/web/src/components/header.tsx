@@ -14,7 +14,13 @@ function NavLinks({ active, className }: { active: string | null; className?: st
           key={item.key}
           href={item.href}
           aria-current={active === item.key ? "page" : undefined}
-          className={cn(active === item.key ? "text-red" : "text-paper hover:text-red", className)}
+          className={cn(
+            "border-b-2 pb-0.5",
+            active === item.key
+              ? "border-red text-paper"
+              : "border-transparent text-cream-dim hover:text-paper",
+            className,
+          )}
         >
           {item.label}
         </Link>
@@ -41,35 +47,35 @@ export function Masthead() {
     //   z-50    full-screen overlays that must cover the chrome: the skip-to-content link
     //           (`app/layout.tsx`, which renders BEFORE the header and so would lose a z-50 tie).
     // Keep the masthead strictly BELOW 50 — an equal value leaves that decided by DOM order.
+    // One compact app bar, per the design mocks (verified-desktop/pure-app-ia): wordmark left,
+    // nav inline beside it, bell + avatar right — the two-tier tabloid masthead (big centered
+    // wordmark over a nav row) is retired with the tabloid.
     <header className="relative z-40 bg-dark">
-      <div className="relative flex items-center justify-center px-4 pt-5 md:pt-7">
-        <Link href="/" aria-label="One Life — home">
+      <div className="flex h-14 items-center gap-7 px-4 md:px-6">
+        <Link href="/" aria-label="One Life — home" className="flex-none">
           <img
             src="/brand/wordmark-primary@2x.png"
             alt="One Life"
             width={1641}
             height={499}
-            className="h-auto w-[150px] md:w-[280px]"
+            className="h-auto w-[105px]"
           />
         </Link>
-        {/* The bell and the account control share one right-cluster wrapper — each used to
-         *  self-position `absolute right-4`, which made them collide. Only this wrapper
-         *  positions itself; both children render as plain inline controls. */}
-        <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-1 md:top-auto md:translate-y-0">
+        {/* Below md the nav is the TabBar (shell/tab-bar.tsx): Home, Map, Board and the account
+         *  destinations. About lives in the footer. */}
+        <nav
+          aria-label="Primary"
+          className="hidden items-center gap-6 font-mono text-[11px] uppercase tracking-[.13em] md:flex"
+        >
+          <NavLinks active={active} />
+        </nav>
+        {/* The bell and the account control share one right cluster; both render as plain
+         *  inline controls (they used to self-position absolutely and collided). */}
+        <div className="ml-auto flex flex-none items-center gap-1">
           <MastheadBell />
           <AccountAffordance />
         </div>
       </div>
-
-      <nav
-        aria-label="Primary"
-        className="mt-4 hidden justify-center gap-9 border-t border-dark-line py-3 font-display text-[15px] font-semibold uppercase tracking-[.12em] md:flex"
-      >
-        <NavLinks active={active} />
-      </nav>
-      {/* Below md the nav row is replaced by the TabBar (shell/tab-bar.tsx), which carries Home,
-       *  Map, Board and the account destinations. About lives in the footer. */}
-      <div className="mt-4 border-t border-dark-line md:hidden" />
     </header>
   );
 }

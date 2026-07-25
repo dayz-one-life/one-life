@@ -20,12 +20,14 @@ describe("Masthead", () => {
     }
   });
 
-  it("marks the active section with aria-current and red", () => {
+  it("marks the active section with aria-current and the red underline", () => {
     mockPathname.mockReturnValue("/survivors/sakhal");
     render(<Masthead />);
     const link = screen.getAllByRole("link", { name: "Leaderboard" })[0]!;
     expect(link).toHaveAttribute("aria-current", "page");
-    expect(link.className).toContain("text-red");
+    // Mock app bar: active = paper text over a red underline; inactive = dimmed cream.
+    expect(link.className).toContain("border-red");
+    expect(link.className).toContain("text-paper");
   });
 
   it("has no hamburger — the TabBar replaced the mobile menu", () => {
@@ -45,12 +47,12 @@ describe("Masthead", () => {
     const bell = screen.getByTestId("bell-stub");
     const account = screen.getByTestId("account-stub");
     const cluster = bell.parentElement;
-    // Both live inside the same wrapper — so only the wrapper, not each control, positions
-    // itself `absolute right-4` (the overlap this refactor exists to fix).
+    // Both live inside the same wrapper, which flexes to the right (`ml-auto`) — neither
+    // control positions itself absolutely (the overlap the original refactor existed to fix).
     expect(account.parentElement).toBe(cluster);
-    expect(cluster?.className).toContain("right-4");
-    expect(bell.className).not.toContain("right-4");
-    expect(account.className).not.toContain("right-4");
+    expect(cluster?.className).toContain("ml-auto");
+    expect(bell.className).not.toContain("absolute");
+    expect(account.className).not.toContain("absolute");
   });
 
   it("the masthead is a stacking layer above page content but below full-screen overlays", () => {

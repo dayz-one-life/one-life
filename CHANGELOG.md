@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   died-X-ago datelines and per-row `Join ▸` that expands the how-to-connect instructions in
   place; and a light **tokens card** (balance + Send). The identity row and profile/sign-out
   footer left the verified home — account controls live behind the masthead avatar.
+- **The masthead is a compact app bar** — wordmark left, nav inline beside it with a red
+  underline on the active section, bell and account on the right — replacing the two-tier
+  tabloid masthead (big centered wordmark over a separate nav row).
 - **"Friends online" replaces the friends count**, on the home sidebar and the phone home: each
   online friend with the map they're on and whether they share their position with you (sharing
   itself stays on the map's online list, and there is no mini-map — per the design amendments).
