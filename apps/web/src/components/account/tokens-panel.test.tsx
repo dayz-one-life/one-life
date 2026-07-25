@@ -123,20 +123,18 @@ describe("TokensPanel", () => {
       expect(screen.getByText(/checking your balance/i)).toBeInTheDocument();
     });
 
-    // Regression pin (two-surface token rule, CLAUDE.md): TokensPanel always sits on a
-    // dark-toned surface (its own `bg-dark` island on a light page
-    // sheet), so the loading chip must carry the dark `bg-dark-well` token, never a light one
-    // like `bg-bone`/`bg-paper` — a panel that ships an ink-on-dark token is present in the DOM
-    // and fully functional, but invisible on a phone (this exact class of bug shipped in v0.26.0).
-    test("the balance-loading chip carries the dark-surface bg-dark-well token, not a light one", () => {
+    // Two-surface token rule (CLAUDE.md): TokensPanel is a LIGHT card since the mock-faithful
+    // restyle, so the loading chip must carry a light token, never the old dark-island
+    // `bg-dark-well` — a token from the wrong surface renders present in the DOM and fully
+    // functional, but invisible (this exact class of bug shipped in v0.26.0).
+    test("the balance-loading chip carries a light-surface token, not the old dark-island one", () => {
       render(<TokensPanel balance={0} balanceLoading send={idle} onSend={() => {}} />);
       // The matched text lives on the inner sr-only span; the chip itself (bearing the visible
       // token) is its parent.
       const chip = screen.getByText(/checking your balance/i).parentElement;
       expect(chip).not.toBeNull();
-      expect(chip!.className).toContain("bg-dark-well");
-      expect(chip!.className).not.toContain("bg-bone");
-      expect(chip!.className).not.toContain("bg-paper");
+      expect(chip!.className).toContain("bg-bone");
+      expect(chip!.className).not.toContain("bg-dark-well");
     });
 
     test("a genuinely-resolved zero balance still renders as the numeral 0", () => {

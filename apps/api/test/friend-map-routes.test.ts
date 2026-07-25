@@ -208,6 +208,23 @@ describe("friend map routes", () => {
     const res = await get(`/me/maps/sakhal-${svc}`, pendingCookie);
     expect(res.statusCode).toBe(403);
   });
+
+  // The home sidebar's cross-fleet friends list. Relies on the fixture the "agrees" test above
+  // built: Buddy is a friend, online on sakhal, sharing with the viewer.
+  it("GET /me/friends/online lists online friends with the same sharing boolean as the map", async () => {
+    const res = await get("/me/friends/online", cookie);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["cache-control"]).toBe("no-store, private");
+    const row = res.json().friends.find((f: { gamertag: string }) => f.gamertag === `Buddy${svc}`);
+    expect(row).toBeTruthy();
+    expect(row.slug).toBe(`sakhal-${svc}`);
+    expect(row.sharing).toBe(true);
+  });
+
+  it("GET /me/friends/online is 401 signed out and 403 unverified", async () => {
+    expect((await get("/me/friends/online", "")).statusCode).toBe(401);
+    expect((await get("/me/friends/online", pendingCookie)).statusCode).toBe(403);
+  });
 });
 
 /**

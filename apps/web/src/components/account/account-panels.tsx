@@ -12,10 +12,9 @@ import { LinkTagPanel } from "@/components/account/link-panel";
 import { ProveItPanel } from "@/components/account/verify-panel";
 import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
 import { LadderFrame } from "@/components/account/ladder-frame";
-import { ServerCard } from "@/components/servers/server-cards";
-import { groupServerCards, isSoleRow, type ServerGroup } from "@/components/servers/grouping";
-import { HowToConnect, serversView, type ServersView } from "@/components/servers/how-to-connect";
-import { FriendsPanelContainer } from "@/components/friends/friends-panel";
+import { StandingGroups } from "@/components/servers/standing-groups";
+import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
+import { OnlineFriendsContainer } from "@/components/friends/online-friends";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
@@ -47,67 +46,14 @@ function ServerCardsSkeleton() {
   );
 }
 
-/** Shown in every signed-in state so a signed-in user can always sign out; the profile link only
- *  appears once a gamertag is verified. */
-function SignedInFooter({ profileSlug }: { profileSlug?: string }) {
+/** Onboarding-state escape hatch: an unlinked/pending user must always be able to bail out. */
+function SignedInFooter() {
   return (
-    <div className="flex justify-between border-t border-hairline pt-2.5 font-mono text-[11px] uppercase tracking-[.05em]">
-      {profileSlug ? (
-        <Link href={`/players/${profileSlug}`} className="font-bold text-ink hover:text-red">
-          Your profile →
-        </Link>
-      ) : (
-        <span />
-      )}
+    <div className="flex justify-end border-t border-hairline pt-2.5 font-mono text-[11px] uppercase tracking-[.05em]">
       <button type="button" onClick={() => void signOutAndTeardownPush()} className="text-ink-muted hover:text-red">
         Sign out
       </button>
     </div>
-  );
-}
-
-const GROUP_HEADING: Record<ServerGroup["state"], string> = {
-  banned: "Serving a ban",
-  alive: "Currently living",
-  idle: "Nothing running",
-};
-
-/**
- * Server rows grouped by state. The heading is omitted for a sole row — with one group holding one
- * row there is nothing to distinguish it from, and the heading would be pure chrome.
- */
-function ServerGroups({
-  groups, ownSlug, balance, balanceLoading, now, onRedeem, redeeming, joinServers,
-}: {
-  groups: ServerGroup[]; ownSlug: string; balance: number; balanceLoading: boolean; now: Date;
-  onRedeem: (banId: number) => void; redeeming: boolean; joinServers: ServersView;
-}) {
-  const sole = isSoleRow(groups);
-  return (
-    <>
-      {groups.map((g) => (
-        <section key={g.state} aria-label={GROUP_HEADING[g.state]} className="flex flex-col gap-2.5">
-          {!sole && (
-            <h3 className="font-mono text-[10.5px] uppercase tracking-[.08em] text-ink-muted">
-              {GROUP_HEADING[g.state]}
-            </h3>
-          )}
-          {g.cards.map((card) => (
-            <ServerCard
-              key={card.slug}
-              card={card}
-              ownSlug={ownSlug}
-              balance={balance}
-              balanceLoading={balanceLoading}
-              now={now}
-              onRedeem={onRedeem}
-              redeeming={redeeming}
-              joinServers={joinServers}
-            />
-          ))}
-        </section>
-      ))}
-    </>
   );
 }
 
@@ -190,20 +136,20 @@ export function AccountPanels({ signInFallback = false }: {
   } else {
     const gamertag = c.status.link.gamertag;
     const slug = playerSlug(gamertag);
+    // Verified home = the mock's control panel: standing groups, tokens, friends online. No
+    // identity row and no profile/sign-out footer here — the masthead avatar (/you) owns account
+    // entry, per the avatar-menu amendment.
     body = (
       <>
-        <IdentityRow name={gamertag} provider={c.provider} verified />
-        <h2 className="border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink">
-          Your servers
-        </h2>
         {c.standingLoading ? (
           <ServerCardsSkeleton />
         ) : (
-          <ServerGroups
-            groups={groupServerCards(cards)}
+          <StandingGroups
+            cards={cards}
             ownSlug={slug}
             balance={c.balance ?? 0}
             balanceLoading={c.balanceLoading}
+            previousBestSeconds={c.previousBestSeconds}
             now={now}
             onRedeem={(banId) => a.redeem.mutate(banId)}
             redeeming={a.redeem.isPending}
@@ -222,15 +168,13 @@ export function AccountPanels({ signInFallback = false }: {
         />
         {/* xl:hidden — the xl sidebar already mounts this; two mounts, one component (spec §4). */}
         <div className="xl:hidden">
-          <FriendsPanelContainer />
+          <OnlineFriendsContainer />
         </div>
       </>
     );
   }
 
-  const signedIn =
-    c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
-  const profileSlug = c.status.kind === "verified" ? playerSlug(c.status.link.gamertag) : undefined;
+  const showFooter = c.status.kind === "unlinked" || c.status.kind === "pending";
 
   return (
     <section aria-label="Your account" className="flex flex-col gap-4">
@@ -238,7 +182,9 @@ export function AccountPanels({ signInFallback = false }: {
        *  pending -> verified panel swap to announce the change (SR-structure spec). */}
       <VerificationAnnouncer kind={c.status.kind} />
       {body}
-      {signedIn && <SignedInFooter profileSlug={profileSlug} />}
+      {/* Onboarding states keep an inline sign-out (they may need to bail); verified account
+       *  controls live behind the masthead avatar instead. */}
+      {showFooter && <SignedInFooter />}
     </section>
   );
 }

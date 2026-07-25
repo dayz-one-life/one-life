@@ -19,7 +19,10 @@ export interface PlayerCharacter { name: string | null; head: string | null; gen
  * it. `qualifiedAt` is null exactly when `qualified` is false.
  */
 export interface AliveStanding { lifeId: number; lifeNumber: number; startedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; qualified: boolean; qualifiedAt: QualifiedAt | null; }
-export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null; }
+export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | null; liftPending: boolean; triggeringLifeNumber: number | null;
+  /** The triggering life's death verdict ("mauled", "starvation", …) — the banned row's context
+   *  line on the home control panel. Null when the ban cannot be matched to its life. */
+  verdict: DeathVerdictSummary | null; }
 /**
  * `lastLifeNumber` is NOT "the player's most recent life" despite its name — its meaning is
  * per-`state`:
@@ -35,11 +38,19 @@ export interface BanStanding { banId: number; bannedAt: Date; expiresAt: Date | 
  * Do not "fix" the banned branch to return the last life just because the field's name suggests
  * it should — that is the exact regression this comment exists to head off.
  */
-export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; }
+export interface ServerStanding { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null;
+  /** When the most recent QUALIFIED life on this server ended — the idle row's "died 8d ago"
+   *  dateline. Null for a never-played server (and for alive/banned rows, which carry their own
+   *  timestamps). */
+  lastEndedAt: Date | null; }
 export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
 export interface PlayerPage {
   gamertag: string; verified: boolean; firstSeenAt: Date | null; aliveAnywhere: boolean;
   totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number };
+  /** Longest ENDED qualified life, across all servers. `totals.longestLifeSeconds` includes the
+   *  open life, so it cannot answer "previous best" while the current run IS the record — this
+   *  can (the home hero's "Your longest run yet. Previous best: …"). 0 when no life has ended. */
+  previousBestSeconds: number;
   standing: ServerStanding[];
   pastLives: PastLife[];
   pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number;
@@ -89,6 +100,7 @@ export async function getPlayerPage(
   const standing: ServerStanding[] = [];
   const endedLives: { row: LifeRow; serverId: number; map: string; slug: string }[] = [];
   const totals = { kills: 0, lives: 0, deaths: 0, longestLifeSeconds: 0 };
+  let previousBestSeconds = 0;
 
   for (const s of activeServers) {
     if (!s.slug) continue;
@@ -119,6 +131,8 @@ export async function getPlayerPage(
     for (const l of livesRows) {
       const secs = l.endedAt ? l.playtimeSeconds : (profile?.currentLifeSeconds ?? 0);
       if (secs > totals.longestLifeSeconds) totals.longestLifeSeconds = secs;
+      // Ended lives only: the open life must not count as its own "previous best".
+      if (l.endedAt && l.playtimeSeconds > previousBestSeconds) previousBestSeconds = l.playtimeSeconds;
     }
 
     // standing
@@ -134,7 +148,14 @@ export async function getPlayerPage(
     // precedence self-heals: once the ban lifts/expires this falls through to the alive branch.
     if (serverBan) {
       const trig = livesRows.find((l) => l.startedAt.getTime() === serverBan.lifeStartedAt.getTime()) ?? null;
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", character: trig ? await charShape(db, s.id, gamertag, trig.startedAt, trig.endedAt) : null, alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null }, lastLifeNumber: trig?.lifeNumber ?? null };
+      // The banned row's context line ("mauled · life 7") — one dossier per active ban, and
+      // active bans are rare, so this stays off the hot path.
+      const trigDossier = trig ? await dossierForLife(db, gamertag, {
+        id: trig.id, serverId: s.id, startedAt: trig.startedAt, endedAt: trig.endedAt, playtimeSeconds: trig.playtimeSeconds,
+        deathCause: trig.deathCause, deathWeapon: trig.deathWeapon,
+        energyAtDeath: trig.energyAtDeath, waterAtDeath: trig.waterAtDeath, bleedSourcesAtDeath: trig.bleedSourcesAtDeath,
+      }) : null;
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", character: trig ? await charShape(db, s.id, gamertag, trig.startedAt, trig.endedAt) : null, alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null, verdict: trigDossier ? dossierVerdict(trigDossier) : null }, lastLifeNumber: trig?.lifeNumber ?? null, lastEndedAt: null };
     } else if (anyOpenLife) {
       // `openLife` (from the qualified-filtered list) being null while `anyOpenLife` is set is
       // exactly the provisional case. `profile.currentLifeSeconds` is 0 there — getPlayerProfile
@@ -161,10 +182,10 @@ export async function getPlayerPage(
         lastSeenAt: p?.lastSeenAt ?? null,
         playerKills: killList.map((k) => ({ occurredAt: k.occurredAt })),
       });
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, anyOpenLife.startedAt, null), alive: { lifeId: anyOpenLife.id, lifeNumber: anyOpenLife.lifeNumber, startedAt: anyOpenLife.startedAt, timeAliveSeconds: seconds, kills: killList.length, longestKillMeters: longest(killList), killList, qualified: qAt !== null, qualifiedAt: qAt }, ban: null, lastLifeNumber: anyOpenLife.lifeNumber };
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", character: await charShape(db, s.id, gamertag, anyOpenLife.startedAt, null), alive: { lifeId: anyOpenLife.id, lifeNumber: anyOpenLife.lifeNumber, startedAt: anyOpenLife.startedAt, timeAliveSeconds: seconds, kills: killList.length, longestKillMeters: longest(killList), killList, qualified: qAt !== null, qualifiedAt: qAt }, ban: null, lastLifeNumber: anyOpenLife.lifeNumber, lastEndedAt: null };
     } else {
       const recent = livesRows[0] ?? null;
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "idle", character: recent ? await charShape(db, s.id, gamertag, recent.startedAt, recent.endedAt) : null, alive: null, ban: null, lastLifeNumber: recent?.lifeNumber ?? null };
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "idle", character: recent ? await charShape(db, s.id, gamertag, recent.startedAt, recent.endedAt) : null, alive: null, ban: null, lastLifeNumber: recent?.lifeNumber ?? null, lastEndedAt: recent?.endedAt ?? null };
     }
     standing.push(card);
 
@@ -196,5 +217,5 @@ export async function getPlayerPage(
 
   return { gamertag, verified: !!vf, firstSeenAt: p?.firstSeenAt ?? null, // A provisional life does NOT count: this feeds the public dossier's `Alive xN` badge and is
   // leaderboard-facing, so a grace-period player is not yet part of it.
-  aliveAnywhere: standing.some((s) => s.state === "alive" && s.alive?.qualified === true), totals, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
+  aliveAnywhere: standing.some((s) => s.state === "alive" && s.alive?.qualified === true), totals, previousBestSeconds, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
 }

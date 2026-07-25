@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The verified home now matches the design mockups.** The whole control panel was rebuilt to
+  the approved `verified-desktop` mock: a red **Banned** group headed by your tokens-in-hand
+  count, each row carrying the countdown, the death that earned the ban ("mauled · life 7") and
+  its Spend control; one **Alive hero per life** — `Alive · Map · Life N`, a since-date, a big
+  day-aware run length ("4d 2h"), a "Your longest run yet — previous best" line when your current
+  run beats your record, and Timeline / Open map actions; a compact **No life** group with
+  died-X-ago datelines and per-row `Join ▸` that expands the how-to-connect instructions in
+  place; and a light **tokens card** (balance + Send). The identity row and profile/sign-out
+  footer left the verified home — account controls live behind the masthead avatar.
+- **"Friends online" replaces the friends count**, on the home sidebar and the phone home: each
+  online friend with the map they're on and whether they share their position with you (sharing
+  itself stays on the map's online list, and there is no mini-map — per the design amendments).
+  Backed by a new `GET /me/friends/online` endpoint.
+
 ### Fixed
 
 - **Signed-in players no longer land on the cold-visitor pitch.** The hero, the top-5 board strip

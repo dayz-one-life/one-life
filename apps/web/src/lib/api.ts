@@ -206,6 +206,7 @@ export const getSitemapData = () => apiGetCached<SitemapData>("/api/sitemap", SI
 export const getServersCached = () => apiGetCached<Server[]>("/api/servers", SITEMAP_REVALIDATE_SECONDS);
 
 export const getFriends = (page = 1) => apiGet<FriendsFeed>(`/api/me/friends?page=${page}`);
+export const getOnlineFriends = () => apiGet<{ friends: import("./types").OnlineFriend[] }>("/api/me/friends/online");
 export const getFriendStatus = (gamertag: string) =>
   apiGet<FriendStatusDto>(`/api/me/friends/status?gamertag=${encodeURIComponent(gamertag)}`);
 export const sendFriendRequest = (toGamertag: string) =>
