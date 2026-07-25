@@ -221,10 +221,12 @@ export const declineFriendRequest = (id: number) =>
 export const deleteFriendship = (id: number) =>
   apiSend<{ ok: true }>("DELETE", `/api/me/friends/${id}`);
 export const patchFriendPresence = (
-  id: number, body: { share?: boolean; notify?: boolean; shareLocation?: boolean },
+  id: number, body: { share?: boolean; notify?: boolean },
 ) => apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
-export const patchPreferences = (body: { sharePresence?: boolean; shareLocation?: boolean }) =>
-  apiSend<{ sharePresence: boolean; shareLocation: boolean }>("PATCH", "/api/me/preferences", body);
+/** ⚠️ Presence only. Sub-project E deleted the location master switch — sharing is a
+ *  session-scoped grant made on the map, not a standing preference. */
+export const patchPreferences = (body: { sharePresence?: boolean }) =>
+  apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);
 
 export const getFriendMap = (slug: string) =>
   apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);

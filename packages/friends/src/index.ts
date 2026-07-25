@@ -12,4 +12,10 @@ export { listFriends, statusFor, FRIENDS_PAGE_SIZE } from "./queries.js";
 export type { FriendEntry } from "./queries.js";
 export { shouldNotifyPresence, FRIEND_ONLINE_COOLDOWN_HOURS, FRIEND_ONLINE_MAX_AGE_MINUTES } from "./presence.js";
 export { setPresenceFlags, getSharePresence, setSharePresence } from "./presence.js";
-export { shouldShareLocation, setLocationFlag, getShareLocation, setShareLocation } from "./location.js";
+// Sub-project E replaced F2's standing consent model (shouldShareLocation / setLocationFlag /
+// getShareLocation / setShareLocation) with session-scoped grants. Do not reintroduce a
+// standing location setting — see the ⚠️ at the top of location.js.
+export {
+  currentSessionStart, grantLocation, revokeLocation, revokeAllLocation,
+  clearLocationSharesFor, isShareEffective,
+} from "./location.js";

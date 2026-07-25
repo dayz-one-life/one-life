@@ -11,7 +11,6 @@ const CONTENT_FILES = [
   "components/notifications/push-toggle.tsx",
   "components/friends/presence-toggles.tsx",
   "components/friends/checkbox.tsx",
-  "components/friends/location-toggles.tsx",
 ];
 
 describe("type floor", () => {

@@ -5,7 +5,6 @@ const base = {
   id: 1, userA: "aaa", userB: "bbb", status: "pending",
   requestedBy: "aaa", requestSeq: 1,
   createdAt: new Date("2026-07-01T00:00:00Z"), respondedAt: null,
-  aSharesLocation: false, bSharesLocation: false,
   aSharesPresence: false, bSharesPresence: false,
   aNotifyPresence: true, bNotifyPresence: true,
 };
@@ -30,13 +29,21 @@ describe("viewOf", () => {
   });
 
   it("maps the directional share flags to the viewer's perspective", () => {
-    const row = { ...base, status: "accepted", aSharesLocation: true, bSharesPresence: true };
+    const row = { ...base, status: "accepted", aSharesPresence: true, bNotifyPresence: true };
     const a = viewOf(row, "aaa", now);
-    expect(a.iShareLocation).toBe(true);
-    expect(a.theySharePresence).toBe(true);
+    expect(a.iSharePresence).toBe(true);
+    expect(a.theyNotifyPresence).toBe(true);
     const b = viewOf(row, "bbb", now);
-    expect(b.theyShareLocation).toBe(true);
-    expect(b.iSharePresence).toBe(true);
+    expect(b.theySharePresence).toBe(true);
+    expect(b.iNotifyPresence).toBe(true);
+  });
+
+  // ⚠️ Sub-project E dropped the location flags entirely. A viewer-relative location field here
+  // would mean the standing consent model had come back — sharing is a session-scoped grant now,
+  // held in `location_shares`, and a friendship row says nothing about it.
+  it("carries NO location fields", () => {
+    const v = viewOf({ ...base, status: "accepted" }, "aaa", now) as Record<string, unknown>;
+    expect(Object.keys(v).some((k) => /location/i.test(k))).toBe(false);
   });
 
   it("reports cooldown inside 7 days of a decline and none after", () => {

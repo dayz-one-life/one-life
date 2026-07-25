@@ -3,7 +3,7 @@ import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
 import { z } from "zod";
 import {
-  request, cancel, accept, decline, remove, setPresenceFlags, setLocationFlag,
+  request, cancel, accept, decline, remove, setPresenceFlags,
   listFriends, statusFor, FriendError,
 } from "@onelife/friends";
 import { getSession } from "../auth-plugin.js";
@@ -16,7 +16,6 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 const presenceBody = z.object({
   share: z.boolean().optional(),
   notify: z.boolean().optional(),
-  shareLocation: z.boolean().optional(),
 });
 
 const ERROR_STATUS: Record<string, number> = {
@@ -112,18 +111,13 @@ export function registerFriendRoutes(app: FastifyInstance, db: Database, auth: A
     // no-fields early return BEFORE its party lookup, and answers 200 {ok:true} — reporting a
     // successful update of a friendship the caller may not be a party to and which may not
     // exist. A patch that patches nothing is a malformed request, not a success.
-    if (body.share === undefined && body.notify === undefined && body.shareLocation === undefined) {
+    if (body.share === undefined && body.notify === undefined) {
       return reply.code(400).send({ error: "no_fields" });
     }
     try {
       await setPresenceFlags(db, {
         userId: session.user.id, friendshipId: id, share: body.share, notify: body.notify,
       });
-      if (body.shareLocation !== undefined) {
-        await setLocationFlag(db, {
-          userId: session.user.id, friendshipId: id, share: body.shareLocation,
-        });
-      }
       return { ok: true };
     } catch (e) {
       return onFriendError(e, reply);

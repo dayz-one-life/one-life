@@ -6,7 +6,6 @@ import { SrStatus } from "@/components/shared/sr-status";
 import { friendErrorMessage } from "./format";
 import { FriendsPagination } from "./pagination";
 import { MasterShareSwitch, PresenceToggles } from "./presence-toggles";
-import { MasterLocationSwitch, LocationToggle } from "./location-toggles";
 import { useFriendActions, useFriends } from "@/lib/use-friends";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendEntryDto, FriendsFeed } from "@/lib/types";
@@ -91,8 +90,6 @@ export type RosterViewProps = {
   onPageChange?: (page: number) => void;
   onPresenceChange?: (id: number, patch: { share?: boolean; notify?: boolean }) => void;
   onSharePresenceChange?: (value: boolean) => void;
-  onLocationChange?: (id: number, share: boolean) => void;
-  onShareLocationChange?: (value: boolean) => void;
 };
 
 /** Presentational. Loading, failed, signed-out and genuinely-empty are all different
@@ -118,8 +115,6 @@ export function RosterView(p: RosterViewProps) {
   const toggleConfirm = p.onConfirmToggle ?? (() => {});
   const onPresenceChange = p.onPresenceChange ?? (() => {});
   const onSharePresenceChange = p.onSharePresenceChange ?? (() => {});
-  const onLocationChange = p.onLocationChange ?? (() => {});
-  const onShareLocationChange = p.onShareLocationChange ?? (() => {});
 
   return (
     <div>
@@ -143,11 +138,6 @@ export function RosterView(p: RosterViewProps) {
             disabled={p.pending}
             onChange={onSharePresenceChange}
           />
-          <MasterLocationSwitch
-            on={d.shareLocation}
-            disabled={p.pending}
-            onChange={onShareLocationChange}
-          />
         </>
       )}
       <Section
@@ -169,14 +159,6 @@ export function RosterView(p: RosterViewProps) {
               masterOn={d.sharePresence}
               disabled={p.pending}
               onChange={(patch) => onPresenceChange(e.id, patch)}
-            />
-            <LocationToggle
-              friendshipId={e.id}
-              share={e.sharesLocation}
-              masterOn={d.shareLocation}
-              theyShare={e.theyShareLocation}
-              disabled={p.pending}
-              onChange={(v) => onLocationChange(e.id, v)}
             />
           </>
         )}
@@ -269,10 +251,6 @@ export function Roster() {
         a.setSharePresence(value, settle(value
           ? "Friends will be told when you come online"
           : "Friends will not be told when you come online"))}
-      onLocationChange={(id, share) =>
-        a.setLocation(id, share, settle("Location updated"))}
-      onShareLocationChange={(value) =>
-        a.setShareLocation(value, settle(value ? "Sharing your location" : "No longer sharing your location"))}
     />
   );
 }

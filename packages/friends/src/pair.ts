@@ -12,8 +12,6 @@ export type FriendshipRow = {
   requestSeq: number;
   createdAt: Date;
   respondedAt: Date | null;
-  aSharesLocation: boolean;
-  bSharesLocation: boolean;
   aSharesPresence: boolean;
   bSharesPresence: boolean;
   aNotifyPresence: boolean;
@@ -31,8 +29,6 @@ export type FriendView = {
   respondedAt: Date | null;
   /** Set only when status is "cooldown". */
   cooldownUntil: Date | null;
-  iShareLocation: boolean;
-  theyShareLocation: boolean;
   iSharePresence: boolean;
   theySharePresence: boolean;
   iNotifyPresence: boolean;
@@ -71,8 +67,6 @@ export function viewOf(row: FriendshipRow, viewerId: string, now: Date): FriendV
     createdAt: row.createdAt,
     respondedAt: row.respondedAt,
     cooldownUntil: status === "cooldown" ? cd : null,
-    iShareLocation: isA ? row.aSharesLocation : row.bSharesLocation,
-    theyShareLocation: isA ? row.bSharesLocation : row.aSharesLocation,
     iSharePresence: isA ? row.aSharesPresence : row.bSharesPresence,
     theySharePresence: isA ? row.bSharesPresence : row.aSharesPresence,
     iNotifyPresence: isA ? row.aNotifyPresence : row.bNotifyPresence,

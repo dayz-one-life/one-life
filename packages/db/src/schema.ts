@@ -454,8 +454,6 @@ export const friendships = pgTable("friendships", {
   requestSeq: integer("request_seq").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
-  aSharesLocation: boolean("a_shares_location").notNull().default(true),
-  bSharesLocation: boolean("b_shares_location").notNull().default(true),
   aSharesPresence: boolean("a_shares_presence").notNull().default(true),
   bSharesPresence: boolean("b_shares_presence").notNull().default(true),
   aNotifyPresence: boolean("a_notify_presence").notNull().default(true),
@@ -476,6 +474,45 @@ export const friendships = pgTable("friendships", {
 export const userPreferences = pgTable("user_preferences", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   sharePresence: boolean("share_presence").notNull().default(false),
-  shareLocation: boolean("share_location").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Sub-project E: session-scoped location sharing. ────────────────────────────────────────
+// Replaces F2's standing consent model. A grant is handed to ONE person, during ONE game
+// session, and dies with that session — see the design spec, and the ⚠️ on
+// `granterSessionConnectedAt` below, which is the whole mechanism.
+//
+// ⚠️ DURABLE, not a projection: this table must NEVER be added to `REBUILD_TRUNCATE_TABLES`
+// (apps/projector/src/rebuild.ts). Rows are self-invalidating, so a rebuild leaves rows that
+// simply stop matching — harmless. Truncating them would instead revoke live shares mid-session.
+export const locationShares = pgTable("location_shares", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  granterUserId: text("granter_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  granteeUserId: text("grantee_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  // A session is per-server, so a grant is too. A player online on two servers has two sessions
+  // and shares on each independently.
+  serverId: integer("server_id").notNull().references(() => servers.id),
+  /**
+   * ⚠️ THE ENTIRE EXPIRY MECHANISM. Snapshot of the granter's open session's `connected_at` at
+   * grant time; the share is effective only while it still equals that session's value. When the
+   * session ends and a new one begins, `connected_at` moves and the row stops matching. No
+   * cleanup worker, no TTL, no `expires_at` to get wrong.
+   *
+   * ⚠️ A TIMESTAMP, never `sessions.id`. `rebuild.ts` truncates `sessions` WITH RESTART IDENTITY,
+   * so ids are reassigned across a projection rebuild and an id-keyed share could be resurrected
+   * against an unrelated session. This value is folded from the ADM line and survives a rebuild
+   * unchanged.
+   *
+   * ⚠️ Stored rather than compared against `granted_at`. `granted_at` would be the API's wall
+   * clock while `connected_at` is ADM-derived with `servers.clock_offset_ms` applied — the two
+   * differ by seconds, so a `granted_at >= connected_at` test can silently never match for a
+   * grant made in the first seconds of a session. Both sides of this equality are the same value.
+   */
+  granterSessionConnectedAt: timestamp("granter_session_connected_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  // Re-granting in a later session UPDATES the snapshot rather than accumulating rows.
+  uniqGrant: uniqueIndex("location_shares_grant_uniq").on(t.granterUserId, t.granteeUserId, t.serverId),
+  // Serves the read path: "who has granted to ME on this server".
+  byGrantee: index("location_shares_grantee_idx").on(t.granteeUserId, t.serverId),
+}));
