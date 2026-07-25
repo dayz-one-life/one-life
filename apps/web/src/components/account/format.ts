@@ -1,6 +1,10 @@
 import type { Server, ServerStanding } from "@/lib/types";
 import { formatDuration } from "@/components/player/format";
 
+/** Mirrors QUALIFY_SECONDS in @onelife/read-models — apps/web cannot import from that package.
+ *  Kept in sync by hand, like slug.ts's playerSlug. */
+const QUALIFY_SECONDS = 300;
+
 /** First letter of a display name for the avatar disc. */
 export function initialOf(name: string): string {
   return (name.trim()[0] ?? "?").toUpperCase();
@@ -20,7 +24,9 @@ export type ServerCardData = {
   /** The life this card should link to: the open life when alive, the ban's triggering life when
    *  banned. Null when there is no identifiable life — render no link rather than a broken one. */
   lifeNumber: number | null;
-  alive: { timeAliveSeconds: number; kills: number } | null;
+  /** `qualified: false` is a PROVISIONAL life — inside the five-minute grace window, where death
+   *  is free and a reroll costs nothing. It must never be described as qualified. */
+  alive: { timeAliveSeconds: number; kills: number; qualified: boolean } | null;
   ban: { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean } | null;
 };
 
@@ -41,7 +47,7 @@ export function serverCards(servers: Server[], standing: ServerStanding[]): Serv
           st?.state === "alive" ? (st.alive?.lifeNumber ?? null)
           : st?.state === "banned" ? (st.ban?.triggeringLifeNumber ?? null)
           : (st?.lastLifeNumber ?? null),
-        alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills } : null,
+        alive: st?.alive ? { timeAliveSeconds: st.alive.timeAliveSeconds, kills: st.alive.kills, qualified: st.alive.qualified } : null,
         ban: st?.ban
           ? { banId: st.ban.banId, bannedAt: st.ban.bannedAt, expiresAt: st.ban.expiresAt, liftPending: st.ban.liftPending }
           : null,
@@ -52,6 +58,15 @@ export function serverCards(servers: Server[], standing: ServerStanding[]): Serv
 /** The mono fact line under a server card's name (CSS uppercases it). */
 export function serverFactLine(card: ServerCardData): string {
   if (card.state === "alive" && card.alive) {
+    // ⚠️ A provisional life must NOT say "Qualified". Death is free in the grace window and a
+    // reroll costs nothing; telling the player their life is qualified there says the opposite of
+    // the truth, in the one window where the distinction changes what they should do.
+    if (!card.alive.qualified) {
+      const left = Math.max(0, QUALIFY_SECONDS - card.alive.timeAliveSeconds);
+      // Rounded UP so it never reads "0m left" while still provisional; a resolved zero would be
+      // indistinguishable from "qualified", which is the state this line exists to deny.
+      return `Not yet qualified · death is free for another ${Math.ceil(left / 60)}m`;
+    }
     return `Qualified · ${formatDuration(card.alive.timeAliveSeconds)} this life · ${card.alive.kills} kill${card.alive.kills === 1 ? "" : "s"}`;
   }
   if (card.state === "banned" && card.ban) return `Died ${diedAtLabel(card.ban.bannedAt)}`;

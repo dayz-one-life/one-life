@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
-import { ServerCard } from "./server-cards";
+import { ServerCard, StateChip } from "./server-cards";
 import type { ServerCardData } from "@/components/account/format";
 import { diedAtLabel } from "@/components/account/format";
 
@@ -8,7 +8,7 @@ const NOW = new Date("2026-07-16T12:00:00Z");
 
 const alive: ServerCardData = {
   slug: "chernarus", map: "chernarusplus", state: "alive", lifeNumber: 5,
-  alive: { timeAliveSeconds: 22920, kills: 0 }, ban: null,
+  alive: { timeAliveSeconds: 22920, kills: 0, qualified: true }, ban: null,
 };
 const idle: ServerCardData = { slug: "livonia", map: "enoch", state: "idle", lifeNumber: null, alive: null, ban: null };
 const banned: ServerCardData = {
@@ -122,5 +122,30 @@ describe("ServerCard", () => {
     // invisible-but-present control on dark surfaces. The rail is the light surface.
     expect(link.className).toContain("red-deep");
     expect(link.className).not.toContain("red-soft");
+  });
+});
+
+describe("StateChip: provisional lives read differently from qualified ones", () => {
+  // The chip is the at-a-glance signal. "Alive" on a provisional life implies the life counts —
+  // it does not yet. Amber + outline (not the solid blue) says "provisional" without a legend.
+  // `yellow` is the design system's existing provisional/attention token (the Longest-kill chip
+  // uses it); the spec said "amber", but inventing a token for one chip is not worth it. Outlined
+  // rather than solid — "hollow" per the spec — which also dodges a white-on-yellow contrast trap.
+  test("a provisional life is yellow-outlined and says Not yet, not Alive", () => {
+    render(<StateChip state="alive" qualified={false} />);
+    const chip = screen.getByText(/not yet/i);
+    expect(chip.className).toMatch(/border-yellow/);
+    expect(chip.className).not.toMatch(/bg-blue/);
+  });
+
+  test("a qualified life keeps the solid blue Alive chip", () => {
+    render(<StateChip state="alive" qualified />);
+    const chip = screen.getByText("Alive");
+    expect(chip.className).toMatch(/bg-blue/);
+  });
+
+  test("qualified defaults to true, so every existing caller is unchanged", () => {
+    render(<StateChip state="alive" />);
+    expect(screen.getByText("Alive").className).toMatch(/bg-blue/);
   });
 });

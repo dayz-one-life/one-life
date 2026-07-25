@@ -5,8 +5,18 @@ import { banCountdown, mapLabel } from "@/components/player/format";
 import { UnbanView, unbanStateOf } from "@/components/player/self-unban-button";
 import { serverFactLine, type ServerCardData } from "@/components/account/format";
 
-export function StateChip({ state, small = false }: { state: ServerCardData["state"]; small?: boolean }) {
+/**
+ * `qualified` defaults to true so every pre-existing caller is unchanged. A PROVISIONAL life
+ * (inside the five-minute grace window) must not wear the solid "Alive" chip: that reads as "this
+ * life counts", and it does not yet — death there is free.
+ */
+export function StateChip({ state, small = false, qualified = true }: { state: ServerCardData["state"]; small?: boolean; qualified?: boolean }) {
   const base = cn("ml-auto flex-none px-2 pb-0.5 pt-1 font-display font-bold uppercase tracking-[.1em]", small ? "text-[9px]" : "text-[10px]");
+  if (state === "alive" && !qualified) {
+    // Outlined, not solid — "hollow" for a provisional state. `yellow` is the design system's
+    // existing attention token; ink-on-paper keeps it readable where white-on-yellow would not.
+    return <span className={cn(base, "border border-yellow font-semibold text-ink")}>Not yet</span>;
+  }
   if (state === "alive") return <span className={cn(base, "bg-blue text-white")}>Alive</span>;
   if (state === "banned") return <span className={cn(base, "bg-red text-white")}>Banned</span>;
   return <span className={cn(base, "border border-dashed border-dash font-semibold text-ink-muted")}>No life</span>;
@@ -38,7 +48,7 @@ export function ServerCard({
     <section className={cn("border border-hairline bg-white px-4 py-3.5", banned && "border-l-4 border-l-red")}>
       <div className="flex items-center gap-2.5">
         <h3 className="font-display text-base font-semibold uppercase leading-none text-ink">{mapLabel(card.map)}</h3>
-        <StateChip state={card.state} />
+        <StateChip state={card.state} qualified={card.alive?.qualified ?? true} />
       </div>
       <p className="mt-1.5 font-mono text-[10.5px] uppercase tracking-[.04em] text-ink-muted">
         {serverFactLine(card)}
