@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Hand someone your position from the map.** Open the online list on a map and every player
+  connected has a **Share** button — friends and strangers alike. They can see you until you log
+  out, and no longer. A **"N can see you · Stop"** chip sits on the map whenever anyone can, so it
+  is never something you forget you left on, and it clears itself every session. The person you
+  share with gets a notification saying exactly how long it lasts.
+
 ### Changed
 
 - **Location sharing is now per-session, not a standing setting.** It used to be two switches — a

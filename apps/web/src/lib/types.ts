@@ -264,14 +264,21 @@ export type OnlinePlayerDto = {
   gamertag: string;
   /** An accepted friendship with the viewer. */
   friend: boolean;
-  /** Has a dot on this map — derived server-side from the same positions. */
+  /** Has a dot on this map — derived server-side from the same positions. INBOUND: they are
+   *  sharing with the viewer. */
   sharing: boolean;
+  /** OUTBOUND: the viewer is currently sharing with them. Effective grants only — a stale row
+   *  from a previous session is false here, because it is false everywhere else. */
+  sharedWithThem: boolean;
   self: boolean;
 };
 export type FriendMap = {
   mapCodename: string;
   positions: FriendPositionDto[];
   online: OnlinePlayerDto[];
+  /** Gamertags the viewer is currently sharing with on this server. Drives the
+   *  "N can see you · Stop" chip. */
+  sharingWith: string[];
 };
 /** The gated `GET /me/maps` list shape. ⚠️ NOTHING IN THE WEB READS THIS ANY MORE — the map
  *  shell switched to the public `GET /servers` so the switcher works signed out. Kept as the

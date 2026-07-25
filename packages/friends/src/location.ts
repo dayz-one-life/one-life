@@ -133,3 +133,36 @@ export function isShareEffective(a: {
   if (!a.currentSessionStart) return false;
   return a.storedSessionStart.getTime() === a.currentSessionStart.getTime();
 }
+
+/**
+ * The grantees the viewer is CURRENTLY sharing with on one server — i.e. grants whose stored
+ * snapshot still matches an open session of theirs. Drives the map's "N can see you" chip and the
+ * per-row state in the online list.
+ *
+ * ⚠️ Counts EFFECTIVE shares, not rows. A stale row from a previous session is invisible to the
+ * predicate and must be invisible in the chip too, or the chip claims people can see you who
+ * cannot — the same class of lie as an empty map standing in for "nobody is here".
+ *
+ * Returns grantee user ids; the caller maps them to gamertags for display.
+ */
+export async function activeGrantees(
+  db: Database,
+  a: { granterUserId: string; granterPlayerId: number; serverId: number },
+): Promise<string[]> {
+  const connectedAt = await currentSessionStart(db, {
+    userPlayerId: a.granterPlayerId,
+    serverId: a.serverId,
+  });
+  // Offline ⇒ nothing is effective, whatever rows exist.
+  if (!connectedAt) return [];
+
+  const rows = await db
+    .select({ granteeUserId: locationShares.granteeUserId })
+    .from(locationShares)
+    .where(and(
+      eq(locationShares.granterUserId, a.granterUserId),
+      eq(locationShares.serverId, a.serverId),
+      eq(locationShares.granterSessionConnectedAt, connectedAt),
+    ));
+  return rows.map((r) => r.granteeUserId);
+}

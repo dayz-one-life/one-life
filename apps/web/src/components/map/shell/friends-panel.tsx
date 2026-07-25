@@ -9,7 +9,7 @@ import type { FriendPositionDto, OnlinePlayerDto } from "@/lib/types";
  *  This is the ONLY home of `OnlineList` now that the map fills the viewport — and the list is
  *  the screen-reader companion to a canvas with no text, so it must stay reachable by a real
  *  button in the tab order rather than becoming decoration behind a hover. */
-export function FriendsPanel({ players, positions, now, loading, error }: {
+export function FriendsPanel({ players, positions, now, loading, error, onShare, onStopSharing, pendingFor }: {
   players: OnlinePlayerDto[] | undefined;
   /** Fixes for sharing players — passed through to OnlineList so the accessible rows can carry
    *  a fix age, not just the mouse-driven map popup. */
@@ -19,6 +19,10 @@ export function FriendsPanel({ players, positions, now, loading, error }: {
   /** A FAILED fetch. Distinct from loading and from a genuinely empty map — rendering it as
    *  "nobody is online" is a claim about the game made from a network error. */
   error?: boolean;
+  /** Grant controls, passed straight through to OnlineList. Absent ⇒ no controls. */
+  onShare?: (gamertag: string) => void;
+  onStopSharing?: (gamertag: string) => void;
+  pendingFor?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const panelRef = useModalBehavior(open, () => setOpen(false));
@@ -99,7 +103,14 @@ export function FriendsPanel({ players, positions, now, loading, error }: {
                 Loading…
               </p>
             ) : (
-              <OnlineList players={players ?? []} positions={positions} now={now} />
+              <OnlineList
+                players={players ?? []}
+                positions={positions}
+                now={now}
+                onShare={onShare}
+                onStopSharing={onStopSharing}
+                pendingFor={pendingFor}
+              />
             )}
           </div>
         </>

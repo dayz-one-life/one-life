@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { getFriendMap, getServers } from "@/lib/api";
+import { getFriendMap, getServers, shareLocationWith, stopSharingAll, stopSharingWith } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
 import type { FriendPositionDto, Server } from "@/lib/types";
@@ -163,6 +163,24 @@ export function MapPage({ slug }: { slug: string }) {
     refetchInterval: 30_000,
   });
 
+  // Grant mutations. Both invalidate the map payload, which is the single source of both
+  // directions of sharing — so the chip, the dots and the row buttons can never disagree.
+  const qc = useQueryClient();
+  const [pendingFor, setPendingFor] = useState<string | null>(null);
+  const invalidate = () => { void qc.invalidateQueries({ queryKey: ["friend-map", slug] }); };
+  const share = useMutation({
+    mutationFn: (gamertag: string) => shareLocationWith(slug, gamertag),
+    onSettled: () => { setPendingFor(null); invalidate(); },
+  });
+  const unshare = useMutation({
+    mutationFn: (gamertag: string) => stopSharingWith(slug, gamertag),
+    onSettled: () => { setPendingFor(null); invalidate(); },
+  });
+  const unshareAll = useMutation({
+    mutationFn: () => stopSharingAll(slug),
+    onSettled: invalidate,
+  });
+
   // ⚠️ AFTER every hook. `notFound()` throws, and a conditional throw sitting ABOVE a hook would
   // skip it on the render that 404s — a rules-of-hooks violation. A public, directly-linkable
   // route means `/maps/<typo>` and stale links are reachable; they must 404, not render a
@@ -208,6 +226,27 @@ export function MapPage({ slug }: { slug: string }) {
           now={new Date()}
         />
 
+        {/* ⚠️ The permanent sharing chip. It reports the OUTBOUND direction — who can see YOU —
+            which nothing else on this page shows, and it renders only once the payload has
+            resolved: a "0 can see you" drawn from a loading or failed fetch is a claim about
+            your privacy made from an unknown. Every session starts at zero by construction,
+            because every grant dies with the session that made it. */}
+        {verified && q.data && q.data.sharingWith.length > 0 && (
+          <div className="absolute bottom-3 left-3 z-10 flex items-center gap-2 border border-dark-edge bg-dark/90 px-2.5 py-1.5 font-mono text-[11px] uppercase tracking-[.05em] text-paper">
+            <span>
+              {q.data.sharingWith.length} can see you
+            </span>
+            <button
+              type="button"
+              disabled={unshareAll.isPending}
+              onClick={() => unshareAll.mutate()}
+              className="font-bold text-red underline disabled:opacity-50"
+            >
+              Stop
+            </button>
+          </div>
+        )}
+
         {/* Locate and Online overlay the map's bottom-right. Signed-out and unverified visitors
             get no controls at all: the friend query is disabled for them, so `isPending` never
             resolves and Locate would sit claiming to load a position that is never coming. */}
@@ -227,6 +266,9 @@ export function MapPage({ slug }: { slug: string }) {
                 now={new Date()}
                 loading={q.isPending}
                 error={q.isError && !q.data}
+                onShare={(g) => { setPendingFor(g); share.mutate(g); }}
+                onStopSharing={(g) => { setPendingFor(g); unshare.mutate(g); }}
+                pendingFor={pendingFor}
               />
             </div>
           </div>

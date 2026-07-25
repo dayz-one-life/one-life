@@ -3,15 +3,15 @@ import { render, screen } from "@testing-library/react";
 import { OnlineList } from "./online-list";
 
 const players = [
-  { gamertag: "You", friend: false, sharing: true, self: true },
-  { gamertag: "Mate", friend: true, sharing: true, self: false },
-  { gamertag: "Stranger", friend: false, sharing: false, self: false },
+  { gamertag: "You", friend: false, sharing: true, sharedWithThem: false, self: true },
+  { gamertag: "Mate", friend: true, sharing: true, sharedWithThem: false, self: false },
+  { gamertag: "Stranger", friend: false, sharing: false, sharedWithThem: false, self: false },
 ];
 
 const now = new Date("2026-07-22T12:00:00.000Z");
 const positions = [
-  { gamertag: "You", x: 0, y: 0, recordedAt: "2026-07-22T11:59:30.000Z", self: true },
-  { gamertag: "Mate", x: 0, y: 0, recordedAt: "2026-07-22T11:45:00.000Z", self: false },
+  { gamertag: "You", x: 0, y: 0, recordedAt: "2026-07-22T11:59:30.000Z", sharedWithThem: false, self: true },
+  { gamertag: "Mate", x: 0, y: 0, recordedAt: "2026-07-22T11:45:00.000Z", sharedWithThem: false, self: false },
 ];
 
 describe("OnlineList", () => {
