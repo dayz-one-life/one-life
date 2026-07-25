@@ -69,7 +69,18 @@ export default async function Home() {
           <AccountPanels />
         </div>
       </main>
-      <HomeSidebar />
+      <HomeSidebar
+        board={
+          boardSlug && boardServer
+            ? {
+                slug: boardSlug,
+                map: boardServer.map,
+                rows: survivors.data?.rows.slice(0, 3) ?? [],
+                failed: survivors.failed,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

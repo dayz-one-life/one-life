@@ -23,20 +23,46 @@ const expiredBanned: ServerCardData = {
 const base = { ownSlug: "bootscoldwater", balance: 3, now: NOW, onRedeem: () => {}, redeeming: false };
 
 describe("ServerCard", () => {
-  test("alive: blue chip and fact line", () => {
+  test("alive renders as the hero: big time alive, and time alive is the ONLY stat", () => {
     const { container } = render(<ServerCard card={alive} {...base} />);
     expect(screen.getByText("Alive")).toBeInTheDocument();
-    // The alive fixture also carries a lifeNumber, so the fact line now shares its <p> with a
-    // Timeline link (rendered for any card with a known lifeNumber, not just banned ones) — assert
-    // the full exact text including the new suffix.
-    const factParagraph = container.querySelector("p");
-    expect(factParagraph?.textContent).toBe("Qualified · 6h 22m this life · 0 kills · Timeline →");
+    expect(screen.getByText("6h 22m")).toBeInTheDocument();
+    // Home-is-the-app spec, amendment 2: no kills, no sessions, no "Qualified ·" ledger line.
+    // These servers are about surviving; the one number is time alive.
+    expect(container.textContent).not.toMatch(/kill/i);
+    expect(container.textContent).not.toMatch(/session/i);
+    expect(container.textContent).not.toMatch(/Qualified/);
+    expect(screen.getByRole("link", { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open map/i })).toHaveAttribute("href", "/maps/chernarus");
+  });
+
+  test("a provisional alive hero keeps the not-yet-qualified warning line", () => {
+    const provisional = { ...alive, alive: { ...alive.alive!, timeAliveSeconds: 60, qualified: false } };
+    render(<ServerCard card={provisional} {...base} />);
+    expect(screen.getByText(/not yet qualified · death is free/i)).toBeInTheDocument();
   });
 
   test("idle: dashed chip and the grace invitation", () => {
     render(<ServerCard card={idle} {...base} />);
     expect(screen.getByText("No life")).toBeInTheDocument();
     expect(screen.getByText("Spawn in any time. First 5 minutes are free.")).toBeInTheDocument();
+  });
+
+  // Home-is-the-app spec §2: Join expands the SHARED HowToConnect content in place, per row.
+  test("idle: Join discloses the shared how-to-connect content in place", () => {
+    render(<ServerCard card={idle} {...base} joinServers={{ kind: "ready", names: ["Chernarus", "Sakhal"] }} />);
+    const join = screen.getByRole("button", { name: /join/i });
+    expect(join).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(/how to connect/i)).not.toBeInTheDocument();
+    fireEvent.click(join);
+    expect(join).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/how to connect/i)).toBeInTheDocument();
+    expect(screen.getByText("Chernarus, Sakhal")).toBeInTheDocument();
+  });
+
+  test("idle without a server list renders no Join control at all", () => {
+    render(<ServerCard card={idle} {...base} />);
+    expect(screen.queryByRole("button", { name: /join/i })).not.toBeInTheDocument();
   });
 
   test("banned: red chip, died line with dossier link, countdown, spend CTA", () => {
@@ -113,13 +139,21 @@ describe("ServerCard", () => {
     expect(screen.queryByRole("link", { name: /timeline/i })).toBeNull();
   });
 
-  test("links to the life timeline with LIGHT-SURFACE tokens, not the dark-surface red", () => {
+  test("the hero timeline action is a solid ink-on-white button, never a dark-surface red", () => {
     render(<ServerCard card={{ ...alive, lifeNumber: 4 }} ownSlug="dead-eye-jim" balance={0} now={NOW} onRedeem={() => {}} redeeming={false} />);
     const link = screen.getByRole("link", { name: /timeline/i });
     expect(link).toHaveAttribute("href", "/players/dead-eye-jim/chernarus/lives/4");
-    // ⚠️ --red-deep is a light-surface-only token: on bg-dark it fails AA. RTL asserts the DOM,
-    // not contrast, so this token assertion is the only thing standing between us and an
-    // invisible-but-present control on dark surfaces. The rail is the light surface.
+    // RTL asserts the DOM, not contrast — pin the token pair so an ink-on-dark (or
+    // paper-on-white) swap cannot ship invisible-but-present.
+    expect(link.className).toContain("bg-ink");
+    expect(link.className).toContain("text-paper");
+    expect(link.className).not.toContain("red-soft");
+  });
+
+  test("a banned card's timeline link keeps LIGHT-SURFACE red-deep, not the dark-surface red", () => {
+    render(<ServerCard card={banned} {...base} />);
+    const link = screen.getByRole("link", { name: /timeline/i });
+    // ⚠️ --red-deep is a light-surface-only token: on bg-dark it fails AA. The card is white.
     expect(link.className).toContain("red-deep");
     expect(link.className).not.toContain("red-soft");
   });

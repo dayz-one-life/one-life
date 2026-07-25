@@ -6,14 +6,15 @@ import { SrStatus } from "@/components/shared/sr-status";
 
 export type MutationView = { pending: boolean; error: string | null; ok: boolean };
 
+/**
+ * Balance + send. The manual "referred by" form is retired (home-is-the-app spec §3) — referral
+ * attribution arrives with sub-project F's invite links, not a form.
+ */
 export function TokensPanel({
   balance,
   balanceLoading = false,
   send,
-  referrer,
   onSend,
-  onSetReferrer,
-  showReferrer = true,
   myGamertag,
 }: {
   balance: number;
@@ -21,10 +22,7 @@ export function TokensPanel({
    *  must not assert a fabricated numeral (e.g. "0") in that state (live-data honesty §5). */
   balanceLoading?: boolean;
   send: MutationView;
-  referrer: MutationView;
   onSend: (gamertag: string) => void;
-  onSetReferrer: (gamertag: string) => void;
-  showReferrer?: boolean;
   myGamertag?: string;
 }) {
   // useId() gives each mounted instance its own unique base for the error-node ids. A fixed id
@@ -32,9 +30,7 @@ export function TokensPanel({
   // sub-project B) and aria-describedby could resolve to the wrong instance.
   const uid = useId();
   const sendErrorId = `${uid}-send-token-error`;
-  const referrerErrorId = `${uid}-referrer-error`;
   const [to, setTo] = useState("");
-  const [ref, setRef] = useState("");
   useEffect(() => {
     if (send.ok) setTo("");
   }, [send.ok]);
@@ -43,15 +39,6 @@ export function TokensPanel({
     e.preventDefault();
     if (to.trim()) onSend(to.trim());
   };
-  const submitRef = (e: FormEvent) => {
-    e.preventDefault();
-    if (ref.trim()) onSetReferrer(ref.trim());
-  };
-
-  // A single always-present announcer: content changes on send.ok/referrer.ok. It must live
-  // outside the `!referrer.ok` block below, which unmounts the referrer form (and would take
-  // an announcer down with it) the instant referrer.ok flips true.
-  const statusMessage = send.ok ? `Token sent — balance ${balance}` : referrer.ok ? "Referrer set" : "";
 
   return (
     <section className="bg-dark p-5">
@@ -94,35 +81,7 @@ export function TokensPanel({
       <p className="mt-2 font-mono text-[11px] uppercase tracking-[.04em] text-cream-muted xl:text-[10px]">
         +1 every 1st of the month · Transfers are final
       </p>
-      {showReferrer && !referrer.ok && (
-        <>
-          <form onSubmit={submitRef} className="mt-3 flex items-center gap-2 border-t border-dark-line pt-3">
-            <GamertagAutocomplete
-              aria-label="Referred by"
-              aria-describedby={referrer.error ? referrerErrorId : undefined}
-              aria-invalid={referrer.error ? true : undefined}
-              placeholder="REFERRED BY…"
-              value={ref}
-              onChange={setRef}
-              fetchSuggestions={searchVerifiedGamertags}
-              exclude={myGamertag}
-              className="min-w-0 flex-1"
-              inputClassName="w-full border border-dark-line bg-dark-well px-3 py-2 font-mono text-base xl:text-[11.5px] tracking-[.04em] text-paper outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red placeholder:text-cream-muted focus:border-paper"
-            />
-            <button
-              type="submit"
-              disabled={!ref.trim() || referrer.pending}
-              className="inline-flex min-h-[44px] items-center xl:min-h-0 font-mono text-[10.5px] uppercase tracking-[.05em] text-cream-dim underline underline-offset-2 disabled:opacity-50"
-            >
-              Set
-            </button>
-          </form>
-          {referrer.error && (
-            <p id={referrerErrorId} role="alert" className="mt-2 font-mono text-[10.5px] uppercase tracking-[.04em] text-red-soft">{referrer.error}</p>
-          )}
-        </>
-      )}
-      <SrStatus>{statusMessage}</SrStatus>
+      <SrStatus>{send.ok ? `Token sent — balance ${balance}` : ""}</SrStatus>
     </section>
   );
 }

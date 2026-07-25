@@ -11,90 +11,69 @@ const idle = { pending: false, error: null, ok: false };
 
 describe("TokensPanel", () => {
   test("shows the balance and footnote", () => {
-    render(<TokensPanel balance={3} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={3} send={idle} onSend={() => {}} />);
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("+1 every 1st of the month · Transfers are final")).toBeInTheDocument();
   });
 
+  // The manual "referred by" form is retired (home-is-the-app spec §3) — attribution arrives
+  // with sub-project F's invite links. Pin its absence so it cannot quietly return.
+  test("renders no referrer form", () => {
+    render(<TokensPanel balance={3} send={idle} onSend={() => {}} />);
+    expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
+  });
+
   test("send submits the trimmed gamertag", () => {
     const onSend = vi.fn();
-    render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={onSend} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={2} send={idle} onSend={onSend} />);
     fireEvent.change(screen.getByLabelText("Send a token to a verified player"), { target: { value: "  OtherGuy " } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(onSend).toHaveBeenCalledWith("OtherGuy");
   });
 
   test("send is disabled at zero balance", () => {
-    render(<TokensPanel balance={0} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={0} send={idle} onSend={() => {}} />);
     fireEvent.change(screen.getByLabelText("Send a token to a verified player"), { target: { value: "X" } });
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 
   test("shows the mapped send error", () => {
-    render(<TokensPanel balance={2} send={{ ...idle, error: "Not a verified player" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={2} send={{ ...idle, error: "Not a verified player" }} onSend={() => {}} />);
     expect(screen.getByText("Not a verified player")).toBeInTheDocument();
   });
 
   test("send.ok clears the input", () => {
-    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    const { rerender } = render(<TokensPanel balance={2} send={idle} onSend={() => {}} />);
     const input = screen.getByLabelText("Send a token to a verified player") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "OtherGuy" } });
-    rerender(<TokensPanel balance={2} send={{ ...idle, ok: true }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    rerender(<TokensPanel balance={2} send={{ ...idle, ok: true }} onSend={() => {}} />);
     expect(input.value).toBe("");
-  });
-
-  test("referrer row hides after success and under showReferrer=false", () => {
-    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
-    expect(screen.getByLabelText("Referred by")).toBeInTheDocument();
-    rerender(<TokensPanel balance={2} send={idle} referrer={{ ...idle, ok: true }} onSend={() => {}} onSetReferrer={() => {}} />);
-    expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
-    rerender(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} showReferrer={false} />);
-    expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
   });
 
   test("send suggests verified players and excludes the current player", async () => {
     vi.mocked(searchVerifiedGamertags).mockResolvedValueOnce(["MeGamer", "OtherGuy"]);
-    render(
-      <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
-    );
+    render(<TokensPanel balance={2} myGamertag="MeGamer" send={idle} onSend={() => {}} />);
     fireEvent.change(screen.getByLabelText("Send a token to a verified player"), { target: { value: "Ga" } });
     expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
   });
 
-  test("referrer suggests verified players and excludes the current player", async () => {
-    vi.mocked(searchVerifiedGamertags).mockResolvedValueOnce(["MeGamer", "OtherGuy"]);
-    render(
-      <TokensPanel balance={2} myGamertag="MeGamer" send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />,
-    );
-    fireEvent.change(screen.getByLabelText("Referred by"), { target: { value: "Ga" } });
-    expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "MeGamer" })).not.toBeInTheDocument();
-  });
-
   test("send errors announce via role=alert", () => {
-    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} onSend={() => {}} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Not enough tokens");
   });
 
   test("send error ties to its input via aria-describedby and aria-invalid", () => {
-    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={1} send={{ pending: false, ok: false, error: "Not enough tokens" }} onSend={() => {}} />);
     const input = screen.getByLabelText("Send a token to a verified player");
     expect(input).toHaveAccessibleDescription("Not enough tokens");
     expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
-  test("referrer error ties to its input via aria-describedby and aria-invalid", () => {
-    render(<TokensPanel balance={1} send={idle} referrer={{ pending: false, ok: false, error: "Not a verified player" }} onSend={() => {}} onSetReferrer={() => {}} />);
-    const input = screen.getByLabelText("Referred by");
-    expect(input).toHaveAccessibleDescription("Not a verified player");
-    expect(input).toHaveAttribute("aria-invalid", "true");
-  });
-
-  // TokensPanel mounts its own always-present SrStatus PLUS one inside each
-  // GamertagAutocomplete (send + referrer, when rendered) — all always-mounted per Finding 1.
-  // Disambiguate by picking the one node that actually carries text; the autocompletes' own
-  // status regions stay empty in these tests since no search is performed.
+  // TokensPanel mounts its own always-present SrStatus PLUS one inside the send
+  // GamertagAutocomplete — all always-mounted per Finding 1. Disambiguate by picking the one
+  // node that actually carries text; the autocomplete's own status region stays empty in these
+  // tests since no search is performed.
   function nonEmptyStatus() {
     const nonEmpty = screen.getAllByRole("status").filter((el) => el.textContent !== "");
     expect(nonEmpty).toHaveLength(1);
@@ -102,16 +81,9 @@ describe("TokensPanel", () => {
   }
 
   test("send success is announced via a role=status region", () => {
-    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
-    rerender(<TokensPanel balance={5} send={{ ...idle, ok: true }} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    const { rerender } = render(<TokensPanel balance={2} send={idle} onSend={() => {}} />);
+    rerender(<TokensPanel balance={5} send={{ ...idle, ok: true }} onSend={() => {}} />);
     expect(nonEmptyStatus()).toHaveTextContent("Token sent — balance 5");
-  });
-
-  test("referrer success is announced via role=status and survives the form unmounting", () => {
-    const { rerender } = render(<TokensPanel balance={2} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
-    rerender(<TokensPanel balance={2} send={idle} referrer={{ ...idle, ok: true }} onSend={() => {}} onSetReferrer={() => {}} />);
-    expect(screen.queryByLabelText("Referred by")).not.toBeInTheDocument();
-    expect(nonEmptyStatus()).toHaveTextContent(/referrer set/i);
   });
 
   // TokensPanel used to mount twice at once (rail + mobile sheet, both in the
@@ -121,8 +93,8 @@ describe("TokensPanel", () => {
     const erroring = { pending: false, ok: false, error: "Not enough tokens" };
     render(
       <>
-        <TokensPanel balance={1} send={erroring} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />
-        <TokensPanel balance={1} send={erroring} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />
+        <TokensPanel balance={1} send={erroring} onSend={() => {}} />
+        <TokensPanel balance={1} send={erroring} onSend={() => {}} />
       </>,
     );
     const errors = screen.getAllByRole("alert");
@@ -135,7 +107,7 @@ describe("TokensPanel", () => {
   });
 
   test("inputs are 16px below xl so iOS Safari does not zoom on focus", () => {
-    render(<TokensPanel balance={1} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+    render(<TokensPanel balance={1} send={idle} onSend={() => {}} />);
     const input = screen.getByLabelText("Send a token to a verified player");
     expect(input.className).toContain("text-base");
     expect(input.className).toContain("xl:text-[11.5px]");
@@ -146,7 +118,7 @@ describe("TokensPanel", () => {
   // not assert a fabricated "0" while the tokens query is loading/errored.
   describe("balanceLoading: does not fabricate the balance readout", () => {
     test("does not render the numeral while unresolved, shows a checking affordance instead", () => {
-      render(<TokensPanel balance={0} balanceLoading send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      render(<TokensPanel balance={0} balanceLoading send={idle} onSend={() => {}} />);
       expect(screen.queryByText("0")).not.toBeInTheDocument();
       expect(screen.getByText(/checking your balance/i)).toBeInTheDocument();
     });
@@ -157,7 +129,7 @@ describe("TokensPanel", () => {
     // like `bg-bone`/`bg-paper` — a panel that ships an ink-on-dark token is present in the DOM
     // and fully functional, but invisible on a phone (this exact class of bug shipped in v0.26.0).
     test("the balance-loading chip carries the dark-surface bg-dark-well token, not a light one", () => {
-      render(<TokensPanel balance={0} balanceLoading send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      render(<TokensPanel balance={0} balanceLoading send={idle} onSend={() => {}} />);
       // The matched text lives on the inner sr-only span; the chip itself (bearing the visible
       // token) is its parent.
       const chip = screen.getByText(/checking your balance/i).parentElement;
@@ -168,13 +140,13 @@ describe("TokensPanel", () => {
     });
 
     test("a genuinely-resolved zero balance still renders as the numeral 0", () => {
-      render(<TokensPanel balance={0} balanceLoading={false} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      render(<TokensPanel balance={0} balanceLoading={false} send={idle} onSend={() => {}} />);
       expect(screen.getByText("0")).toBeInTheDocument();
       expect(screen.queryByText(/checking your balance/i)).not.toBeInTheDocument();
     });
 
     test("a genuinely-resolved positive balance is unaffected (default balanceLoading is false)", () => {
-      render(<TokensPanel balance={3} send={idle} referrer={idle} onSend={() => {}} onSetReferrer={() => {}} />);
+      render(<TokensPanel balance={3} send={idle} onSend={() => {}} />);
       expect(screen.getByText("3")).toBeInTheDocument();
     });
   });

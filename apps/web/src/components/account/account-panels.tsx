@@ -4,17 +4,27 @@ import type { ReactNode } from "react";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
+import { ApiError } from "@/lib/api";
 import { useControls, useControlsActions } from "@/components/account/use-controls";
-import { serverCards } from "@/components/account/format";
+import { serverCards, transferErrorLabel } from "@/components/account/format";
 import { IdentityRow } from "@/components/account/identity-row";
 import { LinkTagPanel } from "@/components/account/link-panel";
 import { ProveItPanel } from "@/components/account/verify-panel";
-import { TokensSummary } from "@/components/account/tokens-summary";
+import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
 import { LadderFrame } from "@/components/account/ladder-frame";
 import { ServerCard } from "@/components/servers/server-cards";
 import { groupServerCards, isSoleRow, type ServerGroup } from "@/components/servers/grouping";
-import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
+import { HowToConnect, serversView, type ServersView } from "@/components/servers/how-to-connect";
+import { FriendsPanelContainer } from "@/components/friends/friends-panel";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
+
+function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
+  return {
+    pending: m.isPending,
+    ok: m.isSuccess,
+    error: m.isError ? transferErrorLabel(m.error instanceof ApiError ? m.error.code : "") : null,
+  };
+}
 
 function PanelsSkeleton() {
   return (
@@ -67,10 +77,10 @@ const GROUP_HEADING: Record<ServerGroup["state"], string> = {
  * row there is nothing to distinguish it from, and the heading would be pure chrome.
  */
 function ServerGroups({
-  groups, ownSlug, balance, balanceLoading, now, onRedeem, redeeming,
+  groups, ownSlug, balance, balanceLoading, now, onRedeem, redeeming, joinServers,
 }: {
   groups: ServerGroup[]; ownSlug: string; balance: number; balanceLoading: boolean; now: Date;
-  onRedeem: (banId: number) => void; redeeming: boolean;
+  onRedeem: (banId: number) => void; redeeming: boolean; joinServers: ServersView;
 }) {
   const sole = isSoleRow(groups);
   return (
@@ -92,6 +102,7 @@ function ServerGroups({
               now={now}
               onRedeem={onRedeem}
               redeeming={redeeming}
+              joinServers={joinServers}
             />
           ))}
         </section>
@@ -163,33 +174,37 @@ export function AccountPanels() {
     body = (
       <>
         <IdentityRow name={gamertag} provider={c.provider} verified />
-        {/* A SUMMARY, not the full panel: sending and the referrer live on /you, and spending is
-         *  afforded on the ban row itself, which already knows which ban to lift. */}
-        <TokensSummary balance={c.balance} loading={c.balanceLoading} />
         <h2 className="border-b-[3px] border-ink pb-1.5 font-display text-[13px] font-bold uppercase tracking-[.14em] text-ink">
           Your servers
         </h2>
         {c.standingLoading ? (
           <ServerCardsSkeleton />
         ) : (
-          <>
-            <ServerGroups
-              groups={groupServerCards(cards)}
-              ownSlug={slug}
-              balance={c.balance ?? 0}
-              balanceLoading={c.balanceLoading}
-              now={now}
-              onRedeem={(banId) => a.redeem.mutate(banId)}
-              redeeming={a.redeem.isPending}
-            />
-            {/* An idle row's action. Rendered once below the groups rather than per row: the
-             *  instructions are identical for every server, and repeating them would bury the
-             *  rows that need attention. */}
-            {cards.some((card) => card.state === "idle") && (
-              <HowToConnect servers={serversView(c.servers, { loading: c.serversLoading })} />
-            )}
-          </>
+          <ServerGroups
+            groups={groupServerCards(cards)}
+            ownSlug={slug}
+            balance={c.balance ?? 0}
+            balanceLoading={c.balanceLoading}
+            now={now}
+            onRedeem={(banId) => a.redeem.mutate(banId)}
+            redeeming={a.redeem.isPending}
+            joinServers={serversView(c.servers, { loading: c.serversLoading })}
+          />
         )}
+        {/* The FULL panel, back from /you (home-is-the-app spec §3): home is the app, and Send
+         *  belongs where the balance is. Spending still lives on the ban row, which knows WHICH
+         *  ban to lift. */}
+        <TokensPanel
+          balance={c.balance ?? 0}
+          balanceLoading={c.balanceLoading}
+          send={mutView(a.send)}
+          onSend={(gt) => a.send.mutate(gt)}
+          myGamertag={gamertag}
+        />
+        {/* xl:hidden — the xl sidebar already mounts this; two mounts, one component (spec §4). */}
+        <div className="xl:hidden">
+          <FriendsPanelContainer />
+        </div>
       </>
     );
   }
