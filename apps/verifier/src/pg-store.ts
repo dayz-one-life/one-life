@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { gamertagLinks, verificationChallenges, userPreferences } from "@onelife/db";
+import { gamertagLinks, locationShares, verificationChallenges, userPreferences } from "@onelife/db";
 import { and, asc, eq, gt, lt, ne, isNull, sql as dsql } from "drizzle-orm";
 
 export type PendingChallenge = {
@@ -79,8 +79,14 @@ export class PgVerifierStore {
     if (!link) return;
     await this.tx
       .update(userPreferences)
-      .set({ sharePresence: false, shareLocation: false, updatedAt: verifiedAt })
+      .set({ sharePresence: false, updatedAt: verifiedAt })
       .where(eq(userPreferences.userId, link.userId));
+    // ⚠️ The `share_location` half of this reset became a DELETE when sub-project E dropped that
+    // column for session-scoped grants. A re-verified link is a new claim on that identity and
+    // must not inherit outbound sharing — the reason F2 reset the switch is the reason this
+    // deletes the rows. One-directional: it clears what this user shares, never what others
+    // share with them.
+    await this.tx.delete(locationShares).where(eq(locationShares.granterUserId, link.userId));
   }
 
   async cancelLink(linkId: number): Promise<void> {

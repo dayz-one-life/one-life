@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   user, gamertagLinks, servers, players, lives, sessions, positions, friendships,
-  userPreferences,
+  userPreferences, locationShares,
 } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
@@ -158,12 +158,13 @@ describe("friend map routes", () => {
       userId: friendUser!.id, gamertag: friendGamertag, status: "verified", verifiedAt: now,
     });
 
+    // ⚠️ Sub-project E: visibility is a session-scoped GRANT, not friendship flags. The
+    // friendship is kept only so this fixture still exercises "a friend who has granted";
+    // friendship itself grants nothing.
     const { userA, userB } = orderPair(viewerUser!.id, friendUser!.id);
     await db.insert(friendships).values({
       userA, userB, status: "accepted", requestedBy: viewerUser!.id,
-      aSharesLocation: true, bSharesLocation: true,
     });
-    await db.insert(userPreferences).values({ userId: friendUser!.id, shareLocation: true });
 
     const [p] = await db.insert(players).values({ gamertag: friendGamertag, lastSeenAt: now })
       .returning();
@@ -173,6 +174,11 @@ describe("friend map routes", () => {
     await db.insert(sessions).values({
       serverId: server!.id, playerId: p!.id, lifeId: life!.id,
       connectedAt: now, disconnectedAt: null,
+    });
+    // The grant, snapshotting the session that was just opened.
+    await db.insert(locationShares).values({
+      granterUserId: friendUser!.id, granteeUserId: viewerUser!.id, serverId: server!.id,
+      granterSessionConnectedAt: now,
     });
     await db.insert(positions).values({
       serverId: server!.id, playerId: p!.id, gamertag: friendGamertag,

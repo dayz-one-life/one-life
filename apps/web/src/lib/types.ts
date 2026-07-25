@@ -230,10 +230,6 @@ export type FriendEntryDto = {
   since: string;
   sharesPresence: boolean;
   notifyPresence: boolean;
-  sharesLocation: boolean;
-  /** ⚠️ Deliberately collapsed — see `reciprocityLabel` in `components/friends/location-toggles`.
-   *  Never split into "master off" vs. "hidden from you specifically". */
-  theyShareLocation: boolean;
 };
 
 export type FriendsFeed = {
@@ -243,10 +239,10 @@ export type FriendsFeed = {
   total: number;
   page: number;
   pageSize: number;
-  /** The viewer's master switch — gates every per-friend share flag. */
+  /** The viewer's master switch — gates every per-friend share flag.
+   *  ⚠️ Presence only. Sub-project E deleted the location equivalent; the roster reports
+   *  nothing about location, because sharing is a session-scoped grant made on the map. */
   sharePresence: boolean;
-  /** The viewer's master switch for location — gates every per-friend location flag. */
-  shareLocation: boolean;
 };
 
 export type FriendStatusDto = {

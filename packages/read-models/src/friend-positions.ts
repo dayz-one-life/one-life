@@ -1,9 +1,8 @@
 import type { Database } from "@onelife/db";
 import {
-  friendships, gamertagLinks, players, positions, sessions, userPreferences,
+  gamertagLinks, locationShares, players, positions, sessions,
 } from "@onelife/db";
-import { shouldShareLocation } from "@onelife/friends";
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { MARKER_MAX_AGE_SECONDS } from "./life-track-shape.js";
 
 export interface FriendPosition {
@@ -15,15 +14,15 @@ export interface FriendPosition {
 }
 
 /**
- * Everyone the viewer may see on one server: themselves, plus each friend sharing with them.
+ * Everyone the viewer may see on one server: themselves, plus everyone whose SESSION-SCOPED grant
+ * to them is still effective (sub-project E — friendship is not a factor).
  *
  * ⚠️ The viewer is identified by SESSION-DERIVED user id only. This read model is reached from
  * a /me route that takes no player identifier, so a caller cannot name a subject — the subject
- * set is computed here from the viewer's own friendships. Do not add a "which player" parameter.
+ * set is computed here from the grants made TO the viewer. Do not add a "which player" parameter.
  *
  * The join to `gamertag_links` is INNER and requires `verified`: a released link means no
- * coordinates, unconditionally, even though the friendship row and its sharing flags survive.
- * That is the structural half of F1's deferred prerequisite (F2 spec §4).
+ * coordinates, unconditionally, even though the grant row survives. Retained from F2.
  */
 export async function getFriendPositions(
   db: Database,
@@ -64,55 +63,55 @@ export async function getFriendPositions(
     .limit(1);
   if (!viewer) return [];
 
-  // Candidate friends with both sides' flags plus the FRIEND's master switch. Eligibility is
-  // decided in TypeScript by shouldShareLocation so the rule lives in exactly one place.
+  // ⚠️ THE PREDICATE, and it is a JOIN, never a post-filter (sub-project E).
   //
-  // ⚠️ The viewer restriction lives entirely in the `gamertagLinks` join's ON clause (the
-  // `or(...)` below), not a WHERE — this IS the scope, restricting the joined rows to the
-  // OTHER side of a friendship the viewer belongs to. Moving it into a WHERE would need both
-  // halves of the `or` repeated there or it silently drops the case where the friend is side A.
-  const friendRows = await db
+  // Everyone who has granted THIS VIEWER their position on THIS server, and whose grant is still
+  // effective. A grant is effective only while the granter is still in the session it was made
+  // in, which is expressed by the last join condition: the stored snapshot must equal the
+  // `connected_at` of an OPEN session on this server.
+  //
+  // Because that is a join condition, an expired grant produces NO ROW — no intermediate value in
+  // this call path ever holds a lapsed subject's coordinates for a later bug to leak. Do not
+  // "simplify" this into a fetch-then-filter.
+  //
+  // ⚠️ Equality against the session, not `granted_at >= connected_at`. The two would come from
+  // different clocks (API wall clock vs an ADM timestamp with `servers.clock_offset_ms` applied),
+  // which differ by seconds — see the ⚠️ on `isShareEffective` in packages/friends.
+  //
+  // ⚠️ The `gamertag_links` join is INNER and requires `verified`: a released link means no
+  // coordinates, unconditionally, even though the grant row survives. Retained from F2.
+  //
+  // ⚠️ There is no friendship join and no master switch. Sub-project E replaced the standing
+  // consent model with per-session grants; strangers may grant, friends have no implicit access.
+  const grantRows = await db
     .select({
-      userA: friendships.userA,
-      userB: friendships.userB,
-      status: friendships.status,
-      aShares: friendships.aSharesLocation,
-      bShares: friendships.bSharesLocation,
-      friendUserId: gamertagLinks.userId,
+      granterUserId: locationShares.granterUserId,
       gamertag: gamertagLinks.gamertag,
       playerId: players.id,
       lastSeenAt: players.lastSeenAt,
-      masterShare: userPreferences.shareLocation,
     })
-    .from(friendships)
+    .from(locationShares)
     .innerJoin(gamertagLinks, and(
+      eq(gamertagLinks.userId, locationShares.granterUserId),
       eq(gamertagLinks.status, "verified"),
-      or(
-        and(eq(friendships.userA, a.viewerUserId), eq(gamertagLinks.userId, friendships.userB)),
-        and(eq(friendships.userB, a.viewerUserId), eq(gamertagLinks.userId, friendships.userA)),
-      ),
     ))
     .innerJoin(players, sql`lower(${players.gamertag}) = lower(${gamertagLinks.gamertag})`)
-    .leftJoin(userPreferences, eq(userPreferences.userId, gamertagLinks.userId))
-    // Ordered so the per-friend collapse below is DETERMINISTIC, matching the viewer's own
-    // lookup. Without it this query has no ORDER BY at all, the collapse's strict `>` keeps
-    // whichever duplicate Postgres happened to return first, and two case-variant rows with
-    // equal — or both NULL, the column is nullable — `lastSeenAt` could swap the rendered dot
-    // between two locations on successive 30s polls. That is the very failure the collapse
-    // exists to remove, just at a lower frequency.
+    .innerJoin(sessions, and(
+      eq(sessions.playerId, players.id),
+      eq(sessions.serverId, locationShares.serverId),
+      isNull(sessions.disconnectedAt),
+      eq(sessions.connectedAt, locationShares.granterSessionConnectedAt),
+    ))
+    .where(and(
+      eq(locationShares.granteeUserId, a.viewerUserId),
+      eq(locationShares.serverId, a.serverId),
+    ))
+    // Ordered so the per-granter collapse below is DETERMINISTIC, matching the viewer's own
+    // lookup. Without it this query has no ORDER BY at all and two case-variant `players` rows
+    // could swap the rendered dot between two locations on successive 30s polls.
     .orderBy(sql`${players.lastSeenAt} desc nulls last`, sql`${players.id} asc`);
 
-  const visible = friendRows.filter((r) =>
-    shouldShareLocation({
-      status: r.status,
-      // Absent preferences row ⇒ false. Never permissive.
-      masterShare: r.masterShare ?? false,
-      // The FRIEND's own per-pair flag: theirs is the A column when they are side A.
-      pairShare: r.userA === r.friendUserId ? r.aShares : r.bShares,
-    }),
-  );
-
-  // ⚠️ One friend, one dot. The lower(gamertag) join above can match several `players` rows for
+  // ⚠️ One granter, one dot. The lower(gamertag) join above can match several `players` rows for
   // a single link whenever the ingest holds "Sasha" and "sasha" as distinct rows for what is
   // really one Xbox identity — or, since migration 0025 dropped `players_gamertag_uniq`
   // altogether (gamertag is a current LABEL now; identity is dayz_id), for two genuinely
@@ -120,7 +119,7 @@ export async function getFriendPositions(
   // so this collapse is load-bearing and not merely defensive. The failure mode without it is
   // TWO markers, both labelled with the same callsign, in two different places — a friend
   // appearing to be in two locations at once is worse than being absent, and it throws nothing.
-  // Collapse to the FIRST row per friend, which the `orderBy` above has already made the
+  // Collapse to the FIRST row per granter, which the `orderBy` above has already made the
   // most-recently-seen one. Deliberately one rule rather than an ORDER BY plus a comparator
   // that must agree with it.
   //
@@ -129,9 +128,9 @@ export async function getFriendPositions(
   // treats a position dump as a presence heartbeat, so the row with the freshest position is
   // necessarily the row with the freshest `lastSeenAt`. If that ever stops holding, collapse
   // AFTER the position query instead — otherwise picking the wrong row renders no dot at all.
-  const bestByFriend = new Map<string, (typeof visible)[number]>();
-  for (const r of visible) {
-    if (!bestByFriend.has(r.friendUserId)) bestByFriend.set(r.friendUserId, r);
+  const bestByGranter = new Map<string, (typeof grantRows)[number]>();
+  for (const r of grantRows) {
+    if (!bestByGranter.has(r.granterUserId)) bestByGranter.set(r.granterUserId, r);
   }
 
   // ⚠️ Also one PLAYER ROW to one subject. Two different users holding verified links to "Sasha"
@@ -152,7 +151,7 @@ export async function getFriendPositions(
   // `playerId` is null when the viewer has a verified link but no folded `players` row — they
   // contribute no subject and simply have no dot of their own. Friends are unaffected.
   if (viewer.playerId !== null) claim(viewer.gamertag, viewer.playerId);
-  for (const r of bestByFriend.values()) claim(r.gamertag, r.playerId);
+  for (const r of bestByGranter.values()) claim(r.gamertag, r.playerId);
 
   if (subjects.length === 0) return [];
   const playerIds = subjects.map((s) => s.playerId);

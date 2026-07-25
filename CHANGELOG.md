@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Location sharing is now per-session, not a standing setting.** It used to be two switches — a
+  master "share my location" and a per-friend toggle — and once on, they stayed on indefinitely.
+  They are gone. Sharing is now a grant you hand one person while you are both in a session, and
+  it dies when your session does: no expiry to remember, nothing left on for weeks. **Existing
+  location-sharing settings are discarded** — consent given under the old model does not carry
+  over. The Friends page keeps presence and the roster; location left it entirely.
+
+### Changed
+
 - **The map is a page again, not a separate application.** `/maps/<map>` had its own full-screen
   chrome — a top bar with a back arrow, and a second bar along the bottom — which duplicated the
   site's own masthead and tab bar badly. It now sits in the ordinary site shell, with the masthead,

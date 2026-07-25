@@ -1,10 +1,9 @@
 import type { Database } from "@onelife/db";
-import { friendships, gamertagLinks, userPreferences } from "@onelife/db";
+import { friendships, gamertagLinks } from "@onelife/db";
 import { and, eq, inArray, or, sql as dsql } from "drizzle-orm";
 import { orderPair, viewOf, type FriendStatus, type FriendshipRow } from "./pair.js";
 import { playerSlug } from "./notify.js";
 import { getSharePresence } from "./presence.js";
-import { getShareLocation, shouldShareLocation } from "./location.js";
 
 export const FRIENDS_PAGE_SIZE = 25;
 
@@ -16,31 +15,13 @@ export type FriendEntry = {
   since: Date;
   sharesPresence: boolean;
   notifyPresence: boolean;
-  /** The viewer's own per-pair flag. */
-  sharesLocation: boolean;
-  /**
-   * Whether the OTHER party's location is effectively visible to the viewer — their master
-   * switch AND their per-pair flag, collapsed to one boolean.
-   *
-   * ⚠️ DELIBERATELY UNDIFFERENTIATED. It must never distinguish "their master switch is off"
-   * from "they have hidden from you specifically". Differentiating would have the app tell one
-   * player that a named friend singled them out, which makes the per-friend hide switch a
-   * visible act and therefore unusable. This is also the ONE place this codebase reports
-   * anything about another user's settings — presence deliberately reports none. Do not
-   * generalise it.
-   */
-  theyShareLocation: boolean;
 };
 
-/** The share_location master switch for a set of users. Absent row ⇒ false. */
-async function shareLocationFor(db: Database, userIds: string[]): Promise<Map<string, boolean>> {
-  if (userIds.length === 0) return new Map();
-  const rows = await db
-    .select({ userId: userPreferences.userId, shareLocation: userPreferences.shareLocation })
-    .from(userPreferences)
-    .where(inArray(userPreferences.userId, userIds));
-  return new Map(rows.map((r) => [r.userId, r.shareLocation]));
-}
+// ⚠️ The roster reports NOTHING about location any more (sub-project E). It used to carry the
+// viewer's own per-pair flag and a collapsed `theyShareLocation` boolean — the one place this
+// codebase reported anything about another user's settings. Location sharing is now a
+// session-scoped grant made on the map, so there is no standing state for a roster to show, and
+// re-adding one would resurrect the standing consent model E exists to delete.
 
 /** The verified gamertag for each of a set of user ids. */
 async function gamertagsFor(db: Database, userIds: string[]): Promise<Map<string, string>> {
@@ -67,13 +48,12 @@ export async function listFriends(
   a: { userId: string; now?: Date; page?: number; pageSize?: number },
 ): Promise<{
   friends: FriendEntry[]; incoming: FriendEntry[]; outgoing: FriendEntry[];
-  total: number; page: number; pageSize: number; sharePresence: boolean; shareLocation: boolean;
+  total: number; page: number; pageSize: number; sharePresence: boolean;
 }> {
   const now = a.now ?? new Date();
   const page = Math.max(1, a.page ?? 1);
   const pageSize = a.pageSize ?? FRIENDS_PAGE_SIZE;
   const sharePresence = await getSharePresence(db, a.userId);
-  const shareLocation = await getShareLocation(db, a.userId);
 
   const rows = (await db
     .select()
@@ -86,7 +66,6 @@ export async function listFriends(
 
   const views = rows.map((r) => ({ row: r, view: viewOf(r, a.userId, now) }));
   const tags = await gamertagsFor(db, views.map((v) => v.view.friendUserId));
-  const masters = await shareLocationFor(db, views.map((v) => v.view.friendUserId));
 
   const entry = (v: (typeof views)[number]): FriendEntry | null => {
     const gamertag = tags.get(v.view.friendUserId);
@@ -102,9 +81,11 @@ export async function listFriends(
     //   (a) structural — the coordinate query inner-joins a `verified` gamertag_links row
     //       (packages/read-models/src/friend-positions.ts), so a released link means no
     //       coordinates unconditionally, whatever the surviving flags say; and
-    //   (b) explicit — verifyLink resets share_location AND share_presence in the same
-    //       transaction (apps/verifier/src/pg-store.ts, the only writer of status='verified'),
-    //       so re-verifying is a deliberate re-opt-in rather than a silent resurrection.
+    //   (b) explicit — verifyLink resets share_presence AND DELETES the user's location_shares
+    //       rows in the same transaction (apps/verifier/src/pg-store.ts, the only writer of
+    //       status='verified'), so re-verifying is a deliberate re-opt-in rather than a silent
+    //       resurrection. (F2's share_location reset became the location_shares delete when
+    //       sub-project E dropped that column.)
     // (a) alone leaves stale `true` flags that go live again on re-verification; (b) alone
     // dies to any future query that forgets the join.
     if (!gamertag) return null;
@@ -113,12 +94,6 @@ export async function listFriends(
       status: v.view.status, since: v.view.createdAt,
       sharesPresence: v.view.iSharePresence,
       notifyPresence: v.view.iNotifyPresence,
-      sharesLocation: v.view.iShareLocation,
-      theyShareLocation: shouldShareLocation({
-        status: v.row.status,
-        masterShare: masters.get(v.view.friendUserId) ?? false,
-        pairShare: v.view.theyShareLocation,
-      }),
     };
   };
   const bucket = (s: FriendStatus) =>
@@ -133,7 +108,6 @@ export async function listFriends(
     page,
     pageSize,
     sharePresence,
-    shareLocation,
   };
 }
 

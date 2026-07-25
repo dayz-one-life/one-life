@@ -232,7 +232,11 @@ describe("friend routes", () => {
     expect((await get(cookieA, "/me/friends")).json().sharePresence).toBe(true);
   });
 
-  it("patches shareLocation on a friendship the caller is a party to, reflected in the feed", async () => {
+  // ⚠️ Sub-project E deleted `shareLocation` from BOTH routes — the per-friendship flag and the
+  // master preference. Location is a session-scoped grant made on the map; there is no standing
+  // state for either endpoint to hold. These assert the parameters are GONE rather than
+  // accepted-and-ignored, which is how a caller comes to believe a dead field still works.
+  it("rejects a presence patch carrying only the removed shareLocation field", async () => {
     const emailG = `frG${svc}@example.com`;
     const emailH = `frH${svc}@example.com`;
     const tagG = `FriendGolf${svc}`;
@@ -250,35 +254,27 @@ describe("friend routes", () => {
     const id = (await get(cookieH, "/me/friends")).json().incoming[0].id;
     await post(cookieH, `/me/friends/${id}/accept`);
 
-    expect((await patch(cookieG, `/me/friends/${id}/presence`, { shareLocation: false })).statusCode).toBe(200);
-
-    const g = (await get(cookieG, "/me/friends")).json().friends[0];
-    expect(g.sharesLocation).toBe(false);
+    // A patch whose only field is the removed one now patches nothing, which is a malformed
+    // request rather than a silent success.
+    const res = await patch(cookieG, `/me/friends/${id}/presence`, { shareLocation: false });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: "no_fields" });
   });
 
-  it("404s a shareLocation patch on a friendship the caller is not party to", async () => {
-    const emailI = `frI${svc}@example.com`;
-    const emailJ = `frJ${svc}@example.com`;
-    const tagI = `FriendIndia${svc}`;
-    const tagJ = `FriendJuliet${svc}`;
-    const cookieI = await signIn(emailI);
-    const cookieJ = await signIn(emailJ);
-    const [ui] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailI.toLowerCase()));
-    const [uj] = await db.select({ id: user.id }).from(user).where(eq(user.email, emailJ.toLowerCase()));
-    await db.insert(gamertagLinks).values([
-      { userId: ui!.id, gamertag: tagI, status: "verified", verifiedAt: new Date() },
-      { userId: uj!.id, gamertag: tagJ, status: "verified", verifiedAt: new Date() },
-    ]);
-
-    await post(cookieI, "/me/friends/requests", { toGamertag: tagJ });
-    const id = (await get(cookieJ, "/me/friends")).json().incoming[0].id;
-    await post(cookieJ, `/me/friends/${id}/accept`);
-
-    expect((await patch(cookieA, `/me/friends/${id}/presence`, { shareLocation: true })).statusCode).toBe(404);
+  it("the friends feed reports nothing about location", async () => {
+    const feed = (await get(cookieA, "/me/friends")).json();
+    expect(feed).not.toHaveProperty("shareLocation");
+    for (const bucket of ["friends", "incoming", "outgoing"] as const) {
+      for (const e of feed[bucket] as Record<string, unknown>[]) {
+        expect(Object.keys(e).some((k) => /location/i.test(k))).toBe(false);
+      }
+    }
   });
 
-  it("round-trips PATCH /me/preferences { shareLocation: true }", async () => {
-    expect((await patch(cookieA, "/me/preferences", { shareLocation: true })).json().shareLocation).toBe(true);
-    expect((await get(cookieA, "/me/preferences")).json().shareLocation).toBe(true);
+  it("PATCH /me/preferences ignores a removed shareLocation field and never echoes it", async () => {
+    const res = await patch(cookieA, "/me/preferences", { shareLocation: true });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).not.toHaveProperty("shareLocation");
+    expect((await get(cookieA, "/me/preferences")).json()).not.toHaveProperty("shareLocation");
   });
 });
