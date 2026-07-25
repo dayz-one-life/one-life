@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Roster } from "@/components/friends/roster";
+import { PageHeader } from "@/components/shared/page-header";
 
 export const metadata: Metadata = {
   title: "The Roster",
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function FriendsPage() {
   return (
     <div className="mx-auto max-w-[68ch] px-4 py-8">
-      <h1 className="font-display text-3xl uppercase tracking-[.02em]">The Roster</h1>
+      {/* No `count` here: the roster owns its own loading/empty/failed states and already reports
+       *  its totals honestly. A second count in the header would be a second source of truth. */}
+      <PageHeader title="The Roster" />
       <div className="mt-6">
         <Roster />
       </div>

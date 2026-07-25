@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { lifeHrefBySlug } from "@/lib/life-href";
 import { banCountdown, mapLabel } from "@/components/player/format";
 import { UnbanView, unbanStateOf } from "@/components/player/self-unban-button";
-import { serverFactLine, type ServerCardData } from "./format";
+import { serverFactLine, type ServerCardData } from "@/components/account/format";
 
 export function StateChip({ state, small = false }: { state: ServerCardData["state"]; small?: boolean }) {
   const base = cn("ml-auto flex-none px-2 pb-0.5 pt-1 font-display font-bold uppercase tracking-[.1em]", small ? "text-[9px]" : "text-[10px]");

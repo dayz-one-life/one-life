@@ -5,34 +5,32 @@ import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
 import { ApiError } from "@/lib/api";
-import { useControls, useControlsActions } from "./use-controls";
-import { serverCards, transferErrorLabel } from "./format";
-import { IdentityRow } from "./identity-row";
-import { SignInPanel } from "./signin-panel";
-import { LinkTagPanel } from "./link-panel";
-import { ProveItPanel } from "./verify-panel";
-import { TokensPanel, type MutationView } from "./tokens-panel";
-import { FriendsPanelContainer } from "./friends-panel";
-import { ServerCard } from "./server-cards";
-import { VerificationAnnouncer } from "./verification-announcer";
+import { useControls, useControlsActions } from "@/components/account/use-controls";
+import { serverCards, transferErrorLabel } from "@/components/account/format";
+import { IdentityRow } from "@/components/account/identity-row";
+import { LinkTagPanel } from "@/components/account/link-panel";
+import { ProveItPanel } from "@/components/account/verify-panel";
+import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
+import { ServerCard } from "@/components/servers/server-cards";
+import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
-function RailSkeleton() {
+function PanelsSkeleton() {
   return (
     <div aria-busy="true" className="flex flex-col gap-4">
-      <div aria-hidden className="h-10 motion-safe:animate-pulse bg-bone" />
-      <div aria-hidden className="h-40 motion-safe:animate-pulse bg-bone" />
-      <div aria-hidden className="h-24 motion-safe:animate-pulse bg-bone" />
+      <div aria-hidden className="h-10 bg-bone motion-safe:animate-pulse" />
+      <div aria-hidden className="h-40 bg-bone motion-safe:animate-pulse" />
+      <div aria-hidden className="h-24 bg-bone motion-safe:animate-pulse" />
     </div>
   );
 }
 
-/** Standing is still loading/errored — the truth is unknown, so show a placeholder rather
- *  than fabricating "idle" for every server (spec: live-data honesty §5). */
+/** Standing is still loading/errored — the truth is unknown, so show a placeholder rather than
+ *  fabricating "idle" for every server (live-data honesty §5). */
 function ServerCardsSkeleton() {
   return (
     <div aria-busy="true" className="flex flex-col gap-2.5">
-      <div aria-hidden className="h-20 motion-safe:animate-pulse bg-bone" />
-      <div aria-hidden className="h-20 motion-safe:animate-pulse bg-bone" />
+      <div aria-hidden className="h-20 bg-bone motion-safe:animate-pulse" />
+      <div aria-hidden className="h-20 bg-bone motion-safe:animate-pulse" />
     </div>
   );
 }
@@ -45,8 +43,8 @@ function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; 
   };
 }
 
-/** Footer shown in every signed-in state so a signed-in user can always sign out (the
- *  profile link only appears once a gamertag is verified). */
+/** Shown in every signed-in state so a signed-in user can always sign out; the profile link only
+ *  appears once a gamertag is verified. */
 function SignedInFooter({ profileSlug }: { profileSlug?: string }) {
   return (
     <div className="flex justify-between border-t border-hairline pt-2.5 font-mono text-[11px] uppercase tracking-[.05em]">
@@ -57,29 +55,33 @@ function SignedInFooter({ profileSlug }: { profileSlug?: string }) {
       ) : (
         <span />
       )}
-      <button
-        type="button"
-        onClick={() => void signOutAndTeardownPush()}
-        className="text-ink-muted hover:text-red"
-      >
+      <button type="button" onClick={() => void signOutAndTeardownPush()} className="text-ink-muted hover:text-red">
         Sign out
       </button>
     </div>
   );
 }
 
-/** Desktop controls rail (canvas 10a/10d) — the right column of the root layout at xl+. */
-export function ControlsRail() {
+/**
+ * The account surface, lifted out of the deleted ControlsRail. Rendered in Home's main column —
+ * NOT in the sidebar, because the sidebar is xl-only and everything here is actionable.
+ *
+ * Sub-project C restructures this into the three-mode home; B only rehouses it so nothing is lost.
+ */
+export function AccountPanels() {
   const c = useControls();
   const a = useControlsActions();
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
 
+  // A signed-out visitor gets nothing here: Home already carries the hero and `SignInCta`, and
+  // the old rail's SignInPanel would be a SECOND sign-in call to action on the same page. The
+  // rail could afford one because it was a separate column; in the main flow it is a duplicate.
+  if (c.status.kind === "signedOut") return null;
+
   let body: ReactNode;
   if (c.status.kind === "loading") {
-    body = <RailSkeleton />;
-  } else if (c.status.kind === "signedOut") {
-    body = <SignInPanel />;
+    body = <PanelsSkeleton />;
   } else if (c.status.kind === "unlinked") {
     body = (
       <>
@@ -141,7 +143,6 @@ export function ControlsRail() {
             />
           ))
         )}
-        <FriendsPanelContainer />
       </>
     );
   }
@@ -151,12 +152,12 @@ export function ControlsRail() {
   const profileSlug = c.status.kind === "verified" ? playerSlug(c.status.link.gamertag) : undefined;
 
   return (
-    <aside aria-label="Player controls" className="hidden py-8 pl-7 xl:sticky xl:top-0 xl:block xl:max-h-screen xl:self-start xl:overflow-y-auto">
-      <div className="flex flex-col gap-4">
-        <VerificationAnnouncer kind={c.status.kind} />
-        {body}
-        {signedIn && <SignedInFooter profileSlug={profileSlug} />}
-      </div>
-    </aside>
+    <section aria-label="Your account" className="flex flex-col gap-4">
+      {/* ⚠️ Unconditional sibling of `body`, never inside a branch: it must outlive the
+       *  pending -> verified panel swap to announce the change (SR-structure spec). */}
+      <VerificationAnnouncer kind={c.status.kind} />
+      {body}
+      {signedIn && <SignedInFooter profileSlug={profileSlug} />}
+    </section>
   );
 }

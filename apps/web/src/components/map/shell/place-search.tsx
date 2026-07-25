@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
-import { GamertagAutocomplete } from "@/components/controls/gamertag-autocomplete";
+import { GamertagAutocomplete } from "@/components/shared/gamertag-autocomplete";
 import { searchPlaces } from "@/lib/map-places";
 import type { MapFocus } from "@/components/map/map-canvas";
 

@@ -1,22 +1,29 @@
 import type { ReactNode } from "react";
 import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { ControlsRail } from "@/components/controls/rail";
+import { TabBar } from "@/components/shell/tab-bar";
 
-/** Every surface EXCEPT the map application. `/maps` deliberately sits outside this group so
- *  it can render its own full-viewport shell — see app/maps/layout.tsx. Route groups are not
- *  path segments, so nothing in here changed URL when it moved. */
+/**
+ * Every surface EXCEPT the map application. `/maps/[map]` deliberately sits outside this group so
+ * it can render its own full-viewport shell. Route groups are not path segments, so nothing in
+ * here changed URL when it moved.
+ *
+ * The two-column grid used to live here, with the controls rail pinned in the right column of
+ * EVERY page. It moved into Home (`app/(site)/page.tsx`), which is now the only page with a
+ * sidebar — every other page in the group gets its full width back.
+ */
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <Masthead />
-      <div className="mx-auto w-full max-w-[1440px] flex-1 xl:grid xl:grid-cols-[minmax(0,1fr)_380px] xl:px-10">
-        <div id="main-content" tabIndex={-1} className="min-w-0 xl:border-r xl:border-ink xl:pr-8">
-          {children}
-        </div>
-        <ControlsRail />
+      {/* ⚠️ The TabBar gutter is NOT here — it is on the <Footer/>, which is the last in-flow
+       *  element in the document. Padding this column instead leaves the footer itself under the
+       *  fixed bar, which hid the footer's About link (its only route below `md`). */}
+      <div id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[1440px] flex-1 xl:px-10">
+        {children}
       </div>
       <Footer />
+      <TabBar />
     </>
   );
 }

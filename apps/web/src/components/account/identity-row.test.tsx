@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { IdentityRow } from "./identity-row";
-import { SignInPanel } from "./signin-panel";
 
 describe("IdentityRow", () => {
   test("verified: name, provider line, stamp", () => {
@@ -19,13 +18,5 @@ describe("IdentityRow", () => {
     const { container } = render(<IdentityRow name="Boots" provider={null} />);
     const disc = container.querySelector('[aria-hidden="true"]');
     expect(disc?.textContent).toBe("B");
-  });
-});
-
-describe("SignInPanel", () => {
-  test("renders the CTA headline and login link", () => {
-    render(<SignInPanel />);
-    expect(screen.getByText("Get on the board.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/login");
   });
 });

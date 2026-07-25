@@ -10,6 +10,12 @@ vi.mock("@/lib/api", () => ({
   getSurvivors: (...a: unknown[]) => getSurvivors(...a),
 }));
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "loading" }) }));
+// The account surface has its own data layer and its own tests. This file is about feed honesty,
+// so stub the two account regions rather than mocking every query they reach for.
+vi.mock("@/components/account/account-panels", () => ({
+  AccountPanels: () => <section aria-label="Your account" />,
+}));
+vi.mock("@/components/account/home-sidebar", () => ({ HomeSidebar: () => <aside /> }));
 
 beforeEach(() => {
   vi.clearAllMocks();
