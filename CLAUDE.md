@@ -1249,8 +1249,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (they never overlap spatially) rather than adding a fourth altitude, and its height is
   `h-[calc(4rem+env(safe-area-inset-bottom))]` — **the inset must stay inside the calc**, since as
   padding under `border-box` it is subtracted from the box and collapses the row on a notched
-  phone. The site layout carries a matching `pb-[calc(...)]` gutter below `md`; without it the bar
-  covers the last rows of every scrollable page. **This is NOT a return of the retired
+  phone. **⚠️ The matching `pb-[calc(...)]` gutter lives on the `<Footer/>`, NOT on the layout's
+  content column** — the footer is a sibling after that column and so is the last in-flow element
+  in the document, so padding the column leaves the footer itself under the bar. That shipped once
+  and hid the footer's **About** link, which is About's only route below `md` (verified in a
+  browser: `elementFromPoint` on the link returned the bar). jsdom cannot see the overlap, so
+  `footer.test.tsx` pins the gutter class. **This is NOT a return of the retired
   `ControlsPill`** — that was a floating account surface; this is app-wide navigation that renders
   for signed-out visitors too.
   **The hamburger and its full-screen menu are gone**, and **About moved to the footer**, which is
@@ -1271,8 +1275,14 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   loading, resolved-zero and failed are three distinct renders defined once — this repo's
   most-repeated bug class. It carries **no z-index and no sticky**. Adopted by `/you` and
   `/friends`; the board keeps its own larger header until D restyles it.
-  **⚠️ The real-device pass (plan Task 10) is OUTSTANDING**, and it absorbs M1's own outstanding
-  browser pass. jsdom cannot see the tab-bar gutter, the safe-area calc, paint order or contrast.
+  **Browser-verified in real Chrome** (the tab-bar gutter/footer overlap above, five tabs fitting
+  at 320px without wrapping, no horizontal overflow, the sidebar hidden below `xl`, no masthead
+  collision). **⚠️ Headless Chrome is USELESS for this** — it clamps the layout viewport to ~500px
+  CSS regardless of `--window-size`, in both headless modes, which reads as a horizontal-overflow
+  bug that also reproduces on `main`. Drive real Chrome instead.
+  **⚠️ Still outstanding and needing a real device or a signed-in session:** the safe-area calc in
+  PWA/standalone on a notched phone, and the bell popover painting over the tab bar. M1's own
+  browser pass (real mirrored tiles) also remains outstanding.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
