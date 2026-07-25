@@ -1275,14 +1275,69 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   loading, resolved-zero and failed are three distinct renders defined once — this repo's
   most-repeated bug class. It carries **no z-index and no sticky**. Adopted by `/you` and
   `/friends`; the board keeps its own larger header until D restyles it.
-  **Browser-verified in real Chrome** (the tab-bar gutter/footer overlap above, five tabs fitting
-  at 320px without wrapping, no horizontal overflow, the sidebar hidden below `xl`, no masthead
-  collision). **⚠️ Headless Chrome is USELESS for this** — it clamps the layout viewport to ~500px
-  CSS regardless of `--window-size`, in both headless modes, which reads as a horizontal-overflow
-  bug that also reproduces on `main`. Drive real Chrome instead.
-  **⚠️ Still outstanding and needing a real device or a signed-in session:** the safe-area calc in
-  PWA/standalone on a notched phone, and the bell popover painting over the tab bar. M1's own
-  browser pass (real mirrored tiles) also remains outstanding.
+  **Browser-verified in real Chrome** (the tab-bar gutter/footer overlap above, no horizontal
+  overflow, the sidebar hidden below `xl`, no masthead collision). **⚠️ Headless Chrome is USELESS
+  for this** — it clamps the layout viewport to ~500px CSS regardless of `--window-size`, in both
+  headless modes, which reads as a horizontal-overflow bug that also reproduces on `main`. Drive
+  real Chrome instead.
+  **⚠️ CORRECTION (found during C): window resizing bottoms out at ~500px CSS in REAL Chrome on
+  macOS too** — the OS enforces a minimum window width. So **no window-resize check can verify
+  anything below ~500px**, and this entry's earlier claim to have verified the five tabs at 320px
+  is not supported by that method. Below 500px needs devtools device emulation or a real handset.
+  **⚠️ Still outstanding and needing a real device or a signed-in session:** the 320px tab row,
+  the safe-area calc in PWA/standalone on a notched phone, and the bell popover painting over the
+  tab bar. M1's own browser pass (real mirrored tiles) also remains outstanding.
+
+- **Sub-project C — Home, three modes** ✅ (spec
+  `docs/superpowers/specs/2026-07-24-c-home-three-modes-design.md`): Home becomes the app's control
+  panel, rendering one of three modes off the existing `accountStatus` union. Read-model + web; no
+  migration, no new table, no env var, no worker — plain `./deploy/deploy.sh`, **no `--rebuild`**
+  (qualification stays derived, so nothing is stored and nothing needs re-folding).
+  **Provisional lives are visible.** `getPlayerPage` gained an **additive** open-life lookup so a
+  life inside the five-minute grace window renders as `state: "alive"` with `alive.qualified:
+  false` instead of the server reading **idle** while the player is standing on it.
+  **⚠️ Do NOT loosen `getPlayerLives`** (`packages/read-models/src/queries.ts`) to do this — it is
+  the shared qualified-lives filter behind the dossier's past-life list, the standing AND the
+  totals, so widening it would add provisional lives to a public profile's history and to the
+  lives/deaths counts. **`aliveAnywhere` must keep excluding them** for the same reason: it feeds
+  the dossier's public `Alive ×N` badge and the survivors board's notion of alive.
+  The `state` union was deliberately **not** widened to a fourth `"unqualified"` case;
+  `alive.qualified` refines it, so no existing consumer has to handle "alive, but".
+  **Server rows are grouped `banned → alive → idle`** (`components/servers/grouping.ts`) — the same
+  order `getPlayerPage` already ranks. Every server the caller passes comes back; **nothing is
+  keyed to a fleet count** (three today, four when Badlands ships). `isSoleRow` is the entire
+  definition of "hero": one group holding one row drops its heading. No separate hero component, no
+  promotion tie-break.
+  **⚠️ There is no "Join server" button anywhere, and there never will be** — a console DayZ server
+  has no join URL. `HowToConnect` (`components/servers/how-to-connect.tsx`) is the honest
+  substitute, mounted in three places (cold home, the claim step, idle rows) so the copy cannot
+  drift. **`SEARCH_TERM = "One Life"` is BRAND COPY, not fleet data**: every server's in-game
+  browser name is `One Life <Map> | dayzonelife.com`, so one term finds all of them. It is
+  deliberately NOT derived from `servers.name`, which holds the map label alone ("Chernarus") —
+  telling a player to search that returns thousands of unrelated servers. The panel equally does
+  **not** print the full browser name: we do not store it (it lives in each server's Nitrado
+  config), so any exact string here would be a guess that goes stale on the first rename.
+  **`useControls` gained `serversLoading`**, the third instance of the loading/empty/failed shape
+  after `standingLoading`/`balanceLoading` — `servers: []` is both the unresolved fallback and a
+  genuinely empty fleet, and `HowToConnect` says "No servers are currently listed" out loud, so an
+  in-flight fetch would otherwise announce an empty fleet. Mutation-tested.
+  **Home's two RSC fetches (`getSurvivors`, `getServers`) degrade INDEPENDENTLY**, each through its
+  own `settleFeed`. A single shared try/catch still passes the older feed-honesty tests while
+  silently gutting the other half of the page — pinned by two tests proven red against exactly
+  that change (the sitemap has the same rule for the same reason).
+  **The ladder has three steps and never a fourth.** `ladderSteps` (`components/account/ladder.ts`)
+  is signed in → claim → prove, with **exactly one `current`**. **⚠️ "Go play a session" is NOT a
+  step**: the claim autocomplete searches gamertags the LOGS have seen and anyone can type any
+  gamertag, so the site can never know whether a signed-in user has played until they verify — a
+  step that can never be marked done would strand every player on it. "Go play" is the claim
+  step's empty state (the How to connect panel), nowhere else.
+  **Home's tokens block is a `TokensSummary`, not `TokensPanel`** — balance and purpose only.
+  Sending and the referrer stay on `/you`; **spending stays on the ban row** (`ServerCard`'s
+  `UnbanView`), which already knows which ban to lift, so a spend control in a tokens panel would
+  have to ask which server. `Earn / buy →` is deliberately absent until `/tokens` exists in F.
+  `ColdFork` (`components/front-page/cold-fork.tsx`) renders for `signedOut` ONLY — not for
+  `unlinked`/`pending` (already sold; they get the ladder) and not while `loading`, so a signed-in
+  player never sees a sign-in pitch flash. `SignInCta` survives, still used by `/about`.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 

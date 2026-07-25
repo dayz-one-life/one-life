@@ -6,7 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A How to connect panel, wherever you need it.** There is no "join server" button — a console
+  DayZ server has no join link — so the site now tells you what actually works: search **One Life**
+  in the in-game server browser, pick your map from the list of live servers, and favourite them.
+  It appears on the signed-out home page, under the gamertag claim box (where a player who has
+  never connected would otherwise find an empty search), and beside any server you have no life on.
+
 ### Changed
+
+- **The home page now has three modes.** Signed out, it forks: *already playing* sends you
+  straight to claiming your gamertag, *new here* shows you how to connect. Signed in without a
+  verified gamertag, it is a three-step ladder — signed in, claim your gamertag, prove it's you —
+  with the current step open and the rest collapsed to a line. Verified, it is your control panel.
+- **The home page's tokens block is now a summary** — your balance and what it is for. Sending a
+  token and setting a referrer stay on **You**, and spending one to lift a ban stays on the banned
+  server's own row, which already knows which ban you mean.
 
 - **Your servers are grouped by what they need from you** — serving a ban, currently living, then
   nothing running — instead of one flat list. When you only have one server row to show, the

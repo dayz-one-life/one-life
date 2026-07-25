@@ -1,8 +1,9 @@
-import { getSurvivors } from "@/lib/api";
+import { getServers, getSurvivors } from "@/lib/api";
 import { settleFeed } from "@/lib/settle-feed";
 import { Hero } from "@/components/front-page/hero";
 import { TopSurvivors } from "@/components/front-page/top-survivors";
-import { SignInCta } from "@/components/front-page/signin-cta";
+import { ColdFork } from "@/components/front-page/cold-fork";
+import { serversView } from "@/components/servers/how-to-connect";
 import { AccountPanels } from "@/components/account/account-panels";
 import { HomeSidebar } from "@/components/account/home-sidebar";
 
@@ -31,7 +32,13 @@ function FeedFailedBanner({ children }: { children: string }) {
  * Sub-project C replaces the hero / board / CTA arrangement with the three-mode home.
  */
 export default async function Home() {
-  const survivors = await settleFeed(getSurvivors({ sort: "time", page: 1 }));
+  // Fetched here rather than through `useControls`, whose servers query is `enabled: signedIn` —
+  // the cold fork's How to connect panel is shown to signed-OUT visitors, who would otherwise
+  // never get a list. Independent of the survivors fetch: losing one must not cost the other.
+  const [survivors, servers] = await Promise.all([
+    settleFeed(getSurvivors({ sort: "time", page: 1 })),
+    settleFeed(getServers()),
+  ]);
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -41,10 +48,10 @@ export default async function Home() {
           <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
         )}
         <TopSurvivors rows={survivors.data?.rows.slice(0, 5) ?? []} />
+        <ColdFork servers={serversView(servers.data, { failed: servers.failed })} />
         <div className="px-6 py-8 md:px-10">
           <AccountPanels />
         </div>
-        <SignInCta />
       </main>
       <HomeSidebar />
     </div>
