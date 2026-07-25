@@ -16,7 +16,6 @@ const SERVERS = [
 const DATA = {
   players: [{ gamertag: "xSgt Hartman", lastmod: "2026-07-01T00:00:00.000Z" }],
   lives: [{ gamertag: "xSgt Hartman", mapSlug: "livonia", n: 2, lastmod: "2026-07-02T00:00:00.000Z" }],
-  articles: [{ kind: "obituary", slug: "hartman-falls", lastmod: "2026-07-03T00:00:00.000Z" }],
 };
 
 beforeEach(() => {
@@ -29,7 +28,7 @@ const urls = async () => (await sitemap()).map((e) => e.url);
 describe("sitemap", () => {
   it("includes the home page and the static pages", async () => {
     const u = await urls();
-    for (const p of ["", "/about", "/obituaries", "/fresh-spawns", "/news"]) {
+    for (const p of ["", "/about"]) {
       expect(u).toContain(`https://dayzonelife.com${p}`);
     }
   });
@@ -62,13 +61,9 @@ describe("sitemap", () => {
     expect(u.some((x) => x.includes("/enoch/"))).toBe(false);
   });
 
-  it("routes each article kind to its own interior", async () => {
-    expect(await urls()).toContain("https://dayzonelife.com/obituaries/hartman-falls");
-  });
-
   it("carries the lastmod the API supplied", async () => {
-    const entry = (await sitemap()).find((e) => e.url.endsWith("/obituaries/hartman-falls"));
-    expect(entry?.lastModified).toEqual(new Date("2026-07-03T00:00:00.000Z"));
+    const entry = (await sitemap()).find((e) => e.url.endsWith("/livonia/lives/2"));
+    expect(entry?.lastModified).toEqual(new Date("2026-07-02T00:00:00.000Z"));
   });
 
   it("returns static and board entries when the API call fails, never throwing", async () => {
@@ -88,12 +83,11 @@ describe("sitemap", () => {
   // The two fetches degrade INDEPENDENTLY. The test above covers "data fails"; this covers the
   // other direction — losing the board list must not cost us the ~470 content URLs, which are the
   // whole point of the sitemap. One shared try/catch would pass that test and fail this one.
-  it("still returns player, life and article URLs when the servers call fails", async () => {
+  it("still returns player and life URLs when the servers call fails", async () => {
     vi.mocked(getServersCached).mockRejectedValue(new Error("api down"));
     const u = await urls();
     expect(u).toContain("https://dayzonelife.com/players/xsgt-hartman");
     expect(u).toContain("https://dayzonelife.com/players/xsgt-hartman/livonia/lives/2");
-    expect(u).toContain("https://dayzonelife.com/obituaries/hartman-falls");
     expect(u.some((x) => x.startsWith("https://dayzonelife.com/survivors"))).toBe(false);
   });
 
@@ -104,7 +98,6 @@ describe("sitemap", () => {
     vi.mocked(getSitemapData).mockResolvedValue({
       players: [{ gamertag: "xSgt Hartman", lastmod: "not-a-date" }],
       lives: [],
-      articles: [],
     } as never);
     const entries = await sitemap();
     const entry = entries.find((e) => e.url === "https://dayzonelife.com/players/xsgt-hartman");

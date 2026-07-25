@@ -139,19 +139,6 @@ export type ServerStanding = { serverId: number; map: string; slug: string; stat
 export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
 export type PlayerPage = { gamertag: string; verified: boolean; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number };
 
-/** Every published article that names this player — either as its subject or as the killer
- *  named in someone else's obituary (`role`). `createdAt` arrives as an ISO string over HTTP
- *  even though the server holds a `Date`. */
-export type PlayerArticleRow = {
-  kind: string;
-  slug: string;
-  headline: string;
-  createdAt: string;
-  role: "subject" | "killer";
-  mapSlug: string | null;
-};
-export type PlayerArticlesFeed = { rows: PlayerArticleRow[]; total: number; page: number; pageSize: number };
-
 export type SurvivorSort = "kills" | "time" | "longest";
 export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
@@ -174,83 +161,6 @@ export type LifeTimelineData = {
   // Player heartbeat — caps live "time alive" accrual for an open life so it agrees with the
   // survivor board + dossier standing card (both stop at last-seen, not request-time `now`).
   lastSeenAt: string | null;
-  // Slug of this life's published obituary, or null. Published only — see the read-model.
-  obituarySlug: string | null;
-};
-
-/**
- * Rich-body block union (R5d). `articles.body_blocks` is jsonb and null for every article written
- * before R5d, so this is always optional — a null/absent value means "render the flat `body`".
- * A future block type an older client does not know about is dropped by the renderer, never thrown.
- */
-export type ArticleBlock =
-  | { type: "para"; text: string }
-  | { type: "subhead"; text: string }
-  | { type: "quote"; text: string; attribution: string }
-  | { type: "list"; items: string[] };
-
-export type ObituaryCard = {
-  slug: string;
-  gamertag: string;
-  map: string;
-  mapSlug: string | null;
-  lifeNumber: number;
-  headline: string;
-  lede: string;
-  tags: string[];
-  timeAliveSeconds: number;
-  kills: number;
-  longestKillMeters: number | null;
-  cause: string | null;
-  deathAt: string;
-};
-export type ObituariesFeed = { rows: ObituaryCard[]; total: number; page: number; pageSize: number };
-export type ObituaryArticle = ObituaryCard & {
-  body: string;
-  bodyBlocks?: ArticleBlock[] | null;
-  pullQuote: { text: string; attribution: string } | null;
-  sessions: number;
-  killerGamertag: string | null;
-  weapon: string | null;
-  verdict: DeathVerdictDto | null;
-};
-
-export type BirthNoticeCard = {
-  slug: string;
-  gamertag: string;
-  map: string;
-  mapSlug: string | null;
-  lifeNumber: number;
-  headline: string;
-  lede: string;
-  tags: string[];
-  bornAt: string;
-  minutesToQualify: number | null;
-  priorLives: number;
-};
-export type BirthNoticesFeed = { rows: BirthNoticeCard[]; total: number; page: number; pageSize: number };
-
-/** The §6 live status — recomputed at request time, mirroring NewsSubjectStatus. A birth-notice
- *  subject is never presumed missing (no idle/returned branch), only whether the life it was filed
- *  about is still open. */
-export type BirthNoticeSubjectStatus = { kind: "alive" } | { kind: "dead"; diedAt: string };
-
-export type BirthNoticeArticle = BirthNoticeCard & {
-  body: string;
-  bodyBlocks?: ArticleBlock[] | null;
-  pullQuote: { text: string; attribution: string } | null;
-  priors: {
-    livesLived: number;
-    longestLifeSeconds: number;
-    totalKills: number;
-    usualDeathCause: string | null;
-    lastDeathCause: string | null;
-    bestLifeMap: string | null;
-  };
-  /** FROZEN — the article's own death_at snapshot as written. Never recomputed; kept for API
-   *  stability. Use `subjectStatus` for the live read. */
-  endedAt: string | null;
-  subjectStatus: BirthNoticeSubjectStatus;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,
@@ -274,60 +184,6 @@ export type NotificationsFeed = {
   total: number;
   page: number;
   pageSize: number;
-};
-
-export type NewsTrigger = "standing_dead" | "long_form";
-
-export type NewsFormat = "standing_dead" | "long_form" | "editorial";
-
-export type NewsSubjectRef = { gamertag: string; mapSlug: string | null; lifeNumber: number };
-
-/** Subject fields are nullable because an editorial piece has no (server, gamertag, life) tuple —
- *  a card renderer must guard on `gamertag` before drawing any subject chrome. */
-export type NewsCard = {
-  slug: string;
-  trigger: NewsTrigger;
-  format: NewsFormat;
-  editorialFormat: string | null;
-  gamertag: string | null;
-  map: string | null;
-  mapSlug: string | null;
-  lifeNumber: number | null;
-  headline: string;
-  lede: string;
-  tags: string[];
-  subjectCount: number;
-  createdAt: string;
-  /** Cache-versioned when a stored hero exists; null with no image. The home news lead renders
-   *  it; the /news feed page stays text-only by choice. */
-  imageUrl: string | null;
-};
-export type NewsFeed = { rows: NewsCard[]; total: number; page: number; pageSize: number };
-
-/**
- * The §4.1.3 status line, computed server-side at request time. `idleDaysAtPublication` is the
- * FROZEN idle figure as of publication and is never recomputed against `now` — the whole point of
- * the line is that the paper reports what it knew when it printed, then corrects itself.
- */
-export type NewsSubjectStatus =
-  | { kind: "idle"; idleDaysAtPublication: number }
-  | { kind: "returned"; seenAt: string }
-  | { kind: "died"; diedAt: string; obituarySlug: string | null };
-
-export type NewsArticle = NewsCard & {
-  status: "published" | "draft" | "retracted";
-  body: string;
-  bodyBlocks?: ArticleBlock[] | null;
-  pullQuote: { text: string; attribution: string } | null;
-  imageUrl: string | null;
-  imageCaption: string | null;
-  retracted: boolean;
-  timeAliveSeconds: number;
-  kills: number;
-  idleSeconds: number | null;
-  spanSeconds: number | null;
-  subjects: NewsSubjectRef[];
-  subjectStatus: NewsSubjectStatus | null;
 };
 
 export interface TrackPointDto { x: number; y: number; at: string }
@@ -359,7 +215,6 @@ export interface LifeTrack {
 export type SitemapData = {
   players: { gamertag: string; lastmod: string }[];
   lives: { gamertag: string; mapSlug: string; n: number; lastmod: string }[];
-  articles: { kind: string; slug: string; lastmod: string }[];
 };
 
 export type FriendStatusValue = "none" | "outgoing" | "incoming" | "friends" | "cooldown";

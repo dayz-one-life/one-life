@@ -63,7 +63,7 @@ const NOW = new Date("2026-07-20T12:00:00Z");
 
 describe("PlayerProfile", () => {
   test("Current standing is a list — one listitem per card, grid classes + list-none preserved", () => {
-    renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
+    renderProfile(<PlayerProfile page={page()} now={NOW} />);
     const heading = screen.getByRole("heading", { name: "Current standing" });
     const section = heading.closest("section")!;
     const list = within(section).getByRole("list");
@@ -81,7 +81,7 @@ describe("PlayerProfile", () => {
   });
 
   test("Past lives is a separate list — one listitem per funeral card, grid classes + list-none preserved", () => {
-    renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
+    renderProfile(<PlayerProfile page={page()} now={NOW} />);
     const heading = screen.getByRole("heading", { name: /Past lives/ });
     const section = heading.closest("section")!;
     const list = within(section).getByRole("list");
@@ -97,53 +97,7 @@ describe("PlayerProfile", () => {
   });
 
   test("Current standing section is omitted when everyone is idle — no stray list", () => {
-    renderProfile(<PlayerProfile page={page({ standing: [standing(1, "idle")] })} now={NOW} articles={null} articlesFailed={false} articlesPage={1} />);
+    renderProfile(<PlayerProfile page={page({ standing: [standing(1, "idle")] })} now={NOW} />);
     expect(screen.queryByRole("heading", { name: "Current standing" })).not.toBeInTheDocument();
-  });
-
-  test("In The Paper mounts between current standing and past lives, and its pagination preserves the past-lives page", () => {
-    renderProfile(
-      <PlayerProfile
-        page={page()}
-        now={NOW}
-        articles={{
-          rows: Array.from({ length: 12 }, (_, i) => ({
-            kind: "obituary",
-            slug: `s${i}`,
-            headline: `Headline ${i}`,
-            createdAt: "2026-07-12T00:00:00Z",
-            role: "subject" as const,
-            mapSlug: "sakhal",
-          })),
-          total: 12,
-          page: 1,
-          pageSize: 10,
-        }}
-        articlesFailed={false}
-        articlesPage={1}
-      />,
-    );
-    const inThePaperHeading = screen.getByRole("heading", { name: "In The Paper" });
-    const currentStandingHeading = screen.getByRole("heading", { name: "Current standing" });
-    const pastLivesHeading = screen.getByRole("heading", { name: /Past lives/ });
-    // DOM order: current standing, then In The Paper, then past lives.
-    expect(
-      currentStandingHeading.compareDocumentPosition(inThePaperHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      inThePaperHeading.compareDocumentPosition(pastLivesHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    // The papers pagination (ap=2) preserves the current past-lives page (page.pastLivesPage = 1, omitted).
-    expect(screen.getByRole("navigation", { name: /in the paper pagination/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /older/i })).toHaveAttribute("href", "/players/yrjustbad?ap=2");
-  });
-
-  test("a failed articles fetch renders the status line, not an empty section", () => {
-    renderProfile(<PlayerProfile page={page()} now={NOW} articles={null} articlesFailed articlesPage={1} />);
-    // FriendButton's own (usually-empty) SrStatus announcer is an always-present sibling
-    // (same idiom as VerificationAnnouncer), so more than one role="status" node can
-    // legitimately coexist — the assertion is about the one with actual text.
-    const nonEmpty = screen.getAllByRole("status").filter((el) => el.textContent !== "");
-    expect(nonEmpty.length).toBeGreaterThan(0);
   });
 });

@@ -89,31 +89,3 @@ export function LifeSkeleton() {
     </main>
   );
 }
-
-/** Placeholder for the generated tabloid photo atop an article interior, before it (or its
- *  absence) is known — mirrors ArticleHero's 16:9 full-width frame. Since R5d PR-C3 the `news`
- *  kind is the only one that renders a hero image (obituaries/birth notices lost theirs in
- *  v0.21.0), so this is the news interior's placeholder: it is rendered by
- *  apps/web/src/app/news/[slug]/loading.tsx. */
-export function ArticleHeroSkeleton() {
-  return <Bar className="my-6 aspect-video w-full" />;
-}
-
-/** Route-level loading state for the obituaries feed. */
-export function ObituariesSkeleton() {
-  return (
-    <main aria-busy="true" className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
-      <div className="border-b-[3px] border-ink pb-4">
-        <Bar className="h-9 w-56 max-w-full" />
-        <Bar className="mt-3 h-3 w-80 max-w-full" />
-      </div>
-      {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className="border-b border-hairline py-6">
-          <Bar className="h-3 w-40" />
-          <Bar className="mt-2 h-8 w-full max-w-xl" />
-          <Bar className="mt-3 h-3 w-96 max-w-full" />
-        </div>
-      ))}
-    </main>
-  );
-}

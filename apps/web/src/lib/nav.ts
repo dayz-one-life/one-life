@@ -1,7 +1,4 @@
 export const NAV_ITEMS = [
-  { key: "news", href: "/news", label: "News" },
-  { key: "obituaries", href: "/obituaries", label: "Obituaries" },
-  { key: "fresh-spawns", href: "/fresh-spawns", label: "Fresh Spawns" },
   { key: "survivors", href: "/survivors", label: "Survivors" },
   // `/maps` is a redirect that resolves the viewer's last-opened map — see lib/last-map.ts.
   // The item is deliberately a plain static href: the nav renders in two places (the desktop
@@ -16,9 +13,6 @@ const inSection = (pathname: string, base: string) => pathname === base || pathn
 
 /** Which nav item a pathname lights up. Player pages belong to the Survivors section. */
 export function activeNavKey(pathname: string): NavKey | null {
-  if (inSection(pathname, "/news")) return "news";
-  if (inSection(pathname, "/obituaries")) return "obituaries";
-  if (inSection(pathname, "/fresh-spawns")) return "fresh-spawns";
   if (inSection(pathname, "/survivors") || inSection(pathname, "/players")) return "survivors";
   if (inSection(pathname, "/maps")) return "maps";
   if (inSection(pathname, "/about")) return "about";

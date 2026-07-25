@@ -27,8 +27,6 @@ const APP_TABLES = [
   "rpt_files",
   "character_sightings",
   "characters",
-  "articles",
-  "article_images",
   "notifications",
   "push_subscriptions",
   "friendships",

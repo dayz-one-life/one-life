@@ -1,11 +1,9 @@
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
-  Me, GamertagLink, ClaimResult, PlayerPage, PlayerArticlesFeed,
+  Me, GamertagLink, ClaimResult, PlayerPage,
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorSort, SurvivorsPage, LifeTimelineData,
-  ObituariesFeed, ObituaryArticle,
-  BirthNoticesFeed, BirthNoticeArticle,
-  AppNotification, NotificationsFeed,
-  NewsFeed, NewsArticle, LifeTrack,
+  NotificationsFeed,
+  LifeTrack,
   SitemapData,
   FriendsFeed, FriendStatusDto, FriendMap,
 } from "./types";
@@ -181,11 +179,6 @@ async function getOrNull<T>(path: string): Promise<T | null> {
 export const getPlayerPage = (slug: string, page?: number) =>
   getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}${page && page > 1 ? `?page=${page}` : ""}`);
 
-/** Never 404s — the backend returns an empty feed for a player with no articles, and falls
- *  back to page 1 on a garbage `?page=`. */
-export const getPlayerArticles = (slug: string, page: number) =>
-  apiGet<PlayerArticlesFeed>(`/api/players/${encodeURIComponent(slug)}/articles?page=${page}`);
-
 export const getPlayerLife = (slug: string, map: string, n: number) =>
   getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
 
@@ -200,23 +193,6 @@ export const getLifeTrack = (mapSlug: string, n: number) =>
 
 export const getSurvivors = (p: { slug?: string; sort: SurvivorSort; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors${p.slug ? "/" + encodeURIComponent(p.slug) : ""}?sort=${p.sort}&page=${p.page}`);
-
-export const getObituariesFeed = (page: number) =>
-  apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
-export const getObituary = (slug: string) =>
-  getOrNull<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`);
-
-export const getBirthNoticesFeed = (page: number) =>
-  apiGet<BirthNoticesFeed>(`/api/birth-notices?page=${page}`);
-export const getBirthNotice = (slug: string) =>
-  getOrNull<BirthNoticeArticle>(`/api/birth-notices/${encodeURIComponent(slug)}`);
-
-export const getNewsFeed = (page: number) =>
-  apiGet<NewsFeed>(`/api/news?page=${page}`);
-export const getNewsArticle = (slug: string, preview?: string) =>
-  getOrNull<NewsArticle>(
-    `/api/news/${encodeURIComponent(slug)}${preview ? `?preview=${encodeURIComponent(preview)}` : ""}`,
-  );
 
 /** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
  *  3600) so the fetch cache and the route's own ISR window agree. */

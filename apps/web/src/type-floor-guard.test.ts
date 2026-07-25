@@ -5,8 +5,6 @@ import { describe, expect, test } from "vitest";
 /** Type-floor tripwire (spec §3): these files carry CONTENT, not chrome — nothing in them
  *  may use a 9px/10px text utility. Decorative overlines elsewhere are exempt on purpose. */
 const CONTENT_FILES = [
-  "components/obituaries/rap-sheet.tsx",
-  "components/birth-notices/priors-box.tsx",
   "components/player/stat.tsx",
   "components/life/hero.tsx",
   "components/notifications/row.tsx",

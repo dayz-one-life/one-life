@@ -12,7 +12,7 @@ factory.eli5hq.com). The One Life platform runs as **systemd services** against 
 | Reverse proxy | nginx `dayzonelife.com` vhost | apex serves the app; `www` + `:80` 301 → `https://dayzonelife.com` |
 | Web (Next.js) | `127.0.0.1:3010` | `onelife-web.service`; the ONLY upstream nginx talks to |
 | API (Fastify) | `127.0.0.1:3011` | `onelife-api.service`; reached only via Next.js rewrites, not nginx |
-| Workers | no ports | verifier, projector, enforcer, granter, rebooter, newsdesk, notifier (+ ingest, disabled) |
+| Workers | no ports | verifier, projector, enforcer, granter, rebooter, notifier (+ ingest, disabled) |
 | Database | host Postgres `127.0.0.1:5432` | role `onelife`, db `onelife` (+ `onelife_test`) |
 
 **Request flow:** browser → nginx (`:443`) → web (`:3010`). The web app's
@@ -30,7 +30,7 @@ Units live in `/etc/systemd/system/onelife-*.service`. All run as user `acab`,
 
 ```bash
 # status of the fleet
-for s in web api verifier projector enforcer granter rebooter newsdesk notifier ingest; do
+for s in web api verifier projector enforcer granter rebooter notifier ingest; do
   printf "onelife-%-10s %s\n" "$s" "$(systemctl is-active onelife-$s)"; done
 
 sudo systemctl restart onelife-web        # restart one
@@ -51,24 +51,6 @@ sudo journalctl -u onelife-api -f         # tail logs
   `onelife-rebooter` systemd unit on the host (create it alongside the other worker units).
   **`NITRADO_TOKEN` must be set in `.env`** — unlike `enforcer`, the rebooter treats it as
   required and will crash-loop under `Restart=always` if it is missing.
-- **onelife-newsdesk** — sweeps qualified deaths lacking a published obituary, generates each in
-  the One Life voice via OpenRouter, and publishes it. Requires a `onelife-newsdesk` systemd unit
-  on the host (create it alongside the other worker units). Needs `DATABASE_URL`,
-  `OPENROUTER_API_KEY`, and `NEWSDESK_MODEL` (default `anthropic/claude-sonnet-5`) in `.env`.
-  **`NEWSDESK_DRY_RUN` defaults `true`** — obituaries and birth notices are logged, not generated or
-  stored (no OpenRouter credits spent); set `false` to actually generate and write them.
-  The worker also runs a **birth-notice (Fresh Spawns) pass**, gated by `NEWSDESK_BIRTH_SINCE` — an
-  ISO-8601 go-live instant. Unset / empty / invalid ⇒ that pass is **off**; set it once to begin
-  **forward-only** birth-notice coverage from that instant (still subject to `NEWSDESK_DRY_RUN`).
-  To also post each published obituary into Discord, set `DISCORD_OBITUARY_WEBHOOK_URL` (an
-  incoming-webhook URL — a **secret**; keep it only in the host `.env`, never commit it) plus
-  `SITE_URL` (default `https://dayzonelife.com`, used to build the absolute obituary link) and
-  optionally `NEWSDESK_DISCORD_MAX_PER_TICK` (default `10`, the per-sweep post cap that drains the
-  back-catalogue on first live run). Empty webhook ⇒ the Discord notifier sweep is a no-op (this is
-  the newsdesk's Discord pass, unrelated to the `onelife-notifier` worker below); it respects
-  `NEWSDESK_DRY_RUN`. Delivery is tracked in `articles.discord_posted_at`, so obituaries published
-  while the webhook was unset are posted once it is set. Ships in migration `0011` — a normal
-  `./deploy/deploy.sh` (migrate) picks it up, no `--rebuild`.
 - **onelife-notifier** — `pnpm --filter @onelife/notifier start`. Two passes per tick: **generate**
   (nine notification kinds — gamertag verified, tokens received/granted, ban applied/lifted, life
   qualified, survival milestone, obituary/birth-notice published — written to the durable
@@ -274,7 +256,7 @@ DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 
   pnpm --filter @onelife/db run db:migrate   # if there are new migrations
 pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
-     onelife-projector onelife-enforcer onelife-granter onelife-rebooter onelife-newsdesk \
+     onelife-projector onelife-enforcer onelife-granter onelife-rebooter \
      onelife-notifier
 ```
 </details>
@@ -406,6 +388,17 @@ the normal certbot layout. Renewal profile: `/etc/letsencrypt/renewal/dayzonelif
 `certbot.timer` is active. Because DNS is behind Cloudflare, HTTP-01 renewal needs
 `/.well-known/acme-challenge/` to pass through (Cloudflare allows this by default).
 Sanity check: `sudo certbot renew --dry-run`.
+
+## Release notes
+
+### One-time operator step for the content-engine removal
+
+The `onelife-newsdesk` systemd unit is not checked into the repo, so `deploy.sh` cannot remove
+it. On the host, once:
+
+    sudo systemctl disable --now onelife-newsdesk
+    sudo rm /etc/systemd/system/onelife-newsdesk.service
+    sudo systemctl daemon-reload
 
 ## Rollback (re-expose the old Tribune)
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles } from "@onelife/db";
+import { servers, players, lives } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getSitemapEntries } from "../src/sitemap.js";
 
@@ -16,7 +16,6 @@ let sakhal: number; // slugged
 let noSlugServer: number; // slug NULL
 let livonia: number; // slug 'livonia', map 'enoch'
 
-const slugs = [`sm-published-one-${svc}`, `sm-retracted-one-${svc}`, `sm-draft-one-${svc}`];
 
 beforeAll(async () => {
   const [a] = await db
@@ -88,37 +87,9 @@ beforeAll(async () => {
     endedAt: ENDED_AT,
     playtimeSeconds: 50,
   });
-
-  await db.insert(articles).values([
-    {
-      kind: "obituary",
-      status: "published",
-      slug: `sm-published-one-${svc}`,
-      headline: "Published",
-      body: "x",
-      createdAt: ENDED_AT,
-    },
-    {
-      kind: "obituary",
-      status: "retracted",
-      slug: `sm-retracted-one-${svc}`,
-      headline: "Retracted",
-      body: "x",
-      createdAt: ENDED_AT,
-    },
-    {
-      kind: "obituary",
-      status: "draft",
-      slug: `sm-draft-one-${svc}`,
-      headline: "Draft",
-      body: "x",
-      createdAt: ENDED_AT,
-    },
-  ]);
 });
 
 afterAll(async () => {
-  await db.delete(articles).where(inArray(articles.slug, slugs));
   await db.delete(lives).where(inArray(lives.serverId, [sakhal, noSlugServer, livonia]));
   await db.delete(players).where(inArray(players.gamertag, [`Hartman-${svc}`, `Ghost-${svc}`, `Runner-${svc}`, `Drifter-${svc}`]));
   await db.delete(servers).where(inArray(servers.id, [sakhal, noSlugServer, livonia]));
@@ -152,14 +123,6 @@ describe("getSitemapEntries", () => {
     const out = await getSitemapEntries(db);
     const life = out.lives.find((l) => l.gamertag === `Hartman-${svc}` && l.mapSlug === `livonia-${svc}`);
     expect(life?.n).toBe(2);
-  });
-
-  it("includes a published article and excludes retracted and draft ones", async () => {
-    const out = await getSitemapEntries(db);
-    const outSlugs = out.articles.map((a) => a.slug);
-    expect(outSlugs).toContain(`sm-published-one-${svc}`);
-    expect(outSlugs).not.toContain(`sm-retracted-one-${svc}`);
-    expect(outSlugs).not.toContain(`sm-draft-one-${svc}`);
   });
 
   it("takes a life's lastmod from ended_at, falling back to started_at for an open life", async () => {
