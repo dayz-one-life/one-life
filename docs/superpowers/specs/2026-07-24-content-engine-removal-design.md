@@ -143,9 +143,12 @@ file serves player data and stays.
 
 ### `apps/notifier/`
 
-Remove the `articles` generator from the import list and the `generators` array in `main.ts`, and
-the `obituary_published` / `birth_notice_published` members from the kind union in `types.ts`.
+Remove the `articles` generator from the import list and the `generators` array in `main.ts`.
 **The catalogue goes from twelve kinds to ten.**
+
+> There is no kind union to edit: `notifications.kind` is a plain `text` column, and the two kind
+> strings live only in `KIND_MAP` inside `generators/articles.ts`, which is deleted wholesale. The
+> only other reference in the codebase is `row.tsx`'s `RED` set.
 
 Web side: `apps/web/src/components/notifications/row.tsx` drops `obituary_published` from `RED` and
 `birth_notice_published` from `BLUE`, plus the assertion in `row.test.tsx`.
