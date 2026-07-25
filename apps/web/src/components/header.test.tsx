@@ -13,10 +13,10 @@ vi.mock("@/components/controls/mobile-account", () => ({
 }));
 
 describe("Masthead", () => {
-  it("renders the wordmark home link and all three nav items", () => {
+  it("renders the wordmark home link and all four nav items", () => {
     render(<Masthead />);
     expect(screen.getByRole("link", { name: "One Life — home" })).toHaveAttribute("href", "/");
-    for (const label of ["Survivors", "Maps", "About"]) {
+    for (const label of ["Home", "Maps", "Leaderboard", "About"]) {
       expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
     }
   });
@@ -24,7 +24,7 @@ describe("Masthead", () => {
   it("marks the active section with aria-current and red", () => {
     mockPathname.mockReturnValue("/survivors/sakhal");
     render(<Masthead />);
-    const link = screen.getAllByRole("link", { name: "Survivors" })[0]!;
+    const link = screen.getAllByRole("link", { name: "Leaderboard" })[0]!;
     expect(link).toHaveAttribute("aria-current", "page");
     expect(link.className).toContain("text-red");
   });
