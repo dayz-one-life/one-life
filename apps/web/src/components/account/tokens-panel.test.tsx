@@ -114,10 +114,10 @@ describe("TokensPanel", () => {
     expect(nonEmptyStatus()).toHaveTextContent(/referrer set/i);
   });
 
-  // TokensPanel mounts simultaneously on the rail and in the mobile sheet (both live in the
+  // TokensPanel used to mount twice at once (rail + mobile sheet, both in the
   // root layout at once, one hidden by CSS per breakpoint) — a fixed error-node id would
   // duplicate in the DOM and aria-describedby could resolve to the wrong instance.
-  test("two mounted instances get distinct error ids (rail + mobile sheet render simultaneously)", () => {
+  test("two mounted instances get distinct error ids", () => {
     const erroring = { pending: false, ok: false, error: "Not enough tokens" };
     render(
       <>
@@ -152,7 +152,7 @@ describe("TokensPanel", () => {
     });
 
     // Regression pin (two-surface token rule, CLAUDE.md): TokensPanel always sits on a
-    // dark-toned surface (its own `bg-dark` island on the rail, or `boxed` into the already-dark
+    // dark-toned surface (its own `bg-dark` island on a light page
     // sheet), so the loading chip must carry the dark `bg-dark-well` token, never a light one
     // like `bg-bone`/`bg-paper` — a panel that ships an ink-on-dark token is present in the DOM
     // and fully functional, but invisible on a phone (this exact class of bug shipped in v0.26.0).

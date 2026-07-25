@@ -1,5 +1,5 @@
 "use client";
-import { FriendsPanelContainer } from "@/components/controls/friends-panel";
+import { FriendsPanelContainer } from "@/components/friends/friends-panel";
 
 /**
  * Home's xl-only summary column. Sub-project C replaces its contents (friends online, your

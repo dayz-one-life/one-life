@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useState, type FormEvent } from "react";
-import { GamertagAutocomplete } from "./gamertag-autocomplete";
+import { GamertagAutocomplete } from "@/components/shared/gamertag-autocomplete";
 import { searchVerifiedGamertags } from "@/lib/api";
 import { SrStatus } from "@/components/shared/sr-status";
 
@@ -14,7 +14,6 @@ export function TokensPanel({
   onSend,
   onSetReferrer,
   showReferrer = true,
-  boxed = false,
   myGamertag,
 }: {
   balance: number;
@@ -26,12 +25,11 @@ export function TokensPanel({
   onSend: (gamertag: string) => void;
   onSetReferrer: (gamertag: string) => void;
   showReferrer?: boolean;
-  boxed?: boolean;
   myGamertag?: string;
 }) {
-  // TokensPanel mounts simultaneously on the rail (xl+) and in the mobile sheet, so a fixed
-  // error-node id would duplicate in the DOM and aria-describedby could resolve to the wrong
-  // (possibly hidden) instance. useId() gives each mounted instance its own unique base.
+  // useId() gives each mounted instance its own unique base for the error-node ids. A fixed id
+  // would collide if the panel is ever mounted twice (it was, on the rail and the sheet, before
+  // sub-project B) and aria-describedby could resolve to the wrong instance.
   const uid = useId();
   const sendErrorId = `${uid}-send-token-error`;
   const referrerErrorId = `${uid}-referrer-error`;
@@ -56,13 +54,12 @@ export function TokensPanel({
   const statusMessage = send.ok ? `Token sent — balance ${balance}` : referrer.ok ? "Referrer set" : "";
 
   return (
-    <section className={boxed ? "border border-dark-line p-4" : "bg-dark p-5"}>
+    <section className="bg-dark p-5">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-[15px] font-bold uppercase tracking-[.1em] text-paper">Unban tokens</h2>
         {balanceLoading ? (
-          // TokensPanel always sits on a dark-toned surface — either its own `bg-dark` island
-          // (rail) or the already-dark sheet it's `boxed` into — so `bg-dark-well` is correct
-          // on both mounts (the two-surface rule doesn't require a light variant here).
+          // TokensPanel is its own `bg-dark` island on a light page, so `bg-dark-well` is the
+          // correct placeholder tone here — it is NOT subject to the light-surface token rules.
           <span aria-busy="true" className="inline-block h-[22px] w-9 motion-safe:animate-pulse bg-dark-well">
             <span className="sr-only">Checking your balance…</span>
           </span>

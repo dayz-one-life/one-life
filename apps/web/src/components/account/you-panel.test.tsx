@@ -2,7 +2,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 const noopMut = { mutate: vi.fn(), isPending: false, isSuccess: false, isError: false, error: null };
-vi.mock("@/components/controls/use-controls", () => ({
+vi.mock("@/components/account/use-controls", () => ({
   useControls: vi.fn(),
   useControlsActions: () => ({
     claim: noopMut,
@@ -14,7 +14,7 @@ vi.mock("@/components/controls/use-controls", () => ({
 }));
 vi.mock("@/lib/push", () => ({ signOutAndTeardownPush: vi.fn() }));
 
-import { useControls } from "@/components/controls/use-controls";
+import { useControls } from "@/components/account/use-controls";
 import { YouPanel } from "./you-panel";
 
 const controls = (over: Record<string, unknown>) =>

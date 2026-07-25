@@ -3,10 +3,10 @@ import Link from "next/link";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { playerSlug } from "@/lib/slug";
 import { ApiError } from "@/lib/api";
-import { useControls, useControlsActions } from "@/components/controls/use-controls";
-import { transferErrorLabel } from "@/components/controls/format";
-import { IdentityRow } from "@/components/controls/identity-row";
-import { TokensPanel, type MutationView } from "@/components/controls/tokens-panel";
+import { useControls, useControlsActions } from "@/components/account/use-controls";
+import { transferErrorLabel } from "@/components/account/format";
+import { IdentityRow } from "@/components/account/identity-row";
+import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
   return {

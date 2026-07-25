@@ -17,46 +17,27 @@ describe("FriendsPanel", () => {
 
   it("shows a placeholder rather than a fabricated zero while loading", () => {
     render(<FriendsPanel loading />);
-    expect(screen.queryByText("0")).toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent(/loading/i);
+    const status = screen.getByRole("status");
+    expect(status.className).toMatch(/\btext-ink-muted\b/);
+    // cream-muted is a DARK-surface token. It used to appear here via `boxed`; the sheet that
+    // needed it is gone, so its presence now would mean invisible text on paper.
+    expect(status.className).not.toMatch(/\btext-cream-muted\b/);
+    expect((status.parentElement as HTMLElement).className).toMatch(/\bborder-hairline\b/);
   });
 
-  it("swaps tokens for the dark sheet surface while loading", () => {
-    render(<FriendsPanel loading />);
-    const lightStatus = screen.getByRole("status");
-    expect(lightStatus.className).toMatch(/\btext-ink-muted\b/);
-    expect(lightStatus.className).not.toMatch(/\btext-cream-muted\b/);
-    const lightContainer = lightStatus.parentElement as HTMLElement;
-    expect(lightContainer.className).toMatch(/\bborder-hairline\b/);
-
-    const { container: darkContainer } = render(<FriendsPanel loading boxed />);
-    const darkStatus = darkContainer.querySelector('[role="status"]') as HTMLElement;
-    expect(darkStatus.className).toMatch(/\btext-cream-muted\b/);
-    expect(darkStatus.className).not.toMatch(/\btext-ink-muted\b/);
-    const darkRoot = darkContainer.firstElementChild as HTMLElement;
-    expect(darkRoot.className).toMatch(/\bborder-dark-line\b/);
-  });
-
-  // ⚠️ The rail is light paper; the mobile sheet is bg-dark. A panel written only in
-  // text-ink/border-ink is present, functional and INVISIBLE on a phone — exactly how the
-  // notifications panel shipped in v0.26.0. RTL asserts the DOM, not contrast, so the
-  // token swap itself needs pinning or the whole suite stays green while it is broken.
-  it("swaps its tokens for the dark sheet surface", () => {
-    const { container: light } = render(<FriendsPanel friendCount={1} requestCount={2} />);
-    const lightRoot = light.firstElementChild as HTMLElement;
-    expect(lightRoot.className).toMatch(/\btext-ink\b/);
-    expect(lightRoot.className).not.toMatch(/\btext-paper\b/);
-    // Badge must render on light surface with bg-red-deep
-    expect(lightRoot.innerHTML).toMatch(/\bbg-red-deep\b/);
-
-    const { container: dark } = render(<FriendsPanel friendCount={1} requestCount={2} boxed />);
-    const darkRoot = dark.firstElementChild as HTMLElement;
-    expect(darkRoot.className).toMatch(/\btext-paper\b/);
-    expect(darkRoot.className).not.toMatch(/\btext-ink\b/);
-    // Badge must render on dark surface with bg-red, not bg-red-deep
-    expect(darkRoot.innerHTML).toMatch(/\bbg-red\b/);
-    // red-deep is a LIGHT-surface token only: on dark it drops to ~3.2:1 and fails AA.
-    expect(darkRoot.innerHTML).not.toMatch(/red-deep/);
+  // This panel used to mount on BOTH the light rail and the dark ControlsSheet, and a token swap
+  // was the only thing standing between it and rendering invisible on a phone (exactly how the
+  // notifications panel shipped in v0.26.0). Sub-project B deleted the sheet, so the panel is
+  // light-surface only — and this test now guards the opposite direction: no dark token may creep
+  // back in, because there is no dark surface left to justify one.
+  it("renders light-surface tokens only", () => {
+    const { container } = render(<FriendsPanel friendCount={1} requestCount={2} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toMatch(/\btext-ink\b/);
+    expect(root.className).not.toMatch(/\btext-paper\b/);
+    // red-deep is the LIGHT-surface red (5.8:1). Plain `red` is display-only on paper at this
+    // size, so the badge must use red-deep here.
+    expect(root.innerHTML).toMatch(/\bbg-red-deep\b/);
   });
 
   it("renders 'Friends 0' when loaded with zero friends", () => {

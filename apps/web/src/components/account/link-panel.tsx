@@ -1,7 +1,7 @@
 "use client";
 import { useId, useState } from "react";
 import { searchClaimableGamertags } from "@/lib/api";
-import { GamertagAutocomplete } from "./gamertag-autocomplete";
+import { GamertagAutocomplete } from "@/components/shared/gamertag-autocomplete";
 
 /** Unlinked rail state (canvas 10d): dark claim panel with claimable-tag autocomplete. */
 export function LinkTagPanel({

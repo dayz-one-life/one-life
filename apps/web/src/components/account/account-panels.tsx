@@ -5,15 +5,14 @@ import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
 import { ApiError } from "@/lib/api";
-import { useControls, useControlsActions } from "@/components/controls/use-controls";
-import { serverCards, transferErrorLabel } from "@/components/controls/format";
-import { IdentityRow } from "@/components/controls/identity-row";
-import { SignInPanel } from "@/components/controls/signin-panel";
-import { LinkTagPanel } from "@/components/controls/link-panel";
-import { ProveItPanel } from "@/components/controls/verify-panel";
-import { TokensPanel, type MutationView } from "@/components/controls/tokens-panel";
-import { ServerCard } from "@/components/controls/server-cards";
-import { VerificationAnnouncer } from "@/components/controls/verification-announcer";
+import { useControls, useControlsActions } from "@/components/account/use-controls";
+import { serverCards, transferErrorLabel } from "@/components/account/format";
+import { IdentityRow } from "@/components/account/identity-row";
+import { LinkTagPanel } from "@/components/account/link-panel";
+import { ProveItPanel } from "@/components/account/verify-panel";
+import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
+import { ServerCard } from "@/components/servers/server-cards";
+import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
 function PanelsSkeleton() {
   return (
@@ -75,11 +74,14 @@ export function AccountPanels() {
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
 
+  // A signed-out visitor gets nothing here: Home already carries the hero and `SignInCta`, and
+  // the old rail's SignInPanel would be a SECOND sign-in call to action on the same page. The
+  // rail could afford one because it was a separate column; in the main flow it is a duplicate.
+  if (c.status.kind === "signedOut") return null;
+
   let body: ReactNode;
   if (c.status.kind === "loading") {
     body = <PanelsSkeleton />;
-  } else if (c.status.kind === "signedOut") {
-    body = <SignInPanel />;
   } else if (c.status.kind === "unlinked") {
     body = (
       <>

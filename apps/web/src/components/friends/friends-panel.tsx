@@ -9,23 +9,22 @@ export type FriendsPanelProps = {
   friendCount?: number;
   requestCount?: number;
   loading?: boolean;
-  /** True when mounted in the mobile sheet, which is bg-dark. */
-  boxed?: boolean;
 };
 
 /**
- * Deliberately thin: counts and a link, no list and no controls. The rail is 380px and a
+ * Deliberately thin: counts and a link, no list and no controls. The sidebar is 380px and a
  * friends list grows unbounded; the Roster page owns the list.
  *
- * ⚠️ Mounted on BOTH surfaces — the light rail and the dark sheet — so every colour token
- * here swaps on `boxed`. See friends-panel.test.tsx.
+ * Light surface only. It used to carry a `boxed` variant because it was mounted on both the light
+ * rail and the dark ControlsSheet; sub-project B deleted the sheet, so the two-surface token swap
+ * this component existed to survive is gone with it.
  */
 export function FriendsPanel(p: FriendsPanelProps) {
-  const text = p.boxed ? "text-paper" : "text-ink";
-  const muted = p.boxed ? "text-cream-muted" : "text-ink-muted";
-  const border = p.boxed ? "border-dark-line" : "border-hairline";
-  const badge = p.boxed ? "bg-red text-paper" : "bg-red-deep text-paper";
-  const minH = p.boxed ? "min-h-[44px]" : "";
+  const text = "text-ink";
+  const muted = "text-ink-muted";
+  const border = "border-hairline";
+  const badge = "bg-red-deep text-paper";
+  const minH = "";
 
   if (p.loading) {
     return (
@@ -59,7 +58,7 @@ export function FriendsPanel(p: FriendsPanelProps) {
   );
 }
 
-export function FriendsPanelContainer({ boxed }: { boxed?: boolean }) {
+export function FriendsPanelContainer() {
   const { data, loading } = useFriends();
   // A failed load leaves `data` (and so `friendCount`/`requestCount`) undefined, which falls
   // through to the link with no counts rather than a fabricated zero badge — the link still
@@ -67,7 +66,6 @@ export function FriendsPanelContainer({ boxed }: { boxed?: boolean }) {
   return (
     <FriendsPanel
       loading={loading}
-      boxed={boxed}
       friendCount={data?.total}
       requestCount={data?.incoming.length}
     />

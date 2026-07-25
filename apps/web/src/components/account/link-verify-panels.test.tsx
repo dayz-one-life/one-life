@@ -64,7 +64,7 @@ describe("LinkTagPanel", () => {
     expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
   });
 
-  // LinkTagPanel mounts simultaneously on the rail and in the mobile sheet (both live in the
+  // LinkTagPanel used to mount twice at once (rail + mobile sheet, both in the
   // root layout at once, one hidden by CSS per breakpoint) — a fixed input/error id would
   // duplicate in the DOM and aria-describedby could resolve to the wrong instance.
   test("two mounted instances get distinct ids for input and error", () => {

@@ -1,8 +1,8 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { ServerCard } from "./server-cards";
-import type { ServerCardData } from "./format";
-import { diedAtLabel } from "./format";
+import type { ServerCardData } from "@/components/account/format";
+import { diedAtLabel } from "@/components/account/format";
 
 const NOW = new Date("2026-07-16T12:00:00Z");
 
