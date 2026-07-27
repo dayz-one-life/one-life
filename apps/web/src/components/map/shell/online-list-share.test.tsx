@@ -70,4 +70,13 @@ describe("OnlineList grant controls", () => {
     expect(btn.className).not.toMatch(/(^|\s)text-ink/);
     expect(btn.className).toMatch(/text-cream-dim/);
   });
+
+  it("share buttons carry the uppercase action treatment", () => {
+    // render one sharing row and one not-sharing row (the file's existing fixtures)
+    const h = handlers();
+    render(<OnlineList players={[p({}), p({ gamertag: "Other", sharedWithThem: true })]} {...h} />);
+    for (const btn of screen.getAllByRole("button", { name: /share|sharing · stop/i })) {
+      expect(btn.className).toContain("uppercase");
+    }
+  });
 });
