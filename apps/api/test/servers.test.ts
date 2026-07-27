@@ -30,10 +30,13 @@ describe("GET /servers", () => {
   // whatever order suits it, which differs between fetches — the dropdown visibly reshuffled
   // on every map change. Alphabetical by display name, case-folded, id as the tie-break.
   it("returns servers alphabetically by name", async () => {
+    // ⚠️ These names discriminate the CASE-FOLD, not just the sort: under C/musl collation an
+    // un-folded ORDER BY name yields Alpha, CHARLIE, beta (uppercase sorts before lowercase),
+    // so dropping lower() from the route fails this test rather than surviving it.
     const inserted = await db.insert(servers).values([
-      { nitradoServiceId: svc + 1, name: "zeta-order-test" },
+      { nitradoServiceId: svc + 1, name: "beta-order-test" },
       { nitradoServiceId: svc + 2, name: "Alpha-order-test" },
-      { nitradoServiceId: svc + 3, name: "mid-order-test" },
+      { nitradoServiceId: svc + 3, name: "CHARLIE-order-test" },
     ]).returning();
     try {
       const res = await app.inject({ method: "GET", url: "/servers" });
@@ -41,7 +44,7 @@ describe("GET /servers", () => {
       const names = res.json()
         .filter((s: any) => ids.has(s.id))
         .map((s: any) => s.name);
-      expect(names).toEqual(["Alpha-order-test", "mid-order-test", "zeta-order-test"]);
+      expect(names).toEqual(["Alpha-order-test", "beta-order-test", "CHARLIE-order-test"]);
     } finally {
       for (const s of inserted) await db.delete(servers).where(eq(servers.id, s.id));
     }

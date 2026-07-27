@@ -215,6 +215,15 @@ export async function getFriendPositions(
   //
   // Do not widen this to granting subjects: their dots stay bounded by the open-session join
   // and MARKER_MAX_AGE_SECONDS above, unconditionally.
+  //
+  // ⚠️ ACCEPTED RESIDUAL of the label-identity model (migration 0025): `viewer.playerId` is
+  // resolved most-recently-seen by lower(gamertag), so if the verified-link holder renames away
+  // on Xbox and a DIFFERENT player adopts the freed name in-game, this resolves to the NEW
+  // holder's row — and this path would then serve the new holder's logout fix (a stash
+  // location) to the old link holder for as long as that open life lasts, where the main query
+  // bounded the same mis-resolution to online-with-a-fresh-fix. Requires an Xbox gamertag
+  // recycle onto an unverified player who then holds an open life — accepted until the deferred
+  // work anchoring `gamertag_links` to `dayz_id` closes the family for every consumer at once.
   if (viewer.playerId !== null && !out.some((r) => r.self)) {
     const [openLife] = await db
       .select({ startedAt: lives.startedAt })
@@ -238,10 +247,12 @@ export async function getFriendPositions(
         .orderBy(desc(positions.recordedAt))
         .limit(1);
       if (fix) {
+        // Typed-builder path: doublePrecision comes back as number and the timestamp as Date —
+        // no Number()/new Date() wraps, unlike the raw db.execute() rows above.
         out.unshift({
           gamertag: viewer.gamertag,
-          x: Number(fix.x),
-          y: Number(fix.y),
+          x: fix.x,
+          y: fix.y,
           recordedAt: fix.recordedAt,
           self: true,
         });
