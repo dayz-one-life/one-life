@@ -58,15 +58,25 @@ function renderControl(p: FriendViewProps) {
   }
   if (p.status === "incoming") {
     return (
-      <div className="flex gap-2">
-        <button type="button" onClick={p.onAccept} disabled={p.pending} className={BTN}>Accept</button>
-        <button type="button" onClick={p.onDecline} disabled={p.pending} className={BTN}>Decline</button>
+      <div className="flex flex-col items-start gap-1">
+        <p className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+          Friend request received
+        </p>
+        <div className="flex gap-2">
+          <button type="button" onClick={p.onAccept} disabled={p.pending} className={BTN}>Accept</button>
+          <button type="button" onClick={p.onDecline} disabled={p.pending} className={BTN}>Decline</button>
+        </div>
       </div>
     );
   }
   if (p.status === "outgoing") {
     return (
-      <button type="button" onClick={p.onRemove} disabled={p.pending} className={BTN}>Cancel request</button>
+      <div className="flex flex-col items-start gap-1">
+        <p className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+          Friend request sent
+        </p>
+        <button type="button" onClick={p.onRemove} disabled={p.pending} className={BTN}>Cancel request</button>
+      </div>
     );
   }
   if (p.status === "friends") {

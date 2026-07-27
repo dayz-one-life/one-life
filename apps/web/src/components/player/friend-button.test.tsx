@@ -52,10 +52,21 @@ describe("FriendView", () => {
     expect(screen.getByRole("button", { name: /cancel request/i })).toBeInTheDocument();
   });
 
+  it("outgoing: names the state, not just the escape hatch", () => {
+    render(<FriendView status="outgoing" {...actions} />);
+    expect(screen.getByText("Friend request sent")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel request" })).toBeInTheDocument();
+  });
+
   it("offers Accept and Decline on an incoming request", () => {
     render(<FriendView status="incoming" {...actions} />);
     expect(screen.getByRole("button", { name: /^accept$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^decline$/i })).toBeInTheDocument();
+  });
+
+  it("incoming: names the state above Accept/Decline", () => {
+    render(<FriendView status="incoming" {...actions} />);
+    expect(screen.getByText("Friend request received")).toBeInTheDocument();
   });
 
   it("requires a confirm step before removing a friend", async () => {
