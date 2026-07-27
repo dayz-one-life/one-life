@@ -91,8 +91,11 @@ function NotificationsBlock() {
         <ul role="list" className="mt-2 flex flex-col gap-1.5">
           {latest.map((item) => (
             <li key={item.id} className="font-mono text-[11px] tracking-[.02em]">
-              <Link href={item.href} className={`block truncate ${item.readAt ? "text-ink-muted" : "font-bold text-ink"}`}>
-                {item.title}
+              <Link href={item.href} className="block">
+                <span className={`block truncate ${item.readAt ? "text-ink-muted" : "font-bold text-ink"}`}>{item.title}</span>
+                {/* The body carries the actual subject ("Unforgivn420 is on Livonia.") — a bare
+                 *  "Friend online" row is content-free, and three of them are indistinguishable. */}
+                <span className="block truncate text-ink-soft">{item.body}</span>
               </Link>
               <span className="text-[10px] uppercase text-ink-muted">{relativeTime(item.createdAt, new Date())}</span>
             </li>

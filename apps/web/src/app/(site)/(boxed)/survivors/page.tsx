@@ -28,7 +28,7 @@ export default async function SurvivorsPage() {
   // No slug to send anyone to. Guessing a path would 404, and an empty board would imply nobody
   // is alive — a claim about the game, which a failed fetch is not evidence for.
   return (
-    <div className="mx-auto max-w-[68ch] px-4 py-8">
+    <div className="mx-auto w-full max-w-[68ch] px-4 py-8">
       <h1 className="font-display text-3xl uppercase tracking-[.02em]">Leaderboard</h1>
       <p role="status" className="mt-6 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
         Couldn&apos;t load the servers.{" "}

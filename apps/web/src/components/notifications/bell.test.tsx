@@ -67,6 +67,17 @@ describe("MastheadBell", () => {
     expect(screen.getByText("Nothing on the wire.")).toBeInTheDocument();
   });
 
+  test("the popover list scrolls internally instead of outgrowing the viewport", () => {
+    // A full page 1 is taller than the screen; without a capped scroll region the panel runs
+    // past the fold and buries its own View-all link. jsdom can't measure that, so pin the cap.
+    render(<MastheadBell />);
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    const dialog = screen.getByRole("dialog", { name: "Notifications" });
+    const scroller = dialog.querySelector(".overflow-y-auto");
+    expect(scroller).not.toBeNull();
+    expect(scroller!.className).toMatch(/max-h-/);
+  });
+
   test("cold-cache error renders the retry line in the popover", () => {
     mockNotifications.mockReturnValue({ ...base, error: true });
     render(<MastheadBell />);

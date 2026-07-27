@@ -15,7 +15,7 @@ import { HowToConnect, type ServersView } from "@/components/servers/how-to-conn
  * The verified home's standing groups, built to the design mock
  * (`verified-desktop.html`, option A, with the agreed amendments): a red banned group headed by
  * the tokens-in-hand count, one hero block PER alive life (time alive is the ONLY stat), and a
- * compact idle group whose `Join ▸` discloses the shared HowToConnect content in place.
+ * compact idle group whose `How to connect ▸` discloses the shared HowToConnect content in place.
  */
 
 const OV = "font-mono text-[10px] uppercase tracking-[.12em]";
@@ -175,7 +175,9 @@ function IdleRow({ card, now, joinServers }: {
             onClick={() => setOpen((v) => !v)}
             className="ml-auto border border-ink px-2.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[.1em] text-ink"
           >
-            Join {open ? "▾" : "▸"}
+            {/* Not "Join": a console DayZ server has no join URL (how-to-connect.tsx), so this
+             *  names what it actually reveals instead of promising an action we can't perform. */}
+            How to connect {open ? "▾" : "▸"}
           </button>
         )}
       </div>

@@ -110,12 +110,15 @@ describe("StandingGroups — the verified-desktop mock, with the amendments", ()
     expect(screen.queryByText(/longest run yet/i)).toBeNull();
   });
 
-  test("idle Join discloses the shared how-to-connect content in place", () => {
+  test("idle row discloses the shared how-to-connect content in place, and is not labeled Join", () => {
     render(<StandingGroups {...base} cards={[idle]} />);
-    const join = screen.getByRole("button", { name: /join/i });
-    expect(screen.queryByText(/how to connect/i)).toBeNull();
-    fireEvent.click(join);
-    expect(screen.getByText(/how to connect/i)).toBeInTheDocument();
+    // A console DayZ server has no join URL, so a control labeled "Join" promises the one thing
+    // the product explicitly can't do (see how-to-connect.tsx) — the disclosure names its content.
+    expect(screen.queryByRole("button", { name: /join/i })).toBeNull();
+    const disclose = screen.getByRole("button", { name: /how to connect/i });
+    expect(screen.queryByText(/open the server browser/i)).toBeNull();
+    fireEvent.click(disclose);
+    expect(screen.getByText(/open the server browser/i)).toBeInTheDocument();
     expect(screen.getByText("Chernarus, Sakhal")).toBeInTheDocument();
   });
 
