@@ -123,7 +123,14 @@ body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 .map-app .leaflet-bottom.leaflet-right {
   margin-bottom: 3.5rem; /* clears the 44px control cluster + its bottom-3 inset */
 }
-.map-app .leaflet-control-attribution {
+/* Leaflet's own `.leaflet-container .leaflet-control-attribution` rule is specificity 0-2-0,
+ * EQUAL to a bare `.map-app .leaflet-control-attribution` — and its stylesheet is imported
+ * inside map-canvas.tsx's dynamic chunk, so it loads AFTER globals.css and wins the tie
+ * (the same source-order hazard already documented on `.leaflet-tooltip.friend-label` above).
+ * The extra `.leaflet-container` ancestor segment is deliberate, not redundant: it raises us
+ * to 0-3-0 so `background` actually applies instead of silently losing to Leaflet's
+ * `rgba(255,255,255,0.8)`, which left near-white text on a near-white pill in a real browser. */
+.map-app .leaflet-container .leaflet-control-attribution {
   background: rgb(var(--dark) / 0.9);
   color: rgb(var(--cream-dim));
   font-size: 10px; /* decorative tier: license text, present verbatim in dzmap.yaml */
