@@ -189,4 +189,32 @@ describe("AvatarPanel", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Something went wrong. Please try again."),
     );
   });
+
+  // Regression (round 2): two consecutive settlements landing on the SAME text (upload success,
+  // then sync success — both "Avatar updated") must still re-announce. Setting state to a value
+  // it already holds is a no-op React bails out of (Object.is equality) — the role="status"
+  // node's text never mutates a second time, so a screen reader hears nothing for the second
+  // action. Each mutation clears `announcement` to "" in `onMutate`, so every settlement is a
+  // fresh ""→message transition regardless of what the previous message was.
+  test("two same-text settlements (upload, then sync) both re-announce — the live region clears mid-flight and refills", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    uploadAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    let resolveSync!: (v: { hash: string }) => void;
+    syncAvatar.mockReturnValue(new Promise((resolve) => { resolveSync = resolve; }));
+    wrap(<AvatarPanel />);
+
+    const input = screen.getByLabelText("Upload avatar image") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file()] } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar updated"));
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh from login provider/i }));
+    // Mid-flight: onMutate has cleared the live region before sync settles.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(""));
+
+    await act(async () => {
+      resolveSync({ hash: "cafe1234feed5678" });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar updated"));
+  });
 });

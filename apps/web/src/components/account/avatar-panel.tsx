@@ -34,25 +34,37 @@ function avatarErrorMessage(err: unknown): string {
  * true and outranks `remove.isSuccess` in the chain. Setting state imperatively in each callback
  * makes "most recently settled" automatic — whichever callback fires last wins, however many
  * mutations have already settled before it.
+ *
+ * ⚠️ Each mutation ALSO clears `announcement` to `""` in `onMutate` (i.e. the instant it starts,
+ * not when it settles). Without this, two consecutive settlements that land on the SAME text
+ * (e.g. upload succeeds, then later a sync also succeeds — both "Avatar updated") never change
+ * `announcement`'s value, so React bails out of the state update (`Object.is` equality) and the
+ * `role="status"` node's text never mutates a second time — a screen reader hears nothing for the
+ * second action. Blanking on start forces every settlement through a fresh `""` → message
+ * transition, which is what makes assistive tech re-announce even a repeated message.
  */
 export function AvatarPanel() {
   const qc = useQueryClient();
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar });
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["avatar"] });
   const [announcement, setAnnouncement] = useState("");
+  const clearAnnouncement = () => setAnnouncement("");
 
   const upload = useMutation({
     mutationFn: uploadAvatar,
+    onMutate: clearAnnouncement,
     onSuccess: () => { invalidate(); setAnnouncement("Avatar updated"); },
     onError: (err) => setAnnouncement(avatarErrorMessage(err)),
   });
   const sync = useMutation({
     mutationFn: syncAvatar,
+    onMutate: clearAnnouncement,
     onSuccess: () => { invalidate(); setAnnouncement("Avatar updated"); },
     onError: (err) => setAnnouncement(avatarErrorMessage(err)),
   });
   const remove = useMutation({
     mutationFn: removeAvatar,
+    onMutate: clearAnnouncement,
     onSuccess: () => { invalidate(); setAnnouncement("Avatar removed"); },
     onError: (err) => setAnnouncement(avatarErrorMessage(err)),
   });
