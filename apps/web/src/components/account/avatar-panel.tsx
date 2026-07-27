@@ -1,5 +1,5 @@
 "use client";
-import { useRef, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, getAvatar, removeAvatar, syncAvatar, uploadAvatar } from "@/lib/api";
 import { Avatar } from "@/components/shared/avatar";
@@ -23,17 +23,39 @@ function avatarErrorMessage(err: unknown): string {
  * `AccountAffordance`, which reads the same query key so both update together on a successful
  * mutation.
  *
- * Announcements fire ON SETTLEMENT (a mutation's `isSuccess`/`isError` flips only once the
- * request resolves), never at click — the repo-wide SrStatus policy.
+ * Announcements fire ON SETTLEMENT (each mutation's `onSuccess`/`onError` callback only runs
+ * once the request resolves), never at click — the repo-wide SrStatus policy.
+ *
+ * ⚠️ `announcement` is a plain `useState` set from each mutation's own `onSuccess`/`onError`,
+ * NOT derived by reading `isSuccess`/`isError` off all three mutations. TanStack mutation flags
+ * stay true after settlement until that SAME mutation object runs again — a priority chain over
+ * them (upload > sync > remove, say) would freeze on the first mutation's outcome forever: upload
+ * once, then Remove later, and the live region never changes because `upload.isSuccess` is still
+ * true and outranks `remove.isSuccess` in the chain. Setting state imperatively in each callback
+ * makes "most recently settled" automatic — whichever callback fires last wins, however many
+ * mutations have already settled before it.
  */
 export function AvatarPanel() {
   const qc = useQueryClient();
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar });
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["avatar"] });
+  const [announcement, setAnnouncement] = useState("");
 
-  const upload = useMutation({ mutationFn: uploadAvatar, onSuccess: invalidate });
-  const sync = useMutation({ mutationFn: syncAvatar, onSuccess: invalidate });
-  const remove = useMutation({ mutationFn: removeAvatar, onSuccess: invalidate });
+  const upload = useMutation({
+    mutationFn: uploadAvatar,
+    onSuccess: () => { invalidate(); setAnnouncement("Avatar updated"); },
+    onError: (err) => setAnnouncement(avatarErrorMessage(err)),
+  });
+  const sync = useMutation({
+    mutationFn: syncAvatar,
+    onSuccess: () => { invalidate(); setAnnouncement("Avatar updated"); },
+    onError: (err) => setAnnouncement(avatarErrorMessage(err)),
+  });
+  const remove = useMutation({
+    mutationFn: removeAvatar,
+    onSuccess: () => { invalidate(); setAnnouncement("Avatar removed"); },
+    onError: (err) => setAnnouncement(avatarErrorMessage(err)),
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pending = upload.isPending || sync.isPending || remove.isPending;
@@ -43,15 +65,6 @@ export function AvatarPanel() {
     e.target.value = ""; // allow re-selecting the same file after a failed/successful upload
     if (file) upload.mutate(file);
   };
-
-  // Whichever mutation most recently settled wins the announcement. Each branch only becomes
-  // true once its own request resolves, so this can never fire at click time.
-  let announcement = "";
-  if (upload.isSuccess || sync.isSuccess) announcement = "Avatar updated";
-  else if (remove.isSuccess) announcement = "Avatar removed";
-  else if (upload.isError) announcement = avatarErrorMessage(upload.error);
-  else if (sync.isError) announcement = avatarErrorMessage(sync.error);
-  else if (remove.isError) announcement = avatarErrorMessage(remove.error);
 
   const hash = avatar.data?.hash ?? null;
 

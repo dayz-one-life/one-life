@@ -150,4 +150,43 @@ describe("AvatarPanel", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Upload" })).toBeDisabled());
     expect(screen.getByRole("button", { name: /refresh from login provider/i })).toBeDisabled();
   });
+
+  // Regression: TanStack mutation flags stay true after settlement until that SAME mutation
+  // object runs again. A priority chain reading isSuccess/isError off all three mutations froze
+  // on whichever one settled FIRST — e.g. upload succeeds, then a later Remove would leave the
+  // live region stuck on "Avatar updated" (or a later failure silently masked by the earlier
+  // success). The announcement must always reflect the MOST RECENTLY settled mutation.
+  test("two sequential mutations: the second announcement replaces the first (upload, then remove)", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    uploadAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    removeAvatar.mockResolvedValue({ ok: true });
+    wrap(<AvatarPanel />);
+
+    const input = screen.getByLabelText("Upload avatar image") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file()] } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar updated"));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar removed"));
+  });
+
+  // Same regression, the other direction: a FAILURE after an earlier success must still
+  // announce — it must not be masked by the earlier mutation's still-true isSuccess flag.
+  test("a failure after an earlier success still announces the error", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    uploadAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    removeAvatar.mockRejectedValue(new ApiError(500, "unknown"));
+    wrap(<AvatarPanel />);
+
+    const input = screen.getByLabelText("Upload avatar image") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file()] } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar updated"));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Something went wrong. Please try again."),
+    );
+  });
 });
