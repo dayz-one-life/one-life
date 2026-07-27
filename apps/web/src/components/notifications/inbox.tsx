@@ -63,7 +63,7 @@ export function NotificationsInbox() {
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-ink pb-4">
-        <h1 className="font-display text-4xl font-bold uppercase tracking-[.02em] text-ink">The Wire</h1>
+        <h1 className="font-display text-4xl font-bold uppercase tracking-[.02em] text-ink">Notifications</h1>
         <p className="mt-1 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
           Everything that happened to you, on the record.
         </p>
