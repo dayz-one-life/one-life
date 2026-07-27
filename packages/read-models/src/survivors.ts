@@ -3,16 +3,8 @@ import { players, lives, servers, sessions, kills } from "@onelife/db";
 import { and, eq, isNull, isNotNull, inArray } from "drizzle-orm";
 import { livePlaytime } from "./playtime.js";
 import { isLifeQualified } from "./qualified.js";
-import { getLifeCharacter } from "./character.js";
-import { rosterByClass } from "@onelife/domain";
 
 export const SURVIVORS_PAGE_SIZE = 25;
-
-export interface SurvivorCharacter {
-  name: string | null; // "Helga"
-  head: string | null; // roster head key, e.g. "f_helga"
-  gender: string | null; // "female" | "male"
-}
 
 export interface SurvivorRow {
   gamertag: string;
@@ -21,7 +13,6 @@ export interface SurvivorRow {
   timeAliveSeconds: number;
   killsThisLife: number;
   longestKillMeters: number | null;
-  character: SurvivorCharacter | null; // Task 1 always sets null; Task 2 fills it
 }
 
 export interface SurvivorsPage {
@@ -55,7 +46,6 @@ const METRICS: ((row: SurvivorCandidate) => number)[] = [
 
 /**
  * Currently-alive survivors: players with an open, qualified life on an active, slugged server.
- * `character` is always null here — Task 2 enriches it from `character_sightings`.
  */
 export async function getAliveSurvivors(
   db: Database,
@@ -136,7 +126,6 @@ export async function getAliveSurvivors(
       timeAliveSeconds,
       killsThisLife: myKills.length,
       longestKillMeters,
-      character: null,
       serverId: r.serverId,
       startedAt: r.startedAt,
     });
@@ -155,14 +144,7 @@ export async function getAliveSurvivors(
   const start = (page - 1) * pageSize;
   const pageCandidates = candidates.slice(start, start + pageSize);
 
-  const rows: SurvivorRow[] = await Promise.all(
-    pageCandidates.map(async ({ serverId, startedAt, ...row }) => {
-      const lc = await getLifeCharacter(db, serverId, row.gamertag, startedAt, null);
-      const rc = lc?.characterClass ? rosterByClass(lc.characterClass) : null;
-      const character: SurvivorCharacter | null = rc ? { name: rc.name, head: rc.head, gender: rc.gender } : null;
-      return { ...row, character };
-    }),
-  );
+  const rows: SurvivorRow[] = pageCandidates.map(({ serverId, startedAt, ...row }) => row);
 
   return { rows, total, page, pageSize };
 }
