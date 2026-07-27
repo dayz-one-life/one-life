@@ -1,8 +1,10 @@
 import {
   pgTable, bigserial, integer, text, timestamp, boolean, jsonb,
-  bigint, uniqueIndex, index, doublePrecision,
+  bigint, uniqueIndex, index, doublePrecision, customType,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
 export const servers = pgTable("servers", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -326,55 +328,16 @@ export const referrals = pgTable("referrals", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ── RPT ingest + character mapping (SP5). Durable side-tables — never truncated by projector
-// rebuild; nothing here references projection row ids. Console (Xbox) RPT only. ──
+// ── Login avatars. Durable side-table — never truncated by projector rebuild. ──
 
-export const rptFiles = pgTable("rpt_files", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  serverId: integer("server_id").notNull().references(() => servers.id),
-  path: text("path").notNull(),
-  name: text("name").notNull(),
-  logDate: timestamp("log_date", { withTimezone: true }),
-  lastProcessedLine: integer("last_processed_line").notNull().default(0),
-  isComplete: boolean("is_complete").notNull().default(false),
-  lastPulledAt: timestamp("last_pulled_at", { withTimezone: true }),
+export const avatars = pgTable("avatars", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  image: bytea("image"),                 // NULL = removal tombstone
+  hash: text("hash"),                    // NULL on tombstone
+  source: text("source"),                // 'provider' | 'upload'; NULL on tombstone
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 }, (t) => ({
-  uniqPath: uniqueIndex("rpt_files_server_path_uniq").on(t.serverId, t.path),
-}));
-
-// one row per completed login (append-only fact stream)
-export const characterSightings = pgTable("character_sightings", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  serverId: integer("server_id").notNull().references(() => servers.id),
-  rptFileId: bigint("rpt_file_id", { mode: "number" }).notNull().references(() => rptFiles.id),
-  lineIndex: integer("line_index").notNull(),
-  uid: text("uid").notNull(),
-  gamertag: text("gamertag").notNull(),
-  charId: bigint("char_id", { mode: "number" }).notNull(),
-  playerDbId: bigint("player_db_id", { mode: "number" }),
-  kind: text("kind").notNull(),                       // 'existing' | 'new'
-  characterClass: text("character_class"),            // 'SurvivorF_Helga' | null (unresolved)
-  classSource: text("class_source"),                  // 'create_entity' | 'head_asset' | 'inherited' | null
-  x: doublePrecision("x"), y: doublePrecision("y"), z: doublePrecision("z"),
-  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-}, (t) => ({
-  uniq: uniqueIndex("character_sightings_file_line_uniq").on(t.serverId, t.rptFileId, t.lineIndex),
-  byGamertag: index("character_sightings_gamertag_idx").on(t.serverId, t.gamertag, t.observedAt),
-}));
-
-// rollup: current knowledge per character. NOT unique on (serverId, charId) alone — a wipe
-// restarts the charID sequence, so a stale-window + uid match keys the epoch.
-export const characters = pgTable("characters", {
-  id: bigserial("id", { mode: "number" }).primaryKey(),
-  serverId: integer("server_id").notNull().references(() => servers.id),
-  charId: bigint("char_id", { mode: "number" }).notNull(),
-  uid: text("uid").notNull(),
-  characterClass: text("character_class"),
-  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
-  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
-}, (t) => ({
-  uniqEpoch: uniqueIndex("characters_server_char_epoch_uniq").on(t.serverId, t.charId, t.firstSeenAt),
-  byCharId: index("characters_char_idx").on(t.serverId, t.charId),
+  byHash: index("avatars_hash_idx").on(t.hash).where(sql`hash is not null`),
 }));
 
 // ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate

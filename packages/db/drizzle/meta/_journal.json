@@ -204,6 +204,13 @@
       "when": 1785800000000,
       "tag": "0028_session_location_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785900000000,
+      "tag": "0029_avatars",
+      "breakpoints": true
     }
   ]
 }
