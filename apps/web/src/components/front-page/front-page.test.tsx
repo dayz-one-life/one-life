@@ -10,7 +10,7 @@ vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus(
 
 const row = (over: Partial<SurvivorRow>): SurvivorRow => ({
   gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", timeAliveSeconds: 82440,
-  killsThisLife: 2, longestKillMeters: 25, ...over,
+  killsThisLife: 2, longestKillMeters: 25, avatarHash: null, ...over,
 });
 
 describe("Hero", () => {

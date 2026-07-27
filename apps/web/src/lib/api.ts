@@ -239,3 +239,29 @@ export const stopSharingAll = (mapSlug: string) =>
 
 export const getFriendMap = (slug: string) =>
   apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);
+
+/** Session-gated, `no-store, private` — the viewer's own avatar hash, or null. Never derive an
+ *  avatar from `useSession()`'s `user.image`: that's the raw provider URL, and public surfaces
+ *  must not hotlink it. */
+export const getAvatar = () => apiGet<{ hash: string | null }>("/api/me/avatar");
+
+/**
+ * Multipart upload — deliberately NOT routed through `apiSend`/`apiGet`: those always attach a
+ * `content-type: application/json` header (when a body is present) and JSON-encode the body,
+ * neither of which is right for a file. A raw `fetch` with a `FormData` body lets the browser
+ * set its own `multipart/form-data; boundary=...` content-type; setting one by hand here would
+ * omit the boundary and the server could never split the parts.
+ */
+export async function uploadAvatar(file: File): Promise<{ hash: string }> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch("/api/me/avatar", { method: "POST", body, credentials: "include", cache: "no-store" });
+  return parse<{ hash: string }>(res);
+}
+
+/** Pulls the login provider's avatar image and stores it as the user's avatar. 409
+ *  `no_provider_image` when the provider gave us nothing to pull. */
+export const syncAvatar = () => apiSend<{ hash: string }>("POST", "/api/me/avatar/sync");
+
+/** Bodyless DELETE: `apiSend` only sets content-type when a body is present. */
+export const removeAvatar = () => apiSend<{ ok: true }>("DELETE", "/api/me/avatar");

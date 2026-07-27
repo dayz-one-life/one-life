@@ -9,6 +9,7 @@ const base = {
   timeAliveSeconds: 24180,
   killsThisLife: 11,
   longestKillMeters: 341,
+  avatarHash: null,
 };
 
 describe("SurvivorRow", () => {
@@ -91,5 +92,23 @@ describe("SurvivorRow", () => {
     const link = screen.getByRole("link", { name: "Chad" }).className;
     expect(link).toContain("inline-block");
     expect(link).toContain("max-w-full");
+  });
+
+  test("hero row renders an img when avatarHash is present", () => {
+    const { container } = render(<SurvivorRow rank={1} row={{ ...base, avatarHash: "cafe1234feed5678" }} />);
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("src", "/api/avatars/cafe1234feed5678.webp");
+    expect(container.querySelector('span[aria-hidden="true"].bg-bone')).toBeNull();
+  });
+
+  test("podium row renders an img when avatarHash is present", () => {
+    const { container } = render(<SurvivorRow rank={2} row={{ ...base, avatarHash: "cafe1234feed5678" }} />);
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/avatars/cafe1234feed5678.webp");
+  });
+
+  test("hero row renders the silhouette when avatarHash is null", () => {
+    const { container } = render(<SurvivorRow rank={1} row={{ ...base, avatarHash: null }} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('span[aria-hidden="true"].bg-bone')).not.toBeNull();
   });
 });

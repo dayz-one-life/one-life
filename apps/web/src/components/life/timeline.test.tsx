@@ -14,6 +14,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) }],
     qualifiedAt: { at: at(5), by: "playtime" },
     verdict: null,
+    avatarHash: null,
     ...over,
   };
 }

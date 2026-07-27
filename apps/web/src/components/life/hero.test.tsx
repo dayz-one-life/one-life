@@ -7,7 +7,7 @@ import type { LifeTimelineData } from "@/lib/types";
 const start = "2026-07-14T00:00:00Z";
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
-    gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null,
+    gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null, avatarHash: null,
     life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [], qualifiedAt: { at: start, by: "playtime" },
@@ -63,11 +63,20 @@ describe("LifeHero", () => {
     expect(screen.queryByText("Alive")).not.toBeInTheDocument();
   });
 
-  test("portrait renders the silhouette (Avatar ships with no hash to thread yet)", () => {
+  test("portrait renders the silhouette when avatarHash is null", () => {
     const now = new Date(Date.parse(start) + 100 * 60_000);
     const d = data();
     const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
     expect(container.querySelector("img")).toBeNull(); // silhouette svg, not an img
     expect(container.querySelector('span[aria-hidden="true"] svg')).not.toBeNull();
+  });
+
+  test("portrait renders an img when avatarHash is present", () => {
+    const now = new Date(Date.parse(start) + 100 * 60_000);
+    const d = data({ avatarHash: "cafe1234feed5678" });
+    const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img).toHaveAttribute("src", "/api/avatars/cafe1234feed5678.webp");
   });
 });

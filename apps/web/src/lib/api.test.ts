@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { apiGet, apiSend, ApiError, getRoster, toBackendPath } from "./api";
+import { apiGet, apiSend, ApiError, getRoster, toBackendPath, uploadAvatar } from "./api";
 
 const originalFetch = global.fetch;
 afterEach(() => {
@@ -88,6 +88,22 @@ describe("apiSend", () => {
     expect((init as RequestInit).body).toBeUndefined();
     const headers = (init as RequestInit).headers as Record<string, string> | undefined;
     expect(headers?.["content-type"]).toBeUndefined();
+  });
+});
+
+describe("uploadAvatar", () => {
+  it("POSTs a FormData body with no manually-set content-type header, so the browser sets its own multipart boundary", async () => {
+    const f = mockFetch(200, { hash: "cafe1234feed5678" });
+    global.fetch = f as unknown as typeof fetch;
+    const file = new File(["x"], "avatar.png", { type: "image/png" });
+    const out = await uploadAvatar(file);
+    expect(out.hash).toBe("cafe1234feed5678");
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe("/api/me/avatar");
+    expect((init as RequestInit).method).toBe("POST");
+    expect((init as RequestInit).body).toBeInstanceOf(FormData);
+    expect((init as RequestInit).headers).toBeUndefined();
+    expect((init as RequestInit).credentials).toBe("include");
   });
 });
 

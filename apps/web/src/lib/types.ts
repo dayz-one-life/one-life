@@ -146,7 +146,7 @@ export type PlayerPage = { gamertag: string; verified: boolean; firstSeenAt: str
  *  their position with the viewer (the same boolean the map payload discloses). */
 export type OnlineFriend = { gamertag: string; slug: string; map: string; sharing: boolean };
 
-export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; }
+export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; avatarHash: string | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; }
 
 export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
@@ -164,6 +164,9 @@ export type LifeTimelineData = {
   // Player heartbeat — caps live "time alive" accrual for an open life so it agrees with the
   // survivor board + dossier standing card (both stop at last-seen, not request-time `now`).
   lastSeenAt: string | null;
+  // Only a VERIFIED gamertag link with a LIVE (non-tombstoned) avatar contributes a hash — same
+  // predicate as the survivors board's batched join.
+  avatarHash: string | null;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,
