@@ -198,6 +198,17 @@ describe("avatar routes", () => {
     expect(res.json().error).toBe("not_an_image");
   });
 
+  // The transport limit (@fastify/multipart's `limits.fileSize` in app.ts) is wired to the same
+  // AVATAR_MAX_BYTES constant the pipeline enforces, so an oversized upload is rejected mid-stream
+  // rather than fully buffered first. This exercises that transport path, not the pipeline's own
+  // byteLength check (processAvatarImage never sees the body).
+  it("400s an upload over the 5MB limit without buffering the whole body", async () => {
+    const oversized = Buffer.alloc(5 * 1024 * 1024 + 1024, 1);
+    const res = await uploadPng(cookie, oversized);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("too_large");
+  });
+
   it("404s an unknown hash", async () => {
     const res = await app.inject({ method: "GET", url: "/avatars/0000000000000000.webp" });
     expect(res.statusCode).toBe(404);

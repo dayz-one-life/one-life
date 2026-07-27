@@ -22,6 +22,7 @@ import { registerPreferenceRoutes } from "./routes/preferences.js";
 import { registerFriendMapRoutes } from "./routes/friend-map.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
 import { registerAvatarRoutes } from "./routes/avatars.js";
+import { AVATAR_MAX_BYTES } from "./lib/avatar-image.js";
 
 export interface AuthOptions {
   auth: Auth;
@@ -40,7 +41,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     app.register(fastifyCors, { origin: opts.corsOrigins, credentials: true });
     // Registered once here — @fastify/multipart decorates the request globally (it's built on
     // fastify-plugin), so every route below, not just the ones in this file, can call req.file().
-    app.register(fastifyMultipart, { limits: { fileSize: 20 * 1024 * 1024 } });
+    app.register(fastifyMultipart, { limits: { fileSize: AVATAR_MAX_BYTES } });
     if (opts.authConfig) registerAuthMethodsRoute(app, opts.authConfig);
     registerAuthHandler(app, opts.auth);
     registerMeRoute(app, opts.auth);

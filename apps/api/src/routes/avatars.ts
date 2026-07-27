@@ -29,7 +29,19 @@ export function registerAvatarRoutes(app: FastifyInstance, db: Database, auth: A
 
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "not_an_image" });
-    const raw = await file.toBuffer();
+
+    let raw: Buffer;
+    try {
+      raw = await file.toBuffer();
+    } catch (err) {
+      // @fastify/multipart's own transport-level cap (registered with limits.fileSize ===
+      // AVATAR_MAX_BYTES in app.ts, the same constant the pipeline enforces) throws
+      // FST_REQ_FILE_TOO_LARGE mid-stream, before the whole oversized body is ever buffered.
+      if ((err as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") {
+        return reply.code(400).send({ error: "too_large" });
+      }
+      throw err;
+    }
 
     try {
       const { image, hash } = await processAvatarImage(raw);
