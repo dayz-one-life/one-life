@@ -12,7 +12,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) }],
-    qualifiedAt: { at: at(5), by: "playtime" }, character: null,
+    qualifiedAt: { at: at(5), by: "playtime" },
     verdict: null,
     ...over,
   };

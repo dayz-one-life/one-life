@@ -11,7 +11,7 @@ const server = (over: Partial<Server>): Server => ({
 
 const standing = (over: Partial<ServerStanding>): ServerStanding => ({
   serverId: 1, map: "chernarusplus", slug: "chernarus", state: "idle",
-  character: null, alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null, ...over,
+  alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null, ...over,
 });
 
 const aliveStanding = (slug: string, map: string, secs: number, kills = 0, qualified = true): ServerStanding =>

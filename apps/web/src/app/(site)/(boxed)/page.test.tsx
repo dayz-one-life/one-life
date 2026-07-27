@@ -29,7 +29,7 @@ vi.mock("@/components/account/home-sidebar", () => ({ HomeSidebar: () => <aside 
 
 const survivor = {
   gamertag: "boots", slug: "chernarus", map: "chernarusplus", timeAliveSeconds: 100,
-  killsThisLife: 0, longestKillMeters: null, character: null,
+  killsThisLife: 0, longestKillMeters: null,
 };
 
 beforeEach(() => {

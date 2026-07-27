@@ -64,7 +64,7 @@ describe("useControls: standing loading honesty", () => {
   });
 
   test("player-page query resolved with real standing: standingLoading is false and standing passes through", async () => {
-    const standing = [{ serverId: 1, map: "chernarusplus", slug: "chernarus", state: "alive", character: null, alive: null, ban: null }];
+    const standing = [{ serverId: 1, map: "chernarusplus", slug: "chernarus", state: "alive", alive: null, ban: null }];
     getPlayerPage.mockResolvedValue({ standing });
     const { result } = renderHook(() => useControls(), { wrapper });
     await waitFor(() => expect(result.current.standingLoading).toBe(false));

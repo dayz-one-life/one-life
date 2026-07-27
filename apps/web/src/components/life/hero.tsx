@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LifeTimelineData } from "@/lib/types";
 import type { LifeTimelineView } from "@/lib/life-timeline";
-import { CharacterImage } from "@/components/character-image";
+import { Avatar } from "@/components/shared/avatar";
 import { GamertagLink } from "@/components/gamertag-link";
 import { mapLabel, formatDuration } from "@/components/player/format";
 import { playerSlug } from "@/lib/slug";
@@ -41,7 +41,7 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
 
       <div className="mt-3 flex flex-col gap-5 border-b-[3px] border-ink pb-5 sm:flex-row sm:gap-6">
         <div className="w-[132px] flex-none">
-          <CharacterImage character={{ name: data.character?.name ?? null }} size={132} dim={!view.alive} />
+          <Avatar hash={null} size={132} dim={!view.alive} />
           <p className="mt-2 text-center font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">Snapshot · this life</p>
         </div>
         <div className="min-w-0 flex-1">

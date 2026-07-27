@@ -10,7 +10,7 @@ const row = {
   timeAliveSeconds: 3600,
   killsThisLife: 3,
   longestKillMeters: 200,
-  character: null,
+ 
 };
 
 const pageOf = (rows: typeof row[], total = rows.length): SurvivorsPage =>

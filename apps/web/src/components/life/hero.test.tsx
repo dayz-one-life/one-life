@@ -11,7 +11,6 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [], qualifiedAt: { at: start, by: "playtime" },
-    character: { charId: 1, characterClass: "SurvivorM_Cyril", name: "Cyril", gender: "male", sightings: 3, confidence: "exact" },
     verdict: null,
     ...over,
   };
@@ -64,10 +63,11 @@ describe("LifeHero", () => {
     expect(screen.queryByText("Alive")).not.toBeInTheDocument();
   });
 
-  test("portrait falls back to silhouette when no character", () => {
+  test("portrait renders the silhouette (Avatar ships with no hash to thread yet)", () => {
     const now = new Date(Date.parse(start) + 100 * 60_000);
-    const d = data({ character: null });
+    const d = data();
     const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
     expect(container.querySelector("img")).toBeNull(); // silhouette svg, not an img
+    expect(container.querySelector('span[aria-hidden="true"] svg')).not.toBeNull();
   });
 });
