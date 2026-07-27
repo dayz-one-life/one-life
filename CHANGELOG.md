@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-07-27
+
 ### Added
 
 - **Your own last-known position survives logging out of the game.** While you have an open
