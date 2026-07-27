@@ -11,7 +11,6 @@ export type ClientFactory = (nitradoServiceId: number) => IngestClient;
 export type SweepDeps = {
   clientFor: ClientFactory;
   backfillBudget: number;
-  now?: Date;
   /** Called when a single server's pass throws; the sweep continues with the rest. */
   onServerError?: (serverId: number, err: unknown) => void;
 };
