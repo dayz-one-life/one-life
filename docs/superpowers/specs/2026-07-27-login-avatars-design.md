@@ -79,19 +79,24 @@ API before touching the table:
 4. `hash = sha256(bytes).slice(0, 16)`; upsert the row.
 
 Provider mirroring adds: fetch `user.image` over **https only**, follow at most 3 redirects,
-5 s timeout, same 5 MB cap streamed. The URL comes from the OAuth provider's profile
-payload, not from user input, so this is not an open fetch proxy — but the guards hold
-anyway. **Public pages never hotlink a provider CDN**: no visitor-IP leakage to
-Discord/Google, and Discord's rotating CDN URLs can't rot our pages.
+5 s timeout, same 5 MB cap streamed. **`user.image` is user-writable** (Better Auth's
+default `/update-user` endpoint accepts it, and that field has no cheap per-field disable —
+see the auth-config note below), so the fetch is restricted in production to an **https host
+allowlist** matching the three configured providers' avatar CDNs (`cdn.discordapp.com`, any
+host ending `.googleusercontent.com`, `avatars.githubusercontent.com`), re-checked on every
+redirect hop so a compliant host cannot redirect to an internal target. **Public pages never
+hotlink a provider CDN**: no visitor-IP leakage to Discord/Google, and Discord's rotating CDN
+URLs can't rot our pages.
 
 `sharp` is a new API dependency (prebuilt native binaries via pnpm; note for the deploy
 runbook that the host install must succeed — it's linux-x64-glibc, which sharp ships).
 
 ## 5. Routes
 
-Three `/me` routes (session-gated; **no subject parameter anywhere** — the only avatar a
+Four `/me` routes (session-gated; **no subject parameter anywhere** — the only avatar a
 caller can write is their own, same shape as every other `/me` surface):
 
+- `GET /me/avatar` — the session user's current hash (or null on no row / a tombstone).
 - `POST /me/avatar` — multipart upload (`@fastify/multipart`, 5 MB limit) → pipeline →
   upsert (`source: 'upload'`). Returns the new hash.
 - `POST /me/avatar/sync` — re-fetch the session user's current `user.image` → pipeline →
@@ -150,9 +155,10 @@ policy). The masthead account disc uses the avatar when present.
 
 ## 9. Deploy
 
-- Migration `0029`: create `avatars`, drop `characters` + `character_sightings`. Touches
-  one durable table and drops two projection tables — plain `./deploy/deploy.sh`, **no
-  `--rebuild`** (nothing needs re-folding; the event log never carried character data).
+- Migration `0029`: create `avatars`, drop `characters` + `character_sightings` +
+  `rpt_files`. Touches one durable table and drops three projection tables — plain
+  `./deploy/deploy.sh`, **no `--rebuild`** (nothing needs re-folding; the event log never
+  carried character data).
 - `@onelife/rpt-parser` removal deletes a workspace package; `pnpm install` on deploy
   handles it.
 - No new env vars, no new worker, no systemd change. The ingest-worker simply stops

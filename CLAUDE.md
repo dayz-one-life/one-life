@@ -1524,6 +1524,20 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   (offline install, an overly aggressive `--ignore-scripts`, an unsupported platform) is a
   runtime failure, not a build failure: the api unit fails to boot rather than failing
   `pnpm install`. See `deploy/README.md`.
+  **⚠️ `user.image` is user-writable, so `fetchProviderImage` treats it as attacker input, not a
+  trusted provider URL.** Better Auth's default `/update-user` endpoint accepts an arbitrary
+  `image` string and has no cheap per-field disable (`name`/`image` are hardcoded into the route,
+  only `additionalFields` are configurable) — so production fetches are restricted to an https
+  **provider-host allowlist** (`cdn.discordapp.com`, any `.googleusercontent.com` host,
+  `avatars.githubusercontent.com`), re-checked on every redirect hop so a compliant host cannot
+  redirect to an internal target. The old http+loopback carve-out is gated behind an explicit
+  `allowTestHosts` param (production always passes `false`, via config env var
+  `AVATAR_TEST_FETCH_ALLOW_LOOPBACK`, parsed on the `NOTIFIER_*` safe-side convention — unparseable
+  input lands OFF), never a code path a production request can reach.
+  **⚠️ Outstanding — needs a real-browser pass pre-ship**, matching how sub-projects B and M1
+  record their own outstanding browser checks: the `/you` avatar round trip (upload → the board/
+  masthead actually rendering the mirrored image) has never been exercised end-to-end in a real
+  browser, only through jsdom/route-level tests.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
