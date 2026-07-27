@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { players, lives, servers, sessions, kills } from "@onelife/db";
-import { and, eq, isNull, isNotNull, inArray } from "drizzle-orm";
+import { players, lives, servers, sessions, kills, gamertagLinks, avatars } from "@onelife/db";
+import { and, eq, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 import { livePlaytime } from "./playtime.js";
 import { isLifeQualified } from "./qualified.js";
 
@@ -13,6 +13,7 @@ export interface SurvivorRow {
   timeAliveSeconds: number;
   killsThisLife: number;
   longestKillMeters: number | null;
+  avatarHash: string | null;
 }
 
 export interface SurvivorsPage {
@@ -22,12 +23,9 @@ export interface SurvivorsPage {
   pageSize: number;
 }
 
-/** Internal candidate row: carries `serverId`/`startedAt` for Task 2's character enrichment —
- *  never exposed on `SurvivorRow`. */
-interface SurvivorCandidate extends SurvivorRow {
-  serverId: number;
-  startedAt: Date;
-}
+/** Internal candidate row, ranked/paginated before the batched avatar lookup fills in
+ *  `avatarHash` for just the visible page. */
+type SurvivorCandidate = SurvivorRow;
 
 /**
  * ⚠️ ONE order, and it is not configurable. Sub-project D deleted the whole sort layer
@@ -126,8 +124,7 @@ export async function getAliveSurvivors(
       timeAliveSeconds,
       killsThisLife: myKills.length,
       longestKillMeters,
-      serverId: r.serverId,
-      startedAt: r.startedAt,
+      avatarHash: null, // filled in below, batched, for the visible page only
     });
   }
 
@@ -144,7 +141,26 @@ export async function getAliveSurvivors(
   const start = (page - 1) * pageSize;
   const pageCandidates = candidates.slice(start, start + pageSize);
 
-  const rows: SurvivorRow[] = pageCandidates.map(({ serverId, startedAt, ...row }) => row);
+  // Batched — one query for the whole visible page, never per-row. Only a VERIFIED link with a
+  // LIVE (non-tombstoned) avatar contributes a hash; dropping either clause would leak a pending
+  // claim's or a removed avatar's hash onto the board.
+  const pageGamertags = [...new Set(pageCandidates.map((c) => c.gamertag.toLowerCase()))];
+  const avatarRows = pageGamertags.length > 0
+    ? await db
+        .select({ gamertag: gamertagLinks.gamertag, hash: avatars.hash })
+        .from(gamertagLinks)
+        .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image)))
+        .where(and(
+          eq(gamertagLinks.status, "verified"),
+          inArray(sql`lower(${gamertagLinks.gamertag})`, pageGamertags),
+        ))
+    : [];
+  const avatarByGamertag = new Map(avatarRows.map((r) => [r.gamertag.toLowerCase(), r.hash]));
+
+  const rows: SurvivorRow[] = pageCandidates.map((c) => ({
+    ...c,
+    avatarHash: avatarByGamertag.get(c.gamertag.toLowerCase()) ?? null,
+  }));
 
   return { rows, total, page, pageSize };
 }

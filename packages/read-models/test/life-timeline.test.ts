@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, hitEvents } from "@onelife/db";
+import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars } from "@onelife/db";
 import { inArray } from "drizzle-orm";
 import { getLifeTimeline } from "../src/life-timeline.js";
 
@@ -99,5 +99,75 @@ describe("getLifeTimeline", () => {
     expect(t!.verdict).toBeNull();
     expect(t!.ordeals).toBeNull();
     expect(t!.hpLow).toBeNull();
+  });
+
+  describe("avatarHash", () => {
+    const avatarPid: number[] = [];
+    const avatarLifeIds: number[] = [];
+    const avatarUserIds: string[] = [];
+
+    afterAll(async () => {
+      if (avatarLifeIds.length) await db.delete(sessions).where(inArray(sessions.lifeId, avatarLifeIds));
+      if (avatarLifeIds.length) await db.delete(lives).where(inArray(lives.id, avatarLifeIds));
+      if (avatarPid.length) await db.delete(players).where(inArray(players.id, avatarPid));
+      if (avatarUserIds.length) {
+        await db.delete(avatars).where(inArray(avatars.userId, avatarUserIds));
+        await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, avatarUserIds));
+        await db.delete(user).where(inArray(user.id, avatarUserIds));
+      }
+    });
+
+    async function makeLife(gamertag: string) {
+      const [p] = await db.insert(players).values({ gamertag, lastSeenAt: mins(400) }).returning();
+      avatarPid.push(p!.id);
+      const [l] = await db.insert(lives).values({
+        serverId, playerId: p!.id, lifeNumber: 1, startedAt: start, endedAt: mins(360),
+        deathCause: "pvp", playtimeSeconds: 21600,
+      }).returning();
+      avatarLifeIds.push(l!.id);
+      return { p: p!, l: l! };
+    }
+
+    // `imageNull: true` pairs a non-null hash with a NULL image to isolate the
+    // `image IS NOT NULL` join clause, independent of what a real tombstone (null hash) looks like.
+    async function link(userId: string, gamertag: string, status: "pending" | "verified", hash: string | null, imageNull = false) {
+      await db.insert(user).values({ id: userId, name: userId, email: `${userId}@example.com` });
+      avatarUserIds.push(userId);
+      await db.insert(gamertagLinks).values({ userId, gamertag, status, verifiedAt: status === "verified" ? mins(400) : null });
+      await db.insert(avatars).values({
+        userId, image: imageNull ? null : Buffer.from("fake-avatar-bytes"), hash, source: imageNull ? null : "upload", updatedAt: mins(400),
+      });
+    }
+
+    it("attaches avatarHash for a verified player with a live avatar", async () => {
+      const gt = `AvHero-${svc}`;
+      const { l } = await makeLife(gt);
+      await link(`u-avhero-${svc}`, gt, "verified", "livehash");
+      const t = await getLifeTimeline(db, serverId, gt, l.id);
+      expect(t!.avatarHash).toBe("livehash");
+    });
+
+    it("returns null avatarHash for a player with no gamertag link at all", async () => {
+      const gt = `AvNoLink-${svc}`;
+      const { l } = await makeLife(gt);
+      const t = await getLifeTimeline(db, serverId, gt, l.id);
+      expect(t!.avatarHash).toBeNull();
+    });
+
+    it("returns null avatarHash when the avatar is tombstoned", async () => {
+      const gt = `AvTomb-${svc}`;
+      const { l } = await makeLife(gt);
+      await link(`u-avtomb-${svc}`, gt, "verified", "ghosthash", true);
+      const t = await getLifeTimeline(db, serverId, gt, l.id);
+      expect(t!.avatarHash).toBeNull();
+    });
+
+    it("returns null avatarHash for a pending (unverified) gamertag link", async () => {
+      const gt = `AvPending-${svc}`;
+      const { l } = await makeLife(gt);
+      await link(`u-avpending-${svc}`, gt, "pending", "pendinghash");
+      const t = await getLifeTimeline(db, serverId, gt, l.id);
+      expect(t!.avatarHash).toBeNull();
+    });
   });
 });
