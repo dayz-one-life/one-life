@@ -29,7 +29,9 @@ describe("StandingCard", () => {
   it("alive card: blue chip, 3-stat row, red kills label", () => {
     wrap(<StandingCard standing={aliveStanding} now={now} pageGamertag="YrJustBad" />);
     expect(screen.getByText("Chernarus")).toBeInTheDocument();
-    expect(screen.getByText("Alive").className).toContain("bg-blue");
+    // "Alive" now also opens the sub-line's own text ("Alive <span>1h 0m</span>"), so scope to
+    // the state chip specifically.
+    expect(screen.getByText("Alive", { selector: "span.bg-blue" }).className).toContain("bg-blue");
     expect(screen.getByText("Time alive")).toBeInTheDocument();
     expect(screen.getByText("9")).toBeInTheDocument();
     expect(screen.getByText("312 m")).toBeInTheDocument();
@@ -50,6 +52,23 @@ describe("StandingCard", () => {
     expect(screen.getByText("Lifting…")).toBeInTheDocument();
     expect(screen.queryByText(/0h 0m/)).not.toBeInTheDocument();
     expect(screen.queryByText("Ban lifts in")).not.toBeInTheDocument();
+  });
+
+  it("the Alive sub-line duration is exempt from its row's uppercase (#9)", () => {
+    const standing: any = {
+      serverId: 1, map: "sakhal", slug: "sakhal", state: "alive",
+      alive: { lifeId: 5, lifeNumber: 3, startedAt: "2026-07-16T00:00:00Z", timeAliveSeconds: 3600, kills: 0, longestKillMeters: null, killList: [] },
+      ban: null,
+    };
+    const { container } = wrap(<StandingCard standing={standing} now={now} pageGamertag="YrJustBad" />);
+    // The identical duration also renders unwrapped in the stat band below (Stat's value span
+    // carries no uppercase, so it needs no exemption) — assert the sub-line's own span, scoped to
+    // the uppercase mono <p> that renders it (not the stat band).
+    const subLine = container.querySelector("p.uppercase")!;
+    expect(subLine).not.toBeNull();
+    const value = subLine.querySelector("span.normal-case");
+    expect(value).not.toBeNull();
+    expect(value).toHaveTextContent("1h 0m");
   });
 
   it("null longest kill renders a muted dash", () => {

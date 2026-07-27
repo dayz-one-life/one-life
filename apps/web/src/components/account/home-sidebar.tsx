@@ -49,7 +49,7 @@ function BoardBlock({ board }: { board: SidebarBoard }) {
                   {r.gamertag}
                   {you ? " · you" : ""}
                 </span>
-                <span className="flex-none tabular-nums">{formatDuration(r.timeAliveSeconds)}</span>
+                <span className="flex-none normal-case tabular-nums">{formatDuration(r.timeAliveSeconds)}</span>
               </li>
             );
           })}

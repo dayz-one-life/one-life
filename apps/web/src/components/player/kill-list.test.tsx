@@ -5,8 +5,17 @@ import { KillList } from "./kill-list";
 describe("KillList", () => {
   it("renders victim links with weapon and distance", () => {
     render(<KillList kills={[{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z" }]} />);
-    expect(screen.getByRole("link", { name: "Tomahawked11" })).toHaveAttribute("href", "/players/tomahawked11");
-    expect(screen.getByText("VSS · 5 m")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Tomahawked11" });
+    expect(link).toHaveAttribute("href", "/players/tomahawked11");
+    // The distance is now wrapped in its own span (rule #9), splitting this line across
+    // elements — assert the row's full text rather than a single text node.
+    expect(link.closest("li")).toHaveTextContent("VSS · 5 m");
+  });
+
+  it("the distance value is exempt from the row's uppercase (#9)", () => {
+    render(<KillList kills={[{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z" }]} />);
+    const value = screen.getByText("5 m");
+    expect(value.className).toContain("normal-case");
   });
 
   it("empty list renders the pacifist line", () => {

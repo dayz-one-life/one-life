@@ -12,7 +12,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
   const banned = standing.state === "banned";
   const countdown = banned && standing.ban ? banCountdown(standing.ban.expiresAt, now) : null;
   const sub =
-    alive && standing.alive ? `Alive ${formatDuration(standing.alive.timeAliveSeconds)}`
+    alive && standing.alive ? <>Alive <span className="normal-case">{formatDuration(standing.alive.timeAliveSeconds)}</span></>
     : banned ? "Died — awaiting respawn"
     : "No open life";
   const timelineLifeNumber = alive && standing.alive ? standing.alive.lifeNumber : banned ? standing.ban?.triggeringLifeNumber ?? null : null;

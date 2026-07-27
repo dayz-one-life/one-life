@@ -20,12 +20,16 @@ function life(overrides: Partial<PastLife> = {}): PastLife {
 describe("PastLifeCard", () => {
   test("funeral card: map, dateline, pvp death line, counts strip", () => {
     render(<PastLifeCard life={life()} now={now} gamertag="YrJustBad" />);
-    expect(screen.getByText("Sakhal")).toBeInTheDocument();
-    expect(screen.getByText("2 days ago · lasted 5h 6m")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "TidierCart8730" })).toHaveAttribute("href", "/players/tidiercart8730");
-    expect(screen.getByText(/VSD · 126 m/)).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { level: 3, name: "Sakhal" });
+    expect(heading).toBeInTheDocument();
+    // The duration is now wrapped in its own span (rule #9), splitting this line across
+    // elements — assert the dateline's full text rather than a single text node.
+    expect(heading.nextElementSibling).toHaveTextContent("2 days ago · lasted 5h 6m");
+    const killerLink = screen.getByRole("link", { name: "TidierCart8730" });
+    expect(killerLink).toHaveAttribute("href", "/players/tidiercart8730");
+    expect(killerLink.closest("p")).toHaveTextContent("VSD · 126 m");
     expect(screen.getByText("0 kills")).toBeInTheDocument();
-    expect(screen.getByText("— longest kill")).toBeInTheDocument();
+    expect(screen.getByText(/longest kill/, { exact: false })).toHaveTextContent("— longest kill");
     expect(screen.getByText("9 sessions")).toBeInTheDocument();
   });
 
@@ -85,6 +89,17 @@ describe("PastLifeCard", () => {
   test("links to the life timeline", () => {
     render(<PastLifeCard life={life()} now={now} gamertag="YrJustBad" />);
     expect(screen.getByRole("link", { name: /timeline/i })).toHaveAttribute("href", "/players/yrjustbad/sakhal/lives/2");
+  });
+
+  test("duration and distance values are exempt from the card's uppercase (#9)", () => {
+    render(<PastLifeCard life={life()} now={now} gamertag="YrJustBad" />);
+    expect(screen.getByText("5h 6m").className).toContain("normal-case");
+    expect(screen.getByText("126 m").className).toContain("normal-case");
+  });
+
+  test("longest-kill metre value is exempt from the counts strip's uppercase (#9)", () => {
+    render(<PastLifeCard life={life({ longestKillMeters: 375 })} now={now} gamertag="YrJustBad" />);
+    expect(screen.getByText("375 m").className).toContain("normal-case");
   });
 
   test("non-pvp death line renders the classified verdict", () => {

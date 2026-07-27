@@ -17,7 +17,7 @@ export function KillList({ kills, limit }: { kills: PlayerKill[]; limit?: number
           </span>
           <span className="uppercase text-ink-muted">
             {k.weapon ?? "—"}
-            {k.distanceMeters != null ? ` · ${formatMeters(k.distanceMeters)}` : ""}
+            {k.distanceMeters != null ? <> · <span className="normal-case">{formatMeters(k.distanceMeters)}</span></> : null}
           </span>
         </li>
       ))}
