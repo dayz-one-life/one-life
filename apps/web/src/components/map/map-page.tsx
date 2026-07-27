@@ -203,7 +203,7 @@ export function MapPage({ slug }: { slug: string }) {
           ⚠️ `isolate`: Leaflet's own controls sit at z-index 1000 and would otherwise paint over
           the z-40 masthead and the z-50 overlays. That was always true; with a masthead above
           the map it is now the thing standing between the two. See header.tsx's LAYER LEGEND. */}
-      <div className="relative isolate min-h-0 w-auto flex-1 border-y border-ink">
+      <div className="map-app relative isolate min-h-0 w-auto flex-1 border-y border-ink">
         <MapPageView
           signedOut={account.kind === "signedOut"}
           unverified={account.kind === "unlinked" || account.kind === "pending"}

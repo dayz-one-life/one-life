@@ -115,6 +115,23 @@ body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
   }
 }
 
+/* /maps only: the Locate/Online cluster overlays the map's bottom-right corner
+ * (map-page.tsx `bottom-3 right-3`), directly over Leaflet's default attribution,
+ * and the map edge clips it. Lift the whole bottom control corner clear of the
+ * cluster and restyle the pill for the dark shell. The life-trail TrackMap has no
+ * overlaid controls, so this is scoped to .map-app rather than global. */
+.map-app .leaflet-bottom.leaflet-right {
+  margin-bottom: 3.5rem; /* clears the 44px control cluster + its bottom-3 inset */
+}
+.map-app .leaflet-control-attribution {
+  background: rgb(var(--dark) / 0.9);
+  color: rgb(var(--cream-dim));
+  font-size: 10px; /* decorative tier: license text, present verbatim in dzmap.yaml */
+}
+.map-app .leaflet-control-attribution a {
+  color: rgb(var(--paper));
+}
+
 :focus-visible {
   outline: 2px solid rgb(var(--red));
   outline-offset: 2px;
