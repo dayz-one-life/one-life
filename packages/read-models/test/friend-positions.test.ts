@@ -195,6 +195,57 @@ describe("getFriendPositions", () => {
     expect(out.find((p) => p.gamertag === "SubjectBravo")!.x).toBe(2000);
   });
 
+  // ⚠️ THE ONE exception to "no session, no dot" — and it is SELF-ONLY. Where a player logs out
+  // is where their stash is, so a persisted last-known position for anyone ELSE would publish
+  // that; the viewer's OWN logout spot is their own information. While the viewer has an OPEN
+  // life on this server, their last fix from that life stays on their map, however old.
+  describe("the viewer's own last-known dot while a life is open", () => {
+    const takeViewerOffline = async () => {
+      const viewerId = (await db.select({ id: players.id }).from(players)
+        .where(eq(players.gamertag, "ViewerAlpha")))[0]!.id;
+      await db.update(sessions).set({ disconnectedAt: new Date("2026-07-22T11:10:00Z") })
+        .where(eq(sessions.playerId, viewerId));
+      // Well past MARKER_MAX_AGE_SECONDS, so the fresh-fix path cannot be what returns it.
+      await db.update(positions).set({ recordedAt: new Date("2026-07-22T10:30:00Z") })
+        .where(eq(positions.playerId, viewerId));
+      return viewerId;
+    };
+
+    it("returns the viewer's stale dot when they are offline with an open life", async () => {
+      await takeViewerOffline();
+      const out = await call();
+      const self = out.find((p) => p.self);
+      expect(self?.gamertag).toBe("ViewerAlpha");
+      // The REAL fix time, never clamped — the UI owes the viewer the age of what it shows.
+      expect(self?.recordedAt).toEqual(new Date("2026-07-22T10:30:00Z"));
+      // A granting online subject is unaffected by the supplemental self lookup.
+      expect(out.find((p) => p.gamertag === "SubjectBravo")).toBeDefined();
+    });
+
+    it("drops the dot once the life has ENDED", async () => {
+      const viewerId = await takeViewerOffline();
+      await db.update(lives).set({ endedAt: new Date("2026-07-22T11:05:00Z") })
+        .where(eq(lives.playerId, viewerId));
+      expect((await call()).some((p) => p.self)).toBe(false);
+    });
+
+    it("ignores a fix recorded BEFORE the open life started", async () => {
+      // A dot from a PREVIOUS life is where the viewer died or logged out before respawning —
+      // showing it as "your position" on the current life would be confidently wrong.
+      const viewerId = await takeViewerOffline();
+      await db.update(positions).set({ recordedAt: new Date("2026-07-22T09:30:00Z") })
+        .where(eq(positions.playerId, viewerId));
+      expect((await call()).some((p) => p.self)).toBe(false);
+    });
+
+    // ⚠️ Mutation guard: the exception must never widen to granting subjects. An offline
+    // subject with an open life, a live grant row and a stale fix stays absent.
+    it("never extends to a granting subject with an open life", async () => {
+      await seed({ online: false, positionAt: new Date("2026-07-22T10:30:00Z") });
+      expect((await call()).map((p) => p.gamertag)).toEqual(["ViewerAlpha"]);
+    });
+  });
+
   // ⚠️ `gamertag_links_verified_uniq` is on lower(gamertag) as of migration 0024, so two users
   // can no longer hold VERIFIED links that differ only in case and fold onto the same `players`
   // row. This asserts the rejection.

@@ -820,6 +820,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
      window is worse still (it exposes the stash during exactly the minutes someone watching would
      act). A fix older than **`MARKER_MAX_AGE_SECONDS` (900)** — reused, never redefined — is
      absent rather than shown somewhere the player no longer is.
+     **ONE deliberate exception (2026-07-27), and it is SELF-ONLY:** while the VIEWER has an
+     open life on the server, their own latest fix from that life persists on their own map,
+     however old, with its real `recordedAt` (supplemental lookup at the bottom of
+     `getFriendPositions`). Their own logout spot is their own information; nobody else ever
+     receives it (the dot rides the `/me` payload, which only that session can fetch). The dot
+     dies with the life, and a fix from before the open life started is never shown. Do not
+     widen this to granting subjects — their dots keep every rail above, unconditionally.
   4. **The reciprocity line is ONE collapsed boolean.** `theyShareLocation` is computed
      server-side and cannot distinguish "their master switch is off" from "they hid from you
      specifically". Differentiating would tell one player a named friend singled them out, which

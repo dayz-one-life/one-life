@@ -8,7 +8,11 @@ const FRIEND_COLOR = "#c8102e";
 /** Age of one fix, per dot — the page never stamps a single time across all of them. */
 export function positionAge(recordedAt: string, now: Date): string {
   const mins = Math.floor((now.getTime() - new Date(recordedAt).getTime()) / 60_000);
-  return mins < 1 ? "just now" : `${mins}m ago`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 /**
