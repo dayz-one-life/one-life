@@ -11,6 +11,12 @@ const schema = z.object({
   // the failure it prevents is silent (subscribe() throws, the toggle swallows it, the
   // notifier reports success because it finds zero subscriptions).
   VAPID_PUBLIC_KEY: z.string().default(""),
+  // Test-only escape hatch for fetchProviderImage's provider-host allowlist — permits plain
+  // http on loopback so tests can stand up a local stub server without TLS. Unparseable, unset,
+  // or anything other than the literal string "true" lands on the safe side (OFF), matching the
+  // NOTIFIER_* convention: `.default()` only fires on `undefined`, so a blank/mis-cased value
+  // must not throw at module scope.
+  AVATAR_TEST_FETCH_ALLOW_LOOPBACK: z.string().optional(),
 });
 export type Config = {
   databaseUrl: string;
@@ -18,6 +24,7 @@ export type Config = {
   logLevel: string;
   corsOrigins: string[];
   vapidPublicKey: string;
+  avatarTestFetchAllowLoopback: boolean;
 };
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const p = schema.parse(env);
@@ -27,5 +34,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     logLevel: p.LOG_LEVEL,
     corsOrigins: p.AUTH_TRUSTED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
     vapidPublicKey: p.VAPID_PUBLIC_KEY,
+    avatarTestFetchAllowLoopback: p.AVATAR_TEST_FETCH_ALLOW_LOOPBACK === "true",
   };
 }

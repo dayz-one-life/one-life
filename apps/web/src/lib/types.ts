@@ -131,7 +131,6 @@ export type PlayerAggregate = {
   };
 };
 
-export type PlayerCharacter = { name: string | null; head: string | null; gender: string | null };
 export type PlayerKill = { victimGamertag: string; weapon: string | null; distanceMeters: number | null; occurredAt: string };
 /** `qualified` refines `state: "alive"` — a PROVISIONAL life (inside the five-minute grace window)
  *  is `qualified: false`, and `qualifiedAt` is null exactly then. The state union is deliberately
@@ -139,26 +138,23 @@ export type PlayerKill = { victimGamertag: string; weapon: string | null; distan
 export type QualifiedAtDtoLite = { at: string; by: "playtime" | "kill" | "pvp-death" };
 export type AliveStanding = { lifeId: number; lifeNumber: number; startedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; qualified: boolean; qualifiedAt: QualifiedAtDtoLite | null };
 export type BanStanding = { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean; triggeringLifeNumber: number | null; verdict: DeathVerdictDto | null };
-export type ServerStanding = { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; character: PlayerCharacter | null; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; lastEndedAt: string | null };
-export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; character: PlayerCharacter | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
+export type ServerStanding = { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; lastEndedAt: string | null };
+export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
 export type PlayerPage = { gamertag: string; verified: boolean; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; previousBestSeconds: number; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number };
 
 /** One row of `GET /me/friends/online` — a friend online right now, and whether they share
  *  their position with the viewer (the same boolean the map payload discloses). */
 export type OnlineFriend = { gamertag: string; slug: string; map: string; sharing: boolean };
 
-export interface SurvivorCharacter { name: string | null; head: string | null; gender: string | null; }
-export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; character: SurvivorCharacter | null; }
+export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; avatarHash: string | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; }
 
 export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
 
-export type LifeCharacterDto = { charId: number; characterClass: string | null; name: string | null; gender: string | null; sightings: number; confidence: "exact" | "ambiguous" };
 export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
 export type LifeTimelineData = {
   life: Life;
   sessions: Session[];
-  character: LifeCharacterDto | null;
   kills: PlayerKill[];
   qualifiedAt: QualifiedAtDto | null;
   gamertag: string;
@@ -168,6 +164,9 @@ export type LifeTimelineData = {
   // Player heartbeat — caps live "time alive" accrual for an open life so it agrees with the
   // survivor board + dossier standing card (both stop at last-seen, not request-time `now`).
   lastSeenAt: string | null;
+  // Only a VERIFIED gamertag link with a LIVE (non-tombstoned) avatar contributes a hash — same
+  // predicate as the survivors board's batched join.
+  avatarHash: string | null;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,

@@ -52,8 +52,8 @@ function page(overrides: Partial<PlayerPage> = {}): PlayerPage {
     totals: { kills: 2, lives: 4, deaths: 2, longestLifeSeconds: 82440 },
     previousBestSeconds: 0,
     standing: [
-      { serverId: 1, map: "chernarusplus", slug: "chernarus", state: "alive", character: null, alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null },
-      { serverId: 2, map: "sakhal", slug: "sakhal", state: "alive", character: null, alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null },
+      { serverId: 1, map: "chernarusplus", slug: "chernarus", state: "alive", alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null },
+      { serverId: 2, map: "sakhal", slug: "sakhal", state: "alive", alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null },
     ],
     pastLives: [],
     pastLivesTotal: 0,

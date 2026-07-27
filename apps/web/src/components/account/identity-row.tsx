@@ -1,6 +1,8 @@
 import { initialOf } from "./format";
 
-/** Decorative lettered disc standing in for an avatar (we ship no avatar images). */
+/** Decorative lettered disc standing in for an avatar in this identity row specifically — this
+ *  component does not render the login-avatars feature's own `Avatar` (image-or-silhouette);
+ *  see `AvatarPanel`, rendered alongside it on `/you`, for the real avatar. */
 export function AvatarDisc({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span

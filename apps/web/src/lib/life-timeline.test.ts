@@ -18,7 +18,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
       energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null,
       playtimeSeconds: 0,
     },
-    character: null,
+
     sessions: [
       { id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: at(0), disconnectedAt: at(120), durationSeconds: 7200, closeReason: "d" },
       { id: 2, serverId: 1, playerId: 1, lifeId: 1, connectedAt: at(200), disconnectedAt: at(300), durationSeconds: 6000, closeReason: "d" },
@@ -30,6 +30,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     ],
     qualifiedAt: { at: at(5), by: "playtime" },
     verdict: null,
+    avatarHash: null,
     ...over,
   };
 }

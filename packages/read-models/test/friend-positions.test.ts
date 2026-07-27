@@ -78,7 +78,14 @@ async function seed(o: {
 const call = () => getFriendPositions(db, { viewerUserId: "va", serverId, now: NOW });
 
 beforeEach(() => seed());
-afterAll(async () => { await sql.end(); });
+afterAll(async () => {
+  // This suite's `seed()` truncates at the START of each test but leaves its rows (including
+  // open lives on active slugged servers) in place after the LAST test — which other read-model
+  // suites querying unscoped "every active server" data (e.g. survivors.test.ts) can then pick up
+  // as cross-file pollution. Clean up on the way out.
+  await sql`truncate table location_shares, positions, sessions, lives, players, servers, gamertag_links, "user" restart identity cascade`;
+  await sql.end();
+});
 
 describe("getFriendPositions", () => {
   it("returns the viewer's own dot and a granting subject's", async () => {

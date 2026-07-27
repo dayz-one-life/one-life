@@ -4,6 +4,7 @@ import { signOutAndTeardownPush } from "@/lib/push";
 import { playerSlug } from "@/lib/slug";
 import { useControls } from "@/components/account/use-controls";
 import { IdentityRow } from "@/components/account/identity-row";
+import { AvatarPanel } from "@/components/account/avatar-panel";
 
 /**
  * The account page body — the seed of the avatar menu (home-is-the-app spec, amendment 4):
@@ -48,6 +49,8 @@ export function YouPanel() {
         verified={verified}
         tagLine={c.status.kind === "unlinked" ? "No gamertag" : undefined}
       />
+
+      <AvatarPanel />
 
       {!verified && (
         <p className="font-sans text-base text-ink-soft">

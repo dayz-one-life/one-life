@@ -5,7 +5,6 @@ const schema = z.object({
   NITRADO_TOKEN: z.string().min(1),
   INGEST_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   ADM_BACKFILL_BUDGET: z.coerce.number().int().nonnegative().default(15),
-  CHAR_STALE_HOURS: z.coerce.number().positive().default(72),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 });
 
@@ -14,7 +13,6 @@ export type Config = {
   nitradoToken: string;
   intervalSeconds: number;
   backfillBudget: number;
-  charStaleHours: number;
   logLevel: string;
 };
 
@@ -25,7 +23,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     nitradoToken: p.NITRADO_TOKEN,
     intervalSeconds: p.INGEST_INTERVAL_SECONDS,
     backfillBudget: p.ADM_BACKFILL_BUDGET,
-    charStaleHours: p.CHAR_STALE_HOURS,
     logLevel: p.LOG_LEVEL,
   };
 }

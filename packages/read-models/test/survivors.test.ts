@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, kills, rptFiles, characterSightings, characters } from "@onelife/db";
+import { servers, players, lives, kills, user, gamertagLinks, avatars } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getAliveSurvivors } from "../src/survivors.js";
 
@@ -15,43 +15,42 @@ const svcSakh = Math.floor(Math.random() * 1e8) + 41e7;
 
 let chern: { id: number; slug: string };
 let sakh: { id: number; slug: string };
-let chernRptFileId: number;
-
-async function insertSighting(opts: {
-  serverId: number;
-  gamertag: string;
-  charId: number;
-  characterClass: string | null;
-  observedAt: Date;
-}) {
-  await db.insert(characterSightings).values({
-    serverId: opts.serverId,
-    rptFileId: chernRptFileId,
-    lineIndex: Math.floor(Math.random() * 1e8),
-    uid: `U-${opts.charId}`,
-    gamertag: opts.gamertag,
-    charId: opts.charId,
-    kind: "existing",
-    characterClass: opts.characterClass,
-    observedAt: opts.observedAt,
-  });
-}
-
-async function insertCharacterRollup(opts: { serverId: number; charId: number; characterClass: string | null }) {
-  await db.insert(characters).values({
-    serverId: opts.serverId,
-    charId: opts.charId,
-    uid: `U-${opts.charId}`,
-    characterClass: opts.characterClass,
-    firstSeenAt: hoursAgo(2),
-    lastSeenAt: now,
-  });
-}
 
 // Insert helpers matching the shape of the task brief's illustrative `insertLife`/`insertKill`,
 // adapted onto the real Drizzle schema + test harness. `players` are global (gamertag-unique),
 // so we upsert-by-lookup rather than blind-insert.
 const insertedGamertags = new Set<string>();
+const insertedUserIds = new Set<string>();
+
+/**
+ * Seeds a `user` + `gamertag_links` row, plus (unless `hash` is omitted) an `avatars` row.
+ * `imageNull: true` shapes a tombstone (image NULL) while still allowing a non-null `hash`, so a
+ * test can prove the `image IS NOT NULL` join clause is load-bearing independent of the hash
+ * value real code would ever actually pair with a tombstone.
+ */
+async function insertAvatarLink(opts: {
+  gamertag: string;
+  userId: string;
+  status: "pending" | "verified";
+  hash: string | null;
+  imageNull?: boolean;
+}) {
+  await db.insert(user).values({ id: opts.userId, name: opts.userId, email: `${opts.userId}@example.com` });
+  insertedUserIds.add(opts.userId);
+  await db.insert(gamertagLinks).values({
+    userId: opts.userId,
+    gamertag: opts.gamertag,
+    status: opts.status,
+    verifiedAt: opts.status === "verified" ? now : null,
+  });
+  await db.insert(avatars).values({
+    userId: opts.userId,
+    image: opts.imageNull ? null : Buffer.from("fake-avatar-bytes"),
+    hash: opts.hash,
+    source: opts.imageNull ? null : "upload",
+    updatedAt: now,
+  });
+}
 
 async function insertLife(opts: {
   serverId: number;
@@ -102,23 +101,24 @@ beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svcSakh, name: "Survivors-Sakhal", map: "sakhal", slug: `survivors-sakhal-${svcSakh}`, active: true }).returning();
   chern = { id: c!.id, slug: c!.slug! };
   sakh = { id: s!.id, slug: s!.slug! };
-  const [f] = await db.insert(rptFiles).values({ serverId: chern.id, path: "/c/survivors.RPT", name: "survivors.RPT" }).returning();
-  chernRptFileId = f!.id;
 });
 
 afterEach(async () => {
   await db.delete(kills).where(inArray(kills.serverId, [chern.id, sakh.id]));
-  await db.delete(characterSightings).where(inArray(characterSightings.serverId, [chern.id, sakh.id]));
-  await db.delete(characters).where(inArray(characters.serverId, [chern.id, sakh.id]));
   await db.delete(lives).where(inArray(lives.serverId, [chern.id, sakh.id]));
   if (insertedGamertags.size > 0) {
     await db.delete(players).where(inArray(players.gamertag, [...insertedGamertags]));
     insertedGamertags.clear();
   }
+  if (insertedUserIds.size > 0) {
+    await db.delete(avatars).where(inArray(avatars.userId, [...insertedUserIds]));
+    await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [...insertedUserIds]));
+    await db.delete(user).where(inArray(user.id, [...insertedUserIds]));
+    insertedUserIds.clear();
+  }
 });
 
 afterAll(async () => {
-  await db.delete(rptFiles).where(eq(rptFiles.id, chernRptFileId));
   await db.delete(servers).where(inArray(servers.id, [chern.id, sakh.id]));
   await sql.end();
 });
@@ -205,29 +205,6 @@ describe("getAliveSurvivors", () => {
     expect(p2.rows.every((r) => !s1.has(r.gamertag))).toBe(true);
   });
 
-  it("character is null in the core query (enriched in Task 2)", async () => {
-    await insertLife({ serverId: chern.id, gamertag: "Anon", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    const res = await getAliveSurvivors(db, { page: 1 }, now);
-    expect(res.rows[0]?.character).toBeNull();
-  });
-
-  it("resolves character name/head/gender for the open life", async () => {
-    await insertLife({ serverId: chern.id, gamertag: "Helga_Main", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    await insertSighting({ serverId: chern.id, gamertag: "Helga_Main", charId: 42, characterClass: "SurvivorF_Helga", observedAt: minutesAgo(30) });
-    await insertCharacterRollup({ serverId: chern.id, charId: 42, characterClass: "SurvivorF_Helga" });
-    const res = await getAliveSurvivors(db, { page: 1 }, now);
-    const row = res.rows.find((r) => r.gamertag === "Helga_Main")!;
-    expect(row.character).toEqual({ name: "Helga", head: expect.any(String), gender: "female" });
-  });
-
-  it("leaves character null for an unknown/modded class", async () => {
-    await insertLife({ serverId: chern.id, gamertag: "Modded", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
-    await insertSighting({ serverId: chern.id, gamertag: "Modded", charId: 7, characterClass: "SurvivorM_ModPack_Xyz", observedAt: minutesAgo(20) });
-    await insertCharacterRollup({ serverId: chern.id, charId: 7, characterClass: "SurvivorM_ModPack_Xyz" });
-    const res = await getAliveSurvivors(db, { page: 1 }, now);
-    expect(res.rows.find((r) => r.gamertag === "Modded")!.character).toBeNull();
-  });
-
   // The tie-break chain is time -> kills -> longest kill -> gamertag. Each test below pins one
   // link by making the EARLIER keys equal and choosing gamertags whose alphabetical order
   // contradicts the expected result, so a comparator that fell straight through to gamertag fails.
@@ -277,5 +254,37 @@ describe("getAliveSurvivors", () => {
     const tooHigh = await getAliveSurvivors(db, { page: 99 }, now);
     expect(tooHigh.rows).toEqual([]);
     expect(tooHigh.total).toBe(1);
+  });
+
+  describe("avatarHash", () => {
+    it("attaches avatarHash for a verified player with a live avatar", async () => {
+      await insertLife({ serverId: chern.id, gamertag: "AvatarHero", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+      await insertAvatarLink({ gamertag: "AvatarHero", userId: "u-avatar-hero", status: "verified", hash: "abc123" });
+      const res = await getAliveSurvivors(db, { page: 1 }, now);
+      expect(res.rows.find((r) => r.gamertag === "AvatarHero")!.avatarHash).toBe("abc123");
+    });
+
+    it("returns null avatarHash for a player with no gamertag link at all", async () => {
+      await insertLife({ serverId: chern.id, gamertag: "NoLink", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+      const res = await getAliveSurvivors(db, { page: 1 }, now);
+      expect(res.rows.find((r) => r.gamertag === "NoLink")!.avatarHash).toBeNull();
+    });
+
+    // The hash is deliberately non-null on this tombstone-shaped (image NULL) row: it proves the
+    // `image IS NOT NULL` join clause, not merely that a real tombstone's null hash comes back
+    // null (which would pass even if that clause were dropped).
+    it("returns null avatarHash when the avatar is tombstoned", async () => {
+      await insertLife({ serverId: chern.id, gamertag: "Tombstoned", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+      await insertAvatarLink({ gamertag: "Tombstoned", userId: "u-tombstoned", status: "verified", hash: "ghosthash", imageNull: true });
+      const res = await getAliveSurvivors(db, { page: 1 }, now);
+      expect(res.rows.find((r) => r.gamertag === "Tombstoned")!.avatarHash).toBeNull();
+    });
+
+    it("returns null avatarHash for a pending (unverified) gamertag link", async () => {
+      await insertLife({ serverId: chern.id, gamertag: "Pending", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+      await insertAvatarLink({ gamertag: "Pending", userId: "u-pending", status: "pending", hash: "pendinghash" });
+      const res = await getAliveSurvivors(db, { page: 1 }, now);
+      expect(res.rows.find((r) => r.gamertag === "Pending")!.avatarHash).toBeNull();
+    });
   });
 });

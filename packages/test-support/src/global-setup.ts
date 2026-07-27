@@ -24,13 +24,11 @@ const APP_TABLES = [
   "bans",
   "token_transactions",
   "referrals",
-  "rpt_files",
-  "character_sightings",
-  "characters",
   "notifications",
   "push_subscriptions",
   "friendships",
   "user_preferences",
+  "avatars",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */

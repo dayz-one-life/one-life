@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Your own picture, not a guessed persona.** Sign in with Discord, Google or GitHub and your
+  avatar shows up on the site automatically — no action needed. On `/you` you can upload your
+  own image instead, refresh it from your login provider, or remove it entirely; a removed
+  avatar stays removed until you explicitly bring one back. Verified players' avatars now
+  appear on the survivor board's hero and podium rows and on the life-timeline page, and the
+  masthead's account disc uses it too. Players with no linked account, or who haven't set one,
+  still get the plain silhouette.
+
+### Removed
+
+- **Character portraits, and the RPT pipeline that generated them, are gone.** The mapping from
+  a life to one of 31 stock survivor personas was never reliable enough to keep: charID reuse
+  and stray head-warning log lines regularly attributed the wrong character — even the wrong
+  gender — to a player, so the portrait you saw was often confidently wrong. Rather than keep
+  guessing, we stopped generating a persona altogether; login avatars (above) take its place.
+
 ## [0.50.0] - 2026-07-27
 
 ### Added

@@ -9,7 +9,7 @@ function life(overrides: Partial<PastLife> = {}): PastLife {
   return {
     lifeId: 9, serverId: 1, map: "sakhal", slug: "sakhal", lifeNumber: 2,
     startedAt: "2026-07-14T04:00:00Z", endedAt: "2026-07-14T09:06:00Z",
-    timeAliveSeconds: 18360, kills: 0, longestKillMeters: null, character: null,
+    timeAliveSeconds: 18360, kills: 0, longestKillMeters: null,
     death: { cause: "pvp", byGamertag: "TidierCart8730", weapon: "VSD", distanceMeters: 126, verdict: null },
     vitals: { energy: null, water: null, bleedSources: null },
     sessions: 9, killList: [],

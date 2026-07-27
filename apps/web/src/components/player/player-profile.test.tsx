@@ -16,7 +16,7 @@ const standing = (serverId: number, state: ServerStanding["state"] = "alive"): S
   map: serverId === 1 ? "chernarusplus" : "sakhal",
   slug: serverId === 1 ? "chernarus" : "sakhal",
   state,
-  character: null,
+
   alive:
     state === "alive"
       ? { lifeId: serverId, lifeNumber: 1, startedAt: "2026-07-01T00:00:00Z", timeAliveSeconds: 3600, kills: 0, longestKillMeters: null, killList: [], qualified: true, qualifiedAt: { at: "2026-07-01T00:05:00Z", by: "playtime" } }
@@ -36,7 +36,7 @@ const pastLife = (lifeId: number): PastLife => ({
   timeAliveSeconds: 3600,
   kills: 0,
   longestKillMeters: null,
-  character: null,
+
   death: { cause: null, byGamertag: null, weapon: null, distanceMeters: null, verdict: null },
   vitals: { energy: null, water: null, bleedSources: null },
   sessions: 1,

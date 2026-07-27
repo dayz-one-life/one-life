@@ -1,7 +1,7 @@
 import type { SurvivorRow as SurvivorRowData } from "@/lib/types";
 import { formatTimeAlive, tierFor } from "./format";
 import { GamertagLink } from "@/components/gamertag-link";
-import { CharacterImage } from "@/components/character-image";
+import { Avatar } from "@/components/shared/avatar";
 
 /**
  * The single stat every row shows. There is one ranking now — time alive — so this is no longer a
@@ -34,7 +34,7 @@ export function SurvivorRow({
     return (
       <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-bone px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[40px] font-bold leading-none text-red">{rank}</span>
-        <CharacterImage character={row.character} size={76} />
+        <Avatar hash={row.avatarHash} size={76} />
         <div className="min-w-0">
           <GamertagLink gamertag={row.gamertag} className="block truncate font-display text-xl font-bold uppercase leading-none text-ink sm:text-[26px]" />
           {sub && <div className="mt-1 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</div>}
@@ -52,7 +52,7 @@ export function SurvivorRow({
     return (
       <div className="grid grid-cols-[40px_60px_1fr_auto] items-center gap-x-3 border-b border-hairline px-2 py-3 sm:grid-cols-[56px_60px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[28px] font-bold leading-none text-red">{rank}</span>
-        <CharacterImage character={row.character} size={60} />
+        <Avatar hash={row.avatarHash} size={60} />
         <div className="min-w-0">
           <GamertagLink gamertag={row.gamertag} className="block truncate font-display text-lg font-bold uppercase leading-none text-ink sm:text-[21px]" />
           {sub && <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</div>}

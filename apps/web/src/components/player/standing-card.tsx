@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { ServerStanding } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { lifeHref } from "@/lib/life-href";
-import { PlayerAvatar } from "./player-avatar";
 import { KillList } from "./kill-list";
 import { SelfUnbanButton } from "./self-unban-button";
 import { formatDuration, banCountdown, mapLabel } from "./format";
@@ -21,7 +20,6 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
   return (
     <section className={cn("border border-hairline bg-white p-5", banned && "border-l-4 border-l-red")}>
       <div className="flex items-center gap-3">
-        <PlayerAvatar character={standing.character} size={48} dim={!alive} />
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-[19px] font-bold uppercase leading-none text-ink">{mapLabel(standing.map)}</h3>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-[.05em] text-ink-muted">

@@ -13,6 +13,10 @@ vi.mock("@/components/account/use-controls", () => ({
   }),
 }));
 vi.mock("@/lib/push", () => ({ signOutAndTeardownPush: vi.fn() }));
+// AvatarPanel owns its own query/mutations and is tested in isolation
+// (avatar-panel.test.tsx) — a stub here avoids needing a QueryClientProvider for every
+// YouPanel test.
+vi.mock("@/components/account/avatar-panel", () => ({ AvatarPanel: () => null }));
 
 import { useControls } from "@/components/account/use-controls";
 import { YouPanel } from "./you-panel";

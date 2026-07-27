@@ -5,7 +5,7 @@ import { StandingCard } from "./standing-card";
 
 const now = new Date("2026-07-14T12:00:00Z");
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>);
-const base: any = { serverId: 1, map: "chernarusplus", slug: "chern", character: null, alive: null, ban: null };
+const base: any = { serverId: 1, map: "chernarusplus", slug: "chern", alive: null, ban: null };
 
 const aliveStanding: any = {
   ...base,
@@ -74,7 +74,7 @@ describe("StandingCard heading", () => {
 describe("StandingCard timeline link", () => {
   it("alive standing links to that life's timeline", () => {
     const standing: any = {
-      serverId: 1, map: "sakhal", slug: "sakhal", state: "alive", character: null,
+      serverId: 1, map: "sakhal", slug: "sakhal", state: "alive",
       alive: { lifeId: 5, lifeNumber: 3, startedAt: "2026-07-16T00:00:00Z", timeAliveSeconds: 3600, kills: 0, longestKillMeters: null, killList: [] },
       ban: null,
     };
