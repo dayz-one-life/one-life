@@ -4,7 +4,13 @@ import { magicLink, bearer } from "better-auth/plugins";
 import { user, session, account, verification, type Database } from "@onelife/db";
 import type { AuthConfig } from "./config.js";
 
-export function createAuth(db: Database, cfg: AuthConfig) {
+export interface AuthHooks {
+  /** Fire-and-forget: called synchronously after a session row is created, never awaited by
+   *  Better Auth and never allowed to affect the login response. Callers must not throw. */
+  onSessionCreated?: (userId: string) => void;
+}
+
+export function createAuth(db: Database, cfg: AuthConfig, hooks?: AuthHooks) {
   const socialProviders: Record<string, { clientId: string; clientSecret: string; prompt?: "consent" | "none" }> = {};
   // prompt=consent: Better Auth's Discord provider otherwise defaults to prompt=none,
   // which silently authorizes with whatever Discord account is already active (no account
@@ -23,6 +29,17 @@ export function createAuth(db: Database, cfg: AuthConfig) {
     }),
     emailAndPassword: { enabled: false },
     socialProviders,
+    databaseHooks: {
+      session: {
+        create: {
+          // Fire-and-forget: never await avatar (or other) work inside the auth flow, and
+          // never let it throw into Better Auth — a login must not block or fail on it.
+          after: async (session) => {
+            hooks?.onSessionCreated?.(session.userId);
+          },
+        },
+      },
+    },
     account: {
       accountLinking: {
         enabled: true,

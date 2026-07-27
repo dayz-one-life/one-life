@@ -3,12 +3,19 @@ import { getDb } from "@onelife/db";
 import { createAuth, loadAuthConfig } from "@onelife/auth";
 import { loadConfig } from "./config.js";
 import { buildApp } from "./app.js";
+import { autoPopulateAvatar } from "./lib/avatar-autopopulate.js";
 
 const cfg = loadConfig(process.env);
 const log = pino({ level: cfg.logLevel });
 const { db } = getDb(cfg.databaseUrl);
 const authCfg = loadAuthConfig(process.env);
-const auth = createAuth(db, authCfg);
+const auth = createAuth(db, authCfg, {
+  onSessionCreated: (userId) => {
+    // Fire-and-forget: never awaited, and any rejection is already swallowed inside
+    // autoPopulateAvatar — a login must not block or fail on avatar work.
+    void autoPopulateAvatar(db, userId);
+  },
+});
 // The onelife-api unit has its own EnvironmentFile (deploy/README.md), so this key going
 // missing here while the notifier has it is a live deployment shape. Every downstream
 // symptom is silent — GET /push/vapid-key serves "", pushManager.subscribe() throws, and

@@ -54,4 +54,28 @@ describe("createAuth", () => {
       .options.sendMagicLink({ email: "a@b.com", url: "http://x/verify?token=t", token: "t" });
     expect(captured).toBe("http://x/verify?token=t");
   });
+
+  it("calls onSessionCreated with the userId after a session is created", async () => {
+    let capturedUserId = "";
+    const auth = createAuth(db, cfg(), {
+      onSessionCreated: (userId) => {
+        capturedUserId = userId;
+      },
+    });
+    const after = auth.options.databaseHooks?.session?.create?.after;
+    expect(typeof after).toBe("function");
+    await after?.({
+      id: "sess1",
+      userId: "user1",
+      token: "t",
+      expiresAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    expect(capturedUserId).toBe("user1");
+  });
+
+  it("works with no hooks argument at all (optional param, no signature break)", () => {
+    expect(() => createAuth(db, cfg())).not.toThrow();
+  });
 });
