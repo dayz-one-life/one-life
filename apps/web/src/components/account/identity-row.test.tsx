@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import { IdentityRow } from "./identity-row";
 
 describe("IdentityRow", () => {
@@ -18,5 +18,17 @@ describe("IdentityRow", () => {
     const { container } = render(<IdentityRow name="Boots" provider={null} />);
     const disc = container.querySelector('[aria-hidden="true"]');
     expect(disc?.textContent).toBe("B");
+  });
+  it("renders the real avatar when a hash is present, lettered disc otherwise", () => {
+    const { container, rerender } = render(<IdentityRow name="Rusty" provider="discord" avatarHash="abc123def4567890" />);
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("/api/avatars/abc123def4567890.webp");
+    // Decorative: the letter disc it replaces was aria-hidden; the image stays out of the a11y tree too.
+    expect(img!.getAttribute("alt")).toBe("");
+
+    rerender(<IdentityRow name="Rusty" provider="discord" avatarHash={null} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("R"); // the lettered fallback
   });
 });

@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { claimErrorMessage } from "@/lib/claim-error";
 import { playerSlug } from "@/lib/slug";
-import { ApiError } from "@/lib/api";
+import { ApiError, getAvatar } from "@/lib/api";
 import { useControls, useControlsActions } from "@/components/account/use-controls";
 import { serverCards, transferErrorLabel } from "@/components/account/format";
 import { IdentityRow } from "@/components/account/identity-row";
@@ -73,6 +74,10 @@ export function AccountPanels({ signInFallback = false }: {
   const a = useControlsActions();
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
+  // Mirrors `useControls`' own `signedIn` gate above (unlinked/pending/verified) — do not fetch
+  // `/me/avatar` for a signed-out visitor. Same `["avatar"]` key `AvatarPanel`/`YouPanel` read.
+  const signedIn = c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
+  const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar, enabled: signedIn });
 
   // A signed-out visitor normally gets nothing here: Home carries the hero and `ColdFork`, and a
   // sign-in panel here would be a SECOND call to action on the same page. The old rail could
@@ -99,7 +104,12 @@ export function AccountPanels({ signInFallback = false }: {
   } else if (c.status.kind === "unlinked") {
     body = (
       <>
-        <IdentityRow name={c.name ?? "You"} provider={c.provider} tagLine="No gamertag" />
+        <IdentityRow
+          name={c.name ?? "You"}
+          provider={c.provider}
+          tagLine="No gamertag"
+          avatarHash={avatar.data?.hash ?? null}
+        />
         <LadderFrame kind="unlinked">
           <div className="flex flex-col gap-4">
             <LinkTagPanel
@@ -119,7 +129,7 @@ export function AccountPanels({ signInFallback = false }: {
     const link = c.status.link;
     body = (
       <>
-        <IdentityRow name={link.gamertag} provider={c.provider} />
+        <IdentityRow name={link.gamertag} provider={c.provider} avatarHash={avatar.data?.hash ?? null} />
         <LadderFrame kind="pending">
           <ProveItPanel
             gamertag={link.gamertag}
