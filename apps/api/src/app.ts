@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance, type FastifyError } from "fastify";
 import fastifyCors from "@fastify/cors";
+import fastifyMultipart from "@fastify/multipart";
 import type { Database } from "@onelife/db";
 import type { Auth, AuthConfig } from "@onelife/auth";
 import { registerServerRoutes } from "./routes/servers.js";
@@ -20,6 +21,7 @@ import { registerFriendRoutes } from "./routes/friends.js";
 import { registerPreferenceRoutes } from "./routes/preferences.js";
 import { registerFriendMapRoutes } from "./routes/friend-map.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
+import { registerAvatarRoutes } from "./routes/avatars.js";
 
 export interface AuthOptions {
   auth: Auth;
@@ -36,6 +38,9 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   });
   if (opts) {
     app.register(fastifyCors, { origin: opts.corsOrigins, credentials: true });
+    // Registered once here — @fastify/multipart decorates the request globally (it's built on
+    // fastify-plugin), so every route below, not just the ones in this file, can call req.file().
+    app.register(fastifyMultipart, { limits: { fileSize: 20 * 1024 * 1024 } });
     if (opts.authConfig) registerAuthMethodsRoute(app, opts.authConfig);
     registerAuthHandler(app, opts.auth);
     registerMeRoute(app, opts.auth);
@@ -47,6 +52,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerPreferenceRoutes(app, db, opts.auth);
     registerFriendMapRoutes(app, db, opts.auth);
     registerLastMapRoute(app, db, opts.auth);
+    registerAvatarRoutes(app, db, opts.auth);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);
