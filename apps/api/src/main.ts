@@ -13,7 +13,9 @@ const auth = createAuth(db, authCfg, {
   onSessionCreated: (userId) => {
     // Fire-and-forget: never awaited, and any rejection is already swallowed inside
     // autoPopulateAvatar — a login must not block or fail on avatar work.
-    void autoPopulateAvatar(db, userId);
+    // allowTestHosts is always false here in production (cfg.avatarTestFetchAllowLoopback
+    // defaults off) — the flag exists only so tests can exercise this path.
+    void autoPopulateAvatar(db, userId, { allowTestHosts: cfg.avatarTestFetchAllowLoopback });
   },
 });
 // The onelife-api unit has its own EnvironmentFile (deploy/README.md), so this key going

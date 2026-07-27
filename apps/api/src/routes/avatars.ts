@@ -14,7 +14,12 @@ import {
 
 const HASH_FILE_RE = /^[0-9a-f]{16}\.webp$/;
 
-export function registerAvatarRoutes(app: FastifyInstance, db: Database, auth: Auth): void {
+export function registerAvatarRoutes(
+  app: FastifyInstance,
+  db: Database,
+  auth: Auth,
+  opts?: { allowTestHosts?: boolean },
+): void {
   // GET /me/avatar — no subject parameter; the session is the only input.
   app.get("/me/avatar", async (req, reply) => {
     const session = await getSession(auth, req);
@@ -62,7 +67,7 @@ export function registerAvatarRoutes(app: FastifyInstance, db: Database, auth: A
 
     let raw: Buffer;
     try {
-      raw = await fetchProviderImage(providerImage);
+      raw = await fetchProviderImage(providerImage, { allowTestHosts: opts?.allowTestHosts });
     } catch {
       // A failed sync leaves any existing row untouched — nothing is written below this point.
       return reply.code(502).send({ error: "fetch_failed" });
@@ -84,9 +89,15 @@ export function registerAvatarRoutes(app: FastifyInstance, db: Database, auth: A
     await tombstoneAvatar(db, session.user.id);
     return { ok: true };
   });
+}
 
-  // Public, hash-addressed, cached forever — a hash is content-derived, so a fixed URL never
-  // needs revalidation once it exists.
+/**
+ * Public, hash-addressed, cached forever — a hash is content-derived, so a fixed URL never needs
+ * revalidation once it exists. Split from registerAvatarRoutes (which needs a session-backed
+ * Auth instance) so it can be registered unconditionally in app.ts, alongside the other public
+ * routes, rather than inside the auth-only `if (opts)` block.
+ */
+export function registerPublicAvatarRoutes(app: FastifyInstance, db: Database): void {
   app.get("/avatars/:hashfile", async (req, reply) => {
     const parsed = z.string().regex(HASH_FILE_RE).safeParse((req.params as { hashfile: string }).hashfile);
     if (!parsed.success) return reply.code(404).send();

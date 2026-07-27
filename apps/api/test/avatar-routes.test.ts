@@ -19,7 +19,12 @@ const auth = createAuth(db, {
   secret: "s".repeat(32), baseURL: "http://localhost", trustedOrigins: ["http://localhost"],
   providers: {}, mailer: captureMailer,
 });
-const app = buildApp(db, { auth, corsOrigins: ["http://localhost"], vapidPublicKey: "TEST" });
+const app = buildApp(db, {
+  auth, corsOrigins: ["http://localhost"], vapidPublicKey: "TEST",
+  // Test-only: lets fetchProviderImage reach the local http stub server below without TLS.
+  // Never set in production — see avatar-store.ts's fetchProviderImage doc comment.
+  avatarAllowTestFetchLoopback: true,
+});
 
 function cookieHeader(setCookie: string | string[] | undefined): string {
   const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];

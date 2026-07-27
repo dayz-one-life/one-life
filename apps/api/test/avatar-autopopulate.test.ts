@@ -59,7 +59,7 @@ describe("autoPopulateAvatar", () => {
   it("mirrors the provider image for a first-time user", async () => {
     const userId = await makeUser(stubUrl);
 
-    await autoPopulateAvatar(db, userId);
+    await autoPopulateAvatar(db, userId, { allowTestHosts: true });
 
     const row = await avatarRow(userId);
     expect(row).toBeDefined();
@@ -70,7 +70,7 @@ describe("autoPopulateAvatar", () => {
   it("does nothing when user.image is null", async () => {
     const userId = await makeUser(null);
 
-    await autoPopulateAvatar(db, userId);
+    await autoPopulateAvatar(db, userId, { allowTestHosts: true });
 
     const row = await avatarRow(userId);
     expect(row).toBeUndefined();
@@ -86,7 +86,7 @@ describe("autoPopulateAvatar", () => {
       updatedAt: new Date(),
     });
 
-    await autoPopulateAvatar(db, userId);
+    await autoPopulateAvatar(db, userId, { allowTestHosts: true });
 
     const row = await avatarRow(userId);
     expect(row?.image?.toString()).toBe("existing");
@@ -104,7 +104,7 @@ describe("autoPopulateAvatar", () => {
       updatedAt: new Date(),
     });
 
-    await autoPopulateAvatar(db, userId);
+    await autoPopulateAvatar(db, userId, { allowTestHosts: true });
 
     const row = await avatarRow(userId);
     expect(row?.image).toBeNull();
@@ -114,7 +114,7 @@ describe("autoPopulateAvatar", () => {
   it("swallows a fetch failure without throwing", async () => {
     const userId = await makeUser(stubFailUrl);
 
-    await expect(autoPopulateAvatar(db, userId)).resolves.toBeUndefined();
+    await expect(autoPopulateAvatar(db, userId, { allowTestHosts: true })).resolves.toBeUndefined();
 
     const row = await avatarRow(userId);
     expect(row).toBeUndefined();

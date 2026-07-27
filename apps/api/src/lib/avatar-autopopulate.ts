@@ -15,7 +15,11 @@ import { processAvatarImage } from "./avatar-image.js";
  * (including a tombstone — a removal must never be resurrected by a later sign-in), a failed
  * provider fetch, or a rejected image pipeline.
  */
-export async function autoPopulateAvatar(db: Database, userId: string): Promise<void> {
+export async function autoPopulateAvatar(
+  db: Database,
+  userId: string,
+  opts?: { allowTestHosts?: boolean },
+): Promise<void> {
   try {
     const [row] = await db.select({ image: user.image }).from(user).where(eq(user.id, userId));
     if (!row?.image) return;
@@ -25,7 +29,7 @@ export async function autoPopulateAvatar(db: Database, userId: string): Promise<
     const state = await getAvatarState(db, userId);
     if (state !== "none") return;
 
-    const raw = await fetchProviderImage(row.image);
+    const raw = await fetchProviderImage(row.image, opts);
     const { image, hash } = await processAvatarImage(raw);
     await upsertAvatar(db, userId, { image, hash, source: "provider" });
   } catch {

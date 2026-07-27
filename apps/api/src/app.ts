@@ -21,7 +21,7 @@ import { registerFriendRoutes } from "./routes/friends.js";
 import { registerPreferenceRoutes } from "./routes/preferences.js";
 import { registerFriendMapRoutes } from "./routes/friend-map.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
-import { registerAvatarRoutes } from "./routes/avatars.js";
+import { registerAvatarRoutes, registerPublicAvatarRoutes } from "./routes/avatars.js";
 import { AVATAR_MAX_BYTES } from "./lib/avatar-image.js";
 
 export interface AuthOptions {
@@ -29,6 +29,9 @@ export interface AuthOptions {
   authConfig?: AuthConfig;
   corsOrigins: string[];
   vapidPublicKey?: string;
+  // Test-only — never set in production. Threaded to fetchProviderImage's provider-host
+  // allowlist so tests can exercise the sync/autopopulate paths against a local stub server.
+  avatarAllowTestFetchLoopback?: boolean;
 }
 
 export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
@@ -53,7 +56,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerPreferenceRoutes(app, db, opts.auth);
     registerFriendMapRoutes(app, db, opts.auth);
     registerLastMapRoute(app, db, opts.auth);
-    registerAvatarRoutes(app, db, opts.auth);
+    registerAvatarRoutes(app, db, opts.auth, { allowTestHosts: opts.avatarAllowTestFetchLoopback });
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);
@@ -62,5 +65,9 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   registerGlobalRoutes(app, db);
   registerSurvivorsRoutes(app, db);
   registerSitemapRoutes(app, db);
+  // Public, hash-addressed avatar bytes — registered unconditionally like the other public
+  // routes above, not gated behind the `if (opts)` auth block; the session-gated /me/avatar
+  // routes stay above, where an Auth instance is available.
+  registerPublicAvatarRoutes(app, db);
   return app;
 }

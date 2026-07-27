@@ -1,10 +1,22 @@
 import type { Database } from "@onelife/db";
 import { avatars } from "@onelife/db";
 import { and, eq, isNotNull } from "drizzle-orm";
+import { AVATAR_MAX_BYTES } from "./avatar-image.js";
 
-const AVATAR_FETCH_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_FETCH_TIMEOUT_MS = 5000;
 const AVATAR_FETCH_MAX_REDIRECTS = 3;
+
+// The three configured login providers' avatar CDNs — the only hosts a production fetch may
+// ever reach. `user.image` is user-writable (Better Auth's default update-user endpoint accepts
+// it), so it is attacker input, not a trusted provider URL, and every hop of a redirect chain is
+// re-checked against this list — a compliant host redirecting to an internal target must still
+// be rejected.
+const PROVIDER_HOSTS = new Set(["cdn.discordapp.com", "avatars.githubusercontent.com"]);
+const PROVIDER_HOST_SUFFIXES = [".googleusercontent.com"];
+
+function isAllowedProviderHost(hostname: string): boolean {
+  return PROVIDER_HOSTS.has(hostname) || PROVIDER_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
+}
 
 /** Insert-or-replace the durable avatar row for one user. */
 export async function upsertAvatar(
@@ -61,24 +73,32 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 /**
- * Fetches a provider's avatar image over HTTPS only, following at most
- * AVATAR_FETCH_MAX_REDIRECTS redirects, with a 5s overall timeout and a streamed 5MB cap (the
- * connection is aborted the moment the cap is exceeded, rather than buffering an oversized body
- * to memory first).
+ * Fetches a provider's avatar image, restricted in production to the HTTPS provider-CDN
+ * allowlist above, following at most AVATAR_FETCH_MAX_REDIRECTS redirects, with a 5s overall
+ * timeout and a streamed 5MB cap (the connection is aborted the moment the cap is exceeded,
+ * rather than buffering an oversized body to memory first). Every hop — the initial URL and
+ * every redirect target — is re-validated against the allowlist, so a compliant host redirecting
+ * to an internal address is rejected rather than followed.
  *
- * Production provider URLs (Discord/Google/GitHub avatar CDNs) are always https. The
- * http+loopback carve-out exists ONLY so tests can stand up a plain local stub server without
- * standing up TLS — every non-loopback hop must still be https.
+ * `opts.allowTestHosts` is a TEST-ONLY escape hatch (never set outside tests — production code
+ * paths default it to false) that additionally permits plain http on loopback, so tests can
+ * stand up a local stub server without TLS.
  */
-export async function fetchProviderImage(url: string): Promise<Buffer> {
+export async function fetchProviderImage(
+  url: string,
+  opts?: { allowTestHosts?: boolean },
+): Promise<Buffer> {
+  const allowTestHosts = opts?.allowTestHosts ?? false;
   let current = url;
   let redirectsFollowed = 0;
 
   for (;;) {
     const parsed = new URL(current);
-    const secure = parsed.protocol === "https:" ||
-      (parsed.protocol === "http:" && isLoopbackHost(parsed.hostname));
-    if (!secure) throw new Error("insecure_url");
+    const isTestLoopback = allowTestHosts && parsed.protocol === "http:" && isLoopbackHost(parsed.hostname);
+    if (!isTestLoopback) {
+      if (parsed.protocol !== "https:") throw new Error("insecure_url");
+      if (!isAllowedProviderHost(parsed.hostname)) throw new Error("host_not_allowed");
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AVATAR_FETCH_TIMEOUT_MS);
@@ -108,7 +128,7 @@ export async function fetchProviderImage(url: string): Promise<Buffer> {
       const { done, value } = await reader.read();
       if (done) break;
       total += value.byteLength;
-      if (total > AVATAR_FETCH_MAX_BYTES) {
+      if (total > AVATAR_MAX_BYTES) {
         await reader.cancel();
         throw new Error("too_large");
       }
