@@ -26,7 +26,7 @@ describe("page width", () => {
     for (const file of walk(root)) {
       const src = readFileSync(file, "utf8");
       for (const m of src.matchAll(/className="([^"]*)"/g)) {
-        const cls = m[1];
+        const cls = m[1] ?? "";
         if (cls.includes("mx-auto") && /(^|\s)max-w-/.test(cls) && !cls.includes("w-full")) {
           offenders.push(`${relative(__dirname, file)}: "${cls}"`);
         }
