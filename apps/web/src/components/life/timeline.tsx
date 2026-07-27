@@ -1,6 +1,7 @@
 import type { LifeTimelineView, TimelineEvent } from "@/lib/life-timeline";
 import { GamertagLink } from "@/components/gamertag-link";
 import { verdictPhrase } from "@/lib/cause-format";
+import { formatMeters } from "@/components/player/format";
 
 const DOT: Record<TimelineEvent["marker"], string> = {
   blue: "bg-blue",
@@ -9,7 +10,7 @@ const DOT: Record<TimelineEvent["marker"], string> = {
 };
 
 function meters(d: number | null): string | null {
-  return d == null ? null : `${Math.round(d)}m`;
+  return d == null ? null : formatMeters(d);
 }
 
 function killDetail(weapon: string | null, distanceMeters: number | null): string {

@@ -32,7 +32,7 @@ describe("StandingCard", () => {
     expect(screen.getByText("Alive").className).toContain("bg-blue");
     expect(screen.getByText("Time alive")).toBeInTheDocument();
     expect(screen.getByText("9")).toBeInTheDocument();
-    expect(screen.getByText("312m")).toBeInTheDocument();
+    expect(screen.getByText("312 m")).toBeInTheDocument();
     expect(screen.getByText("Kills this life").className).toContain("text-red-deep");
   });
 

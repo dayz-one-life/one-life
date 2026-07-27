@@ -6,7 +6,7 @@ describe("KillList", () => {
   it("renders victim links with weapon and distance", () => {
     render(<KillList kills={[{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z" }]} />);
     expect(screen.getByRole("link", { name: "Tomahawked11" })).toHaveAttribute("href", "/players/tomahawked11");
-    expect(screen.getByText("VSS · 5m")).toBeInTheDocument();
+    expect(screen.getByText("VSS · 5 m")).toBeInTheDocument();
   });
 
   it("empty list renders the pacifist line", () => {

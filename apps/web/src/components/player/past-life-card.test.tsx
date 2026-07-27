@@ -23,7 +23,7 @@ describe("PastLifeCard", () => {
     expect(screen.getByText("Sakhal")).toBeInTheDocument();
     expect(screen.getByText("2 days ago · lasted 5h 6m")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "TidierCart8730" })).toHaveAttribute("href", "/players/tidiercart8730");
-    expect(screen.getByText(/VSD · 126m/)).toBeInTheDocument();
+    expect(screen.getByText(/VSD · 126 m/)).toBeInTheDocument();
     expect(screen.getByText("0 kills")).toBeInTheDocument();
     expect(screen.getByText("— longest kill")).toBeInTheDocument();
     expect(screen.getByText("9 sessions")).toBeInTheDocument();

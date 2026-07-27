@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { lifeHref } from "@/lib/life-href";
 import { KillList } from "./kill-list";
 import { SelfUnbanButton } from "./self-unban-button";
-import { formatDuration, banCountdown, mapLabel } from "./format";
+import { formatDuration, formatMeters, banCountdown, mapLabel } from "./format";
 import { Stat } from "./stat";
 
 export function StandingCard({ standing, now, pageGamertag }: { standing: ServerStanding; now: Date; pageGamertag: string }) {
@@ -50,7 +50,7 @@ export function StandingCard({ standing, now, pageGamertag }: { standing: Server
             <Stat value={formatDuration(standing.alive.timeAliveSeconds)} label="Time alive" />
             <Stat value={String(standing.alive.kills)} label="Kills" />
             <Stat
-              value={standing.alive.longestKillMeters == null ? "—" : `${Math.round(standing.alive.longestKillMeters)}m`}
+              value={standing.alive.longestKillMeters == null ? "—" : formatMeters(standing.alive.longestKillMeters)}
               label="Longest kill"
               muted={standing.alive.longestKillMeters == null}
             />

@@ -3,7 +3,7 @@ import type { PastLife } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
 import { lifeHref } from "@/lib/life-href";
 import { verdictPhrase } from "@/lib/cause-format";
-import { formatDuration, mapLabel, relativeDate } from "./format";
+import { formatDuration, formatMeters, mapLabel, relativeDate } from "./format";
 
 export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Date; gamertag: string }) {
   const death = life.death;
@@ -25,13 +25,13 @@ export function PastLifeCard({ life, now, gamertag }: { life: PastLife; now: Dat
             <>Died — {verdictPhrase(death.verdict, death.cause)}</>
           )}
           {death.weapon ? ` · ${death.weapon}` : ""}
-          {death.distanceMeters != null ? ` · ${Math.round(death.distanceMeters)}m` : ""}
+          {death.distanceMeters != null ? ` · ${formatMeters(death.distanceMeters)}` : ""}
         </p>
       )}
 
       <p className="mt-2.5 flex flex-wrap gap-x-5 border-t border-hairline-2 pt-2 font-mono text-[11px] uppercase text-ink-soft">
         <span>{life.kills} kill{life.kills === 1 ? "" : "s"}</span>
-        <span>{life.longestKillMeters == null ? "—" : `${Math.round(life.longestKillMeters)}m`} longest kill</span>
+        <span>{life.longestKillMeters == null ? "—" : formatMeters(life.longestKillMeters)} longest kill</span>
         <span>{life.sessions} session{life.sessions === 1 ? "" : "s"}</span>
       </p>
 

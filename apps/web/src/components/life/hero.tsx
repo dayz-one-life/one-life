@@ -3,7 +3,7 @@ import type { LifeTimelineData } from "@/lib/types";
 import type { LifeTimelineView } from "@/lib/life-timeline";
 import { Avatar } from "@/components/shared/avatar";
 import { GamertagLink } from "@/components/gamertag-link";
-import { mapLabel, formatDuration } from "@/components/player/format";
+import { mapLabel, formatDuration, formatMeters } from "@/components/player/format";
 import { playerSlug } from "@/lib/slug";
 
 function Stat({ value, label, blue = false, srLabel }: { value: string; label: string; blue?: boolean; srLabel?: string }) {
@@ -61,7 +61,7 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
           <div className="mt-4 flex flex-wrap gap-x-7 gap-y-3">
             <Stat value={formatDuration(h.timeAliveSeconds)} label="Time alive" />
             <Stat value={String(h.kills)} label="Kills" />
-            <Stat value={h.longestKillMeters == null ? "—" : `${Math.round(h.longestKillMeters)}m`} label="Longest kill" />
+            <Stat value={h.longestKillMeters == null ? "—" : formatMeters(h.longestKillMeters)} label="Longest kill" />
             <Stat value={String(h.sessions)} label="Sessions" />
             <Stat
               value={h.qualified ? "✓" : "—"}
