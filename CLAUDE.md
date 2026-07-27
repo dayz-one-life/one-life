@@ -1503,10 +1503,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `cache-control: public, max-age=31536000, immutable` — honest because the hash changes
   whenever the image does, so a URL never needs revalidating. A miss is a 404; the hash discloses
   nothing since it's content-derived and already appears in public payloads.
-  **⚠️ The three `/me` avatar routes (`POST /me/avatar`, `POST /me/avatar/sync`,
+  **⚠️ All four `/me` avatar routes (`GET /me/avatar`, `POST /me/avatar`, `POST /me/avatar/sync`,
   `DELETE /me/avatar`) take NO subject parameter** — same shape as every other `/me` route in
   this codebase (self-unban, the token routes, the coordinate routes): the session is the only
-  input, so writing another user's avatar is unexpressible, not merely rejected.
+  input, so reading or writing another user's avatar is unexpressible, not merely rejected.
   **Read-model `avatarHash` joins are verified-links-only, and require `image IS NOT NULL`** —
   the survivor board (hero + podium rows) and the life timeline hero join `avatars` through a
   `verified` `gamertag_links` row on `lower(gamertag)`, exactly the boundary self-unban and
@@ -1514,11 +1514,11 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   silhouette exactly like no row at all. An unverified or renamed-away gamertag also yields
   `null`. The player dossier stays deliberately avatar-free (unchanged since the v0.11.0
   redesign).
-  **Deploy:** migration `0029` creates `avatars` and drops `characters` +
-  `character_sightings` — touches one durable table and drops two projection tables, so it
-  deploys with a plain `./deploy/deploy.sh`, **no `--rebuild`** (nothing needs re-folding; the
-  event log never carried character data). `@onelife/rpt-parser` is deleted as a workspace
-  package; a normal `pnpm install` on deploy handles it.
+  **Deploy:** migration `0029` creates `avatars` and drops `characters`, `character_sightings`
+  **and `rpt_files`** (the RPT ingest-cursor table) — touches one durable table and drops three
+  projection tables, so it deploys with a plain `./deploy/deploy.sh`, **no `--rebuild`** (nothing
+  needs re-folding; the event log never carried character data). `@onelife/rpt-parser` is deleted
+  as a workspace package; a normal `pnpm install` on deploy handles it.
   **⚠️ `sharp` is a native dependency, not a pure-JS one** — the API now needs pnpm to fetch its
   linux-x64 prebuilt binary on the deploy host. A failed or skipped native-binary fetch
   (offline install, an overly aggressive `--ignore-scripts`, an unsupported platform) is a

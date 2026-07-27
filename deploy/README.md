@@ -383,9 +383,9 @@ curl -sI "https://dayzonelife.com/tiles/${TILE#/var/www/tiles/}" | head -1
 
 ## Login avatars
 
-Migration `0029` creates the durable `avatars` table and drops the two retired character-pipeline
-tables (`characters`, `character_sightings`) — it's a plain `./deploy/deploy.sh`, **no
-`--rebuild`**. No new env vars, worker, or systemd unit; the API's own `pnpm install` is the only
+Migration `0029` creates the durable `avatars` table and drops the three retired
+character-pipeline tables (`characters`, `character_sightings`, `rpt_files`) — it's a plain
+`./deploy/deploy.sh`, **no `--rebuild`**. No new env vars, worker, or systemd unit; the API's own `pnpm install` is the only
 extra step, because of the point below.
 
 **⚠️ `sharp` (the avatar image-processing library) is a native dependency, not pure JS.** `pnpm
