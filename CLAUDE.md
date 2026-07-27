@@ -152,7 +152,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   grants) + `apps/granter` sweeps. Token on verification, monthly + referral grants, self-unban
   (redeem → ban `lift_pending` → enforcer removes under the dry-run gate), and transfers. API
   routes + a web wallet on the account page.
-- **SP5 — RPT ingest + character mapping** ✅: `@onelife/rpt-parser` correlation state machine +
+- *(historical — pipeline REMOVED 2026-07-27, see the Login avatars entry below and
+  `docs/superpowers/specs/2026-07-27-login-avatars-design.md`)* **SP5 — RPT ingest + character
+  mapping**: `@onelife/rpt-parser` correlation state machine +
   survivor roster; the `ingest-worker` RPT pass writes `character_sightings` + a `characters` rollup
   (charID inheritance); `getLifeCharacter` read-model + API life-detail `character` field. Web
   display deferred with the stats dashboard.
@@ -1473,6 +1475,55 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   not integration-tested — it needs two signed-in verified accounts on a live server. Every piece
   is unit- and route-tested and the predicate is mutation-tested at both layers, but exercise it on
   staging before telling players it works.
+
+- **Login avatars** ✅ (spec `docs/superpowers/specs/2026-07-27-login-avatars-design.md`):
+  replaces the RPT character pipeline (SP5, above — removed outright, not deprecated) with
+  avatars sourced from a player's login method. The RPT persona mapping mis-attributed across
+  players often enough (charID inheritance, cross-gender phantoms from `head_asset`) that the
+  portraits it drove were confidently wrong; the fix is to stop generating a persona at all and
+  instead show the player's own picture.
+  **A new durable `avatars` table** (`user_id` PK → `"user"(id)`, `image bytea`, `hash`,
+  `source`, `updated_at`; absent from `REBUILD_TRUNCATE_TABLES`, present in `APP_TABLES`) holds
+  three row states: no row (untouched — auto-populate allowed), a row with `image` (live
+  avatar), and a row with `image IS NULL` — an **explicit removal tombstone**.
+  **⚠️ The tombstone rule is the whole point of a nullable `image` on a durable table: NULL
+  means "this player removed their avatar on purpose," and auto-populate must never resurrect
+  it.** The after-sign-in mirror only fires when no row exists at all; a re-sync or a fresh
+  upload are the only two paths that can turn a tombstone back into a live avatar.
+  **One `sharp` pipeline serves both sources** — a direct upload and a provider-image mirror
+  both pass through the same decode → 5 MB pre-processing cap → `resize(256, 256, { fit: "cover"
+  })` → webp encode (quality 80, which also strips EXIF) → `hash = sha256(bytes).slice(0, 16)`
+  → upsert. SVG is rejected (scripting surface). Provider mirroring additionally restricts
+  itself to https, at most 3 redirects, a 5s timeout, and the same byte cap streamed.
+  **⚠️ Provider CDNs (Discord/Google avatar URLs) are never hotlinked on a public page** — every
+  avatar we show is our own mirrored, re-encoded copy at our own URL. Hotlinking would leak a
+  visitor's IP to a third party on every page view and would rot the moment a provider's
+  rotating CDN URL expired.
+  **Hash-addressed public serving**: `GET /avatars/:hash.webp` serves bytes by content hash with
+  `cache-control: public, max-age=31536000, immutable` — honest because the hash changes
+  whenever the image does, so a URL never needs revalidating. A miss is a 404; the hash discloses
+  nothing since it's content-derived and already appears in public payloads.
+  **⚠️ The three `/me` avatar routes (`POST /me/avatar`, `POST /me/avatar/sync`,
+  `DELETE /me/avatar`) take NO subject parameter** — same shape as every other `/me` route in
+  this codebase (self-unban, the token routes, the coordinate routes): the session is the only
+  input, so writing another user's avatar is unexpressible, not merely rejected.
+  **Read-model `avatarHash` joins are verified-links-only, and require `image IS NOT NULL`** —
+  the survivor board (hero + podium rows) and the life timeline hero join `avatars` through a
+  `verified` `gamertag_links` row on `lower(gamertag)`, exactly the boundary self-unban and
+  friend location sharing already enforce, and a tombstoned row must resolve to `null` →
+  silhouette exactly like no row at all. An unverified or renamed-away gamertag also yields
+  `null`. The player dossier stays deliberately avatar-free (unchanged since the v0.11.0
+  redesign).
+  **Deploy:** migration `0029` creates `avatars` and drops `characters` +
+  `character_sightings` — touches one durable table and drops two projection tables, so it
+  deploys with a plain `./deploy/deploy.sh`, **no `--rebuild`** (nothing needs re-folding; the
+  event log never carried character data). `@onelife/rpt-parser` is deleted as a workspace
+  package; a normal `pnpm install` on deploy handles it.
+  **⚠️ `sharp` is a native dependency, not a pure-JS one** — the API now needs pnpm to fetch its
+  linux-x64 prebuilt binary on the deploy host. A failed or skipped native-binary fetch
+  (offline install, an overly aggressive `--ignore-scripts`, an unsupported platform) is a
+  runtime failure, not a build failure: the api unit fails to boot rather than failing
+  `pnpm install`. See `deploy/README.md`.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 

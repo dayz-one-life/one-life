@@ -381,6 +381,25 @@ curl -sI "https://dayzonelife.com/tiles/${TILE#/var/www/tiles/}" | head -1
 # => expect: HTTP/2 200
 ```
 
+## Login avatars
+
+Migration `0029` creates the durable `avatars` table and drops the two retired character-pipeline
+tables (`characters`, `character_sightings`) — it's a plain `./deploy/deploy.sh`, **no
+`--rebuild`**. No new env vars, worker, or systemd unit; the API's own `pnpm install` is the only
+extra step, because of the point below.
+
+**⚠️ `sharp` (the avatar image-processing library) is a native dependency, not pure JS.** `pnpm
+install` on the host must successfully fetch its linux-x64 prebuilt binary. If that fetch is
+skipped or fails — offline install, `--ignore-scripts`, a platform mismatch — `pnpm install`
+itself still reports success; the failure only shows up when the **api** unit tries to boot and
+throws on `sharp`'s native module load. If the api unit is crash-looping right after a deploy that
+touched `apps/api`'s dependencies, check `sudo journalctl -u onelife-api -n 50` for a sharp/native
+module error before looking anywhere else.
+
+Avatar bytes live in Postgres (`avatars.image`, a few hundred rows at ~10–30 KB each) — there is no
+host filesystem component and nothing to add to `mirror-tiles.sh` or any other asset-sync step.
+They ride the existing `pg_dump` backup for free, same as every other table.
+
 ## TLS
 
 Certbot-managed lineage `dayzonelife.com` (apex + www). `live/ → archive/` symlinks are
