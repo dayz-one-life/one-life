@@ -27,10 +27,9 @@ async function loop(): Promise<void> {
       const r = await ingestSweep(db, {
         clientFor,
         backfillBudget: cfg.backfillBudget,
-        charStaleHours: cfg.charStaleHours,
         onServerError: (serverId, err) => log.error({ serverId, err }, "server ingest failed"),
       });
-      log.info({ servers: r.servers, sightings: r.sightings, ms: Date.now() - started }, "ingest sweep complete");
+      log.info({ servers: r.servers, ms: Date.now() - started }, "ingest sweep complete");
     } catch (err) {
       log.error({ err }, "ingest sweep failed");
     }
