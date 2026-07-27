@@ -16,4 +16,10 @@ describe("positionAge", () => {
     expect(positionAge("2026-07-22T11:55:00Z", NOW)).toBe("5m ago");
     expect(positionAge("2026-07-22T11:59:00Z", NOW)).toBe("1m ago");
   });
+  // The viewer's own dot persists across game logouts while a life is open, so hours- and
+  // days-old fixes are now ordinary — "540m ago" is a reading-comprehension test, not an age.
+  it("rolls up to hours and days for a persisted last-known fix", () => {
+    expect(positionAge("2026-07-22T03:00:00Z", NOW)).toBe("9h ago");
+    expect(positionAge("2026-07-20T10:00:00Z", NOW)).toBe("2d ago");
+  });
 });

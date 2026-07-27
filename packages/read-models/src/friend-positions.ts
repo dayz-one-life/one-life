@@ -1,8 +1,8 @@
 import type { Database } from "@onelife/db";
 import {
-  gamertagLinks, locationShares, players, positions, sessions,
+  gamertagLinks, lives, locationShares, players, positions, sessions,
 } from "@onelife/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { MARKER_MAX_AGE_SECONDS } from "./life-track-shape.js";
 
 export interface FriendPosition {
@@ -189,7 +189,7 @@ export async function getFriendPositions(
     ORDER BY p.player_id, p.recorded_at DESC
   `);
 
-  return rows
+  const out = rows
     .map((r) => {
       const gamertag = gamertagByPlayerId.get(Number(r.player_id));
       if (!gamertag) return null;
@@ -202,4 +202,52 @@ export async function getFriendPositions(
       };
     })
     .filter((r): r is FriendPosition => r !== null);
+
+  // ⚠️ THE ONE exception to "no open session + fresh fix, no dot" — and it is SELF-ONLY, by
+  // design and not by accident. The no-position-after-logout rule exists because where a DayZ
+  // player logs out is where their stash is; the viewer's OWN logout spot is their own
+  // information, and losing your bearings between sessions is exactly when you want your map.
+  // While the viewer has an OPEN life on this server, their latest fix FROM THAT LIFE stays on
+  // their map, however old — with its real `recordedAt`, never clamped, so the UI reports the
+  // age of what it shows. Death ends the life and the dot with it (a respawn's position is a
+  // different life's information); a fix from before the life started is likewise excluded,
+  // because it is where a PREVIOUS life ended, not where this one stands.
+  //
+  // Do not widen this to granting subjects: their dots stay bounded by the open-session join
+  // and MARKER_MAX_AGE_SECONDS above, unconditionally.
+  if (viewer.playerId !== null && !out.some((r) => r.self)) {
+    const [openLife] = await db
+      .select({ startedAt: lives.startedAt })
+      .from(lives)
+      .where(and(
+        eq(lives.playerId, viewer.playerId),
+        eq(lives.serverId, a.serverId),
+        isNull(lives.endedAt),
+      ))
+      .orderBy(desc(lives.startedAt))
+      .limit(1);
+    if (openLife) {
+      const [fix] = await db
+        .select({ x: positions.x, y: positions.y, recordedAt: positions.recordedAt })
+        .from(positions)
+        .where(and(
+          eq(positions.serverId, a.serverId),
+          eq(positions.playerId, viewer.playerId),
+          gte(positions.recordedAt, openLife.startedAt),
+        ))
+        .orderBy(desc(positions.recordedAt))
+        .limit(1);
+      if (fix) {
+        out.unshift({
+          gamertag: viewer.gamertag,
+          x: Number(fix.x),
+          y: Number(fix.y),
+          recordedAt: fix.recordedAt,
+          self: true,
+        });
+      }
+    }
+  }
+
+  return out;
 }

@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Your own last-known position survives logging out of the game.** While you have an open
+  life on a server, your dot stays on that map — placed at your latest position fix from that
+  life, labelled with its real age (now rolled up to hours/days past 60 minutes) — so you can
+  find your bearings between sessions. Self-only, by design: everyone else's dot still requires
+  an open session, a live grant and a fix under 15 minutes old, and the dot disappears the
+  moment the life ends. A fix from before the open life started is never shown.
+
+### Fixed
+
+- **The map switcher lists maps in a stable alphabetical order.** `GET /servers` carried no
+  `ORDER BY`, so every refetch could return the fleet in a different order and the masthead
+  dropdown visibly reshuffled on each map change. The route now orders by display name,
+  case-folded, with id as the tie-break.
+
 ## [0.49.0] - 2026-07-25
 
 ### Fixed
