@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { resolveDestinationSlug } from "@/lib/resolve-destination";
 
 export const metadata: Metadata = {
-  title: "Leaderboard",
+  title: "Survivors",
   robots: { index: false }, // it is a redirect, and its destination is per-viewer anyway
 };
 
@@ -29,7 +29,7 @@ export default async function SurvivorsPage() {
   // is alive — a claim about the game, which a failed fetch is not evidence for.
   return (
     <div className="mx-auto w-full max-w-[68ch] px-4 py-8">
-      <h1 className="font-display text-3xl uppercase tracking-[.02em]">Leaderboard</h1>
+      <h1 className="font-display text-3xl uppercase tracking-[.02em]">Survivors</h1>
       <p role="status" className="mt-6 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
         Couldn&apos;t load the servers.{" "}
         <Link href="/" className="font-bold text-red-deep underline">

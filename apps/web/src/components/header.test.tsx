@@ -26,7 +26,7 @@ describe("Masthead", () => {
   it("renders the wordmark home link and all four nav items", () => {
     render(<Masthead />);
     expect(screen.getByRole("link", { name: "One Life — home" })).toHaveAttribute("href", "/");
-    for (const label of ["Home", "Maps", "Leaderboard", "About"]) {
+    for (const label of ["Home", "Maps", "Survivors", "About"]) {
       expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
     }
   });
@@ -34,7 +34,7 @@ describe("Masthead", () => {
   it("marks the active section with aria-current and the red underline", () => {
     mockPathname.mockReturnValue("/survivors/sakhal");
     render(<Masthead />);
-    const link = screen.getAllByRole("link", { name: "Leaderboard" })[0]!;
+    const link = screen.getAllByRole("link", { name: "Survivors" })[0]!;
     expect(link).toHaveAttribute("aria-current", "page");
     // Mock app bar: active = paper text over a red underline; inactive = dimmed cream.
     expect(link.className).toContain("border-red");

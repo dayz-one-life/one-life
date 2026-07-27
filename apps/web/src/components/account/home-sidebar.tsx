@@ -22,7 +22,7 @@ function BoardBlock({ board }: { board: SidebarBoard }) {
   return (
     <section aria-label={`${mapLabel(board.map)} board`} className="border-t border-hairline pt-2.5">
       <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[.05em]">
-        <h3 className="font-bold text-ink">{mapLabel(board.map)} · still alive</h3>
+        <h3 className="font-bold text-ink">{mapLabel(board.map)} · survivors</h3>
         <Link href={`/survivors/${board.slug}`} className="text-ink-muted hover:text-red">
           All →
         </Link>

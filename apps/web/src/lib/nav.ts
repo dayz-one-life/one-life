@@ -4,9 +4,10 @@ export const NAV_ITEMS = [
   // The item is deliberately a plain static href: the nav renders in two places (the desktop
   // row and the mobile menu) and a stateful item would have to be threaded through both.
   { key: "maps", href: "/maps", label: "Maps" },
-  // Label-only rename of Survivors. The ROUTE stays `/survivors` — sub-project D owns the move to
-  // a per-map leaderboard, and repointing this href would break every board link today.
-  { key: "leaderboard", href: "/survivors", label: "Leaderboard" },
+  // "Survivors" everywhere the surface is named: it matches the URL, the board H1, the SEO
+  // titles, the dossier back-link and the About copy. (The key stays `leaderboard` — it is
+  // internal, and renaming it would churn every activeNavKey consumer for no user-visible gain.)
+  { key: "leaderboard", href: "/survivors", label: "Survivors" },
   { key: "about", href: "/about", label: "About" },
 ] as const;
 
@@ -15,7 +16,7 @@ export type NavKey = (typeof NAV_ITEMS)[number]["key"];
 const inSection = (pathname: string, base: string) => pathname === base || pathname.startsWith(base + "/");
 
 /**
- * Which nav item a pathname lights up. Player pages belong to the Leaderboard section — they are
+ * Which nav item a pathname lights up. Player pages belong to the Survivors section — they are
  * reached from the board.
  *
  * ⚠️ Home is an EXACT match, never `inSection`. Every path in the app starts with "/", so a prefix
