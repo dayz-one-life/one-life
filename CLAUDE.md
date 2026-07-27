@@ -1259,17 +1259,18 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   plan `docs/superpowers/plans/2026-07-24-b-app-shell.md`): the chrome the rest of the pure-player
   rebuild hangs off. **Presentation only** — no migration, no API route, no env var, no worker;
   plain `./deploy/deploy.sh`.
-  **Nav is Home · Maps · Leaderboard · About.** "Leaderboard" is a **label-only** rename of
-  Survivors — the route is still `/survivors`, because sub-project D owns the move to a per-map
-  board. **⚠️ `activeNavKey` matches Home by EXACT path, never `inSection`**: every path starts
+  **Nav is Home · Maps · Survivors · About.** (Renamed back from "Leaderboard" by the
+  UX-consistency pass, 2026-07-27 — the internal nav key is still `leaderboard`.) The route is
+  still `/survivors`, because sub-project D owns the move to a per-map board.
+  **⚠️ `activeNavKey` matches Home by EXACT path, never `inSection`**: every path starts
   with `/`, so a prefix rule lights Home up on every page in the site.
   **`components/controls/` no longer exists.** The rail, the `ControlsSheet`, its `MobileAccount`
   trigger, the rail's `SignInPanel` and `useSheetDrag` are deleted; the surviving panels moved to
   `components/account/` (identity, link, verify, tokens, `use-controls`, `format`,
   `verification-announcer`), `components/servers/` (server cards), `components/friends/` and
   `components/shared/` (`GamertagAutocomplete`).
-  **Below `md` a fixed `TabBar`** (`components/shell/tab-bar.tsx`) carries Home · Map · Board ·
-  Friends · You, dropping to four (Home · Map · Board · Sign in) when signed out and rendering
+  **Below `md` a fixed `TabBar`** (`components/shell/tab-bar.tsx`) carries Home · Map · Survivors ·
+  Friends · You, dropping to four (Home · Map · Survivors · Sign in) when signed out and rendering
   **nothing** while identity resolves. It **shares the `z-40` chrome layer with the masthead**
   (they never overlap spatially) rather than adding a fourth altitude, and its height is
   `h-[calc(4rem+env(safe-area-inset-bottom))]` — **the inset must stay inside the calc**, since as
