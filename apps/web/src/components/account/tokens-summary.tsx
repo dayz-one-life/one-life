@@ -2,7 +2,7 @@
  * Home's two-line tokens readout: the balance, and what it is for.
  *
  * ⚠️ This is a SUMMARY, not the tokens panel. Sending and the referrer field stay on the full
- * tokens panel reached via the masthead avatar menu — a control panel should show state and
+ * tokens panel on Home — a control panel should show state and
  * afford the one action that state needs, and spending is afforded on the ban row itself (which
  * already knows WHICH ban to lift), never here.
  *

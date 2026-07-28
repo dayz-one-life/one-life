@@ -38,7 +38,11 @@ Dark-surface tokens only (two-surface token rule; the popover is dark like the b
 
 ## 4. `/you` is deleted
 
-The route directory and `YouPanel` are removed — `/you` 404s (pinned by a test). Its jobs
+The route directory and `YouPanel` are removed. Verification is by grep, not a route test: the
+Next App Router already 404s any path with no matching route, and there is no `/you` directory
+left to render one, so a request/render test would just be re-proving the router itself. What's
+actually implemented is a grep-verified absence of any `/you` reference (nav, tab bar, links,
+redirects) plus a green full suite. Its jobs
 disperse: sign-out → the dropdown (every signed-in state); profile link → the dropdown; avatar
 management → the dossier owner view (§5); identity display → the dossier already is that; the
 claim pointer → the ladder on Home already owns onboarding. **Avatar management is verified-only
@@ -90,8 +94,9 @@ per visible row by `getAliveSurvivors` — no read-model change.
 - Dropdown: per-state items (verified/unlinked/pending/signedOut/loading), Escape + outside
   click close, focus lands in the panel on open, route-change close; sign-out calls the teardown
   wrapper.
-- `/you`: request/render test proving 404 (Next `notFound` or absent route — assert via the app's
-  established pattern for removed routes) and a grep-style check that nothing links to `/you`.
+- `/you`: no route test — the route directory is deleted, so the App Router's own 404 handling
+  covers it and there is nothing route-specific left to pin. Verified instead by a repo-wide grep
+  for `/you` references (none expected) plus the full web suite staying green.
 - Read-model: `avatarHash` on `getPlayerPage` — verified-only and tombstone-excluded, each
   mutation-proven (dropping the status clause or the `image IS NOT NULL` clause fails a named
   test); route test for the API field.

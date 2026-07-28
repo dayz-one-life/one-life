@@ -44,6 +44,29 @@ export function AccountAffordance() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  // Minimal roving-focus menu contract: focus the first item on open, then Arrow/Home/End move
+  // focus between items (wrapping). Escape/outside-click/route-close are handled above already.
+  useEffect(() => {
+    if (!open) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    items[0]?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      const current = items.indexOf(document.activeElement as HTMLElement);
+      let next: number;
+      if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = items.length - 1;
+      else if (e.key === "ArrowDown") next = current < 0 ? 0 : (current + 1) % items.length;
+      else next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
+      items[next]?.focus();
+    };
+    panel.addEventListener("keydown", onKeyDown);
+    return () => panel.removeEventListener("keydown", onKeyDown);
+  }, [open, panelRef]);
+
   if (status.kind === "loading") return null;
 
   if (status.kind === "signedOut") {

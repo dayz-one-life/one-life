@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars } from "@onelife/db";
+import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getPlayerPage } from "../src/player-page.js";
 
@@ -445,5 +445,34 @@ describe("getPlayerPage: avatarHash", () => {
   it("a TOMBSTONED avatar (image NULL) contributes no hash", async () => {
     const page = await getPlayerPage(db, gamertagTombstone, now);
     expect(page?.avatarHash).toBeNull();
+  });
+
+  // Two DIFFERENT users can each hold a verified link matching `identityNames` (the page's
+  // current gamertag plus its alias history): the current owner, and a former-name holder whose
+  // stale verified link was never released. The current gamertag's link must win deterministically.
+  it("prefers the CURRENT gamertag's verified link over a stale alias link", async () => {
+    const gamertagCurrent = `AvatarCurrent${svcAv}`;
+    const gamertagOldAlias = `AvatarOldAlias${svcAv}`;
+    const userCurrent = `pp-av-current-${svcAv}`;
+    const userAlias = `pp-av-alias-${svcAv}`;
+
+    const [pRenamed] = await db.insert(players).values({ gamertag: gamertagCurrent, firstSeenAt: hoursAgo(10), lastSeenAt: now }).returning();
+    await db.insert(lives).values({ serverId: avServer, playerId: pRenamed!.id, lifeNumber: 1, startedAt: hoursAgo(10), endedAt: hoursAgo(9), playtimeSeconds: 600 });
+    await db.insert(playerGamertags).values({ playerId: pRenamed!.id, gamertag: gamertagOldAlias, firstSeenAt: hoursAgo(10), lastSeenAt: hoursAgo(9) });
+
+    await insertAvatarLink({ gamertag: gamertagCurrent, userId: userCurrent, status: "verified", hash: "hashA" });
+    await insertAvatarLink({ gamertag: gamertagOldAlias, userId: userAlias, status: "verified", hash: "hashB" });
+
+    try {
+      const page = await getPlayerPage(db, gamertagCurrent, now);
+      expect(page?.avatarHash).toBe("hashA");
+    } finally {
+      await db.delete(lives).where(eq(lives.playerId, pRenamed!.id));
+      await db.delete(avatars).where(inArray(avatars.userId, [userCurrent, userAlias]));
+      await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [userCurrent, userAlias]));
+      await db.delete(user).where(inArray(user.id, [userCurrent, userAlias]));
+      await db.delete(playerGamertags).where(eq(playerGamertags.playerId, pRenamed!.id));
+      await db.delete(players).where(eq(players.id, pRenamed!.id));
+    }
   });
 });

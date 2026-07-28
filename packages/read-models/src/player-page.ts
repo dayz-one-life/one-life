@@ -91,6 +91,12 @@ export async function getPlayerPage(
   // The dossier's avatar — the board's exact clause pair (avatar-account-pass spec §5): only a
   // VERIFIED link with a LIVE (non-tombstoned) avatar contributes; pending links and removals
   // resolve to null exactly like no row at all.
+  // ⚠️ Two DIFFERENT users can each hold a verified link inside `identityNames` — the current
+  // gamertag's owner, and a former-name (alias) holder who never released their now-stale link.
+  // Without an explicit tie-break the row picked was whatever the query planner happened to
+  // return first, which could surface a re-verified former owner's photo on today's page. Order
+  // so an EXACT match on the page's current gamertag always outranks an alias match; the alias
+  // fallback stays for a renamed owner who hasn't re-verified under the new name yet.
   const [avatarRow] = await db
     .select({ hash: avatars.hash })
     .from(gamertagLinks)
@@ -99,6 +105,7 @@ export async function getPlayerPage(
       eq(gamertagLinks.status, "verified"),
       inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames),
     ))
+    .orderBy(sql`(lower(${gamertagLinks.gamertag}) = ${gamertag.toLowerCase()}) DESC`)
     .limit(1);
 
   const standing: ServerStanding[] = [];

@@ -33,8 +33,8 @@ describe("TokensSummary", () => {
     expect(screen.queryByText(/^\d+$/)).toBeNull();
   });
 
-  // The summary is not the panel: sending and the referrer live on the full tokens panel reached
-  // via the masthead avatar menu, spending on the ban row.
+  // The summary is not the panel: sending and the referrer live on the full tokens panel on
+  // Home, spending on the ban row.
   test("carries no send form, no referrer field and no spend control", () => {
     render(<TokensSummary balance={2} loading={false} />);
     expect(screen.queryByRole("textbox")).toBeNull();

@@ -60,6 +60,16 @@ describe("AccountAffordance", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("opens with focus on the first item, and ArrowDown moves to Sign out", () => {
+    mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "X" } });
+    renderIt();
+    fireEvent.click(screen.getByRole("button", { name: "Your account" }));
+    const first = screen.getByRole("menuitem", { name: "Your profile →" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(screen.getByRole("menuitem", { name: "Sign out" })).toHaveFocus();
+  });
+
   it("never links to /you anywhere", () => {
     mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "X" } });
     const { container } = renderIt();

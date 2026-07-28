@@ -19,10 +19,6 @@ export function LoginPanel({ providers, magicLink }: { providers: string[]; magi
           <Link href="/" className="font-bold text-ink underline hover:text-red">
             Home
           </Link>
-          {" · "}
-          <Link href="/" className="font-bold text-ink underline hover:text-red">
-            Your account
-          </Link>
         </p>
       </div>
     );
