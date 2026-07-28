@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-07-28
+
 ### Added
 - Obituaries are reachable from the site: a primary-nav item, a mobile tab (replacing You, which
   stays reachable from the masthead avatar), and a footer link.
