@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-07-28
+
 ### Added
 - Obituaries are back — LLM-written, obituary-only revival of the retired content engine:
   a dry-run-gated newsdesk sweep (`NEWSDESK_SINCE` forward-only cutoff), a public
