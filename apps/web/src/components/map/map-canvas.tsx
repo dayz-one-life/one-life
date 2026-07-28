@@ -58,6 +58,7 @@ export interface LeafletMap {
   getZoom: () => number | undefined;
   on: (event: string, handler: () => void) => void;
   createPane: (name: string) => HTMLElement | undefined;
+  invalidateSize(): void;
 }
 export interface LeafletLayer {
   addTo: (target: unknown) => LeafletLayer;
@@ -128,6 +129,7 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
   const layerGroupRef = useRef<LeafletLayer | null>(null);
   const placeGroupRef = useRef<LeafletLayer | null>(null);
   const hasFitRef = useRef(false);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   /**
    * Town/landmark labels, redrawn on every zoom change (that is the whole point — see the
@@ -369,6 +371,19 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
         m.on("zoomend", runPlaces);
         // A focus set before Leaflet resolved has no map to fly; apply it now, once.
         runFocus();
+
+        // Leaflet measures the container once at creation and its own `resize` event only fires
+        // on WINDOW resizes — but this container's size settles after creation (full-viewport
+        // flex column: bars/fonts mount late), and on that container-only resize Leaflet keeps
+        // the stale measurement: the freshly revealed strip stays blank until the first
+        // interaction forces a re-measure (the v0.51.x first-load blank band). invalidateSize()
+        // re-measures AND fires Leaflet's `resize`, so the applyWorldBounds re-run above comes
+        // for free on the same tick.
+        if (typeof ResizeObserver !== "undefined" && ref.current) {
+          const ro = new ResizeObserver(() => { mapRef.current?.invalidateSize(); });
+          ro.observe(ref.current);
+          resizeObserverRef.current = ro;
+        }
       })
       .catch(() => {
         // A chunk 404 (realistic mid-deploy) or any other load failure must surface honestly,
@@ -378,6 +393,8 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
 
     return () => {
       cancelled = true;
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       layerGroupRef.current = null;

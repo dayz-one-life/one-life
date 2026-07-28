@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
+import { formatDuration, formatMeters, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
 import type { ServerStanding } from "@/lib/types";
 
 describe("player format helpers", () => {
@@ -65,5 +65,12 @@ describe("monthYear / relativeDate", () => {
     expect(relativeDate("2026-07-14T09:00:00Z", now)).toBe("yesterday");
     expect(relativeDate("2026-07-12T12:00:00Z", now)).toBe("3 days ago");
     expect(relativeDate("2026-06-20T12:00:00Z", now)).toBe("3 weeks ago");
+  });
+});
+
+describe("formatMeters", () => {
+  it("rounds and separates the unit with a non-breaking space", () => {
+    expect(formatMeters(374.6)).toBe("375 m");
+    expect(formatMeters(2)).toBe("2 m");
   });
 });

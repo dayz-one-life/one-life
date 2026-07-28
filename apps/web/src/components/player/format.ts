@@ -5,6 +5,12 @@ export function formatDuration(seconds: number): string {
   return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 }
 
+/** Kill/hit distances. The gap is the point: a bare `25m` beside `26h 52m` reads as minutes.
+ *  NBSP so the number never wraps away from its unit. */
+export function formatMeters(meters: number): string {
+  return `${Math.round(meters)} m`;
+}
+
 export function banCountdown(expiresAt: string | null, now: Date): string | null {
   if (!expiresAt) return null;
   const remainingSeconds = (new Date(expiresAt).getTime() - now.getTime()) / 1000;

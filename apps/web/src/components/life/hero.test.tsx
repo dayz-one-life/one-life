@@ -63,12 +63,13 @@ describe("LifeHero", () => {
     expect(screen.queryByText("Alive")).not.toBeInTheDocument();
   });
 
-  test("portrait renders the silhouette when avatarHash is null", () => {
+  test("portrait box is omitted entirely when avatarHash is null", () => {
     const now = new Date(Date.parse(start) + 100 * 60_000);
     const d = data();
     const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
-    expect(container.querySelector("img")).toBeNull(); // silhouette svg, not an img
-    expect(container.querySelector('span[aria-hidden="true"] svg')).not.toBeNull();
+    // When avatarHash is null, the entire portrait column is not rendered, so no img and no silhouette svg
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector('span[aria-hidden="true"] svg')).toBeNull();
   });
 
   test("portrait renders an img when avatarHash is present", () => {
@@ -78,5 +79,19 @@ describe("LifeHero", () => {
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
     expect(img).toHaveAttribute("src", "/api/avatars/cafe1234feed5678.webp");
+  });
+
+  test("omits the snapshot box entirely for an avatar-less player", () => {
+    const now = new Date(Date.parse(start) + 100 * 60_000);
+    const d = data();
+    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    expect(screen.queryByText(/snapshot · this life/i)).toBeNull();
+  });
+
+  test("renders the snapshot box when a hash exists", () => {
+    const now = new Date(Date.parse(start) + 100 * 60_000);
+    const d = data({ avatarHash: "abc123def4567890" });
+    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    expect(screen.getByText(/snapshot · this life/i)).toBeInTheDocument();
   });
 });

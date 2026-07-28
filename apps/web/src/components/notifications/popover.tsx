@@ -24,13 +24,17 @@ export function NotificationsPopover({
       tabIndex={-1}
       className="absolute right-0 top-full z-50 mt-2 w-[340px] border border-dark-line bg-dark p-3 shadow-[0_10px_30px_rgba(0,0,0,.45)]"
     >
-      {error ? (
-        <p className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
-          Couldn&apos;t reach the wire. Retrying.
-        </p>
-      ) : (
-        <NotificationList items={items} unreadIds={unreadIds} now={now} onDark compact />
-      )}
+      {/* A full page 1 is taller than the viewport, so the list scrolls INSIDE the popover —
+       *  without this cap the panel runs past the fold and buries its own "View all" link. */}
+      <div className="max-h-[min(60vh,480px)] overflow-y-auto">
+        {error ? (
+          <p className="font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted">
+            Couldn&apos;t reach the wire. Retrying.
+          </p>
+        ) : (
+          <NotificationList items={items} unreadIds={unreadIds} now={now} onDark compact />
+        )}
+      </div>
       <div className="mt-2.5 border-t border-dark-line pt-2 text-right">
         <Link
           href="/notifications"

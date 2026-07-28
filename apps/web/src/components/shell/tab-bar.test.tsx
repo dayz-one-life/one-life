@@ -19,7 +19,7 @@ describe("TabBar", () => {
   test("signed in: five destinations", () => {
     status("verified");
     render(<TabBar />);
-    for (const name of ["Home", "Map", "Board", "Friends", "You"]) {
+    for (const name of ["Home", "Map", "Survivors", "Friends", "You"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
   });
@@ -33,7 +33,7 @@ describe("TabBar", () => {
   test("signed out: four, with Sign in replacing Friends and You", () => {
     status("signedOut");
     render(<TabBar />);
-    for (const name of ["Home", "Map", "Board", "Sign in"]) {
+    for (const name of ["Home", "Map", "Survivors", "Sign in"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("link", { name: "Friends" })).toBeNull();
@@ -50,7 +50,7 @@ describe("TabBar", () => {
     status("verified");
     mockPathname.mockReturnValue("/survivors/livonia");
     render(<TabBar />);
-    expect(screen.getByRole("link", { name: "Board" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Survivors" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute("aria-current");
   });
 

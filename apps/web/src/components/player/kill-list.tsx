@@ -1,5 +1,6 @@
 import type { PlayerKill } from "@/lib/types";
 import { GamertagLink } from "@/components/gamertag-link";
+import { formatMeters } from "@/components/player/format";
 
 export function KillList({ kills, limit }: { kills: PlayerKill[]; limit?: number }) {
   if (kills.length === 0) {
@@ -16,7 +17,7 @@ export function KillList({ kills, limit }: { kills: PlayerKill[]; limit?: number
           </span>
           <span className="uppercase text-ink-muted">
             {k.weapon ?? "—"}
-            {k.distanceMeters != null ? ` · ${Math.round(k.distanceMeters)}m` : ""}
+            {k.distanceMeters != null ? <> · <span className="normal-case">{formatMeters(k.distanceMeters)}</span></> : null}
           </span>
         </li>
       ))}

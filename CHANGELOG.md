@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A consistency pass over the whole site.** Every page now renders at its intended width
+  (a flexbox quirk had each page shrink-wrapping to a random width); the notification bell's
+  popover no longer grows taller than the screen; home-sidebar notifications say what happened
+  instead of three identical titles; the one leaderboard is called **Survivors** everywhere
+  (nav, tab bar, sidebar) instead of three different names — and the Friends and Notifications
+  pages likewise drop their "Roster"/"Wire" aliases; kill distances read `375 m` so they can't
+  be mistaken for minutes, durations always read `26h 52m` (never `26H 52M`), and timeline
+  timestamps say `46h 06m in` instead of an ambiguous `46:06`; the idle server row's "JOIN"
+  button — a promise console DayZ can't keep — now honestly says how to connect; your account
+  page shows your real avatar in the identity row; friend-request buttons say what state
+  they're in; `/login` tells you when you're already signed in; the life page no longer shows
+  an empty portrait frame for players without an avatar; and the map fixes its two rough
+  edges — a blank band on first load and the tile-license text hiding under the buttons.
+
 ## [0.51.0] - 2026-07-27
 
 ### Added

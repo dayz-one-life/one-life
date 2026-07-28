@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { playerSlug } from "@/lib/slug";
+import { getAvatar } from "@/lib/api";
 import { useControls } from "@/components/account/use-controls";
 import { IdentityRow } from "@/components/account/identity-row";
 import { AvatarPanel } from "@/components/account/avatar-panel";
@@ -17,6 +19,9 @@ import { AvatarPanel } from "@/components/account/avatar-panel";
  */
 export function YouPanel() {
   const c = useControls();
+  const signedIn = c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
+  // Cache read, not a second fetch: `AvatarPanel` below populates this same key on the same page.
+  const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar, enabled: signedIn });
 
   if (c.status.kind === "loading") {
     return <div aria-busy="true" aria-hidden className="h-40 bg-bone motion-safe:animate-pulse" />;
@@ -48,6 +53,7 @@ export function YouPanel() {
         provider={c.provider}
         verified={verified}
         tagLine={c.status.kind === "unlinked" ? "No gamertag" : undefined}
+        avatarHash={avatar.data?.hash ?? null}
       />
 
       <AvatarPanel />

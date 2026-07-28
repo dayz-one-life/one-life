@@ -32,7 +32,7 @@ describe("Timeline", () => {
     const now = new Date(Date.parse(start) + 200 * 60_000);
     render(<Timeline view={buildTimeline(data(), now)} />);
     expect(screen.getByRole("link", { name: "Tomahawked11" })).toBeInTheDocument();
-    expect(screen.getByText(/VSS · 5m/)).toBeInTheDocument();
+    expect(screen.getByText(/VSS · 5 m/)).toBeInTheDocument();
   });
 
   test("dead: no withheld bar, death row shows killer + vitals", () => {

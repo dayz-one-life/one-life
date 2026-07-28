@@ -67,7 +67,7 @@ export function OnlineList({ players, positions, now, onShare, onStopSharing, pe
                     type="button"
                     disabled={pendingFor === p.gamertag}
                     onClick={() => onStopSharing(p.gamertag)}
-                    className="min-h-[44px] border border-dark-edge px-2 font-bold text-paper disabled:opacity-50 md:min-h-0 md:py-0.5"
+                    className="min-h-[44px] border border-dark-edge px-2 font-bold text-paper uppercase tracking-[.05em] disabled:opacity-50 md:min-h-0 md:py-0.5"
                   >
                     Sharing · Stop
                   </button>
@@ -76,7 +76,7 @@ export function OnlineList({ players, positions, now, onShare, onStopSharing, pe
                     type="button"
                     disabled={pendingFor === p.gamertag}
                     onClick={() => onShare(p.gamertag)}
-                    className="min-h-[44px] border border-dark-edge px-2 text-cream-dim hover:text-paper disabled:opacity-50 md:min-h-0 md:py-0.5"
+                    className="min-h-[44px] border border-dark-edge px-2 text-cream-dim uppercase tracking-[.05em] hover:text-paper disabled:opacity-50 md:min-h-0 md:py-0.5"
                   >
                     Share
                   </button>

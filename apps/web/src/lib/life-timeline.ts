@@ -22,7 +22,9 @@ function elapsedLabel(at: Date, startedAt: Date): string {
   const sec = Math.max(0, Math.floor((at.getTime() - startedAt.getTime()) / 1000));
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  // `46:06` read as minutes:seconds. The h/m units make the format self-describing —
+  // and match formatDuration's vocabulary everywhere else on the site.
+  return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
 function connMs(s: Session): number {
@@ -83,7 +85,7 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   const startedAt = new Date(data.life.startedAt);
   const endedAt = data.life.endedAt ? new Date(data.life.endedAt) : null;
   const alive = endedAt === null;
-  const label = (at: Date) => `${elapsedLabel(at, startedAt)} IN`;
+  const label = (at: Date) => `${elapsedLabel(at, startedAt)} in`;
 
   const killObjs = data.kills.map((k: PlayerKill) => ({ ...k, at: new Date(k.occurredAt) }));
   const longest = longestOf(killObjs);
@@ -93,7 +95,7 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   const events: TimelineEvent[] = [];
 
   // Birth (oldest)
-  events.push({ kind: "birth", at: startedAt, marker: "gray", timeLabel: "00:00", title: "Washed ashore — life begins", line: "Session 1. Grace period active." });
+  events.push({ kind: "birth", at: startedAt, marker: "gray", timeLabel: "0h 00m", title: "Washed ashore — life begins", line: "Session 1. Grace period active." });
 
   // Qualified
   if (data.qualifiedAt) {

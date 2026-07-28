@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function YouPage() {
   return (
-    <div className="mx-auto max-w-[68ch] px-4 py-8">
+    <div className="mx-auto w-full max-w-[68ch] px-4 py-8">
       <PageHeader title="You" />
       <div className="mt-6">
         <YouPanel />

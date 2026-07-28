@@ -11,9 +11,9 @@ const COMMON: Tab[] = [
   // Resolves through the existing `/maps` redirect, so the tab bar needs no knowledge of map
   // resolution — sub-project D changes that redirect's internals without touching this file.
   { href: "/maps", label: "Map", icon: "◎" },
-  // Route stays /survivors until D; the label matches the nav's "Leaderboard" in spirit but is
-  // shortened to fit a five-item row on a 320px phone.
-  { href: "/survivors", label: "Board", icon: "▤" },
+  // Same name as the nav item — "Board" was a third name for the one surface (nav said
+  // Leaderboard, the page says Survivors), and orientation beats brevity here.
+  { href: "/survivors", label: "Survivors", icon: "▤" },
 ];
 
 const SIGNED_IN: Tab[] = [...COMMON, { href: "/friends", label: "Friends", icon: "◍" }, { href: "/you", label: "You", icon: "◉" }];
@@ -22,7 +22,7 @@ const SIGNED_OUT: Tab[] = [...COMMON, { href: "/login", label: "Sign in", icon: 
 /**
  * Mobile quick-access bar.
  *
- * It is NOT the nav. The nav is four sections (Home · Maps · Leaderboard · About); this is the
+ * It is NOT the nav. The nav is four sections (Home · Maps · Survivors · About); this is the
  * five things a player does often — which is why Friends and You appear here and About does not
  * (About lives in the footer).
  *

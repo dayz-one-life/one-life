@@ -135,6 +135,10 @@ describe("MapPage inside the site shell", () => {
     // Without `min-h-0` a flex item will not shrink below its content, so the map would push
     // the page taller than the viewport instead of fitting inside it.
     expect(box.className).toMatch(/\bmin-h-0\b/);
+    // `.map-app` scopes the globals.css Leaflet-attribution clearance/dark styling to this
+    // region only — the life-trail TrackMap panel has no overlaid controls and must keep
+    // Leaflet's default placement, so the class must not be dropped in a refactor.
+    expect(container.querySelector(".map-app")).not.toBeNull();
   });
 
   // The route sits OUTSIDE the (boxed) group, so the terrain reaches the viewport edge with no

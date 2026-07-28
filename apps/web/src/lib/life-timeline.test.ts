@@ -42,6 +42,9 @@ describe("buildTimeline", () => {
     expect(v.alive).toBe(true);
     expect(v.events[0]!.kind).toBe("now");
     expect(v.events[v.events.length - 1]!.kind).toBe("birth");
+    // Birth event has timeLabel "0h 00m"
+    const birth = v.events.find((e) => e.kind === "birth");
+    expect(birth && "timeLabel" in birth ? birth.timeLabel : "").toBe("0h 00m");
   });
 
   test("groups quiet consecutive sessions (no kill inside) into a session-group", () => {
@@ -67,6 +70,8 @@ describe("buildTimeline", () => {
     const longest = v.events.filter((e) => e.kind === "kill" && e.longestKill);
     expect(longest).toHaveLength(1);
     expect(longest[0] && "victimGamertag" in longest[0] ? longest[0].victimGamertag : "").toBe("Twhizzle4life"); // 25m > 5m
+    // Kill at 430 minutes = 7h 10m, should have timeLabel "7h 10m in"
+    expect(longest[0] && "timeLabel" in longest[0] ? longest[0].timeLabel : "").toBe("7h 10m in");
   });
 
   test("hero stats: kills, longest, sessions, qualified true", () => {
@@ -104,6 +109,8 @@ describe("buildTimeline", () => {
     const v = buildTimeline(data({ qualifiedAt: { at: at(120), by: "kill" } }), now);
     const q = v.events.find((e) => e.kind === "qualified");
     expect(q && "line" in q ? q.line : "").toMatch(/first blood/i);
+    // Qualified at 120 minutes (2h 0m) should have timeLabel "2h 00m in"
+    expect(q && "timeLabel" in q ? q.timeLabel : "").toBe("2h 00m in");
   });
 
   test("caps live time-alive at lastSeenAt for a crashed/ghosted session — not request-time now", () => {

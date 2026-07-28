@@ -24,7 +24,7 @@ export default async function MapsPage() {
   // No slug to send anyone to. Guessing a path would 404, and an empty page would imply the maps
   // do not exist — so say which of the two it is.
   return (
-    <div className="mx-auto max-w-[68ch] px-4 py-8">
+    <div className="mx-auto w-full max-w-[68ch] px-4 py-8">
       <h1 className="font-display text-3xl uppercase tracking-[.02em]">Maps</h1>
       <p role="status" className="mt-6 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
         Couldn&apos;t load the maps.{" "}

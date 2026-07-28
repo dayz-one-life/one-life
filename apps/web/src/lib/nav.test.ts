@@ -6,8 +6,11 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "maps", "leaderboard", "about"]);
   });
 
-  it("Leaderboard still points at /survivors — sub-project D owns the route change", () => {
-    expect(NAV_ITEMS.find((i) => i.key === "leaderboard")?.href).toBe("/survivors");
+  it("Survivors points at /survivors — sub-project D owns the route change", () => {
+    const item = NAV_ITEMS.find((i) => i.key === "leaderboard");
+    expect(item?.href).toBe("/survivors");
+    // One name for one surface: the label matches the URL, the board H1 and the tab bar.
+    expect(item?.label).toBe("Survivors");
   });
 });
 
