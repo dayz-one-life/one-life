@@ -167,6 +167,45 @@ export type LifeTimelineData = {
   // Only a VERIFIED gamertag link with a LIVE (non-tombstoned) avatar contributes a hash — same
   // predicate as the survivors board's batched join.
   avatarHash: string | null;
+  // Slug of this life's published obituary, or null. Published only — see the read-model.
+  obituarySlug: string | null;
+};
+
+/**
+ * Rich-body block union (R5d). `articles.body_blocks` is jsonb and null for every article written
+ * before R5d, so this is always optional — a null/absent value means "render the flat `body`".
+ * A future block type an older client does not know about is dropped by the renderer, never thrown.
+ */
+export type ArticleBlock =
+  | { type: "para"; text: string }
+  | { type: "subhead"; text: string }
+  | { type: "quote"; text: string; attribution: string }
+  | { type: "list"; items: string[] };
+
+export type ObituaryCard = {
+  slug: string;
+  gamertag: string;
+  map: string;
+  mapSlug: string | null;
+  lifeNumber: number;
+  headline: string;
+  lede: string;
+  tags: string[];
+  timeAliveSeconds: number;
+  kills: number;
+  longestKillMeters: number | null;
+  cause: string | null;
+  deathAt: string;
+};
+export type ObituariesFeed = { rows: ObituaryCard[]; total: number; page: number; pageSize: number };
+export type ObituaryArticle = ObituaryCard & {
+  body: string;
+  bodyBlocks?: ArticleBlock[] | null;
+  pullQuote: { text: string; attribution: string } | null;
+  sessions: number;
+  killerGamertag: string | null;
+  weapon: string | null;
+  verdict: DeathVerdictDto | null;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,
@@ -221,6 +260,7 @@ export interface LifeTrack {
 export type SitemapData = {
   players: { gamertag: string; lastmod: string }[];
   lives: { gamertag: string; mapSlug: string; n: number; lastmod: string }[];
+  articles: { kind: string; slug: string; lastmod: string }[];
 };
 
 export type FriendStatusValue = "none" | "outgoing" | "incoming" | "friends" | "cooldown";

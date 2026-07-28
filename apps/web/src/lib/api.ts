@@ -2,6 +2,7 @@ import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
   Me, GamertagLink, ClaimResult, PlayerPage,
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorsPage, LifeTimelineData,
+  ObituariesFeed, ObituaryArticle,
   NotificationsFeed,
   LifeTrack,
   SitemapData,
@@ -196,6 +197,11 @@ export const getLifeTrack = (mapSlug: string, n: number) =>
  *  board would rank lives that were never in the same race. */
 export const getSurvivors = (p: { slug: string; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors/${encodeURIComponent(p.slug)}?page=${p.page}`);
+
+export const getObituariesFeed = (page: number) =>
+  apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
+export const getObituary = (slug: string) =>
+  getOrNull<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`);
 
 /** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
  *  3600) so the fetch cache and the route's own ISR window agree. */

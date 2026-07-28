@@ -28,3 +28,19 @@ export function breadcrumbLd(items: { name: string; url: string }[]) {
   };
 }
 
+export function articleLd(
+  a: { headline: string; lede: string; gamertag: string; deathAt: string },
+  url: string,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: a.headline,
+    description: a.lede,
+    url,
+    datePublished: a.deathAt,
+    about: { "@type": "Person", name: a.gamertag },
+    isPartOf: { "@type": "CollectionPage", name: "Obituaries", url: absoluteUrl("/obituaries") },
+  };
+}
+

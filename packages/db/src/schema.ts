@@ -340,6 +340,55 @@ export const avatars = pgTable("avatars", {
   byHash: index("avatars_hash_idx").on(t.hash).where(sql`hash is not null`),
 }));
 
+// ── Obituaries revival. Durable side-table — generated obituary content, trimmed to the
+// obituary slice (no birth notices, no news, no image pipeline, no Discord notifier). Like
+// `bans`, it references ONLY `servers` and keys the life by the rebuild-stable natural tuple
+// (server_id, gamertag, life_started_at) — NO players/lives FK, so a projector rebuild
+// (TRUNCATE players,lives ... RESTART IDENTITY CASCADE) neither cascade-wipes it nor stales its
+// keys. One row per (kind, life); a failed generation writes a status='failed' stub (content null,
+// attempts bumped) so retries are bounded. ──
+export const articles = pgTable("articles", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  kind: text("kind").notNull(),                       // 'obituary' (only kind written; predicate stays two-kind, see uniqLife)
+  status: text("status").notNull().default("published"),  // published|failed|retracted
+  slug: text("slug"),                                                // null on a failed stub
+  serverId: integer("server_id").references(() => servers.id),
+  gamertag: text("gamertag"),
+  map: text("map"),                                                  // servers.map codename; NULL when no single server
+  mapSlug: text("map_slug"),                                         // servers.slug (nullable)
+  lifeNumber: integer("life_number"),
+  lifeStartedAt: timestamp("life_started_at", { withTimezone: true }), // natural-key: which life
+  deathAt: timestamp("death_at", { withTimezone: true }),               // feed order
+  timeAliveSeconds: integer("time_alive_seconds").notNull().default(0),
+  kills: integer("kills").notNull().default(0),
+  longestKillMeters: doublePrecision("longest_kill_meters"),
+  cause: text("cause"),
+  headline: text("headline"),
+  lede: text("lede"),
+  body: text("body"),
+  pullQuoteText: text("pull_quote_text"),
+  pullQuoteAttribution: text("pull_quote_attribution"),
+  tags: text("tags").array(),
+  facts: jsonb("facts"),                                             // ObituaryFacts snapshot
+  promptVersion: text("prompt_version"),
+  model: text("model"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  bodyBlocks: jsonb("body_blocks"),                                  // rich body as an ordered block array (para|subhead|quote|list)
+  generatedAt: timestamp("generated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  // PARTIAL: the two life-keyed kinds are constrained by the life tuple. This predicate is kept
+  // VERBATIM from the pre-0027 shape (even though only 'obituary' is written today) so any
+  // restored onConflictDoUpdate targetWhere matches it — a mismatched predicate is 42P10.
+  uniqLife: uniqueIndex("articles_kind_server_gamertag_life_uniq")
+    .on(t.kind, t.serverId, t.gamertag, t.lifeStartedAt)
+    .where(sql`${t.kind} IN ('obituary','birth_notice')`),
+  uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
+  feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
+  createdIdx: index("articles_kind_status_created_idx").on(t.kind, t.status, t.createdAt),
+}));
+
 // ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate
 // list, so a --rebuild never drops a player's inbox. Dedup is the natural_key unique
 // index — a PLAIN unique index, so onConflictDoNothing against it takes no targetWhere.

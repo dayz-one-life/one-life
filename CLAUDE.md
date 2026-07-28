@@ -1242,18 +1242,34 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   rebuild-before-migrate ordering hazard).
   **Deferred — still key on gamertag text, not player id:** `leaderboards.ts` and the broader
   notifications/friends surfaces generally. A rename is therefore not yet reflected in those
-  surfaces' history.
+  surfaces' history. **`articles` rows are keyed by frozen gamertag text** (`articles.gamertag`
+  is set once at publish time and never rewritten on a rename) — but the two seams that would
+  otherwise notice a rename resolve through `player_gamertags` alias history instead of a bare
+  `players.gamertag`/`gamertag` string compare (2026-07-28): the obituary dedupe anti-join
+  (`apps/newsdesk/src/pg-store.ts`'s `findObituaryTargets`) and the life timeline's
+  `obituarySlug` lookup (`packages/read-models/src/life-timeline.ts`). So a rename neither
+  reopens an already-published obituary's dedupe nor orphans its timeline link. The public
+  article page itself still shows the frozen name from the time of publication.
 - **Content engine retired** (2026-07-24): obituaries, birth notices, the news vertical, the
   editorial newsroom, the Discord notifier and the article image pipeline are **deleted**. One Life
   is a player tool; nothing generates prose. `apps/newsdesk`, the `articles`/`article_images`
   tables, the article read-models and the three route trees are gone. See
   `docs/superpowers/specs/2026-07-24-content-engine-removal-design.md`; the historical R5a–R5d and
   editorial specs are left in `docs/superpowers/` as a record.
-  **⚠️ One rule lost its only executable proof:** an article was matched to a life by the
-  rebuild-stable tuple `(server_id, gamertag, life_started_at)`, **never `life_number`** — which is
-  nullable, unconstrained, and a fold-derived count that renumbers. The regression test lived in
-  `life-timeline.test.ts` and went with the feature. **The convention still governs `bans`**, which
-  keys the same way for the same reason.
+  **⚠️ The rule that an article is matched to a life by the rebuild-stable tuple
+  `(server_id, gamertag, life_started_at)`, never `life_number`,** briefly lost its only
+  executable proof when the regression test went with the feature; **the proof is restored** (see
+  the obituaries-revival entry below, `life-timeline.test.ts`). **The convention still governs
+  `bans`**, which keys the same way for the same reason.
+  **Obituaries revived, alone (2026-07-28)** — spec
+  `docs/superpowers/specs/2026-07-28-obituaries-revival-design.md`: `apps/newsdesk` and a
+  trimmed, durable `articles` table (migration `0030`, plain deploy, no `--rebuild`) return for
+  LLM obituaries only — no birth notices, no news vertical, no images, no Discord. A dry-run-gated
+  sweep of qualified deaths (`NEWSDESK_SINCE` forward-only cutoff, same convention as
+  `NOTIFIER_SINCE`) generates and publishes each obituary, surfaced at a public `/obituaries` feed
+  + article page, a life-timeline link, and sitemap entries. New **No-Place Rule**: prose may name
+  the map and nothing finer (no towns, no coordinates) — enforced both by prompt and by a
+  deterministic post-generation validator.
 
 - **Sub-project B — App shell** ✅ (spec `docs/superpowers/specs/2026-07-24-b-app-shell-design.md`,
   plan `docs/superpowers/plans/2026-07-24-b-app-shell.md`): the chrome the rest of the pure-player

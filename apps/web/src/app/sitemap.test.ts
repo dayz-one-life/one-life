@@ -16,6 +16,7 @@ const SERVERS = [
 const DATA = {
   players: [{ gamertag: "xSgt Hartman", lastmod: "2026-07-01T00:00:00.000Z" }],
   lives: [{ gamertag: "xSgt Hartman", mapSlug: "livonia", n: 2, lastmod: "2026-07-02T00:00:00.000Z" }],
+  articles: [{ kind: "obituary", slug: "hartman-fell-to-a-wolf", lastmod: "2026-07-03T00:00:00.000Z" }],
 };
 
 beforeEach(() => {
@@ -28,7 +29,7 @@ const urls = async () => (await sitemap()).map((e) => e.url);
 describe("sitemap", () => {
   it("includes the home page and the static pages", async () => {
     const u = await urls();
-    for (const p of ["", "/about"]) {
+    for (const p of ["", "/about", "/obituaries"]) {
       expect(u).toContain(`https://dayzonelife.com${p}`);
     }
   });
@@ -68,6 +69,23 @@ describe("sitemap", () => {
   it("carries the lastmod the API supplied", async () => {
     const entry = (await sitemap()).find((e) => e.url.endsWith("/livonia/lives/2"));
     expect(entry?.lastModified).toEqual(new Date("2026-07-02T00:00:00.000Z"));
+  });
+
+  it("builds an obituary URL from its kind and slug", async () => {
+    const u = await urls();
+    expect(u).toContain("https://dayzonelife.com/obituaries/hartman-fell-to-a-wolf");
+    const entry = (await sitemap()).find((e) => e.url.endsWith("/obituaries/hartman-fell-to-a-wolf"));
+    expect(entry?.lastModified).toEqual(new Date("2026-07-03T00:00:00.000Z"));
+  });
+
+  it("never emits a URL for an article of an unmapped kind", async () => {
+    vi.mocked(getSitemapData).mockResolvedValue({
+      players: [],
+      lives: [],
+      articles: [{ kind: "birth_notice", slug: "some-birth", lastmod: "2026-07-03T00:00:00.000Z" }],
+    } as never);
+    const u = await urls();
+    expect(u.some((x) => x.includes("some-birth"))).toBe(false);
   });
 
   it("returns static and board entries when the API call fails, never throwing", async () => {

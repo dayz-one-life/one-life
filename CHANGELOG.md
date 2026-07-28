@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Obituaries are back — LLM-written, obituary-only revival of the retired content engine:
+  a dry-run-gated newsdesk sweep (`NEWSDESK_SINCE` forward-only cutoff), a public
+  `/obituaries` feed + article page, a life-timeline link, and sitemap entries. New
+  No-Place Rule: prose may name the map and nothing finer, enforced by prompt and a
+  deterministic validator. No images, no birth notices, no news, no notifications.
+  Migration `0030` recreates a trimmed `articles` table (durable; plain deploy, no
+  `--rebuild`).
+
 ## [0.51.1] - 2026-07-27
 
 ### Fixed

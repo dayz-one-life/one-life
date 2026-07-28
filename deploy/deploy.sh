@@ -28,7 +28,7 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # All ten units, in a safe stop order (consumers/HTTP first, projector last).
 # Start order is the reverse, so the projector leads and re-folds ASAP.
-SERVICES=(web api verifier enforcer granter rebooter notifier ingest projector)
+SERVICES=(web api verifier enforcer granter rebooter notifier newsdesk ingest projector)
 
 WEB_URL="http://127.0.0.1:3010/"        # onelife-web (nginx's only upstream)
 API_URL="http://127.0.0.1:3011/"        # onelife-api (liveness only; no /health route)

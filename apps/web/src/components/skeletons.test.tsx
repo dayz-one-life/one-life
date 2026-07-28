@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
-import { BoardSkeleton, DossierSkeleton, LifeSkeleton } from "./skeletons";
+import { BoardSkeleton, DossierSkeleton, LifeSkeleton, ObituariesSkeleton } from "./skeletons";
 
 describe("skeletons", () => {
   test("BoardSkeleton renders a busy main with pulsing blocks", () => {
@@ -23,6 +23,12 @@ describe("skeletons", () => {
 
   test("LifeSkeleton renders a busy main with pulsing blocks", () => {
     const { container } = render(<LifeSkeleton />);
+    expect(container.querySelector("main")).toHaveAttribute("aria-busy", "true");
+    expect(container.querySelectorAll('[class*="animate-pulse"]').length).toBeGreaterThan(5);
+  });
+
+  test("ObituariesSkeleton renders a busy main with pulsing blocks", () => {
+    const { container } = render(<ObituariesSkeleton />);
     expect(container.querySelector("main")).toHaveAttribute("aria-busy", "true");
     expect(container.querySelectorAll('[class*="animate-pulse"]').length).toBeGreaterThan(5);
   });

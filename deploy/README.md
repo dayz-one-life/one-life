@@ -12,7 +12,7 @@ factory.eli5hq.com). The One Life platform runs as **systemd services** against 
 | Reverse proxy | nginx `dayzonelife.com` vhost | apex serves the app; `www` + `:80` 301 → `https://dayzonelife.com` |
 | Web (Next.js) | `127.0.0.1:3010` | `onelife-web.service`; the ONLY upstream nginx talks to |
 | API (Fastify) | `127.0.0.1:3011` | `onelife-api.service`; reached only via Next.js rewrites, not nginx |
-| Workers | no ports | verifier, projector, enforcer, granter, rebooter, notifier (+ ingest, disabled) |
+| Workers | no ports | verifier, projector, enforcer, granter, rebooter, notifier, newsdesk (+ ingest, disabled) |
 | Database | host Postgres `127.0.0.1:5432` | role `onelife`, db `onelife` (+ `onelife_test`) |
 
 **Request flow:** browser → nginx (`:443`) → web (`:3010`). The web app's
@@ -30,7 +30,7 @@ Units live in `/etc/systemd/system/onelife-*.service`. All run as user `acab`,
 
 ```bash
 # status of the fleet
-for s in web api verifier projector enforcer granter rebooter notifier ingest; do
+for s in web api verifier projector enforcer granter rebooter notifier newsdesk ingest; do
   printf "onelife-%-10s %s\n" "$s" "$(systemctl is-active onelife-$s)"; done
 
 sudo systemctl restart onelife-web        # restart one
@@ -65,6 +65,23 @@ sudo journalctl -u onelife-api -f         # tail logs
   `--rebuild`. The `life_qualified` notification derives each life's qualification instant at read
   time via `lifeQualifiedAt()`, exactly as the survivors board and the enforcer do, so it works on
   pre-existing lives immediately with no backfill.
+- **onelife-newsdesk** — `pnpm --filter @onelife/newsdesk start`. Sweeps qualified deaths lacking a
+  published obituary and writes each in the One Life voice via OpenRouter, then publishes it.
+  Obituary-only revival of the retired content engine — no birth notices, no news vertical, no
+  images, no Discord posting. Requires a `onelife-newsdesk` systemd unit on the host, **created by
+  hand** (not checked into the repo — mirror of the other worker units, and the same reason the
+  removal's one-time operator step below had to disable it by hand). Needs `DATABASE_URL`,
+  `OPENROUTER_API_KEY`, and `NEWSDESK_MODEL` (default `anthropic/claude-sonnet-5`) in `.env`.
+  **Two gates, both default OFF:** `NEWSDESK_DRY_RUN` defaults `true` (logs the obituary it would
+  generate, never calls the model or writes); `NEWSDESK_SINCE` unset turns the whole pass off —
+  set it once to the ISO-8601 go-live instant to begin **forward-only** coverage, so history is
+  never backfilled at API cost. Other vars: `NEWSDESK_INTERVAL_SECONDS` (default 300),
+  `NEWSDESK_BATCH_CAP` (default 10), `NEWSDESK_MAX_ATTEMPTS` (default 3),
+  `NEWSDESK_TEMPERATURE` (default 0.7). **Go-live order:** deploy normally
+  (`./deploy/deploy.sh`, no `--rebuild` — migration `0030` touches no projection table) → watch a
+  dry-run interval and confirm the log shows `DRY RUN: would generate obituary` lines → set
+  `NEWSDESK_SINCE` to the go-live instant → set `NEWSDESK_DRY_RUN=false` → watch the first live
+  tick and read the first published obituary before walking away.
 
 ## Player notifications: environment + rollout
 
@@ -257,7 +274,7 @@ DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 
 pnpm build                                 # builds web (reads apps/web/.env.production)
 sudo systemctl restart onelife-web onelife-api onelife-verifier \
      onelife-projector onelife-enforcer onelife-granter onelife-rebooter \
-     onelife-notifier
+     onelife-notifier onelife-newsdesk
 ```
 </details>
 
@@ -429,6 +446,28 @@ On the host, once, before deploying:
 
 If the deploy has already gone out, run it now — the damage is bounded to the dead Discord links
 already posted, which are ordinary messages and can be deleted from the channel by hand.
+
+### One-time operator step for the obituaries revival (2026-07-28)
+
+Obituaries alone are back (no birth notices, news, images or Discord — see the
+`onelife-newsdesk` entry above and the "One Life MVP" section of `CLAUDE.md`). The systemd unit
+was removed by hand in the step above and is not checked into the repo, so it must be
+**recreated by hand**, mirroring every other worker unit, before the newsdesk process runs again:
+
+1. Create + **enable but do not start** the `onelife-newsdesk` unit on the host
+   (`sudo systemctl enable onelife-newsdesk`, no `--now`) — the `articles` table this release's
+   migration recreates doesn't exist yet, so starting the unit before the deploy runs opens a
+   crash-loop window.
+2. Deploy normally (`./deploy/deploy.sh` — migration `0030` recreates a trimmed `articles` table,
+   touches no projection table, so no `--rebuild`). **⚠️ This deploy runs the *previous* release's
+   `deploy.sh`** (see the "A change to `deploy/deploy.sh` NEVER applies to the deploy that installs
+   it" note in `CLAUDE.md`), which predates `onelife-newsdesk` and so neither checks for it nor
+   restarts it — start it by hand this once, after the deploy completes:
+   `sudo systemctl start onelife-newsdesk`.
+3. Confirm a dry-run tick logs `DRY RUN: would generate obituary` lines.
+4. Set `NEWSDESK_SINCE` to the go-live instant.
+5. Set `NEWSDESK_DRY_RUN=false`.
+6. Watch the first live tick and read the first published obituary before walking away.
 
 ## Rollback (re-expose the old Tribune)
 

@@ -28,6 +28,7 @@ const APP_TABLES = [
   "push_subscriptions",
   "friendships",
   "user_preferences",
+  "articles",
   "avatars",
 ];
 

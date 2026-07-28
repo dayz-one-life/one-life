@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { players, gamertagLinks, avatars } from "@onelife/db";
+import { players, gamertagLinks, avatars, articles } from "@onelife/db";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getLifeDetail } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
@@ -21,6 +21,9 @@ export interface LifeTimeline {
   // Only a VERIFIED gamertag link with a LIVE (non-tombstoned) avatar contributes a hash — same
   // predicate as the survivors board's batched join in survivors.ts.
   avatarHash: string | null;
+  /** Slug of this life's published obituary, or null. Published only — a retracted article is a
+   *  correction, not the life's obituary, and must never be linked as one. */
+  obituarySlug: string | null;
 }
 
 /** Full per-life timeline data: the life row, ordered sessions,
@@ -34,7 +37,7 @@ export async function getLifeTimeline(
   const detail = await getLifeDetail(db, serverId, lifeId);
   if (!detail) return null;
   const { life, sessions } = detail;
-  const [kills, playerRow, dossier, avatarRow] = await Promise.all([
+  const [kills, playerRow, dossier, avatarRow, obituaryRows] = await Promise.all([
     getLifeKills(db, serverId, gamertag, life.startedAt, life.endedAt),
     db.select({ lastSeenAt: players.lastSeenAt }).from(players).where(eq(players.gamertag, gamertag)),
     life.endedAt ? dossierForLife(db, gamertag, life) : Promise.resolve(null),
@@ -46,6 +49,27 @@ export async function getLifeTimeline(
         eq(gamertagLinks.status, "verified"),
         eq(sql`lower(${gamertagLinks.gamertag})`, gamertag.toLowerCase()),
       ))
+      .limit(1),
+    db
+      .select({ slug: articles.slug })
+      .from(articles)
+      .where(
+        and(
+          eq(articles.kind, "obituary"),
+          eq(articles.status, "published"),
+          eq(articles.serverId, serverId),
+          // `articles.gamertag` is frozen at publish time; a rename since then must not orphan
+          // the link. Match through the player's full alias history (player_gamertags — one row
+          // per (player_id, lower(gamertag)) this player has ever held) rather than the current
+          // gamertag alone.
+          sql`lower(${articles.gamertag}) IN (SELECT lower(pg.gamertag) FROM player_gamertags pg WHERE pg.player_id = ${life.playerId})`,
+          // Identify the life by the rebuild-stable natural key (server_id, gamertag,
+          // life_started_at) — matching `articles_kind_server_gamertag_life_uniq`. Never use
+          // `life_number`: it is a derived count from projection fold and shifts if the fold
+          // changes, while `life_started_at` is frozen at generation time and stays stable.
+          eq(articles.lifeStartedAt, life.startedAt),
+        ),
+      )
       .limit(1),
   ]);
   const qualifiedAt = lifeQualifiedAt({
@@ -67,5 +91,6 @@ export async function getLifeTimeline(
     hpLow: dossier?.hpLow ?? null,
     lastSeenAt: playerRow[0]?.lastSeenAt ?? null,
     avatarHash: avatarRow[0]?.hash ?? null,
+    obituarySlug: obituaryRows[0]?.slug ?? null,
   };
 }
