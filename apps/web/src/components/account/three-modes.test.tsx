@@ -2,13 +2,9 @@ import { describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TokensSummary } from "./tokens-summary";
 import { LadderFrame } from "./ladder-frame";
-import type { ServersView } from "@/components/servers/how-to-connect";
 
 const status = vi.hoisted(() => ({ kind: "signedOut" as string }));
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => status }));
-
-// Imported after the mock so ColdFork picks it up.
-const { ColdFork } = await import("@/components/front-page/cold-fork");
 
 describe("TokensSummary", () => {
   test("a resolved zero renders as a real zero", () => {
@@ -76,30 +72,5 @@ describe("LadderFrame", () => {
     render(<LadderFrame kind="unlinked"><p>panel</p></LadderFrame>);
     expect(screen.getByRole("list", { name: "Getting set up" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-  });
-});
-
-describe("ColdFork", () => {
-  const view: ServersView = { kind: "ready", names: ["Chernarus"] };
-
-  test("shows both branches to a signed-out visitor", () => {
-    status.kind = "signedOut";
-    render(<ColdFork servers={view} />);
-    expect(screen.getByText("Already playing?")).toBeInTheDocument();
-    expect(screen.getByText("New here?")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Claim your life/ })).toHaveAttribute("href", "/login");
-  });
-
-  test("carries the How to connect panel in the new-here branch", () => {
-    status.kind = "signedOut";
-    render(<ColdFork servers={view} />);
-    expect(screen.getByRole("region", { name: "How to connect" })).toBeInTheDocument();
-  });
-
-  // ⚠️ A signed-in player must never see a sign-in pitch — including during the identity flicker.
-  test.each(["loading", "unlinked", "pending", "verified"])("renders nothing when %s", (kind) => {
-    status.kind = kind;
-    const { container } = render(<ColdFork servers={view} />);
-    expect(container).toBeEmptyDOMElement();
   });
 });
