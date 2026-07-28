@@ -2,8 +2,14 @@ import { describe, it, expect } from "vitest";
 import { activeNavKey, NAV_ITEMS } from "./nav";
 
 describe("NAV_ITEMS", () => {
-  it("lists exactly the four sections in order", () => {
-    expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "maps", "leaderboard", "about"]);
+  it("lists exactly the five sections in order", () => {
+    expect(NAV_ITEMS.map((i) => i.key)).toEqual(["home", "maps", "leaderboard", "obituaries", "about"]);
+  });
+
+  it("Obituaries points at the public feed", () => {
+    const item = NAV_ITEMS.find((i) => i.key === "obituaries");
+    expect(item?.href).toBe("/obituaries");
+    expect(item?.label).toBe("Obituaries");
   });
 
   it("Survivors points at /survivors — sub-project D owns the route change", () => {
@@ -23,6 +29,8 @@ describe("activeNavKey", () => {
     ["/players/yrjustbad/livonia/lives/2", "leaderboard"],
     ["/maps", "maps"],
     ["/maps/op-cher", "maps"],
+    ["/obituaries", "obituaries"],
+    ["/obituaries/a-long-walk-ends-grumpy8269-1-3", "obituaries"],
     ["/about", "about"],
     ["/you", null],
     ["/login", null],

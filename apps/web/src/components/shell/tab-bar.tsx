@@ -16,14 +16,20 @@ const COMMON: Tab[] = [
   { href: "/survivors", label: "Survivors", icon: "▤" },
 ];
 
-const SIGNED_IN: Tab[] = [...COMMON, { href: "/friends", label: "Friends", icon: "◍" }, { href: "/you", label: "You", icon: "◉" }];
-const SIGNED_OUT: Tab[] = [...COMMON, { href: "/login", label: "Sign in", icon: "◉" }];
+// "Obits" not "Obituaries": the bar is five fixed-width columns at 320px and the long form does
+// not fit — the same short-form split the nav already uses for Maps/Map.
+const OBITS: Tab = { href: "/obituaries", label: "Obits", icon: "▧" };
+
+// You is deliberately absent: /you stays reachable at every width via AccountAffordance in the
+// masthead (no width gate, unlike the nav beside it), so the tab is free for a public surface.
+const SIGNED_IN: Tab[] = [...COMMON, { href: "/friends", label: "Friends", icon: "◍" }, OBITS];
+const SIGNED_OUT: Tab[] = [...COMMON, OBITS, { href: "/login", label: "Sign in", icon: "◉" }];
 
 /**
  * Mobile quick-access bar.
  *
  * It is NOT the nav. The nav is four sections (Home · Maps · Survivors · About); this is the
- * five things a player does often — which is why Friends and You appear here and About does not
+ * five things a player does often — which is why Friends and Obituaries appear here and About does not
  * (About lives in the footer).
  *
  * ⚠️ Height is a calc, never `h-16` plus bottom padding. Under `border-box` the safe-area padding

@@ -35,7 +35,7 @@ describe("buildObituaryPrompt", () => {
     const { user } = buildObituaryPrompt(mkFacts({
       causeCategory: "environment", cause: "died",
       verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
-      ordeals: { infected: { encounters: 3, hits: 9, worstEncounterHits: 5 }, fire: { encounters: 0, hits: 0, worstEncounterHits: 0 }, pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 }, buildsPlaced: 0 },
+      ordeals: { infected: { encounters: 3, hits: 9, worstEncounterHits: 5 }, fire: { encounters: 0, hits: 0, worstEncounterHits: 0 }, pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 } },
       hpLow: 8,
     }));
     expect(user).toContain("Run-ins with the infected: 3 (the worst took 5 hits)");
@@ -43,6 +43,20 @@ describe("buildObituaryPrompt", () => {
     expect(user).toContain("Lowest health recorded: 8 of 100");
     expect(user).toContain("hedge it in-voice");
     expect(user).toContain("never quote raw stat numbers");
+  });
+
+  it("never mentions building, even when a build count is smuggled in", () => {
+    const { user } = buildObituaryPrompt(mkFacts({
+      // buildsPlaced is no longer part of the type — cast it in deliberately, to prove the
+      // prompt builder ignores it rather than merely never receiving it.
+      ordeals: {
+        infected: { encounters: 1, hits: 2, worstEncounterHits: 2 },
+        fire: { encounters: 0, hits: 0, worstEncounterHits: 0 },
+        pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 },
+        buildsPlaced: 399,
+      } as ObituaryFacts["ordeals"],
+    }));
+    expect(user).not.toMatch(/built|building|structure/i);
   });
 
   it("a first-lifer gets the no-priors branch, never a priors bullet", () => {

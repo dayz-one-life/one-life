@@ -8,6 +8,7 @@ export const NAV_ITEMS = [
   // titles, the dossier back-link and the About copy. (The key stays `leaderboard` — it is
   // internal, and renaming it would churn every activeNavKey consumer for no user-visible gain.)
   { key: "leaderboard", href: "/survivors", label: "Survivors" },
+  { key: "obituaries", href: "/obituaries", label: "Obituaries" },
   { key: "about", href: "/about", label: "About" },
 ] as const;
 
@@ -26,6 +27,7 @@ export function activeNavKey(pathname: string): NavKey | null {
   if (pathname === "/") return "home";
   if (inSection(pathname, "/maps")) return "maps";
   if (inSection(pathname, "/survivors") || inSection(pathname, "/players")) return "leaderboard";
+  if (inSection(pathname, "/obituaries")) return "obituaries";
   if (inSection(pathname, "/about")) return "about";
   return null;
 }

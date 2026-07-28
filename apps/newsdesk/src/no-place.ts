@@ -22,6 +22,16 @@ const STRUCTURE_TERRAIN = [
   "hangar", "hangars", "bunker", "bunkers", "farmhouse", "farmhouses", "shack", "shacks",
   "garage", "garages", "hospital", "hospitals", "barracks", "lighthouse", "lighthouses",
   "rooftop", "rooftops", "stairwell", "stairwells", "attic", "attics", "basement", "basements",
+  // player-built construction — base-building is not obituary material (2026-07-28). These are
+  // GENERIC terms the type list above misses: an obituary said "a structure raised" and passed,
+  // and another said "No structure was cleared" with no build fact in play at all.
+  // ⚠️ Singular AND plural are both required — the matcher is (?<![a-z0-9])term(?![a-z0-9]),
+  // so "wall" does not match "walls".
+  // ⚠️ "built"/"building" also catch figurative use ("built a reputation"). That costs one retry
+  // and, at NEWSDESK_MAX_ATTEMPTS, a failure stub. Accepted deliberately; if failures climb,
+  // narrow to the nouns and drop these two.
+  "structure", "structures", "tent", "tents", "shelter", "shelters",
+  "fence", "fences", "wall", "walls", "built", "building", "buildings",
   // terrain
   "coast", "coasts", "coastline", "shore", "shoreline", "beach", "beaches",
   "forest", "forests", "woods", "woodland", "treeline", "tree line",

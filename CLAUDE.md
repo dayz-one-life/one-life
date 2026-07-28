@@ -36,9 +36,14 @@ file is **generated output** — edit the `.<plugin>.json` config and re-render,
   CI must test the Postgres the app runs on); `services.postgres.database: "onelife_test"` makes
   rigging emit
   `TEST_DATABASE_URL=…/onelife_test`, which the `assertTestDatabase` `_test` guard requires (the
-  harness self-creates + migrates that DB). Runs `pnpm install --frozen-lockfile` then `pnpm test`
-  (the root `turbo run test --concurrency=1` script — deliberately **not** a custom `testCommand`,
-  because a bare `turbo` has no `node_modules/.bin` on PATH in a `run:` step). This is the repo's
+  harness self-creates + migrates that DB). Runs `pnpm install --frozen-lockfile` then
+  **`pnpm run ci`** — `testCommand: ["pnpm","run","ci"]`, the root `turbo run typecheck test
+  --concurrency=1` script. **⚠️ The custom `testCommand` must stay a `pnpm run` invocation, never a
+  bare `turbo`**: a bare `turbo` has no `node_modules/.bin` on PATH in a `run:` step, which is why
+  this was `pnpm test` with no `testCommand` at all until 2026-07-28. Going through `pnpm run`
+  keeps `.bin` on PATH and closes the real gap — **CI never ran `typecheck`**, so every type-level
+  guarantee in the repo (e.g. `buildsPlaced` being absent from `ObituaryFacts`) was enforced only
+  on a contributor's machine. The local `pnpm test` stays tests-only. This is the repo's
   first real test CI. **Node 24, not the `engines.node >=20` floor:** vitest configs import
   `@onelife/test-support/setup-path` (a `.ts` file) that Vite's config loader resolves with a plain
   native `import()`, so the runtime must strip TS types itself — Node 20 throws
@@ -1270,13 +1275,26 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   + article page, a life-timeline link, and sitemap entries. New **No-Place Rule**: prose may name
   the map and nothing finer (no towns, no coordinates) — enforced both by prompt and by a
   deterministic post-generation validator.
+  **The NO-BUILD RULE (2026-07-28) is its sibling: base-building is never obituary material.**
+  Closed on three independent levers, because the prompt alone is a request, not a guarantee:
+  the `buildsPlaced` fact is gone from `ObituaryFacts` **at the type level** (`facts.ts` projects
+  the three kept ordeals explicitly rather than spreading the read-model, which still carries it),
+  `OBITUARY_SYSTEM` states the rule, and `no-place.ts`'s banned vocabulary gained the generic
+  construction terms the structure list missed (`structure`, `tent`, `shelter`, `fence`, `wall`,
+  `built`, `building` — **singular AND plural both required**, the matcher does not stem).
+  **⚠️ `built`/`building` also catch figurative use** ("built a reputation"), which costs a retry
+  and, at `NEWSDESK_MAX_ATTEMPTS` (3), a permanent failure stub — accepted deliberately. **If the
+  tick's `failed` count climbs, narrow the list to the nouns**; that is the intended remedy, not
+  raising the attempt cap.
 
 - **Sub-project B — App shell** ✅ (spec `docs/superpowers/specs/2026-07-24-b-app-shell-design.md`,
   plan `docs/superpowers/plans/2026-07-24-b-app-shell.md`): the chrome the rest of the pure-player
   rebuild hangs off. **Presentation only** — no migration, no API route, no env var, no worker;
   plain `./deploy/deploy.sh`.
-  **Nav is Home · Maps · Survivors · About.** (Renamed back from "Leaderboard" by the
-  UX-consistency pass, 2026-07-27 — the internal nav key is still `leaderboard`.) The route is
+  **Nav is Home · Maps · Survivors · Obituaries · About.** (Survivors was renamed back from
+  "Leaderboard" by the UX-consistency pass, 2026-07-27 — the internal nav key is still
+  `leaderboard`. **Obituaries** joined 2026-07-28, when the revived feed got its first route in
+  from anywhere but a life timeline.) The Survivors route is
   still `/survivors`, because sub-project D owns the move to a per-map board.
   **⚠️ `activeNavKey` matches Home by EXACT path, never `inSection`**: every path starts
   with `/`, so a prefix rule lights Home up on every page in the site.
@@ -1286,8 +1304,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `verification-announcer`), `components/servers/` (server cards), `components/friends/` and
   `components/shared/` (`GamertagAutocomplete`).
   **Below `md` a fixed `TabBar`** (`components/shell/tab-bar.tsx`) carries Home · Map · Survivors ·
-  Friends · You, dropping to four (Home · Map · Survivors · Sign in) when signed out and rendering
-  **nothing** while identity resolves. It **shares the `z-40` chrome layer with the masthead**
+  Friends · **Obits**, swapping Friends for Sign in when signed out (**five tabs in both states**,
+  since 2026-07-28) and rendering
+  **nothing** while identity resolves. **⚠️ `You` is deliberately NOT a tab** — `/you` stays
+  reachable at every width via the masthead `AccountAffordance`, which has no width gate (unlike
+  the nav beside it), so the slot was freed for a public surface. The label is the short **`Obits`**
+  only here: the bar is five fixed-width columns at 320px, and the nav and footer both say
+  Obituaries. It **shares the `z-40` chrome layer with the masthead**
   (they never overlap spatially) rather than adding a fourth altitude, and its height is
   `h-[calc(4rem+env(safe-area-inset-bottom))]` — **the inset must stay inside the calc**, since as
   padding under `border-box` it is subtracted from the box and collapses the row on a notched

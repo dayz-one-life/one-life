@@ -30,6 +30,12 @@ describe("system prompts carry the standing anti-repetition rule", () => {
   });
 });
 
+describe("the no-building rule is stated in the prompt, not only enforced", () => {
+  it("OBITUARY_SYSTEM forbids construction", () => {
+    expect(OBITUARY_SYSTEM.toLowerCase()).toContain("no-build");
+  });
+});
+
 describe("the No-Place Rule replaces the Fog Rule", () => {
   it("carries the No-Place Rule and has retired the Fog Rule", () => {
     expect(OBITUARY_SYSTEM).toContain("THE NO-PLACE RULE");

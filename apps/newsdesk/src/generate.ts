@@ -34,8 +34,8 @@ export async function generateObituary(
   const feedback = [
     user,
     "",
-    `Your previous draft was rejected: it broke THE NO-PLACE RULE by mentioning ${violations.join(", ")}.`,
-    `Rewrite the obituary with ZERO spatial or setting references — the map name is the only place you may use. Respond with only the JSON object.`,
+    `Your previous draft was rejected: it used banned subject matter — ${violations.join(", ")}. Locations and player-built construction are both off-limits.`,
+    `Rewrite with ZERO spatial or setting references and no mention of building or structures — the map name is the only place you may use. Respond with only the JSON object.`,
   ].join("\n");
   const second = parseObituary(await client.complete({ system, user: feedback }));
   const still = findPlaceViolations(second, { exempt });

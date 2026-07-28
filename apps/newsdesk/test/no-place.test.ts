@@ -54,4 +54,21 @@ describe("findPlaceViolations", () => {
     const dirty = { ...clean, body: "THE CHURCH WAS QUIET." };
     expect(findPlaceViolations(dirty, { exempt: [] })).toEqual(["church"]);
   });
+
+  it("catches generic construction words the type list misses", () => {
+    const dirty = { ...clean, body: "A structure raised with what little time remained." };
+    expect(findPlaceViolations(dirty, { exempt: [] })).toEqual(["structure"]);
+  });
+
+  it("catches the verb forms, singular and plural", () => {
+    const built = { ...clean, body: "He built walls faster than he used them." };
+    expect(findPlaceViolations(built, { exempt: [] }).sort()).toEqual(["built", "walls"]);
+    const many = { ...clean, lede: "Ninety-five structures went up." };
+    expect(findPlaceViolations(many, { exempt: [] })).toEqual(["structures"]);
+  });
+
+  it("still exempts a gamertag that contains a construction word", () => {
+    const dirty = { ...clean, body: "WallBuilder99 died alone." };
+    expect(findPlaceViolations(dirty, { exempt: ["WallBuilder99"] })).toEqual([]);
+  });
 });

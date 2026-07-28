@@ -3,6 +3,7 @@
   "stacks": {
     "node": {
       "packageManager": "pnpm",
+      "testCommand": ["pnpm", "run", "ci"],
       "versions": ["24"],
       "services": {
         "postgres": {
