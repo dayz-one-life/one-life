@@ -24,7 +24,7 @@ export function CtaSlab({ servers }: { servers: ServersView }) {
       <div className="mt-7">
         <ClaimCta large />
       </div>
-      <div className="mx-auto mt-9 max-w-lg border border-dark-line bg-dark-well p-5 text-left">
+      <div className="mx-auto mt-9 w-full max-w-lg border border-dark-line bg-dark-well p-5 text-left">
         <p className="font-mono text-[10.5px] uppercase tracking-[.16em] text-cream-dim">
           Play first, claim later — no account needed to play
         </p>

@@ -1,11 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { CtaSlab } from "./cta-slab";
+import type { ServersView } from "@/components/servers/how-to-connect";
 
 const mockStatus = vi.fn();
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus() }));
 
-const servers = { kind: "ready", names: ["Chernarus", "Sakhal", "Livonia"] } as const;
+const servers: ServersView = { kind: "ready", names: ["Chernarus", "Sakhal", "Livonia"] };
 
 describe("CtaSlab", () => {
   it("renders the ask, the CTA and the dark connect panel for signed-out visitors", () => {
