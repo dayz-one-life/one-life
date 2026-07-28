@@ -69,7 +69,8 @@ export function Masthead() {
     // nav inline beside it, bell + avatar right — the two-tier tabloid masthead (big centered
     // wordmark over a nav row) is retired with the tabloid.
     <header className="relative z-40 bg-dark">
-      <div className="flex h-14 items-center gap-7 px-4 md:px-6">
+      {/* Same box as (boxed)/layout.tsx — on an ultrawide the wordmark must align with the content edge, not the viewport edge. The dark bar itself stays full-bleed. */}
+      <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-7 px-4 md:px-6 xl:px-10">
         <Link href="/" aria-label="One Life — home" className="flex-none">
           <img
             src="/brand/wordmark-primary@2x.png"
