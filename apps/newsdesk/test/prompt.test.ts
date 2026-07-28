@@ -45,13 +45,16 @@ describe("buildObituaryPrompt", () => {
     expect(user).toContain("never quote raw stat numbers");
   });
 
-  it("never mentions building, even when the life placed structures", () => {
+  it("never mentions building, even when a build count is smuggled in", () => {
     const { user } = buildObituaryPrompt(mkFacts({
+      // buildsPlaced is no longer part of the type — cast it in deliberately, to prove the
+      // prompt builder ignores it rather than merely never receiving it.
       ordeals: {
         infected: { encounters: 1, hits: 2, worstEncounterHits: 2 },
         fire: { encounters: 0, hits: 0, worstEncounterHits: 0 },
         pvp: { encounters: 0, hits: 0, worstEncounterHits: 0 },
-      },
+        buildsPlaced: 399,
+      } as ObituaryFacts["ordeals"],
     }));
     expect(user).not.toMatch(/built|building|structure/i);
   });
