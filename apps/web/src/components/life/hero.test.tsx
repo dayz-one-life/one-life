@@ -94,4 +94,19 @@ describe("LifeHero", () => {
     render(<LifeHero data={d} view={buildTimeline(d, now)} />);
     expect(screen.getByText(/snapshot · this life/i)).toBeInTheDocument();
   });
+
+  test("links the published obituary when the timeline carries a slug", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const d = data({ obituarySlug: "the-end-abc-1-4" });
+    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    const link = screen.getByRole("link", { name: /read the obituary/i });
+    expect(link).toHaveAttribute("href", "/obituaries/the-end-abc-1-4");
+  });
+
+  test("renders no obituary link when the slug is null", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const d = data({ obituarySlug: null });
+    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    expect(screen.queryByRole("link", { name: /read the obituary/i })).toBeNull();
+  });
 });
