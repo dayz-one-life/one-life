@@ -47,6 +47,7 @@ function page(overrides: Partial<PlayerPage> = {}): PlayerPage {
   return {
     gamertag: "YrJustBad",
     verified: true,
+    avatarHash: null,
     firstSeenAt: "2026-07-01T00:00:00Z",
     aliveAnywhere: true,
     totals: { kills: 2, lives: 4, deaths: 2, longestLifeSeconds: 82440 },

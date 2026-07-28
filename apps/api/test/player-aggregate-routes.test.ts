@@ -35,6 +35,7 @@ describe("GET /players/:gamertag", () => {
     expect(body).toHaveProperty("standing");
     expect(body).toHaveProperty("pastLives");
     expect(body).toHaveProperty("totals");
+    expect(body).toHaveProperty("avatarHash");
     expect(body.gamertag).toBe("Twhizzle4life");
   });
   it("carries pagination fields and accepts ?page=", async () => {

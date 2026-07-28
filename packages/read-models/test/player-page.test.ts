@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, bans, gamertagLinks, user } from "@onelife/db";
+import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getPlayerPage } from "../src/player-page.js";
 
@@ -366,5 +366,84 @@ describe("getPlayerPage: a provisional (unqualified) open life is visible but ma
     const card = pg!.standing.find((s) => s.slug === `q-${svcQ}`)!;
     expect(card.alive!.qualified).toBe(true);
     expect(card.alive!.qualifiedAt!.by).toBe("kill");
+  });
+});
+
+// ── avatarHash ─────────────────────────────────────────────────────────────────────────────────
+// The dossier's avatar — the board's exact clause pair (avatar-account-pass spec §5): only a
+// VERIFIED link with a LIVE (non-tombstoned) avatar contributes; a pending link or a removed
+// avatar resolves to null exactly like no row at all.
+describe("getPlayerPage: avatarHash", () => {
+  const svcAv = Math.floor(Math.random() * 1e8) + 62e7;
+  let avServer: number;
+  const gamertagWithAvatar = `AvatarLive${svcAv}`;
+  const gamertagPendingLink = `AvatarPending${svcAv}`;
+  const gamertagTombstone = `AvatarTombstone${svcAv}`;
+  const userLive = `pp-av-live-${svcAv}`;
+  const userPending = `pp-av-pending-${svcAv}`;
+  const userTombstone = `pp-av-tombstone-${svcAv}`;
+
+  async function insertAvatarLink(opts: {
+    gamertag: string;
+    userId: string;
+    status: "pending" | "verified";
+    hash: string | null;
+    imageNull?: boolean;
+  }) {
+    await db.insert(user).values({ id: opts.userId, name: opts.userId, email: `${opts.userId}@example.com` });
+    await db.insert(gamertagLinks).values({
+      userId: opts.userId,
+      gamertag: opts.gamertag,
+      status: opts.status,
+      verifiedAt: opts.status === "verified" ? now : null,
+    });
+    await db.insert(avatars).values({
+      userId: opts.userId,
+      image: opts.imageNull ? null : Buffer.from("fake-avatar-bytes"),
+      hash: opts.hash,
+      source: opts.imageNull ? null : "upload",
+      updatedAt: now,
+    });
+  }
+
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcAv, name: "pp-avatar", map: "chernarusplus", slug: `avatar-${svcAv}`, active: true }).returning();
+    avServer = s!.id;
+
+    const [pLive] = await db.insert(players).values({ gamertag: gamertagWithAvatar, firstSeenAt: hoursAgo(10), lastSeenAt: now }).returning();
+    await db.insert(lives).values({ serverId: avServer, playerId: pLive!.id, lifeNumber: 1, startedAt: hoursAgo(10), endedAt: hoursAgo(9), playtimeSeconds: 600 });
+    await insertAvatarLink({ gamertag: gamertagWithAvatar, userId: userLive, status: "verified", hash: "abc123" });
+
+    const [pPending] = await db.insert(players).values({ gamertag: gamertagPendingLink, firstSeenAt: hoursAgo(10), lastSeenAt: now }).returning();
+    await db.insert(lives).values({ serverId: avServer, playerId: pPending!.id, lifeNumber: 1, startedAt: hoursAgo(10), endedAt: hoursAgo(9), playtimeSeconds: 600 });
+    await insertAvatarLink({ gamertag: gamertagPendingLink, userId: userPending, status: "pending", hash: "pend456" });
+
+    const [pTomb] = await db.insert(players).values({ gamertag: gamertagTombstone, firstSeenAt: hoursAgo(10), lastSeenAt: now }).returning();
+    await db.insert(lives).values({ serverId: avServer, playerId: pTomb!.id, lifeNumber: 1, startedAt: hoursAgo(10), endedAt: hoursAgo(9), playtimeSeconds: 600 });
+    await insertAvatarLink({ gamertag: gamertagTombstone, userId: userTombstone, status: "verified", hash: "dead99", imageNull: true });
+  });
+
+  afterAll(async () => {
+    await db.delete(lives).where(eq(lives.serverId, avServer));
+    await db.delete(avatars).where(inArray(avatars.userId, [userLive, userPending, userTombstone]));
+    await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [userLive, userPending, userTombstone]));
+    await db.delete(user).where(inArray(user.id, [userLive, userPending, userTombstone]));
+    await db.delete(players).where(inArray(players.gamertag, [gamertagWithAvatar, gamertagPendingLink, gamertagTombstone]));
+    await db.delete(servers).where(eq(servers.id, avServer));
+  });
+
+  it("carries the verified owner's live avatar hash", async () => {
+    const page = await getPlayerPage(db, gamertagWithAvatar, now);
+    expect(page?.avatarHash).toBe("abc123");
+  });
+
+  it("a PENDING link contributes no hash", async () => {
+    const page = await getPlayerPage(db, gamertagPendingLink, now);
+    expect(page?.avatarHash).toBeNull();
+  });
+
+  it("a TOMBSTONED avatar (image NULL) contributes no hash", async () => {
+    const page = await getPlayerPage(db, gamertagTombstone, now);
+    expect(page?.avatarHash).toBeNull();
   });
 });
