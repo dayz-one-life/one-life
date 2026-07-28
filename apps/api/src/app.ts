@@ -15,6 +15,7 @@ import { registerPlayerAggregateRoutes } from "./routes/player-aggregate.js";
 import { registerGlobalRoutes } from "./routes/global.js";
 import { registerAuthMethodsRoute } from "./routes/auth-methods.js";
 import { registerSurvivorsRoutes } from "./routes/survivors.js";
+import { registerStatsRoutes } from "./routes/stats.js";
 import { registerObituariesRoutes } from "./routes/obituaries.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerLifeTrackRoutes } from "./routes/life-track.js";
@@ -65,6 +66,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   registerPlayerAggregateRoutes(app, db);
   registerGlobalRoutes(app, db);
   registerSurvivorsRoutes(app, db);
+  registerStatsRoutes(app, db);
   registerObituariesRoutes(app, db);
   registerSitemapRoutes(app, db);
   // Public, hash-addressed avatar bytes — registered unconditionally like the other public
