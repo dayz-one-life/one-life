@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Tasks:** 7 (Task 7 added mid-execution — see its header)
+
 **Goal:** Remove all base-building content from generated obituaries, and give `/obituaries` a link in the site navigation.
 
 **Architecture:** Building enters obituaries two ways and both close independently — the `buildsPlaced` fact fed to the prompt (removed at the type level so it cannot be reintroduced by accident), and the model's own unprompted use of construction words (caught by the existing validator, whose banned vocabulary gains construction terms). The web half adds a fifth nav item and reallocates one mobile tab.
@@ -427,6 +429,87 @@ Under `## [Unreleased]` in `CHANGELOG.md`, matching the file's existing subsecti
 ```bash
 git add CHANGELOG.md
 git commit -m "docs: changelog for obituary no-build rule and nav link"
+```
+
+---
+
+### Task 7: Run typecheck in CI
+
+**Added mid-execution.** Task 1's guarantee is that `buildsPlaced` is gone at the *type* level, so a
+future edit printing it fails `tsc`. The Task 1 review established that **CI never runs typecheck** —
+`.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile` then `pnpm test` only, and
+`turbo.json`'s `typecheck` task is never invoked. The type-level protection is therefore real
+locally and absent in the pipeline. This task closes that.
+
+**Files:**
+- Modify: `.rigging.json` (the `node` stack)
+- Modify: `package.json` (root scripts)
+- Regenerate: `.github/workflows/ci.yml`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces: CI runs typecheck and tests. No source-code interface change.
+
+⚠️ **`.github/workflows/ci.yml` is GENERATED output — never hand-edit it.** Per CLAUDE.md, edit
+`.rigging.json` and re-render. A hand-edit silently forks the file from the plugin and is lost on the
+next re-render.
+
+⚠️ **Do not put a bare `turbo` invocation in `testCommand`.** CLAUDE.md records why the repo uses the
+default `pnpm test` rather than a custom command: a bare `turbo` has no `node_modules/.bin` on PATH in
+a GitHub Actions `run:` step. Going through `pnpm run` (as below) keeps `.bin` on PATH and avoids that.
+
+- [ ] **Step 1: Add the root `ci` script**
+
+In the root `package.json`, add to `scripts` (keep the existing `test` script unchanged — local
+`pnpm test` should stay tests-only):
+
+```json
+    "ci": "turbo run typecheck test --concurrency=1",
+```
+
+- [ ] **Step 2: Point rigging at it**
+
+In `.rigging.json`, add `testCommand` to the `node` stack, beside `packageManager`:
+
+```json
+      "testCommand": ["pnpm", "run", "ci"],
+```
+
+- [ ] **Step 3: Re-render the workflow**
+
+Run from the worktree root. This is rigging's own renderer, so the output is exactly what the plugin
+would scaffold — verified to round-trip the current file byte-identically before this change:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0,'/home/acab/.claude/plugins/cache/shipyard/rigging/0.9.0')
+from rigging.config import load_config
+from rigging.plan import build_plan
+from rigging.render import render
+from pathlib import Path
+Path('.github/workflows/ci.yml').write_text(render(build_plan(load_config(Path('.')))))
+print('rendered')
+"
+```
+
+- [ ] **Step 4: Verify the diff is exactly one line**
+
+Run: `git diff .github/workflows/ci.yml`
+Expected: the single `- run: "pnpm test"` line becomes `- run: "pnpm run ci"`. Nothing else may
+change — no reordering, no changed action SHAs, no altered service block. If anything else moved,
+stop and report it; that means the checked-in file had drifted from the generator.
+
+- [ ] **Step 5: Verify the command actually works**
+
+Run: `pnpm run ci`
+Expected: both `typecheck` and `test` run across the workspace and PASS. This is the command CI will
+run, so a failure here is a red CI.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add .rigging.json package.json .github/workflows/ci.yml
+git commit -m "ci: run typecheck alongside tests"
 ```
 
 ---
