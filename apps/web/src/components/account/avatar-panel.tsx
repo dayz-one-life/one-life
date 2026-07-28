@@ -46,7 +46,11 @@ function avatarErrorMessage(err: unknown): string {
 export function AvatarPanel() {
   const qc = useQueryClient();
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar });
-  const invalidate = () => void qc.invalidateQueries({ queryKey: ["avatar"] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["avatar"] });
+    // The dossier hero + board read the hash through the player page; a change must reach them.
+    void qc.invalidateQueries({ queryKey: ["player-page"] });
+  };
   const [announcement, setAnnouncement] = useState("");
   const clearAnnouncement = () => setAnnouncement("");
 

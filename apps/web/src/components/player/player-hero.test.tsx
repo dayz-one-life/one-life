@@ -122,4 +122,16 @@ describe("PlayerHero", () => {
     renderHero(<PlayerHero page={page({ gamertag: "SomeoneElse", verified: true })} />);
     expect(await screen.findByRole("button", { name: /add friend/i })).toBeInTheDocument();
   });
+
+  test("renders the portrait disc when a hash is present", () => {
+    renderHero(<PlayerHero page={page({ avatarHash: "abc123" })} />);
+    const img = document.querySelector('img[src="/api/avatars/abc123.webp"]');
+    expect(img).not.toBeNull();
+    expect(img).toHaveAttribute("alt", "");
+  });
+
+  test("renders NO disc and no placeholder without a hash", () => {
+    renderHero(<PlayerHero page={page({ avatarHash: null })} />);
+    expect(document.querySelector("img")).toBeNull();
+  });
 });
