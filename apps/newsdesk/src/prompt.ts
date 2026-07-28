@@ -100,7 +100,6 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
     if (o.infected.encounters > 0) lines.push(`- Run-ins with the infected: ${o.infected.encounters}${o.infected.worstEncounterHits > 1 ? ` (the worst took ${o.infected.worstEncounterHits} hits)` : ""}`);
     if (o.fire.encounters > 0) lines.push(`- Times caught fire: ${o.fire.encounters}`);
     if (o.pvp.encounters > 0) lines.push(`- Firefights that left a mark before the end: ${o.pvp.encounters}`);
-    if (o.buildsPlaced > 0) lines.push(`- Things built this life: ${o.buildsPlaced}`);
   }
   if (facts.hpLow != null && facts.hpLow < 50) lines.push(`- Lowest health recorded: ${Math.round(facts.hpLow)} of 100`);
   lines.push("");

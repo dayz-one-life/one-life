@@ -31,7 +31,7 @@ export interface ObituaryFacts {
   endedAt: string;
   deathDistance: number | null;
   verdict: { cause: string; confidence: "high" | "low"; conditions: string[] } | null;
-  ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary; buildsPlaced: number } | null;
+  ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary } | null;
   hpLow: number | null;
   priors: PlayerPriors;        // the player's global reputation before this life
   isKnownQuantity: boolean;    // priors.livesLived > 0
@@ -128,7 +128,11 @@ export function buildObituaryFacts(
     verdict: timeline.verdict
       ? { cause: timeline.verdict.cause, confidence: timeline.verdict.confidence, conditions: timeline.verdict.conditions }
       : null,
-    ordeals: timeline.ordeals ?? null,
+    // buildsPlaced is deliberately NOT carried across: base-building is not obituary material,
+    // and omitting it at the type level means a later edit cannot print it by accident.
+    ordeals: timeline.ordeals
+      ? { infected: timeline.ordeals.infected, fire: timeline.ordeals.fire, pvp: timeline.ordeals.pvp }
+      : null,
     hpLow: timeline.hpLow ?? null,
     priors,
     isKnownQuantity: priors.livesLived > 0,
