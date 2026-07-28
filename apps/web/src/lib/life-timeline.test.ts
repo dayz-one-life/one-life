@@ -31,6 +31,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     qualifiedAt: { at: at(5), by: "playtime" },
     verdict: null,
     avatarHash: null,
+    obituarySlug: null,
     ...over,
   };
 }
