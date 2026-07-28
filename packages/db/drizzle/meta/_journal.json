@@ -211,6 +211,13 @@
       "when": 1785900000000,
       "tag": "0029_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785990000000,
+      "tag": "0030_articles_revival",
+      "breakpoints": true
     }
   ]
 }
