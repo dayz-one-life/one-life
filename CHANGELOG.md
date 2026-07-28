@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The masthead avatar is a menu now (profile / claim + sign out), and the masthead row no longer
+  stretches to the edges of an ultrawide monitor. The `/you` page is gone — your avatar is
+  managed on your own player page (verified players only), where your photo now appears; the
+  survivors board shows every player's avatar in three sizes (leader largest, top five medium,
+  the rest small).
+
 ## [0.55.0] - 2026-07-28
 
 ### Changed

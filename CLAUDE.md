@@ -198,9 +198,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   **R2 restyle (still current):** the visible `<h1>` is `{Map} survivors` (the SEO phrase
   `Top {Map} survivors` — no `by {sort}` clause since D2 — lives only in `<title>`/OG via
   `survivor-metadata.ts`); rows are **tiered by global rank** (`tierFor`,
-  `@/components/survivors/format`): rank 1 = hero row on tint with a 76px square portrait and the
-  only stat label, ranks 2–3 = podium rows with 60px portraits, 4+ (and all of pages 2+) = compact
-  text rows with no portrait. **Every row shows time alive and nothing else** — kills and longest
+  `@/components/survivors/format`): rank 1 = hero row on tint with a 96px avatar and the
+  only stat label, ranks 2–5 = podium rows with 60px avatars, 6+ (and all of pages 2+) = compact
+  text rows with a 28px initial-disc avatar. **Every row shows time alive and nothing else** — kills and longest
   kill survive as TIE-BREAKS in the read-model, never as a displayed stat; the hero row keeps a
   kills flourish. Portraits are decorative
   (`alt=""`, no img role — tests query the DOM directly). Pagination is a mono-box bar with a
@@ -211,9 +211,9 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   survivors with no ranged kills both metric to `-Infinity`) and the public
   `GET /survivors/:slug` API route. **⚠️ The `sort` query parameter is DROPPED from the Zod
   schema, not accepted-and-ignored** — silently tolerating a dead parameter is how a caller comes
-  to believe it still works. Avatars resolve via
-  `rosterByClass(characterClass).name` → `/characters/<name>.webp` (silhouette fallback for an
-  unknown/no character). Gamertag filtering was scoped out of this pass.
+  to believe it still works. **Avatar/account pass:** portraits are login avatars now, not
+  character art — a verified, non-tombstoned `avatars` row's hash, silhouette/initial-disc
+  fallback otherwise. Gamertag filtering was scoped out of this pass.
 - **Player pages** ✅: a public, SEO-optimized profile at `/players/[slug]` — a cross-server totals
   hero, per-server current standing (alive / banned / idle) with a live ban countdown, paginated
   past-life history (since R2: compact **funeral cards** — map, dateline, death line, and a
@@ -1552,8 +1552,12 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `verified` `gamertag_links` row on `lower(gamertag)`, exactly the boundary self-unban and
   friend location sharing already enforce, and a tombstoned row must resolve to `null` →
   silhouette exactly like no row at all. An unverified or renamed-away gamertag also yields
-  `null`. The player dossier stays deliberately avatar-free (unchanged since the v0.11.0
-  redesign).
+  `null`. **The dossier is no longer avatar-free (avatar/account pass).** It joins `avatars`
+  through the same verified + non-tombstoned rule as the board and timeline, and the page's
+  signed-in owner (session gamertag matches the page, verified) gets an in-place upload/remove
+  control there — the same `AvatarPanel` component the old `/you` page carried. **`/you` is
+  DELETED**: avatar management moved onto the dossier (verified players only), and sign-out lives
+  in the masthead avatar menu (`account-affordance.tsx`) instead.
   **Deploy:** migration `0029` creates `avatars` and drops `characters`, `character_sightings`
   **and `rpt_files`** (the RPT ingest-cursor table) — touches one durable table and drops three
   projection tables, so it deploys with a plain `./deploy/deploy.sh`, **no `--rebuild`** (nothing

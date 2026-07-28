@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags } from "@onelife/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags, avatars } from "@onelife/db";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getPlayerProfile, getPlayerLives } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
 import { resolveGamertagBySlug } from "./player-aggregate.js";
@@ -42,7 +42,7 @@ export interface ServerStanding { serverId: number; map: string; slug: string; s
   lastEndedAt: Date | null; }
 export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
 export interface PlayerPage {
-  gamertag: string; verified: boolean; firstSeenAt: Date | null; aliveAnywhere: boolean;
+  gamertag: string; verified: boolean; avatarHash: string | null; firstSeenAt: Date | null; aliveAnywhere: boolean;
   totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number };
   /** Longest ENDED qualified life, across all servers. `totals.longestLifeSeconds` includes the
    *  open life, so it cannot answer "previous best" while the current run IS the record — this
@@ -87,6 +87,26 @@ export async function getPlayerPage(
     for (const a of aliasRows) identityNames.push(a.gamertag.toLowerCase());
   }
   const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames), eq(gamertagLinks.status, "verified"))).limit(1);
+
+  // The dossier's avatar — the board's exact clause pair (avatar-account-pass spec §5): only a
+  // VERIFIED link with a LIVE (non-tombstoned) avatar contributes; pending links and removals
+  // resolve to null exactly like no row at all.
+  // ⚠️ Two DIFFERENT users can each hold a verified link inside `identityNames` — the current
+  // gamertag's owner, and a former-name (alias) holder who never released their now-stale link.
+  // Without an explicit tie-break the row picked was whatever the query planner happened to
+  // return first, which could surface a re-verified former owner's photo on today's page. Order
+  // so an EXACT match on the page's current gamertag always outranks an alias match; the alias
+  // fallback stays for a renamed owner who hasn't re-verified under the new name yet.
+  const [avatarRow] = await db
+    .select({ hash: avatars.hash })
+    .from(gamertagLinks)
+    .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image)))
+    .where(and(
+      eq(gamertagLinks.status, "verified"),
+      inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames),
+    ))
+    .orderBy(sql`(lower(${gamertagLinks.gamertag}) = ${gamertag.toLowerCase()}) DESC`)
+    .limit(1);
 
   const standing: ServerStanding[] = [];
   const endedLives: { row: LifeRow; serverId: number; map: string; slug: string }[] = [];
@@ -206,7 +226,7 @@ export async function getPlayerPage(
     pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), death: { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: dossierVerdict(dossier) }, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
   }
 
-  return { gamertag, verified: !!vf, firstSeenAt: p?.firstSeenAt ?? null, // A provisional life does NOT count: this feeds the public dossier's `Alive xN` badge and is
+  return { gamertag, verified: !!vf, avatarHash: avatarRow?.hash ?? null, firstSeenAt: p?.firstSeenAt ?? null, // A provisional life does NOT count: this feeds the public dossier's `Alive xN` badge and is
   // leaderboard-facing, so a grace-period player is not yet part of it.
   aliveAnywhere: standing.some((s) => s.state === "alive" && s.alive?.qualified === true), totals, previousBestSeconds, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
 }

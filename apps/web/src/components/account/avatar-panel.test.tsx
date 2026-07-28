@@ -9,6 +9,7 @@ const getAvatar = vi.fn();
 const uploadAvatar = vi.fn();
 const syncAvatar = vi.fn();
 const removeAvatar = vi.fn();
+const routerRefresh = vi.fn();
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
@@ -20,6 +21,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
     removeAvatar: (...a: unknown[]) => removeAvatar(...a),
   };
 });
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: routerRefresh }) }));
 
 function wrap(ui: ReactNode) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -34,6 +37,18 @@ describe("AvatarPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getAvatar.mockResolvedValue({ hash: null });
+  });
+
+  // The dossier hero is server-rendered (RSC) and isn't reachable through the query-cache
+  // invalidations alone — router.refresh() is what actually reaches it.
+  test("a successful change also calls router.refresh, reaching the server-rendered dossier hero", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    removeAvatar.mockResolvedValue({ ok: true });
+    wrap(<AvatarPanel />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar removed"));
+    expect(routerRefresh).toHaveBeenCalled();
   });
 
   test("shows the silhouette and no fabricated 'no avatar' claim while loading", () => {

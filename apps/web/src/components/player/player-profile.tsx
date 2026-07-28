@@ -3,6 +3,7 @@ import type { PlayerPage } from "@/lib/types";
 import { absoluteUrl, profileLd, ldScript } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { PlayerHero } from "./player-hero";
+import { OwnerAvatar } from "./owner-avatar";
 import { StandingCard } from "./standing-card";
 import { PastLifeCard } from "./past-life-card";
 import { PlayerPagination } from "./player-pagination";
@@ -33,6 +34,7 @@ export function PlayerProfile({
 
       <div className="mt-3">
         <PlayerHero page={page} />
+        <OwnerAvatar pageGamertag={page.gamertag} />
       </div>
 
       {aliveOrBanned.length > 0 && (

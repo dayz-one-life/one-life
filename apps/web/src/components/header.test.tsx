@@ -86,4 +86,17 @@ describe("Masthead", () => {
     expect(z).toBeGreaterThan(0);
     expect(z).toBeLessThan(50);
   });
+
+  it("contains the row to the boxed content width on ultrawide screens", () => {
+    const { container } = render(<Masthead />);
+    const row = container.querySelector("header > div");
+    expect(row).not.toBeNull();
+    // Must match the (boxed) layout's box: centered, capped at 1440px, xl gutter.
+    // Use space-based boundaries like the altitude test above, since word boundaries don't work
+    // well with Tailwind classes containing non-word chars (hyphens, brackets).
+    expect(row!.className).toMatch(/(^|\s)mx-auto(\s|$)/);
+    expect(row!.className).toMatch(/(^|\s)max-w-\[1440px\](\s|$)/);
+    expect(row!.className).toMatch(/(^|\s)xl:px-10(\s|$)/);
+    expect(row!.className).toMatch(/(^|\s)w-full(\s|$)/);
+  });
 });

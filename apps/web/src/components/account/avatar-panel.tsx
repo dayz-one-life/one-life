@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, getAvatar, removeAvatar, syncAvatar, uploadAvatar } from "@/lib/api";
 import { Avatar } from "@/components/shared/avatar";
@@ -45,8 +46,17 @@ function avatarErrorMessage(err: unknown): string {
  */
 export function AvatarPanel() {
   const qc = useQueryClient();
+  const router = useRouter();
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar });
-  const invalidate = () => void qc.invalidateQueries({ queryKey: ["avatar"] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["avatar"] });
+    // `["player-page"]` only backs Home's client-side reads — it can't reach the dossier hero,
+    // which is server-rendered (`app/(site)/(boxed)/players/[slug]/page.tsx` fetches
+    // `getPlayerPage` in an RSC). `router.refresh()` is what actually reaches that hero: it
+    // re-runs the server component with fresh data. Both invalidations stay for Home.
+    void qc.invalidateQueries({ queryKey: ["player-page"] });
+    router.refresh();
+  };
   const [announcement, setAnnouncement] = useState("");
   const clearAnnouncement = () => setAnnouncement("");
 

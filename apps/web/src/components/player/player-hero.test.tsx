@@ -47,6 +47,7 @@ function page(overrides: Partial<PlayerPage> = {}): PlayerPage {
   return {
     gamertag: "YrJustBad",
     verified: true,
+    avatarHash: null,
     firstSeenAt: "2026-07-01T00:00:00Z",
     aliveAnywhere: true,
     totals: { kills: 2, lives: 4, deaths: 2, longestLifeSeconds: 82440 },
@@ -120,5 +121,17 @@ describe("PlayerHero", () => {
   test("FriendButton mounts for a verified target that isn't the viewer", async () => {
     renderHero(<PlayerHero page={page({ gamertag: "SomeoneElse", verified: true })} />);
     expect(await screen.findByRole("button", { name: /add friend/i })).toBeInTheDocument();
+  });
+
+  test("renders the portrait disc when a hash is present", () => {
+    renderHero(<PlayerHero page={page({ avatarHash: "abc123" })} />);
+    const img = document.querySelector('img[src="/api/avatars/abc123.webp"]');
+    expect(img).not.toBeNull();
+    expect(img).toHaveAttribute("alt", "");
+  });
+
+  test("renders NO disc and no placeholder without a hash", () => {
+    renderHero(<PlayerHero page={page({ avatarHash: null })} />);
+    expect(document.querySelector("img")).toBeNull();
   });
 });

@@ -20,8 +20,9 @@ const COMMON: Tab[] = [
 // not fit — the same short-form split the nav already uses for Maps/Map.
 const OBITS: Tab = { href: "/obituaries", label: "Obits", icon: "▧" };
 
-// You is deliberately absent: /you stays reachable at every width via AccountAffordance in the
-// masthead (no width gate, unlike the nav beside it), so the tab is free for a public surface.
+// You is deliberately absent: account entry stays reachable at every width via AccountAffordance
+// in the masthead (no width gate, unlike the nav beside it), so the tab is free for a public
+// surface.
 const SIGNED_IN: Tab[] = [...COMMON, { href: "/friends", label: "Friends", icon: "◍" }, OBITS];
 const SIGNED_OUT: Tab[] = [...COMMON, OBITS, { href: "/login", label: "Sign in", icon: "◉" }];
 

@@ -22,7 +22,7 @@ describe("TabBar", () => {
     for (const name of ["Home", "Map", "Survivors", "Friends", "Obits"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
-    // /you is still reachable — AccountAffordance in the masthead has no width gate.
+    // Account entry is still reachable — AccountAffordance in the masthead has no width gate.
     expect(screen.queryByRole("link", { name: "You" })).toBeNull();
   });
 

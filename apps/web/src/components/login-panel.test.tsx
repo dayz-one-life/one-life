@@ -19,7 +19,7 @@ describe("LoginPanel", () => {
     render(<LoginPanel providers={["discord"]} magicLink={false} />);
     expect(screen.getByText(/already signed in/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /discord/i })).toBeNull();
-    expect(screen.getByRole("link", { name: /your account/i })).toHaveAttribute("href", "/you");
+    expect(screen.getByRole("link", { name: /home/i })).toHaveAttribute("href", "/");
   });
 
   it("loading: renders the form (no signed-in flash for anonymous visitors)", () => {
