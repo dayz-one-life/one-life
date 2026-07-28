@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getServers, getSurvivors } from "@/lib/api";
+import { getServers, getSurvivors, getSiteStats } from "@/lib/api";
 import { settleFeed } from "@/lib/settle-feed";
 import { Hero } from "@/components/front-page/hero";
 import { TopSurvivors } from "@/components/front-page/top-survivors";
@@ -60,12 +60,16 @@ export default async function Home() {
     ? await settleFeed(getSurvivors({ slug: boardSlug, page: 1 }))
     : { data: null, failed: servers.failed };
 
+  // The ledger's numbers. Its OWN settleFeed: a failed stats fetch costs only the ledger (the
+  // hero falls back to the evergreen headline) — never the board strip or the cold fork.
+  const stats = await settleFeed(getSiteStats());
+
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px]">
       <main className="mx-auto w-full min-w-0 max-w-5xl xl:border-r xl:border-ink xl:pr-8">
         {!signedIn && (
           <>
-            <Hero />
+            <Hero stats={stats.data} />
             {survivors.failed && (
               <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
             )}
