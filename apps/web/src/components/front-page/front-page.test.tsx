@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import type { SurvivorRow, SiteStats } from "@/lib/types";
+import type { SurvivorRow } from "@/lib/types";
 import { Hero } from "./hero";
 import { TopSurvivors } from "./top-survivors";
 import { SignInCta } from "./signin-cta";
@@ -8,6 +8,11 @@ import { SignInCta } from "./signin-cta";
 // CountUp is a client component; under jsdom its effect runs but matchMedia is missing — stub it
 // once for this file (reduced motion → no animation in these tests).
 vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+// FitLine mounts under jsdom and observes its container with ResizeObserver, which jsdom lacks.
+vi.stubGlobal(
+  "ResizeObserver",
+  vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
+);
 
 const mockStatus = vi.fn();
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus() }));
@@ -17,32 +22,32 @@ const row = (over: Partial<SurvivorRow>): SurvivorRow => ({
   killsThisLife: 2, longestKillMeters: 25, avatarHash: null, ...over,
 });
 
-const stats: SiteStats = { deaths: 1247, alive: 38 };
-
 describe("Hero", () => {
-  it("runs the manifesto screamer with a kicker and About link", () => {
-    render(<Hero />);
-    expect(screen.getByText("The record of record")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "How it works →" })).toHaveAttribute("href", "/about");
-  });
+  const stats = { deaths: 4213, alive: 38 };
 
-  it("with stats, the ledger IS the h1 and the brand line demotes to the kicker", () => {
+  it("renders the two-line ledger with no trailing periods", () => {
     render(<Hero stats={stats} />);
-    // The accessible name comes from the sr-only sentence — final numbers, one clean announcement.
+    // Accessible name = sr-only sentence; one mid period, no trailing period.
     expect(
-      screen.getByRole("heading", { level: 1, name: "Deaths to date: 1,247. Still standing: 38." }),
+      screen.getByRole("heading", { level: 1, name: "Deaths to date: 4,213. Still standing: 38" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("One life. No respawns.")).toBeInTheDocument(); // the kicker now
-    expect(screen.queryByText("The record of record")).not.toBeInTheDocument();
+    // The still-standing line is its own (aria-hidden) visible line, not part of line 1.
+    expect(screen.getByText(/Still standing:/i)).toBeInTheDocument();
+    // Kicker carries the demoted brand line.
+    expect(screen.getByText(/One life\. No respawns —/i)).toBeInTheDocument();
   });
 
-  it("without stats, the evergreen hero renders — no zero, no placeholder, no banner", () => {
+  it("carries the primary CTA to /login", () => {
+    render(<Hero stats={stats} />);
+    expect(screen.getByRole("link", { name: "Claim your life →" })).toHaveAttribute("href", "/login");
+  });
+
+  it("without stats, renders the evergreen dark hero — no zero, no ledger, CTA intact", () => {
     render(<Hero stats={null} />);
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.queryByText(/Deaths to date/)).not.toBeInTheDocument();
-    // ⚠️ Live-data honesty: a missing number must never render as 0.
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns" })).toBeInTheDocument();
+    expect(screen.queryByText(/Deaths to date/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/\b0\b/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Claim your life →" })).toHaveAttribute("href", "/login");
   });
 });
 
