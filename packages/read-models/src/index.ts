@@ -19,3 +19,4 @@ export { getFriendPositions } from "./friend-positions.js";
 export type { FriendPosition } from "./friend-positions.js";
 export * from "./obituary-articles.js";
 export * from "./online-players.js";
+export * from "./site-stats.js";
