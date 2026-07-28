@@ -1,0 +1,53 @@
+import { z } from "zod";
+
+const schema = z.object({
+  DATABASE_URL: z.string().min(1),
+  OPENROUTER_API_KEY: z.string().default(""),
+  NEWSDESK_MODEL: z.string().default("anthropic/claude-sonnet-5"),
+  NEWSDESK_DRY_RUN: z.string().optional(),
+  NEWSDESK_SINCE: z.string().optional(),
+  NEWSDESK_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
+  NEWSDESK_BATCH_CAP: z.coerce.number().int().positive().default(10),
+  NEWSDESK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  NEWSDESK_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.7),
+  LOG_LEVEL: z.string().default("info"),
+});
+
+export type Config = {
+  databaseUrl: string;
+  openrouterApiKey: string;
+  model: string;
+  dryRun: boolean;
+  since: Date | null;
+  intervalSeconds: number;
+  batchCap: number;
+  maxAttempts: number;
+  temperature: number;
+  logLevel: string;
+};
+
+/** Forward-only go-live cutoff. Unset / empty / unparseable -> null, which turns the obituary
+ *  pass OFF — a safe default parallel to the dry-run gate (the NOTIFIER_SINCE pattern). Without
+ *  it the first live sweep would generate an obituary for EVERY qualified death in history. */
+function parseSince(raw: string | undefined): Date | null {
+  if (!raw || raw.trim() === "") return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function loadConfig(env: Record<string, string | undefined>): Config {
+  const p = schema.parse(env);
+  return {
+    databaseUrl: p.DATABASE_URL,
+    openrouterApiKey: p.OPENROUTER_API_KEY,
+    model: p.NEWSDESK_MODEL,
+    // SAFE DEFAULT: dry-run unless explicitly disabled with "false".
+    dryRun: p.NEWSDESK_DRY_RUN !== "false",
+    since: parseSince(p.NEWSDESK_SINCE),
+    intervalSeconds: p.NEWSDESK_INTERVAL_SECONDS,
+    batchCap: p.NEWSDESK_BATCH_CAP,
+    maxAttempts: p.NEWSDESK_MAX_ATTEMPTS,
+    temperature: p.NEWSDESK_TEMPERATURE,
+    logLevel: p.LOG_LEVEL,
+  };
+}

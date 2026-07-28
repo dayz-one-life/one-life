@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { articles, lives, players, servers } from "@onelife/db";
-import { and, eq, desc, inArray, isNotNull, notExists, sql } from "drizzle-orm";
+import { and, eq, desc, gte, inArray, isNotNull, notExists, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
 export interface ObituaryTarget {
@@ -69,7 +69,7 @@ const CONFLICT_WHERE = inArray(articles.kind, ["obituary", "birth_notice"]);
  *  Anti-joins `articles` on the natural key (server + gamertag + life_started_at). */
 export async function findObituaryTargets(
   db: Database,
-  opts: { limit: number; maxAttempts: number },
+  opts: { limit: number; maxAttempts: number; since: Date },
 ): Promise<ObituaryTarget[]> {
   const rows = await db
     .select({
@@ -88,6 +88,7 @@ export async function findObituaryTargets(
     .where(
       and(
         isNotNull(lives.endedAt),
+        gte(lives.endedAt, opts.since),
         qualifiedLifeCondition(db),
         // no blocking article for this life (natural key): published, or failed-but-exhausted
         notExists(

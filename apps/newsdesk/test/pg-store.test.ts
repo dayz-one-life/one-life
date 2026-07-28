@@ -52,7 +52,7 @@ describe("obituarySlug", () => {
 
 describe("findObituaryTargets", () => {
   it("returns qualified ungenerated deaths, excludes unqualified", async () => {
-    const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3 });
+    const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     const mine = targets.filter((t) => t.mapSlug === `nd-${svc}`);
     expect(mine.map((t) => t.gamertag)).toContain(qualified.gamertag);
     expect(mine.map((t) => t.gamertag)).not.toContain(unqualified.gamertag);
@@ -65,7 +65,7 @@ describe("findObituaryTargets", () => {
       obituary: { headline: "Gone", lede: "l", body: "b", pullQuote: null, tags: ["Obituaries"] },
       promptVersion: "obituary-v1", model: "test", now: hrs(4),
     });
-    const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3 });
+    const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     expect(targets.find((t) => t.lifeId === qualified.lifeId)).toBeUndefined();
     const [row] = await db.select().from(articles).where(eq(articles.gamertag, qualified.gamertag));
     expect(row!.status).toBe("published");
@@ -78,11 +78,11 @@ describe("findObituaryTargets", () => {
     const un = targetFor(unqualified, 3); // reuse row as a generic life; force qualification via a fresh qualified life
     const q2 = await seedLife(`nd-q2-${svc}`, { lifeNumber: 1, endedAt: hrs(5), deathCause: "pvp", playtimeSeconds: 7200 });
     await recordObituaryFailure(db, { target: targetFor(q2, 5), error: "boom-1" });
-    let targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3 });
+    let targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     expect(targets.find((t) => t.lifeId === q2.lifeId)).toBeDefined(); // attempts 1 < 3
     await recordObituaryFailure(db, { target: targetFor(q2, 5), error: "boom-2" });
     await recordObituaryFailure(db, { target: targetFor(q2, 5), error: "boom-3" });
-    targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3 });
+    targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     expect(targets.find((t) => t.lifeId === q2.lifeId)).toBeUndefined(); // attempts 3 >= 3
     void un;
   });
