@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars } from "@onelife/db";
-import { inArray } from "drizzle-orm";
+import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars, articles } from "@onelife/db";
+import { inArray, eq } from "drizzle-orm";
 import { getLifeTimeline } from "../src/life-timeline.js";
 
 const { db, sql } = getTestDb();
@@ -49,6 +49,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.delete(articles).where(inArray(articles.slug, [
+    `lt-obit-${svc}`, `lt-obit-wrong-${svc}`, `lt-obit-tuple-${svc}`,
+  ]));
   await db.delete(hitEvents).where(inArray(hitEvents.serverId, [serverId]));
   await db.delete(kills).where(inArray(kills.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
@@ -169,5 +172,63 @@ describe("getLifeTimeline", () => {
       const t = await getLifeTimeline(db, serverId, gt, l.id);
       expect(t!.avatarHash).toBeNull();
     });
+  });
+});
+
+describe("obituarySlug", () => {
+  it("is null when the paper has not written about this life", async () => {
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBeNull();
+  });
+
+  it("finds a published obituary for this exact life", async () => {
+    await db.insert(articles).values({
+      kind: "obituary", status: "published", slug: `lt-obit-${svc}`,
+      serverId, gamertag: `LtHero-${svc}`, lifeNumber: 1, lifeStartedAt: start,
+      headline: "Last Light On The Ridge", body: "x", deathAt: mins(360),
+    });
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBe(`lt-obit-${svc}`);
+  });
+
+  it("ignores a retracted article for the same life", async () => {
+    // A retraction is a public correction, not the life's obituary. Linking it would present a
+    // withdrawn story as the record of this death.
+    await db.update(articles).set({ status: "retracted" }).where(eq(articles.slug, `lt-obit-${svc}`));
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBeNull();
+  });
+
+  it("REGRESSION: matches an article with the right tuple even when life_number differs", async () => {
+    // Same (server_id, gamertag, life_started_at) as deadLifeId's life, but a WRONG life_number
+    // (e.g. drifted from a projector rebuild that renumbered lives). The natural key is the
+    // tuple, never life_number, so this must still match. The unique index on
+    // (kind, server_id, gamertag, life_started_at) is status-agnostic, so the earlier retracted
+    // row for this same tuple must go first.
+    await db.delete(articles).where(eq(articles.slug, `lt-obit-${svc}`));
+    await db.insert(articles).values({
+      kind: "obituary", status: "published", slug: `lt-obit-tuple-${svc}`,
+      serverId, gamertag: `LtHero-${svc}`, lifeNumber: 99, lifeStartedAt: start,
+      headline: "Right Life, Wrong Number", body: "x", deathAt: mins(360),
+    });
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBe(`lt-obit-tuple-${svc}`);
+    await db.delete(articles).where(eq(articles.slug, `lt-obit-tuple-${svc}`));
+  });
+
+  it("REGRESSION: does not match an article that shares life_number but belongs to a different life", async () => {
+    // A published obituary for the SAME server + gamertag + life_number as deadLifeId (1), but
+    // with a DIFFERENT life_started_at (it actually belongs to openLifeId's life). Under the old
+    // `eq(articles.lifeNumber, life.lifeNumber)` predicate this row would wrongly match
+    // deadLifeId's timeline. The correct natural key — (server_id, gamertag, life_started_at) —
+    // must reject it, because life_number is a derived count that can drift from the real life
+    // while life_started_at (frozen at generation time) cannot.
+    await db.insert(articles).values({
+      kind: "obituary", status: "published", slug: `lt-obit-wrong-${svc}`,
+      serverId, gamertag: `LtHero-${svc}`, lifeNumber: 1, lifeStartedAt: mins(400),
+      headline: "Wrong Life, Right Number", body: "x", deathAt: mins(400),
+    });
+    const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
+    expect(t!.obituarySlug).toBeNull();
   });
 });
