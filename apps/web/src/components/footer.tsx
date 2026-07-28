@@ -1,7 +1,9 @@
 import Link from "next/link";
 
-/** About lives here because the mobile TabBar carries the other three nav items and About is the
- *  one section a player visits once. Below `md` the footer is its only reachable route. */
+/** About lives here because the mobile TabBar carries the other four nav items and About is the
+ *  one section a player visits once. Below `md` the footer is its only reachable route.
+ *  Obituaries is in both — the tab bar as "Obits", here in full — because the short form is a
+ *  compromise for a 320px column, not the surface's name. */
 export function Footer() {
   return (
     // ⚠️ The bottom gutter for the fixed TabBar lives HERE, not on the layout's content column.
@@ -13,6 +15,12 @@ export function Footer() {
     <footer className="bg-dark px-10 pt-[18px] pb-[calc(18px+4rem+env(safe-area-inset-bottom))] text-center font-mono text-xs uppercase tracking-[.08em] text-paper md:pb-[18px]">
       <Link href="/about" className="underline decoration-dark-line underline-offset-4 hover:text-red">
         About
+      </Link>
+      <span aria-hidden className="px-2">
+        ·
+      </span>
+      <Link href="/obituaries" className="underline decoration-dark-line underline-offset-4 hover:text-red">
+        Obituaries
       </Link>
       <span aria-hidden className="px-2">
         ·

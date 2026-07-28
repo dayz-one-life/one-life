@@ -16,28 +16,29 @@ describe("TabBar", () => {
     mockPathname.mockReturnValue("/");
   });
 
-  test("signed in: five destinations", () => {
+  test("signed in: five destinations, Obituaries in place of You", () => {
     status("verified");
     render(<TabBar />);
-    for (const name of ["Home", "Map", "Survivors", "Friends", "You"]) {
+    for (const name of ["Home", "Map", "Survivors", "Friends", "Obits"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
+    // /you is still reachable — AccountAffordance in the masthead has no width gate.
+    expect(screen.queryByRole("link", { name: "You" })).toBeNull();
   });
 
-  test("signed in but unlinked still gets the full set — You is where sign-out lives", () => {
+  test("signed in but unlinked still gets the full set", () => {
     status("unlinked");
     render(<TabBar />);
-    expect(screen.getByRole("link", { name: "You" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Friends" })).toBeInTheDocument();
   });
 
-  test("signed out: four, with Sign in replacing Friends and You", () => {
+  test("signed out: five, with Sign in replacing Friends", () => {
     status("signedOut");
     render(<TabBar />);
-    for (const name of ["Home", "Map", "Survivors", "Sign in"]) {
+    for (const name of ["Home", "Map", "Survivors", "Obits", "Sign in"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("link", { name: "Friends" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "You" })).toBeNull();
   });
 
   test("renders nothing while identity is still resolving — never a flash of the wrong set", () => {

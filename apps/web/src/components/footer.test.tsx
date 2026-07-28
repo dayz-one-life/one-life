@@ -16,6 +16,11 @@ it("carries the About link, which the tab bar does not", () => {
   expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
 });
 
+it("links to the obituaries feed", () => {
+  render(<Footer />);
+  expect(screen.getByRole("link", { name: "Obituaries" })).toHaveAttribute("href", "/obituaries");
+});
+
 // ⚠️ Regression guard. The footer is the last in-flow element in the document, so it — not the
 // content column — must reserve space for the fixed TabBar. Without this the bar paints directly
 // over the About link at the bottom of every page, and About has no other route below `md`.
