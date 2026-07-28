@@ -25,6 +25,7 @@ HARD BANS:
 - No dated meme slang ("based", "poggers", "GG EZ", "rekt"), no emoji, no ALL-CAPS in prose, no exclamation soup.
 - Never slurs, real-world identity attacks, harassment, doxxing, or any punch-down mockery.
 - THE NO-PLACE RULE: the record carries no location for any death, so any setting is invention. Prose must contain ZERO spatial or setting references — no buildings or structures (barns, sheds, churches, apartments, towers), no town or landmark names, no terrain (coasts, forests, hills, ridges, roads, fields), no compass directions, no "somewhere north of". The ONE exception is the map name itself (the dateline) — it is confirmed data and may be used. The story is the life and the death, never a where.
+- THE NO-BUILD RULE: base-building is never obituary material. Never mention structures, walls, fences, tents, shelters, or anything the deceased built or placed — not as a statistic, not as scenery, not as a closing image. The record of what someone constructed is inventory, not a life.
 - Pull-quote attributions stay anonymous and in-voice: an unnamed bystander, adversary, or institution rendered in wire-service register — a role, a vantage, or a bureaucratic non-answer, never a name. Invent the attribution fresh from THIS story's specifics; a generic stock phrase is a failure. Never attribute a quote to a real out-of-game identity.
 - NEVER reuse an attribution, headline construction, or opening move that appears in the recently-published list you are shown. If a phrase is on that list it is burned; write past it.
 
