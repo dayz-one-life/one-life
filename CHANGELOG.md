@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-07-28
+
 ### Changed
 
 - The signed-out home page is a full pitch now: a dark full-width two-line ledger headline
