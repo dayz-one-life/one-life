@@ -147,7 +147,7 @@ export function AccountPanels({ signInFallback = false }: {
     const gamertag = c.status.link.gamertag;
     const slug = playerSlug(gamertag);
     // Verified home = the mock's control panel: standing groups, tokens, friends online. No
-    // identity row and no profile/sign-out footer here — the masthead avatar (/you) owns account
+    // identity row and no profile/sign-out footer here — the masthead avatar menu owns account
     // entry, per the avatar-menu amendment.
     body = (
       <>
@@ -166,9 +166,9 @@ export function AccountPanels({ signInFallback = false }: {
             joinServers={serversView(c.servers, { loading: c.serversLoading })}
           />
         )}
-        {/* The FULL panel, back from /you (home-is-the-app spec §3): home is the app, and Send
-         *  belongs where the balance is. Spending still lives on the ban row, which knows WHICH
-         *  ban to lift. */}
+        {/* The FULL panel, back from the deleted /you page (home-is-the-app spec §3): home is
+         *  the app, and Send belongs where the balance is. Spending still lives on the ban row,
+         *  which knows WHICH ban to lift. */}
         <TokensPanel
           balance={c.balance ?? 0}
           balanceLoading={c.balanceLoading}

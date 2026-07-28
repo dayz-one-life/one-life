@@ -32,7 +32,7 @@ describe("activeNavKey", () => {
     ["/obituaries", "obituaries"],
     ["/obituaries/a-long-walk-ends-grumpy8269-1-3", "obituaries"],
     ["/about", "about"],
-    ["/you", null],
+    ["/friends", null],
     ["/login", null],
   ])("%s → %s", (path, key) => {
     expect(activeNavKey(path)).toBe(key);
