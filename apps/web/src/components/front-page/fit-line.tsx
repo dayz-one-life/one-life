@@ -21,9 +21,13 @@ const MAX_PX = 180;
  * final string the widest the line will be. SSR/jsdom render at the CSS fallback size; the
  * effect upgrades it after mount and re-runs on resize via ResizeObserver.
  */
-export function FitLine({ finalText, className = "", children }: {
+export function FitLine({ finalText, className = "", lineClassName = "", children }: {
   finalText: string;
   className?: string;
+  /** CSS fallback size for the VISIBLE line only (never the measuring clone, which is always
+   *  fixed at BASE_PX) — pre-hydration and no-JS both paint at this size; the measured inline
+   *  `fontSize` overrides it once the effect lands, so there is no CLS jump from a UA default. */
+  lineClassName?: string;
   children: React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -63,7 +67,10 @@ export function FitLine({ finalText, className = "", children }: {
       >
         {finalText}
       </span>
-      <div className="whitespace-nowrap" style={sizePx !== null ? { fontSize: sizePx } : undefined}>
+      <div
+        className={`whitespace-nowrap ${lineClassName}`}
+        style={sizePx !== null ? { fontSize: sizePx } : undefined}
+      >
         {children}
       </div>
     </div>

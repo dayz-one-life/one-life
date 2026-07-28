@@ -10,6 +10,10 @@ export function ClaimCta({ large = false }: { large?: boolean }) {
   return (
     <Link
       href="/login"
+      // `hover:bg-red-deep` here is a BACKGROUND under white text (contrast ~5.8:1, improves on
+      // hover from the plain-red base) — deliberate, not a light-surface-token violation. The
+      // RED-POLICY note in globals.css governs red as TEXT on paper/bone; it says nothing about
+      // red-deep used as a dark-surface background. Don't "fix" this blind on a future sweep.
       className={`inline-block -skew-x-[5deg] bg-red text-white font-display font-bold uppercase tracking-[.08em] hover:bg-red-deep ${large ? "px-10 py-4 text-lg" : "px-7 py-3.5 text-base"}`}
     >
       Claim your life →
@@ -28,7 +32,13 @@ export function Hero({ stats }: { stats?: SiteStats | null }) {
   return (
     <section className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16">
       <p className="font-mono text-xs uppercase tracking-[.28em] text-cream-dim">
-        <span className="font-bold text-red">One life. No respawns —</span> hardcore permadeath DayZ · Xbox
+        {stats ? (
+          <>
+            <span className="font-bold text-red">One life. No respawns</span> — hardcore permadeath DayZ · Xbox
+          </>
+        ) : (
+          "The record of record"
+        )}
       </p>
       {stats ? (
         <h1 className="mt-4 font-display font-bold uppercase leading-[.95]">
@@ -44,7 +54,11 @@ export function Hero({ stats }: { stats?: SiteStats | null }) {
             <span>{`standing: ${fmt(stats.alive)}`}</span>
           </span>
           <span aria-hidden="true" className="block">
-            <FitLine finalText={`Deaths to date: ${fmt(stats.deaths)}`} className="relative tabular-nums">
+            <FitLine
+              finalText={`Deaths to date: ${fmt(stats.deaths)}`}
+              className="relative tabular-nums"
+              lineClassName="text-[clamp(2.5rem,9vw,10rem)]"
+            >
               Deaths to date: <span className="text-red"><CountUp value={stats.deaths} /></span>
             </FitLine>
             <span className="mt-3 block font-semibold tracking-[.12em] text-cream-dim text-2xl md:text-4xl">

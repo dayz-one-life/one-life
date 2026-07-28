@@ -8,14 +8,16 @@ const RULES = [
 
 export function Rules() {
   return (
-    <section aria-label="The rules" className="grid border-y-[3px] border-ink bg-bone md:grid-cols-3">
-      {RULES.map((r) => (
-        <div key={r.n} className="border-b border-hairline p-6 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-          <p className="font-mono text-[10px] uppercase tracking-[.2em] text-red-deep">{r.n}</p>
-          <h3 className="mt-1.5 font-display text-xl font-bold uppercase">{r.title}</h3>
-          <p className="mt-2 font-sans text-sm leading-relaxed text-ink-soft">{r.body}</p>
-        </div>
-      ))}
+    <section aria-label="The rules" className="border-y-[3px] border-ink bg-bone">
+      <ul role="list" className="grid md:grid-cols-3">
+        {RULES.map((r) => (
+          <li key={r.n} className="border-b border-hairline p-6 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+            <p className="font-mono text-[10px] uppercase tracking-[.2em] text-red-deep">{r.n}</p>
+            <h3 className="mt-1.5 font-display text-xl font-bold uppercase">{r.title}</h3>
+            <p className="mt-2 font-sans text-sm leading-relaxed text-ink-soft">{r.body}</p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

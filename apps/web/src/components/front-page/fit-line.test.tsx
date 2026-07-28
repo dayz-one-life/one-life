@@ -34,4 +34,16 @@ describe("FitLine", () => {
     expect(clone).toHaveAttribute("aria-hidden", "true");
     expect(clone!.textContent).toBe("DEATHS TO DATE: 4,213");
   });
+
+  it("applies lineClassName to the visible line only — never the measuring clone", () => {
+    const { container } = render(
+      <FitLine finalText="DEATHS TO DATE: 4,213" lineClassName="text-[clamp(2.5rem,9vw,10rem)]">
+        <span>DEATHS TO DATE: 0</span>
+      </FitLine>,
+    );
+    const clone = container.querySelector("[data-fitline-clone]");
+    expect(clone!.className).not.toContain("text-[clamp");
+    const line = clone!.nextElementSibling as HTMLElement;
+    expect(line.className).toContain("text-[clamp(2.5rem,9vw,10rem)]");
+  });
 });

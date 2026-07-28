@@ -34,7 +34,7 @@ export function Fallen({ rows }: { rows: ObituaryCard[] }) {
               >
                 {o.lede}
               </p>
-              <p className="mt-3 flex justify-between border-t border-hairline pt-2.5 font-mono text-[10px] uppercase tracking-[.06em] text-ink-muted">
+              <p className="mt-3 flex justify-between border-t border-hairline pt-2.5 font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted">
                 <span>{o.gamertag}</span>
                 <span>{formatDuration(o.timeAliveSeconds)} survived</span>
               </p>

@@ -15,6 +15,12 @@ vi.stubGlobal(
 const mockStatus = vi.fn();
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus() }));
 
+// The kicker's text is deliberately split across a red <span> and a plain text node (Task 2:
+// the em-dash lives outside the brand span), so RTL's default getByText — which only matches a
+// node's OWN direct text-node children, not its full recursive textContent — cannot find the
+// combined phrase. Read the kicker <p>'s full textContent directly instead.
+const kicker = (root: HTMLElement) => root.querySelector<HTMLElement>("p.tracking-\\[\\.28em\\]")?.textContent ?? "";
+
 describe("Hero", () => {
   const stats = { deaths: 4213, alive: 38 };
 
@@ -27,7 +33,7 @@ describe("Hero", () => {
     // The still-standing line is its own (aria-hidden) visible line, not part of line 1.
     expect(screen.getByText(/Still standing:/i)).toBeInTheDocument();
     // Kicker carries the demoted brand line.
-    expect(screen.getByText(/One life\. No respawns —/i)).toBeInTheDocument();
+    expect(kicker(document.body)).toMatch(/One life\. No respawns —/i);
   });
 
   it("carries the primary CTA to /login", () => {
@@ -41,6 +47,37 @@ describe("Hero", () => {
     expect(screen.queryByText(/Deaths to date/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/\b0\b/)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Claim your life →" })).toHaveAttribute("href", "/login");
+  });
+
+  it("without stats, the kicker reverts to the evergreen line — no double-printed brand line", () => {
+    const { container } = render(<Hero stats={null} />);
+    expect(kicker(container)).toBe("The record of record");
+    // The brand kicker ("One life. No respawns —") only ever prints with stats; without them it
+    // must not appear a second time above the identical h1 text.
+    expect(kicker(container)).not.toMatch(/One life\. No respawns —/i);
+  });
+
+  it("with stats, the brand kicker prints once with the em-dash outside the red span", () => {
+    render(<Hero stats={stats} />);
+    expect(kicker(document.body)).toMatch(/One life\. No respawns —/i);
+    // The red/bold span carries the brand phrase alone; the dash is plain text beside it.
+    const brand = screen.getByText("One life. No respawns");
+    expect(brand.tagName).toBe("SPAN");
+    expect(brand.className).toContain("text-red");
+    expect(brand.textContent).not.toContain("—");
+  });
+
+  it("the stats-branch ledger line carries a CSS fallback size class before any measurement (jsdom never measures)", () => {
+    const { container } = render(<Hero stats={stats} />);
+    // The FitLine clone carries [data-fitline-clone]; its sibling is the visible line div, which
+    // must carry the fallback size class — the clone itself must NOT (it always measures at the
+    // fixed BASE_PX, unaffected by the fallback).
+    const clone = container.querySelector("[data-fitline-clone]");
+    expect(clone).not.toBeNull();
+    expect(clone!.className).not.toContain("text-[clamp");
+    const line = clone!.nextElementSibling as HTMLElement;
+    expect(line).not.toBeNull();
+    expect(line.className).toContain("text-[clamp(2.5rem,9vw,10rem)]");
   });
 });
 
