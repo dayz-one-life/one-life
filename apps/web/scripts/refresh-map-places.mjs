@@ -3,6 +3,9 @@
 // apps/web/scripts/refresh-map-places.mjs — regenerates src/lib/map-places.json from
 // DZMap's upstream location data (the same source as the mirrored tiles).
 //
+// NOTE: apps/newsdesk/src/map-places.json is a vendored copy for the obituary no-place
+// validator — re-copy it whenever this file is regenerated.
+//
 // Run by hand after a DayZ terrain update, on the same cadence as deploy/mirror-tiles.sh
 // — place names change with the game, not with our releases:
 //
