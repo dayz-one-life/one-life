@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.1] - 2026-07-27
+
 ### Fixed
 
 - **A consistency pass over the whole site.** Every page now renders at its intended width
