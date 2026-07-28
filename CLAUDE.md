@@ -1249,11 +1249,20 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   tables, the article read-models and the three route trees are gone. See
   `docs/superpowers/specs/2026-07-24-content-engine-removal-design.md`; the historical R5a–R5d and
   editorial specs are left in `docs/superpowers/` as a record.
-  **⚠️ One rule lost its only executable proof:** an article was matched to a life by the
-  rebuild-stable tuple `(server_id, gamertag, life_started_at)`, **never `life_number`** — which is
-  nullable, unconstrained, and a fold-derived count that renumbers. The regression test lived in
-  `life-timeline.test.ts` and went with the feature. **The convention still governs `bans`**, which
-  keys the same way for the same reason.
+  **⚠️ The rule that an article is matched to a life by the rebuild-stable tuple
+  `(server_id, gamertag, life_started_at)`, never `life_number`,** briefly lost its only
+  executable proof when the regression test went with the feature; **the proof is restored** (see
+  the obituaries-revival entry below, `life-timeline.test.ts`). **The convention still governs
+  `bans`**, which keys the same way for the same reason.
+  **Obituaries revived, alone (2026-07-28)** — spec
+  `docs/superpowers/specs/2026-07-28-obituaries-revival-design.md`: `apps/newsdesk` and a
+  trimmed, durable `articles` table (migration `0030`, plain deploy, no `--rebuild`) return for
+  LLM obituaries only — no birth notices, no news vertical, no images, no Discord. A dry-run-gated
+  sweep of qualified deaths (`NEWSDESK_SINCE` forward-only cutoff, same convention as
+  `NOTIFIER_SINCE`) generates and publishes each obituary, surfaced at a public `/obituaries` feed
+  + article page, a life-timeline link, and sitemap entries. New **No-Place Rule**: prose may name
+  the map and nothing finer (no towns, no coordinates) — enforced both by prompt and by a
+  deterministic post-generation validator.
 
 - **Sub-project B — App shell** ✅ (spec `docs/superpowers/specs/2026-07-24-b-app-shell-design.md`,
   plan `docs/superpowers/plans/2026-07-24-b-app-shell.md`): the chrome the rest of the pure-player
