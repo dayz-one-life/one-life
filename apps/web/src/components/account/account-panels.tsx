@@ -75,7 +75,8 @@ export function AccountPanels({ signInFallback = false }: {
   const now = new Date();
   const cards = serverCards(c.servers, c.standing);
   // Mirrors `useControls`' own `signedIn` gate above (unlinked/pending/verified) — do not fetch
-  // `/me/avatar` for a signed-out visitor. Same `["avatar"]` key `AvatarPanel`/`YouPanel` read.
+  // `/me/avatar` for a signed-out visitor. Same `["avatar"]` key `AvatarPanel`/the masthead
+  // account affordance read.
   const signedIn = c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar, enabled: signedIn });
 
