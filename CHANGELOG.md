@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The home page's "Deaths to date" ledger now counts every ended life, not just qualified ones —
+  a sub-5-minute life that ended still ended. The "Still standing" number is unchanged (still the
+  survivors boards' qualified-alive total).
+
 ## [0.53.0] - 2026-07-28
 
 ### Added
