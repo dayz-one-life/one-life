@@ -1242,7 +1242,14 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   rebuild-before-migrate ordering hazard).
   **Deferred — still key on gamertag text, not player id:** `leaderboards.ts` and the broader
   notifications/friends surfaces generally. A rename is therefore not yet reflected in those
-  surfaces' history.
+  surfaces' history. **`articles` rows are keyed by frozen gamertag text** (`articles.gamertag`
+  is set once at publish time and never rewritten on a rename) — but the two seams that would
+  otherwise notice a rename resolve through `player_gamertags` alias history instead of a bare
+  `players.gamertag`/`gamertag` string compare (2026-07-28): the obituary dedupe anti-join
+  (`apps/newsdesk/src/pg-store.ts`'s `findObituaryTargets`) and the life timeline's
+  `obituarySlug` lookup (`packages/read-models/src/life-timeline.ts`). So a rename neither
+  reopens an already-published obituary's dedupe nor orphans its timeline link. The public
+  article page itself still shows the frozen name from the time of publication.
 - **Content engine retired** (2026-07-24): obituaries, birth notices, the news vertical, the
   editorial newsroom, the Discord notifier and the article image pipeline are **deleted**. One Life
   is a player tool; nothing generates prose. `apps/newsdesk`, the `articles`/`article_images`

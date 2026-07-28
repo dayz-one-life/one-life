@@ -42,10 +42,7 @@ export interface PublishInput {
   now: Date;
 }
 
-// DUPLICATED VERBATIM in birth-pg-store.ts and news-pg-store.ts — deliberate, not an oversight.
-// The slug *builders* around this helper differ genuinely per kind, slugs are frozen at publish
-// time, and a shared helper would couple the three: changing one kind's slugging would silently
-// rewrite another kind's URLs. Do not extract it.
+// Slugs are frozen at publish time — this obituary is the only kind newsdesk publishes today.
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
@@ -99,7 +96,11 @@ export async function findObituaryTargets(
               and(
                 eq(articles.kind, "obituary"),
                 eq(articles.serverId, lives.serverId),
-                eq(articles.gamertag, players.gamertag),
+                // `articles.gamertag` is frozen at publish time; a rename since then must not
+                // reopen the dedupe. Match through the player's full alias history
+                // (player_gamertags — one row per (player_id, lower(gamertag)) this player has
+                // ever held) rather than the current players.gamertag alone.
+                sql`lower(${articles.gamertag}) IN (SELECT lower(pg.gamertag) FROM player_gamertags pg WHERE pg.player_id = ${lives.playerId})`,
                 eq(articles.lifeStartedAt, lives.startedAt),
                 sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
               ),

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles } from "@onelife/db";
+import { servers, players, lives, articles, playerGamertags } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
 
@@ -15,13 +15,16 @@ const lifeIds: number[] = [];
 async function seedLife(tag: string, over: Record<string, unknown>) {
   const [p] = await db.insert(players).values({ gamertag: tag }).returning();
   pids.push(p!.id);
+  // Mirrors the projector fold, which writes a player_gamertags row for every seen name — the
+  // anti-join's alias-history match relies on this existing, same as production.
+  await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(0), lastSeenAt: hrs(0) });
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(0), ...over }).returning();
   lifeIds.push(l!.id);
-  return { lifeId: l!.id, gamertag: tag, lifeStartedAt: hrs(0) };
+  return { lifeId: l!.id, playerId: p!.id, gamertag: tag, lifeStartedAt: hrs(0) };
 }
 
-let qualified: { lifeId: number; gamertag: string; lifeStartedAt: Date };
-let unqualified: { lifeId: number; gamertag: string; lifeStartedAt: Date };
+let qualified: { lifeId: number; playerId: number; gamertag: string; lifeStartedAt: Date };
+let unqualified: { lifeId: number; playerId: number; gamertag: string; lifeStartedAt: Date };
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "nd", map: "chernarusplus", slug: `nd-${svc}`, active: true }).returning();
@@ -72,6 +75,27 @@ describe("findObituaryTargets", () => {
     expect(row!.slug).toMatch(/^gone-nd-q-/);
     expect(row!.slug!.endsWith(`-${serverId}-1`)).toBe(true);
     expect(row!.attempts).toBe(1);
+  });
+
+  it("REGRESSION: a gamertag rename does not reopen a dead life's dedupe", async () => {
+    // A fresh qualified dead life, published under its original name.
+    const renamed = await seedLife(`nd-old-${svc}`, { lifeNumber: 1, endedAt: hrs(6), deathCause: "pvp", playtimeSeconds: 7200 });
+    await publishObituary(db, {
+      target: targetFor(renamed, 6),
+      facts: { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 0, longestKillMeters: null, cause: "pvp" },
+      obituary: { headline: "Renamed Later", lede: "l", body: "b", pullQuote: null, tags: ["Obituaries"] },
+      promptVersion: "obituary-v1", model: "test", now: hrs(7),
+    });
+
+    // Simulate a rename: players.gamertag moves to the new name, and player_gamertags gains a
+    // row for the new name alongside the surviving row for the old one (mirrors the projector
+    // fold — it never deletes an old alias row).
+    const newTag = `nd-new-${svc}`;
+    await db.update(players).set({ gamertag: newTag }).where(eq(players.id, renamed.playerId));
+    await db.insert(playerGamertags).values({ playerId: renamed.playerId, gamertag: newTag, firstSeenAt: hrs(7), lastSeenAt: hrs(7) });
+
+    const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
+    expect(targets.find((t) => t.lifeId === renamed.lifeId)).toBeUndefined();
   });
 
   it("re-includes a failed life until maxAttempts, then drops it", async () => {

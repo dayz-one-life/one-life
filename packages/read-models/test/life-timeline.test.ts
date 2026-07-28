@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars, articles } from "@onelife/db";
+import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars, articles, playerGamertags } from "@onelife/db";
 import { inArray, eq } from "drizzle-orm";
 import { getLifeTimeline } from "../src/life-timeline.js";
 
@@ -18,6 +18,9 @@ beforeAll(async () => {
   serverId = s!.id;
   const [p] = await db.insert(players).values({ gamertag: `LtHero-${svc}`, lastSeenAt: mins(400) }).returning();
   pid = p!.id;
+  // Mirrors the projector fold, which writes a player_gamertags row for every seen name — the
+  // obituary lookup's alias-history match relies on this existing, same as production.
+  await db.insert(playerGamertags).values({ playerId: pid, gamertag: `LtHero-${svc}`, firstSeenAt: start, lastSeenAt: mins(400) });
   const [dl] = await db.insert(lives).values({
     serverId, playerId: pid, lifeNumber: 1, startedAt: start, endedAt: mins(360),
     deathCause: "pvp", deathByGamertag: "SomeKiller", deathWeapon: "VSD", deathDistance: 126,
@@ -230,5 +233,34 @@ describe("obituarySlug", () => {
     });
     const t = await getLifeTimeline(db, serverId, `LtHero-${svc}`, deadLifeId);
     expect(t!.obituarySlug).toBeNull();
+  });
+
+  it("REGRESSION: a gamertag rename does not orphan the timeline's obituary link", async () => {
+    // A published obituary written under the OLD name, then the player renames.
+    const oldTag = `LtOld-${svc}`;
+    const newTag = `LtNew-${svc}`;
+    const [rp] = await db.insert(players).values({ gamertag: oldTag, lastSeenAt: mins(400) }).returning();
+    await db.insert(playerGamertags).values({ playerId: rp!.id, gamertag: oldTag, firstSeenAt: start, lastSeenAt: mins(400) });
+    const [rl] = await db.insert(lives).values({
+      serverId, playerId: rp!.id, lifeNumber: 1, startedAt: start, endedAt: mins(360),
+      deathCause: "pvp", playtimeSeconds: 21600,
+    }).returning();
+    await db.insert(articles).values({
+      kind: "obituary", status: "published", slug: `lt-obit-rename-${svc}`,
+      serverId, gamertag: oldTag, lifeNumber: 1, lifeStartedAt: start, headline: "Before The Rename", body: "x", deathAt: mins(360),
+    });
+
+    // Simulate the rename: players.gamertag moves, and player_gamertags gains a row for the new
+    // name alongside the surviving row for the old one (mirrors the projector fold — it never
+    // deletes an old alias row).
+    await db.update(players).set({ gamertag: newTag }).where(eq(players.id, rp!.id));
+    await db.insert(playerGamertags).values({ playerId: rp!.id, gamertag: newTag, firstSeenAt: mins(400), lastSeenAt: mins(400) });
+
+    const t = await getLifeTimeline(db, serverId, newTag, rl!.id);
+    expect(t!.obituarySlug).toBe(`lt-obit-rename-${svc}`);
+
+    await db.delete(articles).where(eq(articles.slug, `lt-obit-rename-${svc}`));
+    await db.delete(lives).where(eq(lives.id, rl!.id));
+    await db.delete(players).where(eq(players.id, rp!.id));
   });
 });

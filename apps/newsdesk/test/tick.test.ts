@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles } from "@onelife/db";
+import { servers, players, lives, articles, playerGamertags } from "@onelife/db";
 import { eq, inArray, and } from "drizzle-orm";
 import { newsdeskTick } from "../src/tick.js";
 import type { CompletionClient } from "../src/generate.js";
@@ -17,6 +17,9 @@ const log = { info: () => {}, error: () => {} };
 async function seedQualifiedDeath(tag: string, endH: number) {
   const [p] = await db.insert(players).values({ gamertag: tag }).returning();
   pids.push(p!.id);
+  // Mirrors the projector fold, which writes a player_gamertags row for every seen name — the
+  // dedupe anti-join's alias-history match relies on this existing, same as production.
+  await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(endH - 2), lastSeenAt: hrs(endH - 2) });
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(endH - 2), endedAt: hrs(endH), deathCause: "pvp", deathByGamertag: "Killer", deathWeapon: "M4", deathDistance: 100, playtimeSeconds: 7200 }).returning();
   lifeIds.push(l!.id);
   return l!.id;
@@ -139,6 +142,7 @@ describe("newsdeskTick", () => {
     // Two prior dead lives on this server, then the life the obituary is written for.
     const [p] = await db.insert(players).values({ gamertag: tag }).returning();
     pids.push(p!.id);
+    await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(0), lastSeenAt: hrs(0) });
     for (const n of [1, 2]) {
       const [prior] = await db.insert(lives).values({
         serverId, playerId: p!.id, lifeNumber: n,

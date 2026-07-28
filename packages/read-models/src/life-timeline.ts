@@ -58,7 +58,11 @@ export async function getLifeTimeline(
           eq(articles.kind, "obituary"),
           eq(articles.status, "published"),
           eq(articles.serverId, serverId),
-          sql`lower(${articles.gamertag}) = lower(${gamertag})`,
+          // `articles.gamertag` is frozen at publish time; a rename since then must not orphan
+          // the link. Match through the player's full alias history (player_gamertags — one row
+          // per (player_id, lower(gamertag)) this player has ever held) rather than the current
+          // gamertag alone.
+          sql`lower(${articles.gamertag}) IN (SELECT lower(pg.gamertag) FROM player_gamertags pg WHERE pg.player_id = ${life.playerId})`,
           // Identify the life by the rebuild-stable natural key (server_id, gamertag,
           // life_started_at) — matching `articles_kind_server_gamertag_life_uniq`. Never use
           // `life_number`: it is a derived count from projection fold and shifts if the fold
