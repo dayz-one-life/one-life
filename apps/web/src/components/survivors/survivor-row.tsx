@@ -28,13 +28,14 @@ export function SurvivorRow({
 }) {
   const tier = tierFor(rank);
   const stat = statFor(row);
+  const fallbackInitial = row.gamertag.trim().charAt(0).toUpperCase();
 
   if (tier === "hero") {
     const sub = subLine(row, true);
     return (
-      <div className="grid grid-cols-[40px_76px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-bone px-2 py-4 sm:grid-cols-[56px_76px_1fr_auto] sm:gap-x-4">
+      <div className="grid grid-cols-[40px_96px_1fr_auto] items-center gap-x-3 border-b border-hairline bg-bone px-2 py-4 sm:grid-cols-[56px_96px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[40px] font-bold leading-none text-red">{rank}</span>
-        <Avatar hash={row.avatarHash} size={76} />
+        <Avatar hash={row.avatarHash} size={96} fallbackInitial={fallbackInitial} />
         <div className="min-w-0">
           <GamertagLink gamertag={row.gamertag} className="block truncate font-display text-xl font-bold uppercase leading-none text-ink sm:text-[26px]" />
           {sub && <div className="mt-1 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</div>}
@@ -52,7 +53,7 @@ export function SurvivorRow({
     return (
       <div className="grid grid-cols-[40px_60px_1fr_auto] items-center gap-x-3 border-b border-hairline px-2 py-3 sm:grid-cols-[56px_60px_1fr_auto] sm:gap-x-4">
         <span aria-hidden className="text-center font-display text-[28px] font-bold leading-none text-red">{rank}</span>
-        <Avatar hash={row.avatarHash} size={60} />
+        <Avatar hash={row.avatarHash} size={60} fallbackInitial={fallbackInitial} />
         <div className="min-w-0">
           <GamertagLink gamertag={row.gamertag} className="block truncate font-display text-lg font-bold uppercase leading-none text-ink sm:text-[21px]" />
           {sub && <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">{sub}</div>}
@@ -63,8 +64,9 @@ export function SurvivorRow({
   }
 
   return (
-    <div className="grid grid-cols-[40px_1fr_auto] items-center gap-x-3 border-b border-hairline-2 px-2 py-2.5 sm:grid-cols-[56px_1fr_auto] sm:gap-x-4">
+    <div className="grid grid-cols-[40px_28px_1fr_auto] items-center gap-x-3 border-b border-hairline-2 px-2 py-2.5 sm:grid-cols-[56px_28px_1fr_auto] sm:gap-x-4">
       <span aria-hidden className="text-center font-display text-xl font-bold leading-none text-ink">{rank}</span>
+      <Avatar hash={row.avatarHash} size={28} fallbackInitial={fallbackInitial} />
       <div className="min-w-0">
         <GamertagLink gamertag={row.gamertag} className="inline-block max-w-full truncate font-display text-[17px] font-semibold uppercase text-ink" />
       </div>

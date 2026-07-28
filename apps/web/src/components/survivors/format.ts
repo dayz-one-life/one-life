@@ -7,10 +7,10 @@ export function formatTimeAlive(seconds: number): string {
 
 export type RowTier = "hero" | "podium" | "compact";
 
-/** Visual tier by global rank: 1 = hero row, 2-3 = podium, everything else compact. */
+/** Visual tier by global rank: 1 = hero row, 2-5 = podium, everything else compact. */
 export function tierFor(rank: number): RowTier {
   if (rank === 1) return "hero";
-  if (rank <= 3) return "podium";
+  if (rank <= 5) return "podium"; // widened from 3 (avatar-account-pass spec §6)
   return "compact";
 }
 

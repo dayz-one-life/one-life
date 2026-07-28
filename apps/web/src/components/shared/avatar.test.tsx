@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { Avatar, avatarSrc } from "./avatar";
 
@@ -25,5 +25,11 @@ describe("Avatar", () => {
     const span = container.querySelector("span[aria-hidden]");
     expect(span).not.toBeNull();
     expect(span).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("renders the fallback initial instead of the silhouette when provided", () => {
+    render(<Avatar hash={null} size={28} fallbackInitial="K" />);
+    expect(screen.getByText("K")).toBeInTheDocument();
+    expect(document.querySelector("svg")).toBeNull();
   });
 });

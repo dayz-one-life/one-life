@@ -9,11 +9,11 @@ describe("formatTimeAlive", () => {
 });
 
 describe("tierFor", () => {
-  test("rank 1 is hero, 2-3 podium, 4+ compact", () => {
+  test("rank 1 is hero, 2-5 podium, 6+ compact", () => {
     expect(tierFor(1)).toBe("hero");
     expect(tierFor(2)).toBe("podium");
-    expect(tierFor(3)).toBe("podium");
-    expect(tierFor(4)).toBe("compact");
+    expect(tierFor(5)).toBe("podium");
+    expect(tierFor(6)).toBe("compact");
     expect(tierFor(26)).toBe("compact");
   });
 });
