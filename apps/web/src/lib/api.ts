@@ -1,4 +1,5 @@
 import type {
+  SiteStats,
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
   Me, GamertagLink, ClaimResult, PlayerPage,
   GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorsPage, LifeTimelineData,
@@ -197,6 +198,9 @@ export const getLifeTrack = (mapSlug: string, n: number) =>
  *  board would rank lives that were never in the same race. */
 export const getSurvivors = (p: { slug: string; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors/${encodeURIComponent(p.slug)}?page=${p.page}`);
+
+/** Public fleet-wide ledger numbers for the cold home's hero. */
+export const getSiteStats = () => apiGet<SiteStats>("/api/stats");
 
 export const getObituariesFeed = (page: number) =>
   apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
