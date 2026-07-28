@@ -8,10 +8,12 @@ import Home from "./page";
 const getSurvivors = vi.fn();
 const getServers = vi.fn();
 const getLastPlayedMap = vi.fn();
+const getSiteStats = vi.fn();
 vi.mock("@/lib/api", () => ({
   getSurvivors: (...a: unknown[]) => getSurvivors(...a),
   getServers: (...a: unknown[]) => getServers(...a),
   getLastPlayedMap: (...a: unknown[]) => getLastPlayedMap(...a),
+  getSiteStats: (...a: unknown[]) => getSiteStats(...a),
 }));
 // Mutable cookie jar: [] = cold visitor (the default for these feed tests); push a
 // `…session_token` cookie to simulate a signed-in visitor for the pitch-gating tests below.
@@ -27,6 +29,18 @@ vi.mock("@/components/account/account-panels", () => ({
 }));
 vi.mock("@/components/account/home-sidebar", () => ({ HomeSidebar: () => <aside /> }));
 
+// CountUp uses window.matchMedia for reduced-motion detection
+global.matchMedia = vi.fn((query) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
+})) as any;
+
 const survivor = {
   gamertag: "boots", slug: "chernarus", map: "chernarusplus", timeAliveSeconds: 100,
   killsThisLife: 0, longestKillMeters: null, avatarHash: null,
@@ -37,6 +51,8 @@ beforeEach(() => {
   cookieJar.length = 0;
   getServers.mockResolvedValue([{ id: 1, name: "Chernarus", map: "chernarusplus", slug: "chernarus" }]);
   getLastPlayedMap.mockResolvedValue({ slug: null });
+  // Default: stats fetch fails, so Hero falls back to evergreen headline
+  getSiteStats.mockRejectedValue(new Error("unavailable"));
 });
 
 // ⚠️ The pitch is for COLD visitors only (home-is-the-app spec): a signed-in player's home
