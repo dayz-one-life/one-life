@@ -6,11 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Obituaries are reachable from the site: a primary-nav item, a mobile tab (replacing You, which
+  stays reachable from the masthead avatar), and a footer link.
+
 ### Changed
 
 - The home page's "Deaths to date" ledger now counts every ended life, not just qualified ones —
   a sub-5-minute life that ended still ended. The "Still standing" number is unchanged (still the
   survivors boards' qualified-alive total).
+- Obituaries no longer mention base-building. The `buildsPlaced` fact is removed from the obituary
+  facts entirely, and `structure`/`built`/`wall`/`tent`/`shelter`/`fence` join the validator's
+  banned vocabulary so the model cannot reintroduce it unprompted.
+- CI runs `typecheck` alongside `test`, so type-level guarantees are enforced in the pipeline and
+  not only locally.
 
 ## [0.53.0] - 2026-07-28
 
