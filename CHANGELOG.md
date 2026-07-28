@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cold-home ledger hero: the signed-out front page's headline is now a live casualty ledger —
+  "Deaths to date: N. Still standing: M." — from real fleet-wide numbers (ended qualified lives /
+  the survivors boards' alive total), with the death figure counting up on load. Falls back to
+  the evergreen "One life. No respawns." headline when the numbers are unavailable. New public
+  `GET /stats`.
+
 ## [0.52.0] - 2026-07-28
 
 ### Added

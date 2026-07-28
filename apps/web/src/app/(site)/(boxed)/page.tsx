@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getServers, getSurvivors } from "@/lib/api";
+import { getServers, getSurvivors, getSiteStats } from "@/lib/api";
 import { settleFeed } from "@/lib/settle-feed";
 import { Hero } from "@/components/front-page/hero";
 import { TopSurvivors } from "@/components/front-page/top-survivors";
@@ -43,6 +43,16 @@ export default async function Home() {
   const cookieStore = await cookies();
   const signedIn = cookieStore.getAll().some((c) => c.name.includes("session_token"));
 
+  // The ledger's numbers feed ONLY the Hero, and the Hero renders ONLY for signed-out visitors
+  // (below) — so a signed-in load must skip this fetch entirely, not just skip rendering its
+  // result. `getSiteStats` runs a fleet-wide correlated COUNT plus `getAliveSurvivors` (which
+  // loads the whole kills table); paying that on every signed-in home load for a value nobody
+  // sees is a real cost, not a tidy-up target. Do NOT make this unconditional again.
+  // Kicked off before the `servers` await (it has no dependency on `boardSlug`/servers) so it
+  // runs concurrently; `settleFeed` never rejects, so an un-awaited promise here can't produce
+  // an unhandled rejection.
+  const statsPromise = signedIn ? null : settleFeed(getSiteStats());
+
   // Fetched here rather than through `useControls`, whose servers query is `enabled: signedIn` —
   // the cold fork's How to connect panel is shown to signed-OUT visitors, who would otherwise
   // never get a list.
@@ -60,12 +70,16 @@ export default async function Home() {
     ? await settleFeed(getSurvivors({ slug: boardSlug, page: 1 }))
     : { data: null, failed: servers.failed };
 
+  // Its OWN settleFeed: a failed stats fetch costs only the ledger (the hero falls back to the
+  // evergreen headline) — never the board strip or the cold fork.
+  const stats = statsPromise ? await statsPromise : { data: null, failed: false };
+
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_380px]">
       <main className="mx-auto w-full min-w-0 max-w-5xl xl:border-r xl:border-ink xl:pr-8">
         {!signedIn && (
           <>
-            <Hero />
+            <Hero stats={stats.data} />
             {survivors.failed && (
               <FeedFailedBanner>The survivors board is temporarily unreachable.</FeedFailedBanner>
             )}

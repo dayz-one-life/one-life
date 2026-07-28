@@ -8,10 +8,12 @@ import Home from "./page";
 const getSurvivors = vi.fn();
 const getServers = vi.fn();
 const getLastPlayedMap = vi.fn();
+const getSiteStats = vi.fn();
 vi.mock("@/lib/api", () => ({
   getSurvivors: (...a: unknown[]) => getSurvivors(...a),
   getServers: (...a: unknown[]) => getServers(...a),
   getLastPlayedMap: (...a: unknown[]) => getLastPlayedMap(...a),
+  getSiteStats: (...a: unknown[]) => getSiteStats(...a),
 }));
 // Mutable cookie jar: [] = cold visitor (the default for these feed tests); push a
 // `…session_token` cookie to simulate a signed-in visitor for the pitch-gating tests below.
@@ -27,6 +29,18 @@ vi.mock("@/components/account/account-panels", () => ({
 }));
 vi.mock("@/components/account/home-sidebar", () => ({ HomeSidebar: () => <aside /> }));
 
+// CountUp uses window.matchMedia for reduced-motion detection
+global.matchMedia = vi.fn((query) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  addEventListener: vi.fn(),
+  removeEventListener: vi.fn(),
+  dispatchEvent: vi.fn(),
+})) as any;
+
 const survivor = {
   gamertag: "boots", slug: "chernarus", map: "chernarusplus", timeAliveSeconds: 100,
   killsThisLife: 0, longestKillMeters: null, avatarHash: null,
@@ -37,6 +51,8 @@ beforeEach(() => {
   cookieJar.length = 0;
   getServers.mockResolvedValue([{ id: 1, name: "Chernarus", map: "chernarusplus", slug: "chernarus" }]);
   getLastPlayedMap.mockResolvedValue({ slug: null });
+  // Default: stats fetch fails, so Hero falls back to evergreen headline
+  getSiteStats.mockRejectedValue(new Error("unavailable"));
 });
 
 // ⚠️ The pitch is for COLD visitors only (home-is-the-app spec): a signed-in player's home
@@ -50,12 +66,25 @@ describe("Home page: the pitch renders for cold visitors only", () => {
     expect(screen.queryByRole("heading", { level: 1, name: "One life. No respawns." })).toBeNull();
     expect(screen.queryByText(/still breathing/i)).toBeNull();
     expect(screen.getByLabelText("Your account")).toBeInTheDocument();
+    // ⚠️ The ledger is the Hero's sole consumer and the Hero never renders for a signed-in
+    // visitor — the stats fetch must be skipped entirely, not merely unrendered, since it pays
+    // a fleet-wide correlated COUNT plus a full kills-table scan (getAliveSurvivors).
+    expect(getSiteStats).not.toHaveBeenCalled();
   });
 
   test("no session cookie keeps the full cold landing", async () => {
     getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     render(await Home());
     expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
+  });
+
+  test("a resolved stats fetch renders the casualty ledger as the h1", async () => {
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    getSiteStats.mockResolvedValue({ deaths: 3, alive: 2 });
+    render(await Home());
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Deaths to date: 3. Still standing: 2." }),
+    ).toBeInTheDocument();
   });
 });
 

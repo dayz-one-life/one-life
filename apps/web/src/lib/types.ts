@@ -1,3 +1,6 @@
+/** Public fleet-wide ledger numbers for the cold home's hero (`GET /stats`). */
+export type SiteStats = { deaths: number; alive: number };
+
 export type Server = {
   id: number;
   nitradoServiceId: number;

@@ -1,9 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import type { SurvivorRow } from "@/lib/types";
+import type { SurvivorRow, SiteStats } from "@/lib/types";
 import { Hero } from "./hero";
 import { TopSurvivors } from "./top-survivors";
 import { SignInCta } from "./signin-cta";
+
+// CountUp is a client component; under jsdom its effect runs but matchMedia is missing — stub it
+// once for this file (reduced motion → no animation in these tests).
+vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
 
 const mockStatus = vi.fn();
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus() }));
@@ -13,12 +17,32 @@ const row = (over: Partial<SurvivorRow>): SurvivorRow => ({
   killsThisLife: 2, longestKillMeters: 25, avatarHash: null, ...over,
 });
 
+const stats: SiteStats = { deaths: 1247, alive: 38 };
+
 describe("Hero", () => {
   it("runs the manifesto screamer with a kicker and About link", () => {
     render(<Hero />);
     expect(screen.getByText("The record of record")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "How it works →" })).toHaveAttribute("href", "/about");
+  });
+
+  it("with stats, the ledger IS the h1 and the brand line demotes to the kicker", () => {
+    render(<Hero stats={stats} />);
+    // The accessible name comes from the sr-only sentence — final numbers, one clean announcement.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Deaths to date: 1,247. Still standing: 38." }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("One life. No respawns.")).toBeInTheDocument(); // the kicker now
+    expect(screen.queryByText("The record of record")).not.toBeInTheDocument();
+  });
+
+  it("without stats, the evergreen hero renders — no zero, no placeholder, no banner", () => {
+    render(<Hero stats={null} />);
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
+    expect(screen.queryByText(/Deaths to date/)).not.toBeInTheDocument();
+    // ⚠️ Live-data honesty: a missing number must never render as 0.
+    expect(screen.queryByText(/\b0\b/)).not.toBeInTheDocument();
   });
 });
 
