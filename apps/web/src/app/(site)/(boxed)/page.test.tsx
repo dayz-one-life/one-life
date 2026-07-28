@@ -66,12 +66,25 @@ describe("Home page: the pitch renders for cold visitors only", () => {
     expect(screen.queryByRole("heading", { level: 1, name: "One life. No respawns." })).toBeNull();
     expect(screen.queryByText(/still breathing/i)).toBeNull();
     expect(screen.getByLabelText("Your account")).toBeInTheDocument();
+    // ⚠️ The ledger is the Hero's sole consumer and the Hero never renders for a signed-in
+    // visitor — the stats fetch must be skipped entirely, not merely unrendered, since it pays
+    // a fleet-wide correlated COUNT plus a full kills-table scan (getAliveSurvivors).
+    expect(getSiteStats).not.toHaveBeenCalled();
   });
 
   test("no session cookie keeps the full cold landing", async () => {
     getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     render(await Home());
     expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
+  });
+
+  test("a resolved stats fetch renders the casualty ledger as the h1", async () => {
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    getSiteStats.mockResolvedValue({ deaths: 3, alive: 2 });
+    render(await Home());
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Deaths to date: 3. Still standing: 2." }),
+    ).toBeInTheDocument();
   });
 });
 
