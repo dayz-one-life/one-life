@@ -62,10 +62,10 @@ describe("getSiteStats", () => {
       .returning();
     serverId = s!.id;
 
-    // deaths: 2 qualified ended lives (one by playtime, one instant PvP death)
+    // deaths: 3 ended lives — qualification is deliberately irrelevant to the ledger (one long
+    // life, one instant PvP death, one sub-5-minute unqualified blip; ALL count)
     await insertLife({ gamertag: `St-DeadLong-${svc}`, startedAt: hoursAgo(30), endedAt: hoursAgo(25), playtimeSeconds: 7200 });
     await insertLife({ gamertag: `St-DeadPvp-${svc}`, startedAt: hoursAgo(20), endedAt: hoursAgo(20), playtimeSeconds: 30, deathCause: "pvp" });
-    // excluded from deaths: unqualified ended life (sub-5-minute, no pvp, no kills)
     await insertLife({ gamertag: `St-Blip-${svc}`, startedAt: hoursAgo(10), endedAt: hoursAgo(10), playtimeSeconds: 90 });
     // alive: 1 open qualified life; excluded from BOTH: 1 open provisional life
     await insertLife({ gamertag: `St-Alive-${svc}`, startedAt: hoursAgo(5), endedAt: null, playtimeSeconds: 7200 });
@@ -83,18 +83,18 @@ describe("getSiteStats", () => {
     await db.delete(servers).where(eq(servers.id, serverId));
   });
 
-  it("counts ended qualified lives as deaths — unqualified ended lives excluded", async () => {
+  it("counts EVERY ended life as a death — the unqualified blip included", async () => {
     const stats = await getSiteStats(db, now);
-    // MUTATION CHECK for qualified-only: drop the qualifiedLifeCondition clause and St-Blip
-    // makes this baseline.deaths + 3.
-    expect(stats.deaths).toBe(baseline.deaths + 2);
+    // The blip (90s, no pvp, no kills) counts: the ledger answers "how many lives have ended
+    // here," not "how many qualified." A qualified-only count would fail this at + 2.
+    expect(stats.deaths).toBe(baseline.deaths + 3);
   });
 
-  it("never counts an open life as a death, however qualified", async () => {
+  it("never counts an open life as a death", async () => {
     const stats = await getSiteStats(db, now);
-    // MUTATION CHECK for ended-only: drop the isNotNull(lives.endedAt) clause and St-Alive
-    // (open, 2h playtime — passes the SQL condition) makes deaths baseline.deaths + 3.
-    expect(stats.deaths).toBe(baseline.deaths + 2);
+    // MUTATION CHECK for ended-only: drop the isNotNull(lives.endedAt) clause and the two open
+    // lives (St-Alive, St-Fresh) make deaths baseline.deaths + 5.
+    expect(stats.deaths).toBe(baseline.deaths + 3);
   });
 
   it("alive IS the survivors board's total — same well, cannot disagree", async () => {

@@ -1560,11 +1560,15 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `docs/superpowers/specs/2026-07-28-cold-home-ledger-hero-design.md`): the signed-out home's
   `<h1>` is a live casualty ledger — "Deaths to date: N. Still standing: M." — with the death
   figure counting up on load; the brand line demotes to the kicker. Backed by `getSiteStats`
-  (`packages/read-models/src/site-stats.ts`) at public `GET /stats`. **One well:** deaths = SQL
-  COUNT of **ended** lives passing `qualifiedLifeCondition` (legal only because ended lives'
-  `playtime_seconds` is final); alive = `getAliveSurvivors(...).total`, delegated so the headline
-  and the boards can never disagree. The deaths/alive fleets deliberately differ (deaths count all
-  servers ever; alive only active slugged ones) — don't "fix" either side to match. **A failed
+  (`packages/read-models/src/site-stats.ts`) at public `GET /stats`. **Deaths = SQL COUNT of ALL
+  ended lives — qualification deliberately does NOT apply** (changed 2026-07-28 from
+  qualified-only): the ledger answers "how many lives ended here," so sub-5-minute blips count,
+  and this is the one surface whose number exceeds the qualified-only record (boards, funerals,
+  bans) — don't "reconcile" it back, and don't point a qualified-only surface at it. Alive =
+  `getAliveSurvivors(...).total`, delegated so the headline and the boards can never disagree
+  (still qualified-only, the boards' own definition). The deaths/alive fleets also deliberately
+  differ (deaths count all servers ever; alive only active slugged ones) — don't "fix" either
+  side to match. **A failed
   stats fetch renders the previous evergreen hero** (no banner, never a zero); the fetch is its
   own `settleFeed`, gated on `!signedIn` (the hero is cold-only — don't make it unconditional:
   `getAliveSurvivors` loads the whole kills table). `CountUp` SSRs the real final number,
