@@ -454,9 +454,16 @@ Obituaries alone are back (no birth notices, news, images or Discord — see the
 was removed by hand in the step above and is not checked into the repo, so it must be
 **recreated by hand**, mirroring every other worker unit, before the newsdesk process runs again:
 
-1. Create + enable the `onelife-newsdesk` unit on the host.
+1. Create + **enable but do not start** the `onelife-newsdesk` unit on the host
+   (`sudo systemctl enable onelife-newsdesk`, no `--now`) — the `articles` table this release's
+   migration recreates doesn't exist yet, so starting the unit before the deploy runs opens a
+   crash-loop window.
 2. Deploy normally (`./deploy/deploy.sh` — migration `0030` recreates a trimmed `articles` table,
-   touches no projection table, so no `--rebuild`).
+   touches no projection table, so no `--rebuild`). **⚠️ This deploy runs the *previous* release's
+   `deploy.sh`** (see the "A change to `deploy/deploy.sh` NEVER applies to the deploy that installs
+   it" note in `CLAUDE.md`), which predates `onelife-newsdesk` and so neither checks for it nor
+   restarts it — start it by hand this once, after the deploy completes:
+   `sudo systemctl start onelife-newsdesk`.
 3. Confirm a dry-run tick logs `DRY RUN: would generate obituary` lines.
 4. Set `NEWSDESK_SINCE` to the go-live instant.
 5. Set `NEWSDESK_DRY_RUN=false`.

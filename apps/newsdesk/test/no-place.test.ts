@@ -26,6 +26,12 @@ describe("findPlaceViolations", () => {
     const dirty = { ...clean, headline: "Death on the Coast", tags: ["Elektro"] };
     expect(findPlaceViolations(dirty, { exempt: [] }).sort()).toEqual(["coast", "elektro"]);
   });
+  it("catches common DayZ map shorthand not in the vendored place list", () => {
+    const dirty1 = { ...clean, body: "He was last seen heading for Cherno." };
+    expect(findPlaceViolations(dirty1, { exempt: [] })).toEqual(["cherno"]);
+    const dirty2 = { ...clean, body: "A firefight broke out near NWAF." };
+    expect(findPlaceViolations(dirty2, { exempt: [] })).toEqual(["nwaf"]);
+  });
   it("exempts gamertags — a callsign containing a banned word never trips it", () => {
     const dirty = { ...clean, body: "BarnOwl was the last to see him." };
     expect(findPlaceViolations(dirty, { exempt: ["BarnOwl"] })).toEqual([]);

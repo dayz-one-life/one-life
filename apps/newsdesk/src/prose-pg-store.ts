@@ -3,7 +3,7 @@ import { articles } from "@onelife/db";
 import { and, eq, desc } from "drizzle-orm";
 
 /** One recently published article's prose fingerprint — what the do-not-reuse block shows the
- *  model. Mirrors recentCovers in image-pg-store.ts (same kind/status/order/limit shape). */
+ *  model. */
 export interface RecentProse {
   headline: string;
   attribution: string | null;

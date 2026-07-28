@@ -41,7 +41,10 @@ const STRUCTURE_TERRAIN = [
 // (DayZ players routinely truncate a long town name — "Elektro" for Elektrozavodsk). Curated,
 // not derived by prefix-matching every place name, because guessing at abbreviations
 // programmatically risks flagging ordinary words that happen to prefix a town's full name.
-const COMMON_SHORTHAND = ["elektro"];
+const COMMON_SHORTHAND = [
+  "elektro", "cherno", "berezino", "novo", "zeleno", "vybor", "nwaf", "neaf", "vmc",
+  "tisy", "kamensk", "solnichniy", "stary", "novy",
+];
 
 const exemptSet = new Set(PLACE_EXEMPT_MAPS.map((m) => m.toLowerCase()));
 
@@ -68,6 +71,12 @@ export function findPlaceViolations(obituary: Obituary, opts: { exempt: string[]
   let text = proseOf(obituary).toLowerCase();
   // Blank out exempt substrings (gamertags, and the map names are never in BANNED anyway) so a
   // banned word INSIDE an exempt callsign cannot trip; a free-standing use still does.
+  // ⚠️ This is a plain substring blank-out, not a word-boundary one, and it fails OPEN: a
+  // gamertag that IS a banned word (or contains one, e.g. a callsign like "Elektro_Ghost")
+  // blanks out every free-standing use of that word too, deliberately — a real death report
+  // could then say "found near Elektro" without tripping the filter. Accepted because `opts.exempt`
+  // is bounded to the two names an article can legitimately carry (the victim's own gamertag and,
+  // for a pvp death, the killer's), never arbitrary prose.
   for (const e of opts.exempt) {
     if (!e) continue;
     text = text.replaceAll(e.toLowerCase(), " ");

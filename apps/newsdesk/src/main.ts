@@ -16,6 +16,12 @@ async function loop(): Promise<void> {
     "newsdesk starting",
   );
   if (cfg.dryRun) log.warn("NEWSDESK_DRY_RUN is on — obituaries are logged, not generated or stored. Set NEWSDESK_DRY_RUN=false to generate.");
+  if (cfg.dryRun === false && cfg.openrouterApiKey === "") {
+    log.warn(
+      "NEWSDESK_DRY_RUN is false but OPENROUTER_API_KEY is unset — live mode has no API key, " +
+        "every target will burn an attempt into a failure stub instead of publishing.",
+    );
+  }
   if (cfg.since === null) {
     log.warn("NEWSDESK_SINCE is unset — the obituary pass is OFF. Set it to an ISO-8601 go-live timestamp to begin coverage.");
   } else {
