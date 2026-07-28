@@ -221,6 +221,7 @@ export interface LifeTrack {
 export type SitemapData = {
   players: { gamertag: string; lastmod: string }[];
   lives: { gamertag: string; mapSlug: string; n: number; lastmod: string }[];
+  articles: { kind: string; slug: string; lastmod: string }[];
 };
 
 export type FriendStatusValue = "none" | "outgoing" | "incoming" | "friends" | "cooldown";

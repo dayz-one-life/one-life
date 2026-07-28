@@ -21,7 +21,11 @@ export const dynamic = "force-dynamic";
 
 /** Static pages carry no `lastmod` — they change constantly or not at all, and a fabricated
  *  value trains crawlers to ignore the field. */
-const STATIC_PATHS = ["/", "/about"];
+const STATIC_PATHS = ["/", "/about", "/obituaries"];
+
+/** Maps an article `kind` to its route base. An unknown kind is skipped rather than guessed —
+ *  emitting a URL for a kind with no route would 404. */
+const ARTICLE_PATHS: Record<string, string> = { obituary: "/obituaries" };
 
 /**
  * `new Date(garbage)` yields an Invalid Date, and Next's sitemap serializer calls
@@ -71,6 +75,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: absoluteUrl(`/players/${playerSlug(l.gamertag)}/${l.mapSlug}/lives/${l.n}`),
         ...toLastModified(l.lastmod),
       });
+    }
+    for (const a of data.articles) {
+      const base = ARTICLE_PATHS[a.kind];
+      if (!base) continue; // an unknown kind must never emit a URL that 404s
+      entries.push({ url: absoluteUrl(`${base}/${a.slug}`), ...toLastModified(a.lastmod) });
     }
   } catch {
     // Same reasoning as above.

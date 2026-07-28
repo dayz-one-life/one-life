@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives } from "@onelife/db";
+import { servers, players, lives, articles } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getSitemapEntries } from "../src/sitemap.js";
 
@@ -16,6 +16,8 @@ let sakhal: number; // slugged
 let noSlugServer: number; // slug NULL
 let livonia: number; // slug 'livonia', map 'enoch'
 
+const ARTICLE_CREATED_AT = new Date("2026-07-10T00:00:00Z");
+let articleIds: number[] = [];
 
 beforeAll(async () => {
   const [a] = await db
@@ -87,9 +89,28 @@ beforeAll(async () => {
     endedAt: ENDED_AT,
     playtimeSeconds: 50,
   });
+
+  // A published obituary with a slug — must appear, lastmod = created_at.
+  const [published] = await db
+    .insert(articles)
+    .values({ kind: "obituary", status: "published", slug: `obit-${svc}`, createdAt: ARTICLE_CREATED_AT })
+    .returning();
+
+  // A failed article — never published, must never appear regardless of slug.
+  const [failed] = await db
+    .insert(articles)
+    .values({ kind: "obituary", status: "failed", slug: `failed-${svc}` })
+    .returning();
+
+  // A published article with no slug (a failed-generation stub that was later re-marked, or any
+  // row missing a slug) — must never emit a URL with an "undefined"/"null" segment.
+  const [noSlug] = await db.insert(articles).values({ kind: "obituary", status: "published", slug: null }).returning();
+
+  articleIds = [published!.id, failed!.id, noSlug!.id];
 });
 
 afterAll(async () => {
+  await db.delete(articles).where(inArray(articles.id, articleIds));
   await db.delete(lives).where(inArray(lives.serverId, [sakhal, noSlugServer, livonia]));
   await db.delete(players).where(inArray(players.gamertag, [`Hartman-${svc}`, `Ghost-${svc}`, `Runner-${svc}`, `Drifter-${svc}`]));
   await db.delete(servers).where(inArray(servers.id, [sakhal, noSlugServer, livonia]));
@@ -138,5 +159,42 @@ describe("getSitemapEntries", () => {
     expect(out.players.find((p) => p.gamertag === `Hartman-${svc}`)?.lastmod.toISOString()).toBe(
       LATER_AT.toISOString(),
     );
+  });
+
+  it("lists a published obituary with lastmod taken from created_at", async () => {
+    const out = await getSitemapEntries(db);
+    const entry = out.articles.find((a) => a.slug === `obit-${svc}`);
+    expect(entry).toBeDefined();
+    expect(entry?.kind).toBe("obituary");
+    expect(entry?.lastmod.toISOString()).toBe(ARTICLE_CREATED_AT.toISOString());
+  });
+
+  it("omits a failed (unpublished) article", async () => {
+    const out = await getSitemapEntries(db);
+    expect(out.articles.some((a) => a.slug === `failed-${svc}`)).toBe(false);
+  });
+
+  it("omits a published article with a null slug", async () => {
+    const out = await getSitemapEntries(db);
+    expect(out.articles.every((a) => a.slug !== null)).toBe(true);
+  });
+
+  it("keeps players and lives when the articles query throws — independence, not a shared try/catch", async () => {
+    const original = db.select.bind(db);
+    let call = 0;
+    const spy = vi.spyOn(db, "select").mockImplementation(((...args: Parameters<typeof db.select>) => {
+      call++;
+      if (call === 3) throw new Error("articles query boom");
+      return original(...args);
+    }) as typeof db.select);
+
+    try {
+      const out = await getSitemapEntries(db);
+      expect(out.players.length).toBeGreaterThan(0);
+      expect(out.lives.length).toBeGreaterThan(0);
+      expect(out.articles).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
