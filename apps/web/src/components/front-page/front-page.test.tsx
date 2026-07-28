@@ -1,68 +1,83 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import type { SurvivorRow, SiteStats } from "@/lib/types";
 import { Hero } from "./hero";
-import { TopSurvivors } from "./top-survivors";
 import { SignInCta } from "./signin-cta";
 
 // CountUp is a client component; under jsdom its effect runs but matchMedia is missing — stub it
 // once for this file (reduced motion → no animation in these tests).
 vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+// FitLine mounts under jsdom and observes its container with ResizeObserver, which jsdom lacks.
+vi.stubGlobal(
+  "ResizeObserver",
+  vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
+);
 
 const mockStatus = vi.fn();
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => mockStatus() }));
 
-const row = (over: Partial<SurvivorRow>): SurvivorRow => ({
-  gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", timeAliveSeconds: 82440,
-  killsThisLife: 2, longestKillMeters: 25, avatarHash: null, ...over,
-});
-
-const stats: SiteStats = { deaths: 1247, alive: 38 };
+// The kicker's text is deliberately split across a red <span> and a plain text node (Task 2:
+// the em-dash lives outside the brand span), so RTL's default getByText — which only matches a
+// node's OWN direct text-node children, not its full recursive textContent — cannot find the
+// combined phrase. Read the kicker <p>'s full textContent directly instead.
+const kicker = (root: HTMLElement) => root.querySelector<HTMLElement>("p.tracking-\\[\\.28em\\]")?.textContent ?? "";
 
 describe("Hero", () => {
-  it("runs the manifesto screamer with a kicker and About link", () => {
-    render(<Hero />);
-    expect(screen.getByText("The record of record")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "How it works →" })).toHaveAttribute("href", "/about");
-  });
+  const stats = { deaths: 4213, alive: 38 };
 
-  it("with stats, the ledger IS the h1 and the brand line demotes to the kicker", () => {
+  it("renders the two-line ledger with no trailing periods", () => {
     render(<Hero stats={stats} />);
-    // The accessible name comes from the sr-only sentence — final numbers, one clean announcement.
+    // Accessible name = sr-only sentence; one mid period, no trailing period.
     expect(
-      screen.getByRole("heading", { level: 1, name: "Deaths to date: 1,247. Still standing: 38." }),
+      screen.getByRole("heading", { level: 1, name: "Deaths to date: 4,213. Still standing: 38" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("One life. No respawns.")).toBeInTheDocument(); // the kicker now
-    expect(screen.queryByText("The record of record")).not.toBeInTheDocument();
+    // The still-standing line is its own (aria-hidden) visible line, not part of line 1.
+    expect(screen.getByText(/Still standing:/i)).toBeInTheDocument();
+    // Kicker carries the demoted brand line.
+    expect(kicker(document.body)).toMatch(/One life\. No respawns —/i);
   });
 
-  it("without stats, the evergreen hero renders — no zero, no placeholder, no banner", () => {
+  it("carries the primary CTA to /login", () => {
+    render(<Hero stats={stats} />);
+    expect(screen.getByRole("link", { name: "Claim your life →" })).toHaveAttribute("href", "/login");
+  });
+
+  it("without stats, renders the evergreen dark hero — no zero, no ledger, CTA intact", () => {
     render(<Hero stats={null} />);
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.queryByText(/Deaths to date/)).not.toBeInTheDocument();
-    // ⚠️ Live-data honesty: a missing number must never render as 0.
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns" })).toBeInTheDocument();
+    expect(screen.queryByText(/Deaths to date/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/\b0\b/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Claim your life →" })).toHaveAttribute("href", "/login");
   });
-});
 
-describe("TopSurvivors", () => {
-  it("ranks rows with gamertag links and time alive", () => {
-    render(<TopSurvivors slug="sakhal" map="sakhal" rows={[row({}), row({ gamertag: "Khushie", timeAliveSeconds: 30300 })]} />);
-    expect(screen.getByRole("link", { name: "YrJustBad" })).toHaveAttribute("href", "/players/yrjustbad");
-    expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    // ⚠️ Links to THIS map's board, never a bare /survivors (a per-viewer redirect).
-    expect(screen.getByRole("link", { name: "ALL →" })).toHaveAttribute("href", "/survivors/sakhal");
+  it("without stats, the kicker reverts to the evergreen line — no double-printed brand line", () => {
+    const { container } = render(<Hero stats={null} />);
+    expect(kicker(container)).toBe("The record of record");
+    // The brand kicker ("One life. No respawns —") only ever prints with stats; without them it
+    // must not appear a second time above the identical h1 text.
+    expect(kicker(container)).not.toMatch(/One life\. No respawns —/i);
   });
-  it("names the map it is scoped to, so the list is not silently partial", () => {
-    render(<TopSurvivors slug="livonia" map="enoch" rows={[row({})]} />);
-    // `enoch` is labelled Livonia — the heading uses the label, never the mission codename.
-    expect(screen.getByText(/Still breathing on Livonia/i)).toBeInTheDocument();
+
+  it("with stats, the brand kicker prints once with the em-dash outside the red span", () => {
+    render(<Hero stats={stats} />);
+    expect(kicker(document.body)).toMatch(/One life\. No respawns —/i);
+    // The red/bold span carries the brand phrase alone; the dash is plain text beside it.
+    const brand = screen.getByText("One life. No respawns");
+    expect(brand.tagName).toBe("SPAN");
+    expect(brand.className).toContain("text-red");
+    expect(brand.textContent).not.toContain("—");
   });
-  it("shows the quiet-coast empty state", () => {
-    render(<TopSurvivors slug="sakhal" map="sakhal" rows={[]} />);
-    expect(screen.getByText(/THE COAST IS QUIET/)).toBeInTheDocument();
+
+  it("the stats-branch ledger line carries a CSS fallback size class before any measurement (jsdom never measures)", () => {
+    const { container } = render(<Hero stats={stats} />);
+    // The FitLine clone carries [data-fitline-clone]; its sibling is the visible line div, which
+    // must carry the fallback size class — the clone itself must NOT (it always measures at the
+    // fixed BASE_PX, unaffected by the fallback).
+    const clone = container.querySelector("[data-fitline-clone]");
+    expect(clone).not.toBeNull();
+    expect(clone!.className).not.toContain("text-[clamp");
+    const line = clone!.nextElementSibling as HTMLElement;
+    expect(line).not.toBeNull();
+    expect(line.className).toContain("text-[clamp(2.5rem,9vw,10rem)]");
   });
 });
 

@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The signed-out home page is a full pitch now: a dark full-width two-line ledger headline
+  ("DEATHS TO DATE" / "STILL STANDING", no trailing periods) with the claim button right in the
+  hero, a wall of recent obituaries, the three rules of the game, and one closing call-to-action
+  with the server-browser instructions. The top-5 board strip and the old two-cell sign-in fork
+  are gone, and the desktop sidebar now appears only for verified players.
+
 ## [0.54.0] - 2026-07-28
 
 ### Added

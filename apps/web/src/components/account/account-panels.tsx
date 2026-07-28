@@ -79,7 +79,7 @@ export function AccountPanels({ signInFallback = false }: {
   const signedIn = c.status.kind === "unlinked" || c.status.kind === "pending" || c.status.kind === "verified";
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar, enabled: signedIn });
 
-  // A signed-out visitor normally gets nothing here: Home carries the hero and `ColdFork`, and a
+  // A signed-out visitor normally gets nothing here: Home carries the hero and `CtaSlab`, and a
   // sign-in panel here would be a SECOND call to action on the same page. The old rail could
   // afford one because it was a separate column; in the main flow it is a duplicate. The
   // exception is the stale-cookie case above, where this is the ONLY call to action left.

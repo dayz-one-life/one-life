@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, test, vi, beforeEach } from "vitest";
+import { describe, expect, test, it, vi, beforeEach, type Mock } from "vitest";
 import Home from "./page";
 
 // live-data honesty spec §5: a feed-fetch failure must not render identically to "the desk
@@ -9,11 +9,13 @@ const getSurvivors = vi.fn();
 const getServers = vi.fn();
 const getLastPlayedMap = vi.fn();
 const getSiteStats = vi.fn();
+const getObituariesFeed = vi.fn();
 vi.mock("@/lib/api", () => ({
   getSurvivors: (...a: unknown[]) => getSurvivors(...a),
   getServers: (...a: unknown[]) => getServers(...a),
   getLastPlayedMap: (...a: unknown[]) => getLastPlayedMap(...a),
   getSiteStats: (...a: unknown[]) => getSiteStats(...a),
+  getObituariesFeed: (...a: unknown[]) => getObituariesFeed(...a),
 }));
 // Mutable cookie jar: [] = cold visitor (the default for these feed tests); push a
 // `…session_token` cookie to simulate a signed-in visitor for the pitch-gating tests below.
@@ -21,13 +23,21 @@ const cookieJar: Array<{ name: string; value: string }> = [];
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, getAll: () => cookieJar }),
 }));
-vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "loading" }) }));
+// `CtaSlab` renders only for `signedOut`, and `HomeShell`'s sidebar only for `verified` — this
+// suite is about the cold pitch, so we drive the mocked cookie jar for fetch gating and pin
+// `useAccountStatus` at `signedOut` so the pitch beats (Hero/Fallen/Rules/CtaSlab) render.
+vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "signedOut" }) }));
 // The account surface has its own data layer and its own tests. This file is about feed honesty,
-// so stub the two account regions rather than mocking every query they reach for.
+// so stub the account region rather than mocking every query it reaches for.
 vi.mock("@/components/account/account-panels", () => ({
   AccountPanels: () => <section aria-label="Your account" />,
 }));
-vi.mock("@/components/account/home-sidebar", () => ({ HomeSidebar: () => <aside /> }));
+
+// FitLine mounts under jsdom and observes its container with ResizeObserver, which jsdom lacks.
+vi.stubGlobal(
+  "ResizeObserver",
+  vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
+);
 
 // CountUp uses window.matchMedia for reduced-motion detection
 global.matchMedia = vi.fn((query) => ({
@@ -53,18 +63,22 @@ beforeEach(() => {
   getLastPlayedMap.mockResolvedValue({ slug: null });
   // Default: stats fetch fails, so Hero falls back to evergreen headline
   getSiteStats.mockRejectedValue(new Error("unavailable"));
+  // Default: obituaries fetch fails, so Fallen renders nothing — matching the getSiteStats
+  // pattern above (a REJECTED feed vs. a resolved-empty one are two distinct outcomes).
+  getObituariesFeed.mockRejectedValue(new Error("no feed"));
 });
 
 // ⚠️ The pitch is for COLD visitors only (home-is-the-app spec): a signed-in player's home
 // starts with their own standing. Signed-in is detected by session-cookie presence, so these
 // drive the mocked cookie jar.
 describe("Home page: the pitch renders for cold visitors only", () => {
-  test("a session cookie suppresses the hero, the board strip and the cold fork", async () => {
+  test("a session cookie suppresses the hero, the fallen wall and the CTA slab", async () => {
     cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
     getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     render(await Home());
-    expect(screen.queryByRole("heading", { level: 1, name: "One life. No respawns." })).toBeNull();
-    expect(screen.queryByText(/still breathing/i)).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: "One life. No respawns" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /The Fallen/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /Claim it/i })).toBeNull();
     expect(screen.getByLabelText("Your account")).toBeInTheDocument();
     // ⚠️ The ledger is the Hero's sole consumer and the Hero never renders for a signed-in
     // visitor — the stats fetch must be skipped entirely, not merely unrendered, since it pays
@@ -73,83 +87,52 @@ describe("Home page: the pitch renders for cold visitors only", () => {
   });
 
   test("no session cookie keeps the full cold landing", async () => {
-    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     render(await Home());
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns" })).toBeInTheDocument();
   });
 
   test("a resolved stats fetch renders the casualty ledger as the h1", async () => {
-    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     getSiteStats.mockResolvedValue({ deaths: 3, alive: 2 });
     render(await Home());
     expect(
-      screen.getByRole("heading", { level: 1, name: "Deaths to date: 3. Still standing: 2." }),
+      screen.getByRole("heading", { level: 1, name: "Deaths to date: 3. Still standing: 2" }),
     ).toBeInTheDocument();
   });
 });
 
-describe("Home page: a feed-fetch error is not the same as genuine emptiness", () => {
-  test("a genuinely empty (resolved) survivors board shows its own quiet-coast copy, no banner", async () => {
-    getSurvivors.mockResolvedValue({ rows: [], page: 1, pageSize: 5, total: 0 });
+describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in gets the sidebar's)", () => {
+  it("signed out: fetches stats and obituaries, never survivors", async () => {
     render(await Home());
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.getByText("THE COAST IS QUIET. NO QUALIFIED SURVIVORS ON RECORD.")).toBeInTheDocument();
-    expect(screen.queryByText(/temporarily unreachable/i)).not.toBeInTheDocument();
-  });
-
-  test("a REJECTED survivors fetch shows a distinguishing banner", async () => {
-    getSurvivors.mockRejectedValue(new Error("503"));
-    render(await Home());
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.getByText(/survivors board is temporarily unreachable/i)).toBeInTheDocument();
-  });
-
-  test("the board strip names the map it is scoped to", async () => {
-    // ⚠️ There is no combined board (sub-project D), so an unlabelled top-5 would be silently
-    // partial — it is one map's, and says so.
-    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
-    render(await Home());
-    expect(screen.getByText(/Still breathing on Chernarus/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ALL →" })).toHaveAttribute("href", "/survivors/chernarus");
-  });
-
-  test("the board is fetched for the resolved map, never a combined board", async () => {
-    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
-    render(await Home());
-    expect(getSurvivors).toHaveBeenCalledWith({ slug: "chernarus", page: 1 });
-  });
-
-  test("the last-played tier is honoured when it names a live server", async () => {
-    getServers.mockResolvedValue([
-      { id: 1, name: "Chernarus", map: "chernarusplus", slug: "chernarus" },
-      { id: 2, name: "Sakhal", map: "sakhal", slug: "sakhal" },
-    ]);
-    getLastPlayedMap.mockResolvedValue({ slug: "sakhal" });
-    getSurvivors.mockResolvedValue({ rows: [], page: 1, pageSize: 5, total: 0 });
-    render(await Home());
-    expect(getSurvivors).toHaveBeenCalledWith({ slug: "sakhal", page: 1 });
-  });
-
-  // ⚠️ Losing the last-played HINT must not cost the strip — it degrades to the alphabetical
-  // tier, which is what a signed-out visitor gets anyway. A shared try/catch around both fetches
-  // would take the board down with it.
-  test("a failed last-played fetch still resolves a board", async () => {
-    getLastPlayedMap.mockRejectedValue(new Error("503"));
-    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
-    render(await Home());
-    expect(getSurvivors).toHaveBeenCalledWith({ slug: "chernarus", page: 1 });
-    expect(screen.queryByText(/temporarily unreachable/i)).not.toBeInTheDocument();
-  });
-
-  // ⚠️ A failed SERVERS fetch genuinely does cost the strip — there is no map to ask a board
-  // about. What must NOT happen is it rendering as an empty coast: "nobody is alive" is a claim
-  // about the game, and a network error is not evidence for it.
-  test("a failed servers fetch reports a failure rather than an empty coast", async () => {
-    getServers.mockRejectedValue(new Error("503"));
-    render(await Home());
-    expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns." })).toBeInTheDocument();
-    expect(screen.getByText(/survivors board is temporarily unreachable/i)).toBeInTheDocument();
-    expect(screen.queryByText("THE COAST IS QUIET. NO QUALIFIED SURVIVORS ON RECORD.")).not.toBeInTheDocument();
+    expect(getSiteStats).toHaveBeenCalled();
+    expect(getObituariesFeed).toHaveBeenCalledWith(1);
     expect(getSurvivors).not.toHaveBeenCalled();
+  });
+
+  it("signed in: fetches survivors, never stats or obituaries", async () => {
+    cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    render(await Home());
+    expect(getSurvivors).toHaveBeenCalled();
+    expect(getSiteStats).not.toHaveBeenCalled();
+    expect(getObituariesFeed).not.toHaveBeenCalled();
+  });
+
+  it("a resolved obituaries feed renders the Fallen wall", async () => {
+    (getObituariesFeed as Mock).mockResolvedValue({
+      rows: [{
+        slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
+        lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",
+        tags: [], timeAliveSeconds: 112320, kills: 4, longestKillMeters: 210, cause: "pvp",
+        deathAt: "2026-07-27T20:00:00Z",
+      }],
+      total: 1, page: 1, pageSize: 12,
+    });
+    render(await Home());
+    expect(screen.getByRole("heading", { name: /The Fallen/i })).toBeInTheDocument();
+  });
+
+  it("a failed obituaries feed renders no Fallen section and no error card", async () => {
+    render(await Home()); // beforeEach default: rejected
+    expect(screen.queryByRole("heading", { name: /The Fallen/i })).not.toBeInTheDocument();
   });
 });

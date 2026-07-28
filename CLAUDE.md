@@ -1597,6 +1597,18 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `getAliveSurvivors` loads the whole kills table). `CountUp` SSRs the real final number,
   animates only post-hydration when motion is allowed, and is `aria-hidden` behind an `sr-only`
   sentence. No migration, no env var — plain `./deploy/deploy.sh`, **no `--rebuild`**.
+  **Relaunched (2026-07-28) into the full cold-home pitch.** The hero is now DARK with a
+  two-line no-trailing-periods headline ("DEATHS TO DATE" / "STILL STANDING") rendered via
+  `FitLine` (hidden-clone measurement to the final string, jsdom-safe against a 0-width
+  container) so it fills the container at any width, with the claim button in the hero itself.
+  The cold home is a four-beat pitch — hero → `Fallen` (a wall of recent obituaries) → `Rules`
+  (the three rules of the game) → `CtaSlab` (closing call-to-action with the server-browser
+  instructions) — and `ColdFork`/`TopSurvivors` (the old two-cell sign-in fork and top-5 board
+  strip) are **RETIRED — do not reintroduce them**. `Fallen` renders NOTHING on a failed OR an
+  empty obituaries feed, never a placeholder. Fetch gating is now two-directional: stats and
+  obituaries are cold-only (fetched only for a signed-out visitor), survivors are signed-in-only
+  (the sidebar's data) — neither leaks into the other's render path. `HomeSidebar` itself is now
+  verified-only, gated through `HomeShell`, not merely signed-in.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
