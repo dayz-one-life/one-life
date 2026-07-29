@@ -1398,12 +1398,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   own `settleFeed`. A single shared try/catch still passes the older feed-honesty tests while
   silently gutting the other half of the page — pinned by two tests proven red against exactly
   that change (the sitemap has the same rule for the same reason).
-  **The ladder has three steps and never a fourth.** `ladderSteps` (`components/account/ladder.ts`)
-  is signed in → claim → prove, with **exactly one `current`**. **⚠️ "Go play a session" is NOT a
-  step**: the claim autocomplete searches gamertags the LOGS have seen and anyone can type any
-  gamertag, so the site can never know whether a signed-in user has played until they verify — a
-  step that can never be marked done would strand every player on it. "Go play" is the claim
-  step's empty state (the How to connect panel), nowhere else.
+  **⚠️ The three-step ladder is GONE — `ladderSteps`/`ladder.ts` and `LadderFrame` were deleted by
+  the claim-modal pass (see that entry below); the claim is a dialog now.** What survives from it is
+  the reason there was never a fourth step: **"Go play a session" is NOT a step**, because the claim
+  autocomplete searches gamertags the LOGS have seen and anyone can type any gamertag, so the site
+  can never know whether a signed-in user has played until they verify — a step that can never be
+  marked done would strand every player on it. "Go play" is the claim panel's empty state (the How
+  to connect panel), nowhere else.
   **Home's tokens block is a `TokensSummary`, not `TokensPanel`** — balance and purpose only.
   Sending and the referrer stay on `/you`; **spending stays on the ban row** (`ServerCard`'s
   `UnbanView`), which already knows which ban to lift, so a spend control in a tokens panel would
@@ -1620,18 +1621,20 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   two-line no-trailing-periods headline ("DEATHS TO DATE" / "STILL STANDING") rendered via
   `FitLine` (hidden-clone measurement to the final string, jsdom-safe against a 0-width
   container) so it fills the container at any width, with the claim button in the hero itself.
-  The cold home is a five-beat pitch, in this order — `Hero` → `Rules` (the three rules of the
-  game, moved ahead of the obituaries) → `Fallen` (a wall of recent obituaries) → `CtaSlab`
-  (closing call-to-action) → **`JoinServers`** (the closing connect beat; since the
-  join-the-servers pass, 2026-07-29, this is the universal yellow slab — see that entry below —
-  which replaced `ConnectSection`, now RETIRED with the earlier `ColdFork`/`TopSurvivors`) —
-  **do not reintroduce any of the retired three**. `Fallen` renders NOTHING on a failed OR an empty
-  obituaries feed, never a placeholder.
+  The cold home is a five-beat pitch, and since the home-consistency pass (2026-07-29, entry
+  below) the order is **`Hero` → `Rules` (the three rules of the game) → `JoinServers` (the
+  universal yellow slab — see that entry — which replaced `ConnectSection`, now RETIRED with the
+  earlier `ColdFork`/`TopSurvivors`) → `CtaSlab` (closing call-to-action) → `Fallen` (a wall of
+  recent obituaries)** — **do not reintroduce any of the retired three**, and note this order
+  **supersedes the earlier Fallen-before-CtaSlab-before-Join rhythm**: the connect instructions
+  now sit with the rules that motivate them and the page closes on the dead. `Fallen` renders
+  NOTHING on a failed OR an empty obituaries feed, never a placeholder.
   **The home-polish pass (2026-07-28) extended the pitch to signed-in-but-unverified visitors —
   narrowed to UNLINKED ONLY by the pending-verification experience (2026-07-29).**
   `UnverifiedPitch` (`components/front-page/unverified-pitch.tsx`) renders the same five beats
   for a signed-in user whose `accountStatus` is `unlinked`, with every CTA pointed at
-  the on-page `#claim` ladder instead of `/login`. **`pending` renders NOTHING there** — a
+  `#claim` — the hash-driven claim MODAL since the home-consistency pass, not an on-page ladder —
+  instead of `/login`. **`pending` renders NOTHING there** — a
   pending player already claimed, so every pitch CTA would demand a done step.
   **The pending-hero pass (2026-07-29, spec
   `docs/superpowers/specs/2026-07-29-pending-hero-design.md`) made the challenge ITSELF the
@@ -1641,7 +1644,8 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   for everything live, a "Step 3 of 3 — one step left" kicker (the 3-step ladder folded to one
   line; it deliberately renders in the expired state too), the gamertag in the `FitLine` h1 (the
   pending page's only h1). It **absorbed the retired `ProveItPanel` and `PendingLead` — do not
-  reintroduce them**; `LadderFrame`/`ladderSteps` are unlinked-only and parameterless now.
+  reintroduce them**; `LadderFrame`/`ladder.ts` went the same way in the home-consistency pass
+  (entry below) and no longer exist at all.
   **The join-the-servers pass (2026-07-29, spec
   `docs/superpowers/specs/2026-07-29-join-the-servers-design.md`) rebuilt the hero's body as
   EMOTE TICKETS.** The sequence renders as three paper tickets (First/Second/Third mono
@@ -1655,30 +1659,33 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   minutes behind, and this page does not update in real time. Perform all three and you can log
   off; the stamp catches up on its own.") — and a test still pins that no copy claims
   live/instant updates.
-  **One `id="claim"` anchor wraps BOTH the hero and the padded `AccountPanels` wrapper**
-  (`page.tsx`; the anchor div is full-bleed, padding on the inner wrapper only — the masthead's
-  "Finish verification → /#claim" lands at the hero top for pending, at the padded ladder for
-  unlinked), and `AccountPanels`' pending branch renders **no visible body** — only the
-  unconditional `VerificationAnnouncer` sibling and the sign-out footer, pinned by
-  `account-panels-pending.test.tsx`. `PendingSupport`
+  **`id="claim"` is `PendingHero`'s own section** (`page.tsx`) — the masthead's "Finish
+  verification → /#claim" lands at the hero top — and for `unlinked` the same hash instead opens
+  the modal, so there is no inline claim section on any surface. `AccountPanels`' pending branch
+  renders **no visible body** — only the unconditional `VerificationAnnouncer` sibling, pinned by
+  `account-panels-pending.test.tsx` (the sign-out footer that used to ride along is gone; the
+  masthead avatar menu owns sign-out). `PendingSupport`
   (`components/front-page/pending-support.tsx`) follows below the anchor: **`Rules` →
   `JoinServers` → `Fallen`** (props narrowed to `{ obits }`), so the pending page mirrors the
-  cold beat rhythm; its `JoinServers` closing line is "Any server counts for your emotes."
-  (never the cold "Play first, claim later," untrue post-claim).
+  cold beat rhythm; it takes the same universal `JoinServers` closing line as everywhere else
+  (the pending-only "Any server counts for your emotes." was retired with the `closing` prop).
   **`JoinServers` (`components/front-page/join-servers.tsx`) is the UNIVERSAL connect beat** —
   a full-bleed yellow slab (the only yellow section on the site): FitLine "Join the servers" h2,
   three dashed paper step-tickets (`red-deep` ordinals — correct, they sit on paper), and a
   static replica of the Xbox server-browser screen captioned "What you'll see on your screen".
-  Mounted on cold (final block), unlinked (after `CtaSlab`) and pending; the `closing` prop is
-  the ONLY per-surface variation. **⚠️ THE REPLICA IS AN ILLUSTRATION, NOT A DATA SURFACE** —
+  Mounted on cold, unlinked and pending, in each case between the rules and the closing beat.
+  **It takes NO PROPS** — the `closing` prop was deleted by the home-consistency pass, so the
+  closing line is one verbatim string ("Play first, claim later — your life is tracked from your
+  first spawn.") on every surface; do not reintroduce a per-surface variant.
+  **⚠️ THE REPLICA IS AN ILLUSTRATION, NOT A DATA SURFACE** —
   its player counts are static example numbers, made honest by the caption framing (a picture
   of the game's own UI, like a screenshot in a manual). Do NOT wire it to live data, do NOT
   flag it under live-data honesty (that rule governs surfaces presenting OUR data), and do NOT
   cite it as precedent for fabricated counts elsewhere. Its host names
   (`One Life <Map> | dayzonelife.com`) are brand copy verified against a real console
   screenshot, hand-maintained like `SEARCH_TERM`; the `HOSTS` array (Host A–Z) is where a
-  fourth map (Badlands) gets added. `HowToConnect` survives ONLY in the unlinked claim ladder's
-  empty state and the idle server rows.
+  fourth map (Badlands) gets added. `HowToConnect` survives ONLY in the claim panel's empty state
+  (now inside the modal) and the idle server rows.
   The masthead `AccountAffordance` has a pending branch: menu item "Finish verification →" →
   `/#claim`, the claimed tag's initial in the disc, and a `border-yellow` cue.
   `UnverifiedPitch` is **client-gated on `useAccountStatus`,
@@ -1695,6 +1702,47 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   all — that div (with the `#claim` anchor) exists only on the signed-in branch, alongside
   `UnverifiedPitch`. `HomeSidebar` itself is still verified-only, gated through `HomeShell`, not
   merely signed-in.
+
+- **Home consistency + claim modal** ✅ (spec
+  `docs/superpowers/specs/2026-07-29-home-consistency-claim-modal-design.md`, plan
+  `docs/superpowers/plans/2026-07-29-home-consistency-claim-modal.md`): one beat rhythm for all
+  three cold-ish homes and the claim ladder replaced by a dialog. **Presentation only** — no
+  migration, no API route, no env var; plain `./deploy/deploy.sh`.
+  **The beats are `Hero` → `Rules` → `JoinServers` → `CtaSlab` → `Fallen`** on cold and unlinked,
+  and `PendingHero` → `Rules` → `JoinServers` → `Fallen` on pending (no `CtaSlab` — a pending
+  player has already answered the call). `JoinServers` takes no props at all now.
+  **`ClaimModal` (`components/account/claim-modal.tsx`) is HASH-DRIVEN, and that is the whole
+  design**: every trigger — hero CTA, `CtaSlab`, the masthead menu item — is a plain link to
+  `/#claim`, so no shared open state is threaded anywhere and the modal works from any page.
+  It opens **ONLY for `unlinked`**; the same hash is inert for pending, where it is
+  `PendingHero`'s scroll anchor.
+  **⚠️ Dismissing CLEARS the hash** (`history.replaceState`, not `location.hash = ""`, which would
+  add a history entry and jump the scroll). A hash left behind swallows the next CTA click
+  outright — a same-hash click fires no `hashchange` — and would re-open the modal on refresh.
+  **⚠️ The masthead's unlinked item is a plain `<a>`, NOT a Next `<Link>`.** Same-page hash
+  navigation through `<Link>` goes via `pushState`, which fires no `hashchange`, so the modal
+  would never open from the home page. Pending's item can stay a `<Link>` because it only needs
+  the scroll.
+  **⚠️ Every account-menu item closes the menu explicitly** (`account-affordance.tsx`).
+  Route-change close is not enough for a hash-only item: `/#claim` from `/` changes no route, so
+  the popover stayed open ON TOP of the modal it had just opened — and, because each surface
+  saved and restored `body.style.overflow` itself, the last one out restored the `hidden` it had
+  captured from the first, leaving the page scroll-locked with no dialog on screen. Hence
+  **`useModalBehavior`'s scroll lock is REF-COUNTED** (module-level `lockCount`/`savedOverflow`,
+  `apps/web/src/lib/use-modal-behavior.ts`): only the first lock saves, only the last unlock
+  restores. Both were found in the browser, not by the suite — jsdom sees the DOM, and the DOM was
+  correct in both cases.
+  **`AccountPanels` owns its own padding** and its unlinked/pending branches render no visible
+  body, so no empty padded wrapper can reappear on a page whose claim UI has moved into a dialog.
+  `ladder.ts`/`ladderSteps`/`LadderFrame` and the inline sign-out bar are **deleted** — sign-out
+  lives in the masthead avatar menu alone.
+  **Browser-verified in real Chrome** (beat order on all three homes, the modal from all three
+  triggers, ✕/Escape/backdrop closing + hash clearing + focus restore, claim → pending flip,
+  "Finish verification" scrolling to the hero) and **at 390×844 via CDP
+  `Emulation.setDeviceMetricsOverride`** (no horizontal overflow, replica rows ellipsised not
+  clipped, five tabs, the footer's About link not under the tab bar). ⚠️ Window resizing bottoms
+  out around 500–1000px CSS in real Chrome on macOS, so **device-metrics emulation over CDP is the
+  only method that verifies anything below that** — `--window-size` and `resize_window` both lie.
 
 - **Mauled inference** ✅ (spec `docs/superpowers/specs/2026-07-29-mauled-inference-design.md`):
   DayZ logs some infected deaths with no `killed by` clause and `Bleed sources: 0` (the wounds
