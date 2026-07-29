@@ -7,12 +7,17 @@ import { HowToConnect, type ServersView } from "@/components/servers/how-to-conn
  *  ⚠️ No `aria-label` on this outer `<div>` — `HowToConnect` already renders its own
  *  `aria-label="How to connect"` section, and a wrapping labelled landmark around it would
  *  duplicate the landmark. Keep exactly one. */
-export function ConnectSection({ servers }: { servers: ServersView }) {
+export function ConnectSection({
+  servers,
+  kicker = "Play first, claim later — no account needed to play",
+}: {
+  servers: ServersView;
+  /** Copy variant: pending passes its own line — the default "claim later" is untrue post-claim. */
+  kicker?: string;
+}) {
   return (
     <div className="px-6 py-10 md:px-10">
-      <p className="font-mono text-[11px] uppercase tracking-[.16em] text-ink-muted">
-        Play first, claim later — no account needed to play
-      </p>
+      <p className="font-mono text-[11px] uppercase tracking-[.16em] text-ink-muted">{kicker}</p>
       <div className="mt-3 max-w-lg">
         <HowToConnect servers={servers} />
       </div>

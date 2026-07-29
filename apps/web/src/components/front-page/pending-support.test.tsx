@@ -42,4 +42,11 @@ describe("PendingSupport", () => {
       expect(container).toBeEmptyDOMElement();
     },
   );
+
+  it("pending: the connect beat carries the pending kicker, never the cold 'Play first' line", () => {
+    mockStatus.mockReturnValue({ kind: "pending", link: { gamertag: "X" } });
+    render(<PendingSupport {...props} />);
+    expect(screen.getByText("Get in game — perform your sequence on any One Life server")).toBeInTheDocument();
+    expect(screen.queryByText(/Play first, claim later/i)).not.toBeInTheDocument();
+  });
 });
