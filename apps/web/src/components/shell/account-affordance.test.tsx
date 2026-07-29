@@ -70,6 +70,25 @@ describe("AccountAffordance", () => {
     expect(screen.getByRole("menuitem", { name: "Sign out" })).toHaveFocus();
   });
 
+  it("pending: Finish verification link to /#claim, disc shows the tag initial with the yellow cue", () => {
+    mockStatus.mockReturnValue({ kind: "pending", link: { gamertag: "boots" } });
+    renderIt();
+    const trigger = screen.getByRole("button", { name: "Your account" });
+    expect(trigger).toHaveTextContent("B"); // pending tag's initial, not the anonymous "•"
+    expect(trigger.className).toContain("border-yellow");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menuitem", { name: "Finish verification →" })).toHaveAttribute("href", "/#claim");
+    expect(screen.queryByRole("menuitem", { name: "Claim your gamertag →" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Your profile →" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  it("verified and unlinked discs carry no yellow pending cue", () => {
+    mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "X" } });
+    renderIt();
+    expect(screen.getByRole("button", { name: "Your account" }).className).not.toContain("border-yellow");
+  });
+
   it("never links to /you anywhere", () => {
     mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "X" } });
     const { container } = renderIt();

@@ -9,6 +9,7 @@ import { avatarSrc } from "@/components/shared/avatar";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { playerSlug } from "@/lib/slug";
+import { cn } from "@/lib/utils";
 
 /**
  * The masthead's account control — an avatar disc that opens a small menu (profile / claim +
@@ -81,7 +82,10 @@ export function AccountAffordance() {
   }
 
   const gamertag = status.kind === "verified" ? status.link.gamertag : null;
-  const initial = gamertag ? gamertag.trim().charAt(0).toUpperCase() : "•";
+  // A pending player has a claimed tag too — show its initial rather than an anonymous dot,
+  // and mark the disc with the verification yellow so the state is visible at every width.
+  const pendingTag = status.kind === "pending" ? status.link.gamertag : null;
+  const initial = (gamertag ?? pendingTag)?.trim().charAt(0).toUpperCase() || "•";
   const hash = avatar.data?.hash ?? null;
   const itemClass =
     "block w-full px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[.08em] text-paper hover:bg-dark-well hover:text-red-soft";
@@ -95,7 +99,10 @@ export function AccountAffordance() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="account-menu"
-        className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-dark-edge-bright bg-dark-well font-display text-sm font-bold uppercase text-paper hover:border-red hover:text-red"
+        className={cn(
+          "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-dark-well font-display text-sm font-bold uppercase text-paper hover:border-red hover:text-red",
+          pendingTag ? "border-yellow" : "border-dark-edge-bright",
+        )}
       >
         {hash ? (
           <img src={avatarSrc(hash)} alt="" width={36} height={36} className="h-full w-full object-cover" />
@@ -115,6 +122,10 @@ export function AccountAffordance() {
           {gamertag ? (
             <Link role="menuitem" href={`/players/${playerSlug(gamertag)}`} className={itemClass}>
               Your profile →
+            </Link>
+          ) : pendingTag ? (
+            <Link role="menuitem" href="/#claim" className={itemClass}>
+              Finish verification →
             </Link>
           ) : (
             <Link role="menuitem" href="/" className={itemClass}>
