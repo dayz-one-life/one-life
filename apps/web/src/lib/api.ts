@@ -207,6 +207,14 @@ export const getObituariesFeed = (page: number) =>
 export const getObituary = (slug: string) =>
   getOrNull<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`);
 
+/** Home's pitch feeds — public, cookie-independent, fetched on EVERY home render (cold AND
+ *  signed-in, since the unverified pitch needs them too). `apiGetCached` keeps that free: no
+ *  cookie forwarding, shared 60s fetch cache. Do NOT point authenticated surfaces at these. */
+const HOME_FEED_REVALIDATE_SECONDS = 60;
+export const getSiteStatsCached = () => apiGetCached<SiteStats>("/api/stats", HOME_FEED_REVALIDATE_SECONDS);
+export const getObituariesFeedCached = (page: number) =>
+  apiGetCached<ObituariesFeed>(`/api/obituaries?page=${page}`, HOME_FEED_REVALIDATE_SECONDS);
+
 /** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
  *  3600) so the fetch cache and the route's own ISR window agree. */
 const SITEMAP_REVALIDATE_SECONDS = 3600;
