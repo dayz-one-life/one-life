@@ -111,6 +111,10 @@ describe("PendingHeroView — expired", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Your verification for BootsColdwater expired" }),
     ).toBeInTheDocument();
+    // The "Step 3 of 3 — one step left" kicker sits outside the live/expired ternary — an
+    // expired challenge doesn't change where the player stands in the ladder.
+    expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
+    expect(screen.getByText(/one step left/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start a new challenge →" }));
     expect(onReclaim).toHaveBeenCalled();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();

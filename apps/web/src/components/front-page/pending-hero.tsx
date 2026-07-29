@@ -41,6 +41,9 @@ export function PendingHeroView({
   const expired = !challenge || challenge.expired;
   return (
     <section className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16">
+      {/* Deliberately renders in BOTH the live and expired branches below (outside the ternary):
+       *  an expired challenge doesn't change where the player stands in the 3-step ladder —
+       *  proving is still the one remaining step either way. */}
       <p className="font-mono text-xs uppercase tracking-[.28em] text-cream-dim">
         <span className="font-bold text-yellow">Step 3 of 3</span> — one step left
       </p>

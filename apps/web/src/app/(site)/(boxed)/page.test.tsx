@@ -202,7 +202,7 @@ describe("Home page: pending-hero slot and anchor structure", () => {
     const claim = claims[0]! as HTMLElement;
     // Full-bleed anchor: padding lives on an INNER wrapper, never on the anchor itself — the
     // hero must reach the viewport edges inside the anchor target.
-    expect(claim.className).not.toMatch(/px-6/);
+    expect(Array.from(claim.classList)).not.toContain("px-6");
     expect(claim.querySelector("[data-testid='pending-hero-slot']")).not.toBeNull();
     const padded = claim.querySelector("div.px-6");
     expect(padded).not.toBeNull();
