@@ -67,6 +67,22 @@ verified status never opens the claim modal — the status gate makes the hash i
 longer matches) and the page re-renders as the pending home — the `PendingHero` appears at the
 top where the user already is.
 
+## 3b. Pending emote tickets match the Join tickets
+
+`TicketSequence` (`pending-hero.tsx`) adopts the JoinServers step-ticket language so the two
+ticket rows read as one system:
+
+- **Unconfirmed:** paper ticket — `border-2 border-dashed border-ink bg-paper`, ordinal in
+  `font-mono text-[12px] font-bold uppercase tracking-[.2em] text-red-deep`, emote name in ink
+  (`font-display … text-ink`). `red-deep` is legal here: the ticket itself is a paper (light)
+  surface, exactly like the Join slab's tickets — the dark hero around it does not change the
+  token surface of the ticket interior.
+- **Confirmed:** same paper ticket with the dashed border flipped to **solid** ink, the emote
+  name dimmed, and the existing rotated red CONFIRMED rubber stamp. Dashed order-slip →
+  stamped solid ticket is the state distinction; the sr-only confirmed/not-confirmed text is
+  unchanged.
+- The no-current-step-pointer rule is untouched.
+
 ## 4. Deletions
 
 - `SignedInFooter` in `account-panels.tsx` — gone entirely. Sign-out lives in the masthead
