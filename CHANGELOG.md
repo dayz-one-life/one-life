@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-07-28
+
 ### Changed
 
 - The home-page pitch now greets signed-in players who haven't linked a gamertag too, with every
