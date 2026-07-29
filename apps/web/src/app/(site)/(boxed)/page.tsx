@@ -66,13 +66,7 @@ export default async function Home() {
           <ConnectSection servers={serversView(servers.data, { failed: servers.failed })} />
         </>
       )}
-      {signedIn && (
-        <UnverifiedPitch
-          stats={stats.data}
-          obits={obits.data?.rows ?? []}
-          servers={serversView(servers.data, { failed: servers.failed })}
-        />
-      )}
+      {signedIn && <UnverifiedPitch stats={stats.data} obits={obits.data?.rows ?? []} />}
       {signedIn && (
         <div id="claim" className="px-6 py-8 md:px-10">
           <AccountPanels signInFallback={signedIn} />
