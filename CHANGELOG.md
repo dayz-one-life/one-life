@@ -6,10 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-07-29
+
 ### Fixed
 
-- The sign-in page returned an error instead of loading. Everyone was locked out of signing in
-  from the moment 0.57.0 went live.
 - Deaths at the hands of the infected are no longer written up as "Unknown". The game does not
   always name what killed you, and we had been relying on whether a player was still bleeding when
   they died — which they usually are not. Obituaries and life timelines for those deaths now say
@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - We now read the game's knockout lines. The infected knock a survivor unconscious before they
   kill them, and that never shows up as lost health — which is why some maulings used to read as
   unexplained deaths.
+
+## [0.57.1] - 2026-07-29
+
+### Fixed
+
+- The sign-in page returned an error instead of loading. Everyone was locked out of signing in
+  from the moment 0.57.0 went live.
 
 ## [0.57.0] - 2026-07-28
 
