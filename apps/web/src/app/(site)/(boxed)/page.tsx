@@ -61,10 +61,10 @@ export default async function Home() {
         <>
           <Hero stats={stats.data} />
           <Rules />
+          <JoinServers />
+          <CtaSlab />
           {/* Failed OR empty → [] → Fallen renders nothing (absent proof is silence). */}
           <Fallen rows={obits.data?.rows ?? []} />
-          <CtaSlab />
-          <JoinServers />
         </>
       )}
       {signedIn && <UnverifiedPitch stats={stats.data} obits={obits.data?.rows ?? []} />}

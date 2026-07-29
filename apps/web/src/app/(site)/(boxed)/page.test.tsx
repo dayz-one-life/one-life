@@ -131,16 +131,27 @@ describe("Home page: the claim anchor", () => {
     expect(container.querySelector("#claim")).not.toBeNull();
   });
 
-  it("signed out: Join the servers follows the CTA slab, is the last content block, and no account-panels wrapper renders", async () => {
+  it("signed out: Join the servers precedes the CTA slab, which precedes the Fallen wall, and no account-panels wrapper renders", async () => {
+    getObituariesFeedCached.mockResolvedValue({
+      rows: [{
+        slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
+        lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",
+        tags: [], timeAliveSeconds: 112320, kills: 4, longestKillMeters: 210, cause: "pvp",
+        deathAt: "2026-07-27T20:00:00Z",
+      }],
+      total: 1, page: 1, pageSize: 12,
+    });
     const { container } = render(await Home());
+    const joinHeading = screen.getByRole("heading", { level: 2, name: "Join the servers" });
     const claimHeading = screen.getByRole("heading", { name: /Claim it/i });
-    const connectText = screen.getByText(/Play first, claim later/i);
-    // Document order, not mere presence — the CTA slab's "Claim it" heading must precede
-    // JoinServers' copy (same DOM-position pattern as the Rules-before-Fallen check above).
+    const fallenHeading = screen.getByRole("heading", { name: /The Fallen/i });
+    // Document order: Join → Claim → Fallen (beat order per the reorder task).
     expect(
-      claimHeading.compareDocumentPosition(connectText) & Node.DOCUMENT_POSITION_FOLLOWING,
+      joinHeading.compareDocumentPosition(claimHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 2, name: "Join the servers" })).toBeInTheDocument();
+    expect(
+      claimHeading.compareDocumentPosition(fallenHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(container.querySelector("#claim")).toBeNull(); // wrapper (and anchor) absent when signed out
   });
 });
