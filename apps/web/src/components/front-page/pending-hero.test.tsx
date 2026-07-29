@@ -34,6 +34,7 @@ describe("PendingHeroView — live challenge", () => {
       screen.getByRole("heading", { level: 1, name: "Prove it's you BootsColdwater" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
+    expect(screen.getByText(/one step left/i)).toBeInTheDocument();
     expect(screen.getByText(/Join any One Life server and perform these three emotes/)).toBeInTheDocument();
   });
 

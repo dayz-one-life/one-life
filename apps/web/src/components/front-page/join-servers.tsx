@@ -24,7 +24,7 @@ const HOSTS = [
 const STEPS = [
   { ordinal: "First", move: "Search “One Life”" },
   { ordinal: "Second", move: "Pick your map" },
-  { ordinal: "Third", move: "★ Favorite them" },
+  { ordinal: "Third", move: "Favorite them", star: true },
 ];
 
 function BrowserReplica() {
@@ -49,7 +49,8 @@ function BrowserReplica() {
         <span>Map</span>
         <span className="text-right">Players</span>
       </div>
-      <ul>
+      {/* Explicit role: preflight's list-style-none strips implicit list semantics in Safari/VO. */}
+      <ul role="list">
         {HOSTS.map((h) => (
           <li
             key={h.map}
@@ -89,6 +90,7 @@ export function JoinServers({
           <li key={s.ordinal} className="border-2 border-dashed border-ink bg-paper px-5 py-6 text-center">
             <p className="font-mono text-[12px] font-bold uppercase tracking-[.2em] text-red-deep">{s.ordinal}</p>
             <p className="mt-1.5 font-display text-2xl font-bold uppercase leading-[.95] text-ink md:text-3xl">
+              {s.star && <span aria-hidden="true">★ </span>}
               {s.move}
             </p>
           </li>
