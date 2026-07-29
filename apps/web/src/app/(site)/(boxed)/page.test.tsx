@@ -127,6 +127,12 @@ describe("Home page: the claim anchor", () => {
     const { container } = render(await Home());
     expect(container.querySelector("#claim")).not.toBeNull();
   });
+
+  it("signed out: the connect section is the last content block and no account-panels wrapper renders", async () => {
+    const { container } = render(await Home());
+    expect(screen.getByText(/Play first, claim later/i)).toBeInTheDocument();
+    expect(container.querySelector("#claim")).toBeNull(); // wrapper (and anchor) absent when signed out
+  });
 });
 
 describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in gets the sidebar's)", () => {

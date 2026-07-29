@@ -1,6 +1,6 @@
 "use client";
 import { useAccountStatus } from "@/lib/use-account-status";
-import { HowToConnect, type ServersView } from "@/components/servers/how-to-connect";
+import type { ServersView } from "@/components/servers/how-to-connect";
 import { ClaimCta, type PitchAudience } from "./hero";
 
 /**
@@ -10,7 +10,7 @@ import { ClaimCta, type PitchAudience } from "./hero";
  * player never sees a sign-in pitch flash. Unverified: the PARENT (`UnverifiedPitch`) owns the
  * gate on unlinked/pending — gating here too would double-gate and this slab would never render.
  */
-export function CtaSlab({ servers, audience = "cold" }: { servers: ServersView; audience?: PitchAudience }) {
+export function CtaSlab({ audience = "cold" }: { servers: ServersView; audience?: PitchAudience }) {
   const status = useAccountStatus();
   if (audience === "cold" && status.kind !== "signedOut") return null;
 
@@ -26,14 +26,6 @@ export function CtaSlab({ servers, audience = "cold" }: { servers: ServersView; 
       </p>
       <div className="mt-7">
         <ClaimCta large {...(audience === "unverified" ? { href: "#claim", label: "Link your gamertag →" } : {})} />
-      </div>
-      <div className="mx-auto mt-9 w-full max-w-lg border border-dark-line bg-dark-well p-5 text-left">
-        <p className="font-mono text-[11px] uppercase tracking-[.16em] text-cream-dim">
-          Play first, claim later — no account needed to play
-        </p>
-        <div className="mt-3">
-          <HowToConnect servers={servers} onDark />
-        </div>
       </div>
     </section>
   );

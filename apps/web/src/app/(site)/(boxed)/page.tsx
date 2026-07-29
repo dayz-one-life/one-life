@@ -5,6 +5,7 @@ import { Hero } from "@/components/front-page/hero";
 import { Fallen } from "@/components/front-page/fallen";
 import { Rules } from "@/components/front-page/rules";
 import { CtaSlab } from "@/components/front-page/cta-slab";
+import { ConnectSection } from "@/components/front-page/connect-section";
 import { UnverifiedPitch } from "@/components/front-page/unverified-pitch";
 import { serversView } from "@/components/servers/how-to-connect";
 import { resolveDestinationFrom } from "@/lib/resolve-destination";
@@ -62,6 +63,7 @@ export default async function Home() {
           {/* Failed OR empty → [] → Fallen renders nothing (absent proof is silence). */}
           <Fallen rows={obits.data?.rows ?? []} />
           <CtaSlab servers={serversView(servers.data, { failed: servers.failed })} />
+          <ConnectSection servers={serversView(servers.data, { failed: servers.failed })} />
         </>
       )}
       {signedIn && (
@@ -71,9 +73,11 @@ export default async function Home() {
           servers={serversView(servers.data, { failed: servers.failed })}
         />
       )}
-      <div id="claim" className="px-6 py-8 md:px-10">
-        <AccountPanels signInFallback={signedIn} />
-      </div>
+      {signedIn && (
+        <div id="claim" className="px-6 py-8 md:px-10">
+          <AccountPanels signInFallback={signedIn} />
+        </div>
+      )}
     </HomeShell>
   );
 }

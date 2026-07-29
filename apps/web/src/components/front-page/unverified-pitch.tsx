@@ -6,6 +6,7 @@ import { Hero } from "./hero";
 import { Rules } from "./rules";
 import { Fallen } from "./fallen";
 import { CtaSlab } from "./cta-slab";
+import { ConnectSection } from "./connect-section";
 
 /**
  * The four-beat pitch for signed-in-but-unverified visitors (home-polish spec §3): same beats as
@@ -26,6 +27,7 @@ export function UnverifiedPitch({ stats, obits, servers }: {
       <Rules />
       <Fallen rows={obits} />
       <CtaSlab servers={servers} audience="unverified" />
+      <ConnectSection servers={servers} />
     </>
   );
 }
