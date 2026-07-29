@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-07-29
+
 ### Changed
 
 - Home: one beat rhythm for signed-out, unlinked and pending visitors (Hero → Rules → Join the
