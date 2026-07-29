@@ -1627,12 +1627,24 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   footer) — and `ColdFork`/`TopSurvivors` (the old two-cell sign-in fork and top-5 board strip)
   are **RETIRED — do not reintroduce them**. `Fallen` renders NOTHING on a failed OR an empty
   obituaries feed, never a placeholder.
-  **The home-polish pass (2026-07-28) extended the pitch to signed-in-but-unverified visitors.**
+  **The home-polish pass (2026-07-28) extended the pitch to signed-in-but-unverified visitors —
+  narrowed to UNLINKED ONLY by the pending-verification experience (2026-07-29).**
   `UnverifiedPitch` (`components/front-page/unverified-pitch.tsx`) renders the same five beats
-  for a signed-in user whose `accountStatus` is `unlinked`/`pending`, with every CTA pointed at
-  the on-page `#claim` ladder instead of `/login`. It is **client-gated on `useAccountStatus`,
+  for a signed-in user whose `accountStatus` is `unlinked`, with every CTA pointed at
+  the on-page `#claim` ladder instead of `/login`. **`pending` renders NOTHING there** — a
+  pending player already claimed, so every pitch CTA would demand a done step; rendering nothing
+  floats the `#claim` challenge section to the top of their page, which opens with `PendingLead`
+  ("One step left" — the pending home's only `h1`, in `AccountPanels`' pending branch) and is
+  followed by `PendingSupport` (`components/front-page/pending-support.tsx`: bare `HowToConnect`
+  — NOT `ConnectSection`, whose "Play first, claim later" kicker is untrue post-claim — then
+  `Fallen`). `ProveItPanel` carries a three-step walkthrough plus the verbatim batching line
+  ("DayZ reports emotes in batches — your progress can take up to 15 minutes to appear here. It
+  does not update in real time.") — a test pins that no panel copy claims live/instant updates.
+  The masthead `AccountAffordance` has a pending branch: menu item "Finish verification →" →
+  `/#claim`, the claimed tag's initial in the disc, and a `border-yellow` cue.
+  `UnverifiedPitch` is **client-gated on `useAccountStatus`,
   not server-gated on the session cookie** — SSR renders nothing, and it stays rendering nothing
-  until status resolves to `unlinked`/`pending`, because a `verified` player must never see a
+  until status resolves to `unlinked`, because a `verified` player must never see a
   pitch flash before the branch below it takes over; appearing beats vanishing for the
   unverified case. **Fetch gating is no longer cold-only** — `stats` and `obituaries` (now
   fetched via `getSiteStatsCached`/`getObituariesFeedCached`, a cookie-free 60s shared fetch
