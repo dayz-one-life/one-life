@@ -1632,14 +1632,28 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `UnverifiedPitch` (`components/front-page/unverified-pitch.tsx`) renders the same five beats
   for a signed-in user whose `accountStatus` is `unlinked`, with every CTA pointed at
   the on-page `#claim` ladder instead of `/login`. **`pending` renders NOTHING there** — a
-  pending player already claimed, so every pitch CTA would demand a done step; rendering nothing
-  floats the `#claim` challenge section to the top of their page, which opens with `PendingLead`
-  ("One step left" — the pending home's only `h1`, in `AccountPanels`' pending branch) and is
-  followed by `PendingSupport` (`components/front-page/pending-support.tsx`: bare `HowToConnect`
-  — NOT `ConnectSection`, whose "Play first, claim later" kicker is untrue post-claim — then
-  `Fallen`). `ProveItPanel` carries a three-step walkthrough plus the verbatim batching line
-  ("DayZ reports emotes in batches — your progress can take up to 15 minutes to appear here. It
-  does not update in real time.") — a test pins that no panel copy claims live/instant updates.
+  pending player already claimed, so every pitch CTA would demand a done step.
+  **The pending-hero pass (2026-07-29, spec
+  `docs/superpowers/specs/2026-07-29-pending-hero-design.md`) made the challenge ITSELF the
+  pending home's hero.** `PendingHero`/`PendingHeroView`
+  (`components/front-page/pending-hero.tsx`, client-gated on pending like `UnverifiedPitch` is
+  on unlinked) is a full-bleed dark hero in the cold hero's language — red bottom frame, yellow
+  for everything live, a "Step 3 of 3 — one step left" kicker (the 3-step ladder folded to one
+  line; it deliberately renders in the expired state too), the gamertag in the `FitLine` h1 (the
+  pending page's only h1), the emote sequence/countdown/walkthrough inside the hero, and the
+  verbatim batching line ("DayZ reports emotes in batches — your progress can take up to 15
+  minutes to appear here. It does not update in real time.") — a test pins that no copy claims
+  live/instant updates. It **absorbed the retired `ProveItPanel` and `PendingLead` — do not
+  reintroduce them**; `LadderFrame`/`ladderSteps` are unlinked-only and parameterless now.
+  **One `id="claim"` anchor wraps BOTH the hero and the padded `AccountPanels` wrapper**
+  (`page.tsx`; the anchor div is full-bleed, padding on the inner wrapper only — the masthead's
+  "Finish verification → /#claim" lands at the hero top for pending, at the padded ladder for
+  unlinked), and `AccountPanels`' pending branch renders **no visible body** — only the
+  unconditional `VerificationAnnouncer` sibling and the sign-out footer, pinned by
+  `account-panels-pending.test.tsx`. `PendingSupport`
+  (`components/front-page/pending-support.tsx`) follows below the anchor: `ConnectSection` with
+  the pending kicker "Get in game — perform your sequence on any One Life server" (never the
+  cold "Play first, claim later," untrue post-claim) — then `Fallen`.
   The masthead `AccountAffordance` has a pending branch: menu item "Finish verification →" →
   `/#claim`, the claimed tag's initial in the disc, and a `border-yellow` cue.
   `UnverifiedPitch` is **client-gated on `useAccountStatus`,
