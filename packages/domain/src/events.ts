@@ -4,6 +4,7 @@ export const EVENT_TYPES = [
   "player.disconnected",
   "player.died",
   "player.hit",
+  "player.unconscious",
   "emote.performed",
   "build.placed",
   "build.built",

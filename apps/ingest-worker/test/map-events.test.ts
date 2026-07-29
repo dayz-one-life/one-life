@@ -24,4 +24,12 @@ describe("mapParsedToEvents", () => {
       { type: "emote.performed", payload: { gamertag: "S", emote: "EmoteSalute", item: null, x: null, y: null } },
     ]);
   });
+  it("maps an unconscious ParsedLine to player.unconscious", () => {
+    const out = mapParsedToEvents([
+      { kind: "unconscious", gamertag: "XxBE4zyxX", disconnecting: true, x: 1, y: 2 },
+    ]);
+    expect(out).toEqual([
+      { type: "player.unconscious", payload: { gamertag: "XxBE4zyxX", disconnecting: true, x: 1, y: 2 } },
+    ]);
+  });
 });

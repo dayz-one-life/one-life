@@ -7,6 +7,7 @@ export * from "./death.js";
 export * from "./position.js";
 export * from "./emote.js";
 export * from "./hit.js";
+export * from "./unconscious.js";
 export * from "./build.js";
 export * from "./teleport.js";
 export * from "./parse-line.js";

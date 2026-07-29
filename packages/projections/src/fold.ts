@@ -136,6 +136,17 @@ async function onPosition(store: ProjectionStore, e: ProjectionEvent): Promise<v
   });
 }
 
+async function onUnconscious(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
+  const gamertag = String(e.payload.gamertag);
+  const player = await store.getPlayer(gamertag);
+  if (!player) return;                               // no-op for unknown gamertag (positions pattern)
+  await store.insertUnconscious({
+    serverId: e.serverId, playerId: player.id, gamertag: player.gamertag,
+    disconnecting: e.payload.disconnecting === true,
+    occurredAt: e.occurredAt,
+  });
+}
+
 async function onBuild(store: ProjectionStore, e: ProjectionEvent): Promise<void> {
   const gamertag = String(e.payload.gamertag);
   const player = await store.getPlayer(gamertag);       // never create from a build
@@ -160,6 +171,7 @@ export async function applyEvent(store: ProjectionStore, e: ProjectionEvent): Pr
     case "server.rebooted": return onRebooted(store, e);
     case "player.hit": return onHit(store, e);
     case "player.position": return onPosition(store, e);
+    case "player.unconscious": return onUnconscious(store, e);
     case "player.connecting": return; // no projection effect
     default:
       if (BUILD_TYPES.has(e.type)) return onBuild(store, e);

@@ -1645,6 +1645,42 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `UnverifiedPitch`. `HomeSidebar` itself is still verified-only, gated through `HomeShell`, not
   merely signed-in.
 
+- **Mauled inference** ✅ (spec `docs/superpowers/specs/2026-07-29-mauled-inference-design.md`):
+  DayZ logs some infected deaths with no `killed by` clause and `Bleed sources: 0` (the wounds
+  close before the player expires) and kills a player outright for logging out unconscious, so
+  those deaths landed as `unknown`. The classifier's mauled rung is now
+  **`hunted AND (bleeding OR wentUnconscious OR terminalHp <= 1)`** — `hunted` (any infected hit in
+  the 120s window) is the gate, the other three are interchangeable corroboration. The knockout
+  signal is new plumbing: `packages/adm-parser`'s `parseUnconscious`, a `player.unconscious` event,
+  a projected `unconscious_events` table (migration `0031`), and `recentUnconscious` on
+  `LifeDossier`, forwarded by `dossierVerdict` as `classifyDeath`'s **required** third argument.
+  Verdicts stay lazy and are never materialized, so corrected lives fix themselves; already-published
+  obituary prose is frozen and is NOT regenerated.
+  **⚠️ `terminalHp` reads INFECTED hits only, never all hits in the window.** `hunted` and the
+  terminal-HP corroboration must rest on the SAME hits — otherwise a fire tick or a player's shot
+  that left the victim at ~0 HP is corroborated by an unrelated infected scratch elsewhere in the
+  window and the death publishes as `mauled` at HIGH confidence. Fire is a real recurring cause
+  here (its own ordeal category), fire ticks run to 0 HP, and a fire death carries no killer clause.
+  Three such misattributions were reproduced before the restriction landed.
+  **⚠️ `unconscious_events` is deliberately NOT in `REBUILD_TRUNCATE_TABLES`** — `players` is
+  already listed and `TRUNCATE … RESTART IDENTITY CASCADE` clears the child through its FK for
+  free. Naming a table the current release CREATES aborts the rebuild phase, which runs BEFORE
+  migrate, with the fleet already stopped (this killed the v0.42.1 deploy).
+  **⚠️ `parseUnconscious` is dispatched AFTER `parsePosition` in `parseLine`**, inverting that
+  file's stated "primary event first, then position" convention. `subIndex` is the array position
+  of the parsed result, and all 63 historical unconscious lines already hold `player.position` at
+  `subIndex 0`; inserting ahead of position renumbers it to 1 and collides with
+  `events_idempotency_uniq` on every one of them. The backfill appends at `subIndex: 1` for the
+  same reason. Do not "restore" the convention.
+  **Deploy runbook:** migration `0031` creates a projection table but changes no existing
+  projection shape, so it is a plain `./deploy/deploy.sh`, **no `--rebuild`** — then, on the host,
+  **`pnpm --filter @onelife/projector run backfill-unconscious`** (note **`run`** — a bare
+  `pnpm --filter … backfill-unconscious` silently no-ops). The backfill re-parses `raw_lines` and
+  appends only the new events; it is idempotent via `events_idempotency_uniq`, and the running
+  projector folds them forward on its normal cursor. **⚠️ Skipping the backfill is SILENTLY
+  PARTIAL** — new deaths classify correctly while every historical one stays `unknown` forever, and
+  nothing surfaces the omission. Verify with `select count(*) from unconscious_events` on the host.
+
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
 - **packages:** `db` (schema + migrations; gained two durable

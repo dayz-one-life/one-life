@@ -32,3 +32,4 @@ export type BuildInput = {
   x: number | null; y: number | null; occurredAt: Date;
 };
 export type PositionInput = { serverId: number; playerId: number; gamertag: string; x: number; y: number; recordedAt: Date };
+export type UnconsciousInput = { serverId: number; playerId: number; gamertag: string; disconnecting: boolean; occurredAt: Date };

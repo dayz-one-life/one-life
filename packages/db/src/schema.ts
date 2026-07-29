@@ -202,6 +202,25 @@ export const positions = pgTable("positions", {
   byPlayer: index("positions_player_idx").on(t.serverId, t.playerId, t.recordedAt),
 }));
 
+// PROJECTION table (rebuilt from the event log), NOT durable.
+// ⚠️ Deliberately absent from REBUILD_TRUNCATE_TABLES: the FK to `players` means
+// TRUNCATE players … RESTART IDENTITY CASCADE clears this for free. Naming a table the
+// same release creates aborts the rebuild phase, which runs BEFORE migrate.
+// playerId is notNull + FK (the `positions` pattern), and the fold returns early on an
+// unresolvable player — never the nullable bare-bigint `hit_events` pattern, which would
+// leave rows the cascade cannot reach.
+export const unconsciousEvents = pgTable("unconscious_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  serverId: integer("server_id").notNull().references(() => servers.id),
+  playerId: bigint("player_id", { mode: "number" }).notNull().references(() => players.id),
+  gamertag: text("gamertag").notNull(),
+  disconnecting: boolean("disconnecting").notNull().default(false),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, (t) => ({
+  byPlayer: index("unconscious_events_player_idx").on(t.serverId, t.playerId, t.occurredAt),
+  uniq: uniqueIndex("unconscious_events_natural_uniq").on(t.serverId, t.playerId, t.occurredAt),
+}));
+
 // ── Identity & auth (Better Auth core schema) ──
 // No server_id: identity is global. camelCase JS keys are required by the
 // Better Auth Drizzle adapter (it matches fields by name).

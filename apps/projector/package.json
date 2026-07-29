@@ -9,7 +9,8 @@
     "start": "tsx src/main.ts",
     "rebuild": "tsx src/rebuild.ts",
     "backfill-death-stats": "tsx src/backfill-death-stats.ts",
-    "backfill-death-causes": "tsx src/backfill-death-causes.ts"
+    "backfill-death-causes": "tsx src/backfill-death-causes.ts",
+    "backfill-unconscious": "tsx src/backfill-unconscious.ts"
   },
   "dependencies": {
     "@onelife/adm-parser": "workspace:*",

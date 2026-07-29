@@ -9,6 +9,7 @@ describe("classifyDeath", () => {
     const v = classifyDeath(
       { mechanism: "suicide", energy: 0, water: 620.083, bleedSources: 1, weapon: "StoneKnife" },
       [infected],
+      [],
     );
     expect(v.cause).toBe("suicide");
     expect(v.conditions).toEqual(expect.arrayContaining(["starving", "hunted"]));
@@ -19,94 +20,95 @@ describe("classifyDeath", () => {
     const v = classifyDeath(
       { mechanism: "suicide", energy: 469.478, water: 722.265, bleedSources: 3, weapon: "SteakKnife" },
       [],
+      [],
     );
     expect(v.cause).toBe("suicide");
     expect(v.conditions).toEqual(["healthy"]);
   });
 
   it("plain died with Energy 0 and no recent combat => starvation (high)", () => {
-    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [], []);
     expect(v.cause).toBe("starvation");
     expect(v.confidence).toBe("high");
   });
 
   it("plain died, bleeding after infected hits => mauled", () => {
-    const v = classifyDeath({ mechanism: "died", energy: 500, water: 500, bleedSources: 2, weapon: null }, [infected]);
+    const v = classifyDeath({ mechanism: "died", energy: 500, water: 500, bleedSources: 2, weapon: null }, [infected], []);
     expect(v.cause).toBe("mauled");
     expect(v.conditions).toContain("bleeding");
   });
 
   it("PvP mechanism passes through", () => {
-    const v = classifyDeath({ mechanism: "pvp", energy: null, water: null, bleedSources: null, weapon: "M4A1" }, []);
+    const v = classifyDeath({ mechanism: "pvp", energy: null, water: null, bleedSources: null, weapon: "M4A1" }, [], []);
     expect(v.cause).toBe("pvp");
   });
 
   it("mechanism: drowned => environmental cause with high confidence", () => {
-    const v = classifyDeath({ mechanism: "drowned", energy: 500, water: 500, bleedSources: 0, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "drowned", energy: 500, water: 500, bleedSources: 0, weapon: null }, [], []);
     expect(v.cause).toBe("environmental");
     expect(v.conditions).toContain("drowned");
     expect(v.confidence).toBe("high");
   });
 
   it("mechanism: environment (no recent hits) => environmental cause with high confidence", () => {
-    const v = classifyDeath({ mechanism: "environment", energy: 500, water: 500, bleedSources: 0, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "environment", energy: 500, water: 500, bleedSources: 0, weapon: null }, [], []);
     expect(v.cause).toBe("environmental");
     expect(v.confidence).toBe("high");
   });
 
   it("mechanism: environment with recent player hit => still high confidence (stated mechanism is high)", () => {
-    const v = classifyDeath({ mechanism: "environment", energy: 500, water: 500, bleedSources: 0, weapon: null }, [playerHit]);
+    const v = classifyDeath({ mechanism: "environment", energy: 500, water: 500, bleedSources: 0, weapon: null }, [playerHit], []);
     expect(v.cause).toBe("environmental");
     expect(v.confidence).toBe("high");
   });
 
   it("plain died with water 0 and no hits => dehydration with high confidence", () => {
-    const v = classifyDeath({ mechanism: "died", energy: 500, water: 0, bleedSources: 0, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "died", energy: 500, water: 0, bleedSources: 0, weapon: null }, [], []);
     expect(v.cause).toBe("dehydration");
     expect(v.confidence).toBe("high");
   });
 
   it("plain died with water 0 and recent hit => dehydration with low confidence (competing explanation)", () => {
-    const v = classifyDeath({ mechanism: "died", energy: 500, water: 0, bleedSources: 0, weapon: null }, [playerHit]);
+    const v = classifyDeath({ mechanism: "died", energy: 500, water: 0, bleedSources: 0, weapon: null }, [playerHit], []);
     expect(v.cause).toBe("dehydration");
     expect(v.confidence).toBe("low");
   });
 
   it("plain died with bleed sources and non-infected player hit => bled_out (not mauled), with bleeding condition", () => {
-    const v = classifyDeath({ mechanism: "died", energy: 500, water: 500, bleedSources: 2, weapon: null }, [playerHit]);
+    const v = classifyDeath({ mechanism: "died", energy: 500, water: 500, bleedSources: 2, weapon: null }, [playerHit], []);
     expect(v.cause).toBe("bled_out");
     expect(v.conditions).toContain("bleeding");
   });
 
   it("plain died with all vitals healthy/null and no hits => unknown cause with healthy conditions", () => {
-    const v = classifyDeath({ mechanism: "died", energy: 500, water: 500, bleedSources: null, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "died", energy: 500, water: 500, bleedSources: null, weapon: null }, [], []);
     expect(v.cause).toBe("unknown");
     expect(v.conditions).toEqual(["healthy"]);
   });
 
   it("recent-hit window: a hit older than 120s does not grade starvation down", () => {
     const old: RecentHit = { attackerType: "player", attackerLabel: null, secondsBeforeDeath: 300 };
-    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [old]);
+    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [old], []);
     expect(v.cause).toBe("starvation");
     expect(v.confidence).toBe("high");
   });
 
   it("recent-hit window: a hit at exactly 120s IS recent and grades starvation down", () => {
     const boundary: RecentHit = { attackerType: "player", attackerLabel: null, secondsBeforeDeath: 120 };
-    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [boundary]);
+    const v = classifyDeath({ mechanism: "died", energy: 0, water: 500, bleedSources: 0, weapon: null }, [boundary], []);
     expect(v.cause).toBe("starvation");
     expect(v.confidence).toBe("low");
   });
 
   it("stage-2 entity mechanisms pass through at high confidence (wolf, healthy)", () => {
-    const v = classifyDeath({ mechanism: "wolf", energy: 500, water: 500, bleedSources: 2, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "wolf", energy: 500, water: 500, bleedSources: 2, weapon: null }, [], []);
     expect(v.cause).toBe("wolf");
     expect(v.confidence).toBe("high");
     expect(v.conditions).toEqual(["healthy"]); // the wolf explains its own bleed — not "bleeding"
   });
 
   it("entity mechanism keeps real conditions (fall while starving)", () => {
-    const v = classifyDeath({ mechanism: "fall", energy: 0, water: 500, bleedSources: 0, weapon: null }, []);
+    const v = classifyDeath({ mechanism: "fall", energy: 0, water: 500, bleedSources: 0, weapon: null }, [], []);
     expect(v.cause).toBe("fall");
     expect(v.conditions).toEqual(["starving"]);
   });
@@ -124,45 +126,149 @@ describe("classifyDeath — a fall the death line did not name", () => {
   const bare = { mechanism: "died", energy: 1373, water: 672, bleedSources: 0, weapon: null };
 
   it("reads a terminal FallDamage hit as a fall", () => {
-    const v = classifyDeath(bare, [fell()]);
+    const v = classifyDeath(bare, [fell()], []);
     expect(v.cause).toBe("fall");
     expect(v.confidence).toBe("high");
   });
 
   // The fall is what killed him; being hungry at the time is background, not cause.
   it("keeps starvation as a condition rather than promoting it over the fall", () => {
-    const v = classifyDeath({ ...bare, energy: 0 }, [fell()]);
+    const v = classifyDeath({ ...bare, energy: 0 }, [fell()], []);
     expect(v.cause).toBe("fall");
     expect(v.conditions).toContain("starving");
   });
 
   // A survivable fall followed by death from something else must not be blamed on the fall.
   it("ignores a non-terminal fall hit", () => {
-    const v = classifyDeath({ ...bare, energy: 0 }, [fell({ victimHp: 74, secondsBeforeDeath: 90 })]);
+    const v = classifyDeath({ ...bare, energy: 0 }, [fell({ victimHp: 74, secondsBeforeDeath: 90 })], []);
     expect(v.cause).toBe("starvation");
   });
 
   // A stated mechanism still wins — inference only ever fills a gap.
   it("never overrides a stated mechanism", () => {
-    expect(classifyDeath({ ...bare, mechanism: "pvp" }, [fell()]).cause).toBe("pvp");
+    expect(classifyDeath({ ...bare, mechanism: "pvp" }, [fell()], []).cause).toBe("pvp");
   });
 
   // Suicide-by-falling is a stated mechanism and returns before the rung is ever reached.
   it("leaves a suicide by falling as a suicide", () => {
-    expect(classifyDeath({ ...bare, mechanism: "suicide" }, [fell()]).cause).toBe("suicide");
+    expect(classifyDeath({ ...bare, mechanism: "suicide" }, [fell()], []).cause).toBe("suicide");
   });
 
   // A hit line with no [HP:] token parses to null, and a pre-stage-2 caller omits the field
   // entirely. Neither is evidence of a terminal fall, so neither may claim one.
   it("treats a fall hit with unknown HP as no evidence", () => {
-    expect(classifyDeath({ ...bare, energy: 0 }, [fell({ victimHp: null })]).cause).toBe("starvation");
+    expect(classifyDeath({ ...bare, energy: 0 }, [fell({ victimHp: null })], []).cause).toBe("starvation");
     const { victimHp: _omitted, ...noHp } = fell();
-    expect(classifyDeath({ ...bare, energy: 0 }, [noHp]).cause).toBe("starvation");
+    expect(classifyDeath({ ...bare, energy: 0 }, [noHp], []).cause).toBe("starvation");
   });
 
   // The window is the same 120s every other inference uses.
   it("ignores a terminal fall hit older than the recent window", () => {
-    expect(classifyDeath(bare, [fell({ secondsBeforeDeath: 121 })]).cause).toBe("unknown");
+    expect(classifyDeath(bare, [fell({ secondsBeforeDeath: 121 })], []).cause).toBe("unknown");
+  });
+});
+
+describe("mauled inference (corroborated)", () => {
+  const base = { mechanism: "died", energy: 500, water: 500, bleedSources: 0, weapon: null };
+  const infectedHit = (secondsBeforeDeath: number, victimHp: number) =>
+    ({ attackerType: "infected", attackerLabel: "Infected", secondsBeforeDeath, victimHp });
+
+  // Life 165: 18 infected hits, died at HP 88 after logging out unconscious. Shock never
+  // appears in the HP field, so only the unconscious line proves this was the infected.
+  it("uses an unconscious line as corroboration when bleeding is 0 and HP is high", () => {
+    const v = classifyDeath(base, [infectedHit(5, 88.31)], [{ secondsBeforeDeath: 0, disconnecting: true }]);
+    expect(v.cause).toBe("mauled");
+  });
+
+  // Life 313 (GreenGreg420) — the real numbers. No unconscious line; the infected left him
+  // at 0.392 HP and he expired 88s later with bleeding already closed.
+  it("uses terminal HP as corroboration when there is no unconscious line", () => {
+    const v = classifyDeath(
+      { ...base, energy: 286.571, water: 572.133 },
+      [infectedHit(88, 0.392355), infectedHit(89, 2.33781)],
+      [],
+    );
+    expect(v.cause).toBe("mauled");
+    expect(v.conditions).toContain("hunted");
+  });
+
+  // Guards against simply deleting the gate: a scratch is not a mauling.
+  it("stays unknown for an uncorroborated scratch", () => {
+    const v = classifyDeath(base, [infectedHit(110, 45)], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  it("keeps starvation above the mauled rung", () => {
+    const v = classifyDeath({ ...base, energy: 0 }, [infectedHit(10, 5)], [{ secondsBeforeDeath: 5, disconnecting: false }]);
+    expect(v.cause).toBe("starvation");
+    expect(v.conditions).toContain("hunted");
+  });
+
+  it("keeps a fatal fall above the mauled rung", () => {
+    const v = classifyDeath(
+      base,
+      [{ attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 2, victimHp: 0 }, infectedHit(30, 40)],
+      [{ secondsBeforeDeath: 3, disconnecting: false }],
+    );
+    expect(v.cause).toBe("fall");
+  });
+
+  // Mirrors the recentHits window convention (explicit 120s/121s boundary tests above).
+  it("excludes an unconscious entry beyond the 120s window", () => {
+    const v = classifyDeath(base, [infectedHit(30, 45)], [{ secondsBeforeDeath: 121, disconnecting: true }]);
+    expect(v.cause).toBe("unknown");
+  });
+
+  it("includes an unconscious entry exactly at the 120s boundary", () => {
+    const v = classifyDeath(base, [infectedHit(30, 45)], [{ secondsBeforeDeath: 120, disconnecting: true }]);
+    expect(v.cause).toBe("mauled");
+  });
+
+  // ⚠️ The terminal-HP clause reads INFECTED hits only. Fire is a real recurring cause here (its
+  // own ordeal category), fire ticks run to 0 HP, and a fire death carries no killer clause — so
+  // with terminalHp computed over ALL hits, a fire death plus any infected scratch in the window
+  // reads as `mauled` at HIGH confidence, and that verdict is frozen into obituary prose that is
+  // never regenerated. `hunted` and `terminal` must rest on the same hits.
+  it("does not read a fire death corroborated by an unrelated infected scratch as mauled", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "environment", attackerLabel: "Fireplace", secondsBeforeDeath: 3, victimHp: 0.4 },
+      infectedHit(110, 60),
+    ], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  it("does not read a player-inflicted terminal hit as mauled on an infected scratch", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "player", attackerLabel: "SomeoneElse", secondsBeforeDeath: 8, victimHp: 0.9 },
+      infectedHit(115, 70),
+    ], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  // A non-terminal FallDamage hit (0.9, not <= 0) misses the fall rung; it must not be laundered
+  // into a mauling by an infected scratch either.
+  it("does not read a near-fatal fall as mauled on an infected scratch", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 8, victimHp: 0.9 },
+      infectedHit(115, 70),
+    ], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  // The hits stream shares the unconscious stream's lower bound: a hit logged after the death
+  // instant is post-death noise and is no evidence for it.
+  it("excludes a hit recorded after the death instant", () => {
+    const v = classifyDeath(base, [infectedHit(-50, 0.2)], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  it("still reads a non-infected bleeding death as bled_out", () => {
+    const v = classifyDeath(
+      { ...base, bleedSources: 2 },
+      [{ attackerType: "environment", attackerLabel: "Barbed", secondsBeforeDeath: 10, victimHp: 20 }],
+      [],
+    );
+    expect(v.cause).toBe("bled_out");
   });
 });
 

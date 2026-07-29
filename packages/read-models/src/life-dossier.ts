@@ -1,6 +1,6 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { Database } from "@onelife/db";
-import { lives, sessions, hitEvents, buildEvents, players } from "@onelife/db";
+import { lives, sessions, hitEvents, buildEvents, players, unconsciousEvents } from "@onelife/db";
 import { classifyDeath, RECENT_HIT_WINDOW_S, type DeathVerdict } from "@onelife/domain";
 
 // Damage arrives as individual ticks; consecutive same-category hits within this gap are ONE
@@ -11,6 +11,7 @@ const ENCOUNTER_GAP_S = 120;
 export interface OrdealSummary { encounters: number; hits: number; worstEncounterHits: number }
 
 export interface DossierRecentHit { attackerType: string; attackerLabel: string | null; secondsBeforeDeath: number; victimHp: number | null }
+export interface DossierUnconscious { secondsBeforeDeath: number; disconnecting: boolean }
 export interface LifeDossier {
   lifeId: number;
   startedAt: Date;
@@ -20,6 +21,7 @@ export interface LifeDossier {
   hpLow: number | null;
   ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary; buildsPlaced: number };
   recentHits: DossierRecentHit[];
+  recentUnconscious: DossierUnconscious[];
   death: { mechanism: string | null; energy: number | null; water: number | null; bleedSources: number | null; weapon: string | null };
 }
 
@@ -69,6 +71,15 @@ export async function dossierForLife(db: Database, gamertag: string, life: Dossi
     gte(hitEvents.occurredAt, life.startedAt), lte(hitEvents.occurredAt, windowEnd),
   )) : [];
 
+  // Knockouts in the life window. Same bounds and same player-id resolution as `hits` —
+  // the evidence that an infected mauling turned lethal when bleeding has already closed.
+  const knockouts = p ? await db.select({
+    disconnecting: unconsciousEvents.disconnecting, occurredAt: unconsciousEvents.occurredAt,
+  }).from(unconsciousEvents).where(and(
+    eq(unconsciousEvents.serverId, life.serverId), eq(unconsciousEvents.playerId, p.id),
+    gte(unconsciousEvents.occurredAt, life.startedAt), lte(unconsciousEvents.occurredAt, windowEnd),
+  )) : [];
+
   const isFire = (h: { attackerLabel: string | null }) => (h.attackerLabel ?? "").toLowerCase().includes("fire");
   const ms = (h: { occurredAt: Date }) => h.occurredAt.getTime();
   // Fire is checked first (a fire tick is attackerType "environment" but reads as its own ordeal).
@@ -87,9 +98,13 @@ export async function dossierForLife(db: Database, gamertag: string, life: Dossi
     .map((h) => ({ attackerType: h.attackerType, attackerLabel: h.attackerLabel, victimHp: h.victimHp, secondsBeforeDeath: Math.round((endMs - h.occurredAt.getTime()) / 1000) }))
     .filter((h) => h.secondsBeforeDeath >= 0 && h.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
 
+  const recentUnconscious: DossierUnconscious[] = knockouts
+    .map((u) => ({ disconnecting: u.disconnecting, secondsBeforeDeath: Math.round((endMs - u.occurredAt.getTime()) / 1000) }))
+    .filter((u) => u.secondsBeforeDeath >= 0 && u.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
+
   return {
     lifeId: life.id, startedAt: life.startedAt, endedAt: life.endedAt, playtimeSeconds: life.playtimeSeconds,
-    sessionCount: sess.length, hpLow, ordeals, recentHits,
+    sessionCount: sess.length, hpLow, ordeals, recentHits, recentUnconscious,
     death: { mechanism: life.deathCause, energy: life.energyAtDeath, water: life.waterAtDeath,
       bleedSources: life.bleedSourcesAtDeath, weapon: life.deathWeapon },
   };
@@ -116,6 +131,7 @@ export function dossierVerdict(d: LifeDossier): DeathVerdictSummary {
     { mechanism: d.death.mechanism, energy: d.death.energy, water: d.death.water,
       bleedSources: d.death.bleedSources, weapon: d.death.weapon },
     d.recentHits,
+    d.recentUnconscious,
   );
   return { cause, confidence, conditions };
 }
