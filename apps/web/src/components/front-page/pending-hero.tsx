@@ -18,8 +18,7 @@ const quietBtn =
  * of 3" kicker is the 3-step ladder folded to one line (LadderFrame no longer renders for
  * pending).
  *
- * RED POLICY: `red-deep` is a light-surface token and must never appear here; the frame and the
- * SkewCta background are display-scale red, allowed on dark.
+ * The frame and SkewCta background are display-scale red, appropriate for dark surfaces.
  */
 export function PendingHeroView({
   gamertag,
