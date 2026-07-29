@@ -3,8 +3,7 @@ import { FitLine } from "./fit-line";
 /**
  * The universal connect beat (join-the-servers spec §4): a full-bleed yellow slab — the only
  * yellow section on the site — with the three moves as dashed paper tickets and a stylized
- * replica of the Xbox server-browser screen. Mounted on the cold home, the unlinked pitch and
- * the pending home; `closing` is the ONLY per-surface variation.
+ * replica of the Xbox server-browser screen. Identical on every surface.
  *
  * ⚠️ THE REPLICA IS AN ILLUSTRATION, NOT A DATA SURFACE (spec §4.3). The player counts are
  * static example numbers, and the caption ("What you'll see on your screen") is what makes
@@ -54,7 +53,7 @@ function BrowserReplica() {
         {HOSTS.map((h) => (
           <li
             key={h.map}
-            className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 border-b border-dark-line px-4 py-2.5 font-mono text-[13px]"
+            className="grid grid-cols-[1fr_auto_auto] items-center gap-x-6 border-b border-dark-line px-4 py-2.5 font-mono text-[11px] md:text-[13px]"
           >
             <span className="min-w-0 truncate text-paper">
               <span aria-hidden="true" className="mr-2 text-yellow">★</span>
@@ -72,12 +71,7 @@ function BrowserReplica() {
   );
 }
 
-export function JoinServers({
-  closing = "Play first, claim later — your life is tracked from your first spawn.",
-}: {
-  /** The one per-surface variation (spec §4.4) — pending passes "Any server counts for your emotes." */
-  closing?: string;
-}) {
+export function JoinServers() {
   return (
     <section aria-label="Join the servers" className="border-y-4 border-ink bg-yellow px-6 py-14 text-ink md:px-10">
       <h2 className="font-display font-bold uppercase leading-none">
@@ -103,7 +97,7 @@ export function JoinServers({
         <BrowserReplica />
       </div>
       <p className="mx-auto mt-10 w-full max-w-3xl text-center font-display text-2xl font-bold uppercase leading-tight md:text-3xl">
-        {closing}
+        Play first, claim later — your life is tracked from your first spawn.
       </p>
     </section>
   );

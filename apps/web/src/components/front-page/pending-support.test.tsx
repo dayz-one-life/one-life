@@ -26,11 +26,13 @@ describe("PendingSupport", () => {
     expect(join.compareDocumentPosition(fallen) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("pending: the closing line is the emote variant, not the cold promise", () => {
+  it("pending: the closing line is the universal play-first promise", () => {
     mockStatus.mockReturnValue({ kind: "pending", link: { gamertag: "X" } });
     render(<PendingSupport obits={[obit]} />);
-    expect(screen.getByText("Any server counts for your emotes.")).toBeInTheDocument();
-    expect(screen.queryByText(/Play first, claim later/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Play first, claim later — your life is tracked from your first spawn."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Any server counts for your emotes.")).not.toBeInTheDocument();
   });
 
   it.each(["loading", "signedOut", "unlinked", "verified"] as const)(
