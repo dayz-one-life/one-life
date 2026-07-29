@@ -1573,6 +1573,27 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   control there — the same `AvatarPanel` component the old `/you` page carried. **`/you` is
   DELETED**: avatar management moved onto the dossier (verified players only), and sign-out lives
   in the masthead avatar menu (`account-affordance.tsx`) instead.
+  **⚠️ AVATARS ARE CIRCULAR, AND `components/shared/avatar.tsx` IS THE ONLY PLACE THAT SAYS SO**
+  (v0.60.0). All three of its branches — image, initial disc, silhouette — carry `rounded-full`,
+  and the hairline border is the ring. **Do not add `rounded-full`, a border or a fill to an
+  avatar at a call site**: the rule previously lived in three copies (`Avatar`, plus hand-rolled
+  markup in `shell/account-affordance.tsx` and `account/identity-row.tsx`) and they drifted —
+  square in six places, round in two. Both hand-rolled sites now render through `Avatar`, and
+  `AvatarDisc` is deleted. The circle is a **CSS mask over the square 256x256 webp**; the `sharp`
+  pipeline is untouched, so it is retroactive to every stored avatar and **no hash or URL
+  changed** — baking a mask in would change `sha256(image)` and therefore every avatar's URL.
+  Two props carry the per-surface differences: **`variant: "paper" | "dark"`** swaps
+  ring/fill/glyph (the two-surface token rule — the masthead is the dark caller, and an unswapped
+  variant renders ink-on-dark: present, functional, invisible, with the suite green), and
+  **`className`** is merged LAST through `cn` (`twMerge`), so a caller overrides a token **by
+  Tailwind class group** rather than competing with it. That merge is load-bearing, not
+  convenience: the masthead passes both the pending-verification cue (`border-yellow`, which
+  replaces the variant's `border-dark-edge-bright` — same group) and `group-hover:border-red`
+  (a *variant* group, so it survives alongside, and wins on hover by specificity). Change how
+  `className` is applied and those two silently start cancelling each other.
+  ⚠️ **A test asserting the ring on the BUTTON instead of the avatar passes vacuously** — the
+  button no longer draws a border, so a negative assertion there can never fail. `v0.59.0`'s two
+  cue tests had exactly this shape and were re-pointed at the disc.
   **Deploy:** migration `0029` creates `avatars` and drops `characters`, `character_sightings`
   **and `rpt_files`** (the RPT ingest-cursor table) — touches one durable table and drops three
   projection tables, so it deploys with a plain `./deploy/deploy.sh`, **no `--rebuild`** (nothing
