@@ -131,15 +131,16 @@ describe("Home page: the claim anchor", () => {
     expect(container.querySelector("#claim")).not.toBeNull();
   });
 
-  it("signed out: the connect section follows the CTA slab, is the last content block, and no account-panels wrapper renders", async () => {
+  it("signed out: Join the servers follows the CTA slab, is the last content block, and no account-panels wrapper renders", async () => {
     const { container } = render(await Home());
     const claimHeading = screen.getByRole("heading", { name: /Claim it/i });
     const connectText = screen.getByText(/Play first, claim later/i);
     // Document order, not mere presence — the CTA slab's "Claim it" heading must precede
-    // ConnectSection's copy (same DOM-position pattern as the Rules-before-Fallen check above).
+    // JoinServers' copy (same DOM-position pattern as the Rules-before-Fallen check above).
     expect(
       claimHeading.compareDocumentPosition(connectText) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Join the servers" })).toBeInTheDocument();
     expect(container.querySelector("#claim")).toBeNull(); // wrapper (and anchor) absent when signed out
   });
 });

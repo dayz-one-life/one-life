@@ -100,7 +100,7 @@ export function JoinServers({
       <div className="mt-2">
         <BrowserReplica />
       </div>
-      <p className="mx-auto mt-10 max-w-3xl text-center font-display text-2xl font-bold uppercase leading-tight md:text-3xl">
+      <p className="mx-auto mt-10 w-full max-w-3xl text-center font-display text-2xl font-bold uppercase leading-tight md:text-3xl">
         {closing}
       </p>
     </section>
