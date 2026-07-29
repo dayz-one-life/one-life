@@ -132,12 +132,21 @@ describe("AvatarPanel", () => {
     );
   });
 
-  test("fetch_failed maps to the mapped visible text", async () => {
+  test("announces the transient message on 502 fetch_failed", async () => {
     syncAvatar.mockRejectedValue(new ApiError(502, "fetch_failed"));
     wrap(<AvatarPanel />);
     fireEvent.click(screen.getByRole("button", { name: /refresh from login provider/i }));
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Couldn't reach your login provider. Try again."),
+      expect(screen.getByRole("status")).toHaveTextContent(/try again in a minute/i),
+    );
+  });
+
+  test("announces the stale-provider message on 409 provider_image_stale", async () => {
+    syncAvatar.mockRejectedValue(new ApiError(409, "provider_image_stale"));
+    wrap(<AvatarPanel />);
+    fireEvent.click(screen.getByRole("button", { name: /refresh from login provider/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/rotated your photo's link/i),
     );
   });
 

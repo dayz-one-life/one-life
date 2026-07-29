@@ -199,13 +199,18 @@ export const getLifeTrack = (mapSlug: string, n: number) =>
 export const getSurvivors = (p: { slug: string; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors/${encodeURIComponent(p.slug)}?page=${p.page}`);
 
-/** Public fleet-wide ledger numbers for the cold home's hero. */
-export const getSiteStats = () => apiGet<SiteStats>("/api/stats");
-
 export const getObituariesFeed = (page: number) =>
   apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
 export const getObituary = (slug: string) =>
   getOrNull<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`);
+
+/** Home's pitch feeds — public, cookie-independent, fetched on EVERY home render (cold AND
+ *  signed-in, since the unverified pitch needs them too). `apiGetCached` keeps that free: no
+ *  cookie forwarding, shared 60s fetch cache. Do NOT point authenticated surfaces at these. */
+const HOME_FEED_REVALIDATE_SECONDS = 60;
+export const getSiteStatsCached = () => apiGetCached<SiteStats>("/api/stats", HOME_FEED_REVALIDATE_SECONDS);
+export const getObituariesFeedCached = (page: number) =>
+  apiGetCached<ObituariesFeed>(`/api/obituaries?page=${page}`, HOME_FEED_REVALIDATE_SECONDS);
 
 /** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
  *  3600) so the fetch cache and the route's own ISR window agree. */

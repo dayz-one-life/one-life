@@ -1,4 +1,5 @@
 import { LoginPanel } from "@/components/login-panel";
+import { DiscordRedirect, isDiscordOnly } from "@/components/discord-redirect";
 import { getAuthMethods } from "@/lib/api";
 
 export const metadata = { title: "Sign in" };
@@ -16,12 +17,14 @@ export default async function LoginPage() {
         Sign in, claim your gamertag, and your lives get tracked.
       </p>
       <div className="mt-6">
-        {methods ? (
-          <LoginPanel providers={methods.providers} magicLink={methods.magicLink} />
-        ) : (
+        {methods === null ? (
           <p role="alert" className="border border-dashed border-dash px-4 py-3 font-mono text-xs uppercase tracking-[.04em] text-red-deep">
             Sign-in is temporarily unavailable. Please try again in a moment.
           </p>
+        ) : isDiscordOnly(methods) ? (
+          <DiscordRedirect />
+        ) : (
+          <LoginPanel providers={methods.providers} magicLink={methods.magicLink} />
         )}
       </div>
     </main>

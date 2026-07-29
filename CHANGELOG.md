@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The home-page pitch now greets signed-in players who haven't linked a gamertag too, with every
+  button pointing at the claim ladder; the rules now come before the obituaries; the hero's
+  pitch line and claim button sit side by side with a full-size button; the page closes with a
+  light "how to connect" section (no more stray light bar above the footer); and "Favourite"
+  became "Favorite". Signing in now goes straight to Discord. A failed "refresh from login
+  provider" now explains that Discord rotated the photo link instead of erroring.
+
 ## [0.56.0] - 2026-07-28
 
 ### Changed

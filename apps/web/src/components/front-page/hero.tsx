@@ -5,18 +5,28 @@ import type { SiteStats } from "@/lib/types";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
+/**
+ * Which visitor the pitch beats are being shown to (home-polish spec §3): `cold` (signed-out,
+ * CTAs point at /login) or `unverified` (signed-in but unlinked/pending, CTAs point at the
+ * on-page claim ladder via `#claim`).
+ */
+export type PitchAudience = "cold" | "unverified";
+
 /** The primary CTA — also reused by the CTA slab (Task 4) so the two asks cannot drift. */
-export function ClaimCta({ large = false }: { large?: boolean }) {
+export function ClaimCta({ large = false, fill = false, href = "/login", label = "Claim your life →" }: {
+  large?: boolean; fill?: boolean; href?: string; label?: string;
+}) {
+  const size = fill
+    ? "flex h-full w-full items-center justify-center px-10 py-6 text-xl md:text-2xl"
+    : large ? "inline-block px-10 py-4 text-lg" : "inline-block px-7 py-3.5 text-base";
   return (
     <Link
-      href="/login"
-      // `hover:bg-red-deep` here is a BACKGROUND under white text (contrast ~5.8:1, improves on
-      // hover from the plain-red base) — deliberate, not a light-surface-token violation. The
-      // RED-POLICY note in globals.css governs red as TEXT on paper/bone; it says nothing about
-      // red-deep used as a dark-surface background. Don't "fix" this blind on a future sweep.
-      className={`inline-block -skew-x-[5deg] bg-red text-white font-display font-bold uppercase tracking-[.08em] hover:bg-red-deep ${large ? "px-10 py-4 text-lg" : "px-7 py-3.5 text-base"}`}
+      href={href}
+      // red-deep as a BACKGROUND under white text on dark: deliberate (contrast improves on
+      // hover) — not a light-surface-token violation; do not "fix" in a RED-POLICY sweep.
+      className={`-skew-x-[5deg] bg-red text-white font-display font-bold uppercase tracking-[.08em] hover:bg-red-deep ${size}`}
     >
-      Claim your life →
+      {label}
     </Link>
   );
 }
@@ -28,7 +38,7 @@ export function ClaimCta({ large = false }: { large?: boolean }) {
  * The sr-only sentence stays the h1's accessible name; every visible ledger span is aria-hidden
  * (CountUp's ticking digits must not reach a screen reader).
  */
-export function Hero({ stats }: { stats?: SiteStats | null }) {
+export function Hero({ stats, audience = "cold" }: { stats?: SiteStats | null; audience?: PitchAudience }) {
   return (
     <section className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16">
       <p className="font-mono text-xs uppercase tracking-[.28em] text-cream-dim">
@@ -71,12 +81,14 @@ export function Hero({ stats }: { stats?: SiteStats | null }) {
           One life. No respawns
         </h1>
       )}
-      <p className="mt-6 max-w-xl font-sans text-lg leading-relaxed text-cream-dim">
-        Every life on our servers is tracked to the minute — birth to death, across sessions.
-        When you die, the ban is real and the record is permanent.
-      </p>
-      <div className="mt-7">
-        <ClaimCta />
+      <div data-testid="hero-cta-row" className="mt-6 grid gap-6 md:grid-cols-2 md:items-stretch">
+        <p className="max-w-xl font-sans text-lg leading-relaxed text-cream-dim">
+          Every life on our servers is tracked to the minute — birth to death, across sessions.
+          When you die, the ban is real and the record is permanent.
+        </p>
+        <div className="min-h-[72px]">
+          <ClaimCta fill {...(audience === "unverified" ? { href: "#claim", label: "Link your gamertag →" } : {})} />
+        </div>
       </div>
     </section>
   );

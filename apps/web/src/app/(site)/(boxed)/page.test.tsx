@@ -8,14 +8,16 @@ import Home from "./page";
 const getSurvivors = vi.fn();
 const getServers = vi.fn();
 const getLastPlayedMap = vi.fn();
-const getSiteStats = vi.fn();
 const getObituariesFeed = vi.fn();
+const getSiteStatsCached = vi.fn();
+const getObituariesFeedCached = vi.fn();
 vi.mock("@/lib/api", () => ({
   getSurvivors: (...a: unknown[]) => getSurvivors(...a),
   getServers: (...a: unknown[]) => getServers(...a),
   getLastPlayedMap: (...a: unknown[]) => getLastPlayedMap(...a),
-  getSiteStats: (...a: unknown[]) => getSiteStats(...a),
   getObituariesFeed: (...a: unknown[]) => getObituariesFeed(...a),
+  getSiteStatsCached: (...a: unknown[]) => getSiteStatsCached(...a),
+  getObituariesFeedCached: (...a: unknown[]) => getObituariesFeedCached(...a),
 }));
 // Mutable cookie jar: [] = cold visitor (the default for these feed tests); push a
 // `…session_token` cookie to simulate a signed-in visitor for the pitch-gating tests below.
@@ -62,10 +64,10 @@ beforeEach(() => {
   getServers.mockResolvedValue([{ id: 1, name: "Chernarus", map: "chernarusplus", slug: "chernarus" }]);
   getLastPlayedMap.mockResolvedValue({ slug: null });
   // Default: stats fetch fails, so Hero falls back to evergreen headline
-  getSiteStats.mockRejectedValue(new Error("unavailable"));
-  // Default: obituaries fetch fails, so Fallen renders nothing — matching the getSiteStats
+  getSiteStatsCached.mockRejectedValue(new Error("unavailable"));
+  // Default: obituaries fetch fails, so Fallen renders nothing — matching the getSiteStatsCached
   // pattern above (a REJECTED feed vs. a resolved-empty one are two distinct outcomes).
-  getObituariesFeed.mockRejectedValue(new Error("no feed"));
+  getObituariesFeedCached.mockRejectedValue(new Error("no feed"));
 });
 
 // ⚠️ The pitch is for COLD visitors only (home-is-the-app spec): a signed-in player's home
@@ -80,19 +82,35 @@ describe("Home page: the pitch renders for cold visitors only", () => {
     expect(screen.queryByRole("heading", { name: /The Fallen/i })).toBeNull();
     expect(screen.queryByRole("heading", { name: /Claim it/i })).toBeNull();
     expect(screen.getByLabelText("Your account")).toBeInTheDocument();
-    // ⚠️ The ledger is the Hero's sole consumer and the Hero never renders for a signed-in
-    // visitor — the stats fetch must be skipped entirely, not merely unrendered, since it pays
-    // a fleet-wide correlated COUNT plus a full kills-table scan (getAliveSurvivors).
-    expect(getSiteStats).not.toHaveBeenCalled();
   });
 
   test("no session cookie keeps the full cold landing", async () => {
+    getObituariesFeedCached.mockResolvedValue({
+      rows: [{
+        slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
+        lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",
+        tags: [], timeAliveSeconds: 112320, kills: 4, longestKillMeters: 210, cause: "pvp",
+        deathAt: "2026-07-27T20:00:00Z",
+      }],
+      total: 1, page: 1, pageSize: 12,
+    });
     render(await Home());
     expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns" })).toBeInTheDocument();
+    // Rules render BEFORE the Fallen wall (spec §4).
+    // ⚠️ Adapted from the brief's literal `html.indexOf("Death is real") < html.indexOf("The
+    // Fallen")` check: the Fallen heading's text is split across a <span> ("The " + "Fallen"),
+    // so that substring never appears contiguous in innerHTML and the indexOf comparison is
+    // vacuously true (LHS < -1-turned-Infinity) regardless of actual order. DOM position
+    // comparison exercises the same intent for real.
+    const deathIsReal = screen.getByText("Death is real");
+    const fallenHeading = screen.getByRole("heading", { name: /The Fallen/i });
+    expect(
+      deathIsReal.compareDocumentPosition(fallenHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   test("a resolved stats fetch renders the casualty ledger as the h1", async () => {
-    getSiteStats.mockResolvedValue({ deaths: 3, alive: 2 });
+    getSiteStatsCached.mockResolvedValue({ deaths: 3, alive: 2 });
     render(await Home());
     expect(
       screen.getByRole("heading", { level: 1, name: "Deaths to date: 3. Still standing: 2" }),
@@ -100,25 +118,57 @@ describe("Home page: the pitch renders for cold visitors only", () => {
   });
 });
 
-describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in gets the sidebar's)", () => {
-  it("signed out: fetches stats and obituaries, never survivors", async () => {
-    render(await Home());
-    expect(getSiteStats).toHaveBeenCalled();
-    expect(getObituariesFeed).toHaveBeenCalledWith(1);
-    expect(getSurvivors).not.toHaveBeenCalled();
+describe("Home page: the claim anchor", () => {
+  it("the account panels wrapper carries the #claim anchor for a signed-in render", async () => {
+    cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    const { container } = render(await Home());
+    expect(container.querySelector("#claim")).not.toBeNull();
   });
 
-  it("signed in: fetches survivors, never stats or obituaries", async () => {
+  it("signed out: the connect section follows the CTA slab, is the last content block, and no account-panels wrapper renders", async () => {
+    const { container } = render(await Home());
+    const claimHeading = screen.getByRole("heading", { name: /Claim it/i });
+    const connectText = screen.getByText(/Play first, claim later/i);
+    // Document order, not mere presence — the CTA slab's "Claim it" heading must precede
+    // ConnectSection's copy (same DOM-position pattern as the Rules-before-Fallen check above).
+    expect(
+      claimHeading.compareDocumentPosition(connectText) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(container.querySelector("#claim")).toBeNull(); // wrapper (and anchor) absent when signed out
+  });
+});
+
+describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in gets the sidebar's)", () => {
+  it("stats and obituaries come from the CACHED cookie-free fetchers in both cookie states", async () => {
+    render(await Home());                       // signed out
+    expect(getSiteStatsCached).toHaveBeenCalled();
+    expect(getObituariesFeedCached).toHaveBeenCalledWith(1);
+    expect(getObituariesFeed).not.toHaveBeenCalled();  // the cookie-forwarding fetcher must NOT serve home
+
+    vi.clearAllMocks();
+    getSiteStatsCached.mockRejectedValue(new Error("unavailable"));
+    getObituariesFeedCached.mockRejectedValue(new Error("no feed"));
+    cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    render(await Home());                       // signed in
+    expect(getSiteStatsCached).toHaveBeenCalled();
+    expect(getObituariesFeedCached).toHaveBeenCalledWith(1);
+    expect(getObituariesFeed).not.toHaveBeenCalled();
+  });
+
+  it("signed in: fetches survivors; signed out: does not", async () => {
+    render(await Home()); // signed out
+    expect(getSurvivors).not.toHaveBeenCalled();
+
     cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
     getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     render(await Home());
     expect(getSurvivors).toHaveBeenCalled();
-    expect(getSiteStats).not.toHaveBeenCalled();
-    expect(getObituariesFeed).not.toHaveBeenCalled();
   });
 
   it("a resolved obituaries feed renders the Fallen wall", async () => {
-    (getObituariesFeed as Mock).mockResolvedValue({
+    (getObituariesFeedCached as Mock).mockResolvedValue({
       rows: [{
         slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
         lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",

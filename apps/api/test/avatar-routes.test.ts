@@ -51,6 +51,7 @@ let noImageCookie = "";
 let stubServer: http.Server;
 let stubUrl: string;
 let stub500Url: string;
+let stub404Url: string;
 let pngBuffer: Buffer;
 
 beforeAll(async () => {
@@ -64,6 +65,11 @@ beforeAll(async () => {
       res.end("nope");
       return;
     }
+    if (req.url === "/missing") {
+      res.writeHead(404);
+      res.end("gone");
+      return;
+    }
     res.writeHead(200, { "content-type": "image/png" });
     res.end(pngBuffer);
   });
@@ -71,6 +77,7 @@ beforeAll(async () => {
   const port = (stubServer.address() as AddressInfo).port;
   stubUrl = `http://127.0.0.1:${port}/avatar.png`;
   stub500Url = `http://127.0.0.1:${port}/fail`;
+  stub404Url = `http://127.0.0.1:${port}/missing`;
 
   await app.ready();
   cookie = await signIn(email);
@@ -166,7 +173,10 @@ describe("avatar routes", () => {
     expect(meRes.json().hash).toBe(hash);
   });
 
-  it("a failed sync leaves the existing avatar untouched", async () => {
+  // Upstream ANSWERED with a 5xx (a stubbed 500) — that's the PROVIDER's own transient failure,
+  // not the account's, so it stays 502 "fetch_failed" (the "try again" advice is honest there),
+  // not a 409 "provider_image_stale". A failed sync leaves any existing row untouched.
+  it("a failed sync (upstream 5xx) leaves the existing avatar untouched", async () => {
     const upload = await uploadPng(cookie);
     const originalHash = upload.json().hash;
 
@@ -182,6 +192,25 @@ describe("avatar routes", () => {
 
     const [row] = await db.select().from(avatars).where(eq(avatars.userId, u!.id));
     expect(row!.hash).toBe(originalHash);
+  });
+
+  it("maps an upstream 4xx to 409 provider_image_stale, not a 502", async () => {
+    const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
+    await db.update(user).set({ image: stub404Url }).where(eq(user.id, u!.id));
+
+    const res = await app.inject({ method: "POST", url: "/me/avatar/sync", headers: { cookie } });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({ error: "provider_image_stale" });
+  });
+
+  it("keeps 502 fetch_failed for a connection failure", async () => {
+    const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
+    // Loopback, but nothing is listening — a real connection failure, not an upstream answer.
+    await db.update(user).set({ image: "http://127.0.0.1:1/avatar.png" }).where(eq(user.id, u!.id));
+
+    const res = await app.inject({ method: "POST", url: "/me/avatar/sync", headers: { cookie } });
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toEqual({ error: "fetch_failed" });
   });
 
   it("rejects an unsessioned caller on every /me route", async () => {
