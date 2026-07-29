@@ -5,6 +5,7 @@ import { Hero } from "@/components/front-page/hero";
 import { Fallen } from "@/components/front-page/fallen";
 import { Rules } from "@/components/front-page/rules";
 import { CtaSlab } from "@/components/front-page/cta-slab";
+import { UnverifiedPitch } from "@/components/front-page/unverified-pitch";
 import { serversView } from "@/components/servers/how-to-connect";
 import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
@@ -63,7 +64,14 @@ export default async function Home() {
           <CtaSlab servers={serversView(servers.data, { failed: servers.failed })} />
         </>
       )}
-      <div className="px-6 py-8 md:px-10">
+      {signedIn && (
+        <UnverifiedPitch
+          stats={stats.data}
+          obits={obits.data?.rows ?? []}
+          servers={serversView(servers.data, { failed: servers.failed })}
+        />
+      )}
+      <div id="claim" className="px-6 py-8 md:px-10">
         <AccountPanels signInFallback={signedIn} />
       </div>
     </HomeShell>

@@ -77,6 +77,12 @@ describe("Hero", () => {
     expect(cta.className).toMatch(/(^|\s)w-full(\s|$)/);
   });
 
+  it("unverified audience: the CTA reads Link your gamertag and anchors to the ladder", () => {
+    render(<Hero stats={{ deaths: 10, alive: 2 }} audience="unverified" />);
+    expect(screen.getByRole("link", { name: "Link your gamertag →" })).toHaveAttribute("href", "#claim");
+    expect(screen.queryByRole("link", { name: "Claim your life →" })).not.toBeInTheDocument();
+  });
+
   it("the stats-branch ledger line carries a CSS fallback size class before any measurement (jsdom never measures)", () => {
     const { container } = render(<Hero stats={stats} />);
     // The FitLine clone carries [data-fitline-clone]; its sibling is the visible line div, which

@@ -5,6 +5,13 @@ import type { SiteStats } from "@/lib/types";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
+/**
+ * Which visitor the pitch beats are being shown to (home-polish spec §3): `cold` (signed-out,
+ * CTAs point at /login) or `unverified` (signed-in but unlinked/pending, CTAs point at the
+ * on-page claim ladder via `#claim`).
+ */
+export type PitchAudience = "cold" | "unverified";
+
 /** The primary CTA — also reused by the CTA slab (Task 4) so the two asks cannot drift. */
 export function ClaimCta({ large = false, fill = false, href = "/login", label = "Claim your life →" }: {
   large?: boolean; fill?: boolean; href?: string; label?: string;
@@ -31,7 +38,7 @@ export function ClaimCta({ large = false, fill = false, href = "/login", label =
  * The sr-only sentence stays the h1's accessible name; every visible ledger span is aria-hidden
  * (CountUp's ticking digits must not reach a screen reader).
  */
-export function Hero({ stats }: { stats?: SiteStats | null }) {
+export function Hero({ stats, audience = "cold" }: { stats?: SiteStats | null; audience?: PitchAudience }) {
   return (
     <section className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16">
       <p className="font-mono text-xs uppercase tracking-[.28em] text-cream-dim">
@@ -80,7 +87,7 @@ export function Hero({ stats }: { stats?: SiteStats | null }) {
           When you die, the ban is real and the record is permanent.
         </p>
         <div className="min-h-[72px]">
-          <ClaimCta fill />
+          <ClaimCta fill {...(audience === "unverified" ? { href: "#claim", label: "Link your gamertag →" } : {})} />
         </div>
       </div>
     </section>

@@ -120,6 +120,15 @@ describe("Home page: the pitch renders for cold visitors only", () => {
   });
 });
 
+describe("Home page: the claim anchor", () => {
+  it("the account panels wrapper carries the #claim anchor for a signed-in render", async () => {
+    cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    const { container } = render(await Home());
+    expect(container.querySelector("#claim")).not.toBeNull();
+  });
+});
+
 describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in gets the sidebar's)", () => {
   it("stats and obituaries come from the CACHED cookie-free fetchers in both cookie states", async () => {
     render(await Home());                       // signed out
