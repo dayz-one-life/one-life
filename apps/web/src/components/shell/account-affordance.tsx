@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccountStatus } from "@/lib/use-account-status";
 import { getAvatar } from "@/lib/api";
-import { avatarSrc } from "@/components/shared/avatar";
+import { Avatar } from "@/components/shared/avatar";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 import { signOutAndTeardownPush } from "@/lib/push";
 import { playerSlug } from "@/lib/slug";
@@ -99,16 +99,20 @@ export function AccountAffordance() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="account-menu"
-        className={cn(
-          "flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-dark-well font-display text-sm font-bold uppercase text-paper hover:border-red hover:text-red",
-          pendingTag ? "border-yellow" : "border-dark-edge-bright",
-        )}
+        className="group flex h-9 w-9 items-center justify-center rounded-full"
       >
-        {hash ? (
-          <img src={avatarSrc(hash)} alt="" width={36} height={36} className="h-full w-full object-cover" />
-        ) : (
-          <span aria-hidden>{initial}</span>
-        )}
+        {/* The ring, fill and glyph all come from `Avatar` now — see the ⚠️ at that component.
+            The pending cue and the hover both reach it through `className`, which `cn` merges
+            LAST: `border-yellow` replaces the variant's `border-dark-edge-bright` (same Tailwind
+            class group), while `group-hover:border-red` is a variant group and survives alongside
+            it. That is why the cue and the hover do not cancel each other out. */}
+        <Avatar
+          hash={hash}
+          size={36}
+          fallbackInitial={initial}
+          variant="dark"
+          className={cn("group-hover:border-red group-hover:text-red", pendingTag && "border-yellow")}
+        />
       </button>
       {open && (
         <div

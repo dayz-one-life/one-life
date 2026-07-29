@@ -72,10 +72,12 @@ describe("AccountAffordance", () => {
 
   it("pending: Finish verification link to /#claim, disc shows the tag initial with the yellow cue", () => {
     mockStatus.mockReturnValue({ kind: "pending", link: { gamertag: "boots" } });
-    renderIt();
+    const { container } = renderIt();
     const trigger = screen.getByRole("button", { name: "Your account" });
     expect(trigger).toHaveTextContent("B"); // pending tag's initial, not the anonymous "•"
-    expect(trigger.className).toContain("border-yellow");
+    // The cue lives on the Avatar's ring, not the button — the button no longer draws a border.
+    // Asserting it on the trigger would pass vacuously against a cue that had silently vanished.
+    expect(container.querySelector('[aria-hidden="true"]')!.className).toContain("border-yellow");
     fireEvent.click(trigger);
     expect(screen.getByRole("menuitem", { name: "Finish verification →" })).toHaveAttribute("href", "/#claim");
     expect(screen.queryByRole("menuitem", { name: "Claim your gamertag →" })).not.toBeInTheDocument();
@@ -85,8 +87,12 @@ describe("AccountAffordance", () => {
 
   it.each(["verified", "unlinked"] as const)("%s disc carries no yellow pending cue", (kind) => {
     mockStatus.mockReturnValue(kind === "verified" ? { kind, link: { gamertag: "X" } } : { kind });
-    renderIt();
-    expect(screen.getByRole("button", { name: "Your account" }).className).not.toContain("border-yellow");
+    const { container } = renderIt();
+    // Same subject as the positive case above: the ring on the Avatar, not the button. Asserted
+    // on the button this would be vacuously true and would never catch an always-yellow cue.
+    const disc = container.querySelector('[aria-hidden="true"]')!;
+    expect(disc.className).not.toContain("border-yellow");
+    expect(disc.className).toContain("border-dark-edge-bright");
   });
 
   it("never links to /you anywhere", () => {
@@ -94,5 +100,20 @@ describe("AccountAffordance", () => {
     const { container } = renderIt();
     fireEvent.click(screen.getByRole("button", { name: "Your account" }));
     expect(container.querySelector('a[href="/you"]')).toBeNull();
+  });
+
+  // The masthead is DARK. Rendering through Avatar without variant="dark" produces the
+  // paper tokens — ink on dark, i.e. present, functional and invisible (the v0.26.0 bug).
+  it("renders the avatar through the shared Avatar on the dark variant", () => {
+    mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "YrJustBad" } });
+    const { container } = renderIt();
+    const disc = container.querySelector('[aria-hidden="true"]')!;
+    expect(disc.className).toContain("rounded-full");
+    expect(disc.className).toContain("bg-dark-well");
+    expect(disc.className).toContain("text-paper");
+    expect(disc.className).not.toContain("bg-bone");
+    // The hover state must survive the collapse — it now reaches Avatar via `group`.
+    expect(disc.className).toContain("group-hover:border-red");
+    expect(container.querySelector("button")!.className).toContain("group");
   });
 });
