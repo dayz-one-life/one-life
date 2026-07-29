@@ -46,10 +46,13 @@ describe("PendingHeroView — live challenge", () => {
     expect(items[0]!.textContent).toMatch(/First/);
     expect(items[0]!.textContent).toMatch(/point at self/i);
     expect(items[0]!.textContent).toMatch(/Confirmed/);
-    expect(items[0]!.className).toContain("bg-paper");
-    expect(items[1]!.textContent).toMatch(/Second/);
+    // All tickets are paper — the Join-the-servers ticket language (spec §3b).
+    for (const item of items) {
+      expect(item.className).toContain("bg-paper");
+      expect(item.className).toContain("border-ink");
+    }
+    expect(items[0]!.className).not.toContain("border-dashed"); // stamped ticket is solid
     expect(items[1]!.className).toContain("border-dashed");
-    expect(items[2]!.textContent).toMatch(/Third/);
     expect(items[2]!.className).toContain("border-dashed");
   });
 
@@ -107,9 +110,19 @@ describe("PendingHeroView — live challenge", () => {
     expect(onCancel).toHaveBeenCalled();
   });
 
-  test("red-deep never appears on the dark hero", () => {
-    const { container } = render(view());
-    expect(container.innerHTML).not.toContain("red-deep");
+  test("red-deep appears only on paper ticket interiors, never on the dark surface itself", () => {
+    render(view());
+    const list = screen.getByRole("list", { name: "Emote sequence" });
+    const items = within(list).getAllByRole("listitem");
+    // Unconfirmed ticket has red-deep ordinal (on the inner span, inside the paper ticket)
+    expect(items[1]!.innerHTML).toContain("text-red-deep");
+    expect(items[2]!.innerHTML).toContain("text-red-deep");
+    // Confirmed ticket's ordinal is dimmed ink, not red
+    expect(items[0]!.innerHTML).not.toContain("text-red-deep");
+    // But not on the dark hero section itself
+    const section = screen.getByRole("heading", { level: 1 }).closest("section");
+    expect(section).toHaveClass("bg-dark");
+    expect(section?.className).not.toContain("red-deep");
   });
 
   test("the hero section carries the #claim anchor — the masthead's Finish verification lands here", () => {
