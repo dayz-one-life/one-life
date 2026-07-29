@@ -53,9 +53,9 @@ export default async function Home() {
       {!signedIn && (
         <>
           <Hero stats={stats.data} />
+          <Rules />
           {/* Failed OR empty → [] → Fallen renders nothing (absent proof is silence). */}
           <Fallen rows={obits.data?.rows ?? []} />
-          <Rules />
           <CtaSlab servers={serversView(servers.data, { failed: servers.failed })} />
         </>
       )}

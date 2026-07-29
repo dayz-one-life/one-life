@@ -67,6 +67,16 @@ describe("Hero", () => {
     expect(brand.textContent).not.toContain("—");
   });
 
+  it("deck and CTA sit in one two-column row at md, button filling its column", () => {
+    const { container } = render(<Hero stats={{ deaths: 4213, alive: 38 }} />);
+    const row = container.querySelector("[data-testid='hero-cta-row']");
+    expect(row).not.toBeNull();
+    expect(row!.className).toMatch(/md:grid-cols-2/);
+    const cta = screen.getByRole("link", { name: "Claim your life →" });
+    expect(cta.className).toMatch(/(^|\s)h-full(\s|$)/);
+    expect(cta.className).toMatch(/(^|\s)w-full(\s|$)/);
+  });
+
   it("the stats-branch ledger line carries a CSS fallback size class before any measurement (jsdom never measures)", () => {
     const { container } = render(<Hero stats={stats} />);
     // The FitLine clone carries [data-fitline-clone]; its sibling is the visible line div, which

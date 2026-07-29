@@ -87,8 +87,28 @@ describe("Home page: the pitch renders for cold visitors only", () => {
   });
 
   test("no session cookie keeps the full cold landing", async () => {
+    getObituariesFeed.mockResolvedValue({
+      rows: [{
+        slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
+        lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",
+        tags: [], timeAliveSeconds: 112320, kills: 4, longestKillMeters: 210, cause: "pvp",
+        deathAt: "2026-07-27T20:00:00Z",
+      }],
+      total: 1, page: 1, pageSize: 12,
+    });
     render(await Home());
     expect(screen.getByRole("heading", { level: 1, name: "One life. No respawns" })).toBeInTheDocument();
+    // Rules render BEFORE the Fallen wall (spec §4).
+    // ⚠️ Adapted from the brief's literal `html.indexOf("Death is real") < html.indexOf("The
+    // Fallen")` check: the Fallen heading's text is split across a <span> ("The " + "Fallen"),
+    // so that substring never appears contiguous in innerHTML and the indexOf comparison is
+    // vacuously true (LHS < -1-turned-Infinity) regardless of actual order. DOM position
+    // comparison exercises the same intent for real.
+    const deathIsReal = screen.getByText("Death is real");
+    const fallenHeading = screen.getByRole("heading", { name: /The Fallen/i });
+    expect(
+      deathIsReal.compareDocumentPosition(fallenHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   test("a resolved stats fetch renders the casualty ledger as the h1", async () => {

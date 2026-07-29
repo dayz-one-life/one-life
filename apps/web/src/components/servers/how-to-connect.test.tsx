@@ -53,6 +53,12 @@ describe("HowToConnect", () => {
     expect(screen.queryByText(/couldn’t load the list/)).toBeNull();
   });
 
+  test("uses US English for the favorite instruction", () => {
+    render(<HowToConnect servers={{ kind: "ready", names: ["Chernarus"] }} />);
+    expect(screen.getByText(/Favorite them/)).toBeInTheDocument();
+    expect(screen.queryByText(/Favourite/)).not.toBeInTheDocument();
+  });
+
   test("the search step survives every state — it does not depend on the list", () => {
     const views: ServersView[] = [{ kind: "loading" }, { kind: "failed" }, { kind: "ready", names: [] }];
     for (const view of views) {

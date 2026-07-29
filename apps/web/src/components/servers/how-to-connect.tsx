@@ -53,7 +53,7 @@ export function HowToConnect({ servers, onDark = false }: { servers: ServersView
         <li>
           <ServerNames servers={servers} onDark={onDark} />
         </li>
-        <li>Favourite them so you can find them again without searching.</li>
+        <li>Favorite them so you can find them again without searching.</li>
       </ol>
     </section>
   );
