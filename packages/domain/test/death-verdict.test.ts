@@ -213,6 +213,17 @@ describe("mauled inference (corroborated)", () => {
     expect(v.cause).toBe("fall");
   });
 
+  // Mirrors the recentHits window convention (explicit 120s/121s boundary tests above).
+  it("excludes an unconscious entry beyond the 120s window", () => {
+    const v = classifyDeath(base, [infectedHit(30, 45)], [{ secondsBeforeDeath: 121, disconnecting: true }]);
+    expect(v.cause).toBe("unknown");
+  });
+
+  it("includes an unconscious entry exactly at the 120s boundary", () => {
+    const v = classifyDeath(base, [infectedHit(30, 45)], [{ secondsBeforeDeath: 120, disconnecting: true }]);
+    expect(v.cause).toBe("mauled");
+  });
+
   it("still reads a non-infected bleeding death as bled_out", () => {
     const v = classifyDeath(
       { ...base, bleedSources: 2 },
