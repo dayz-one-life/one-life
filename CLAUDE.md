@@ -114,6 +114,14 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   are set, and email/magic-link is gated by `MAGIC_LINK_ENABLED` (default `true`). The backend is the source
   of truth via `enabledAuthMethods()`, served at `GET /api/auth/providers` (a static route that wins over the
   `/api/auth/*` Better Auth catch-all); the login page is a server component that fetches it before render.
+  **Discord-direct login (2026-07-28):** `/login` skips the button page entirely and fires the
+  OAuth redirect itself when Discord is the *only* enabled method — `isDiscordOnly(methods)`
+  (`@/components/discord-redirect.tsx`, true only when `!magicLink && providers.length === 1 &&
+  providers[0] === "discord"`) renders `DiscordRedirect`, which redirects on mount (a
+  `useRef` guard against StrictMode's double-invoke) and still shows a real fallback button so a
+  blocked redirect is never a dead end. Any other configuration — a dev box with magic-link
+  enabled, a second provider, or a FAILED providers fetch — falls through to the ordinary
+  `LoginPanel` button page; a fetch failure never guesses which method might work.
   **One gamertag per user:** a user holds at most one active (`pending`|`verified`) `gamertag_links` row —
   enforced by partial unique index `gamertag_links_user_active_uniq` (migration `0007`) + a
   `409 active_link_exists` guard in `POST /me/gamertag-links`; a `verified` link is admin-release-only.
@@ -1547,6 +1555,13 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   `DELETE /me/avatar`) take NO subject parameter** — same shape as every other `/me` route in
   this codebase (self-unban, the token routes, the coordinate routes): the session is the only
   input, so reading or writing another user's avatar is unexpressible, not merely rejected.
+  **`POST /me/avatar/sync` distinguishes a stale provider URL from a genuine fetch failure
+  (2026-07-28):** when `fetchProviderImage` fails with a response status (the provider answered
+  but the stored `session.user.image` URL 404s/403s — Discord rotates its avatar CDN URLs, so the
+  copy captured at sign-in eventually goes dead), the route returns `409 provider_image_stale`
+  rather than the generic `502 fetch_failed`; any existing avatar row is left untouched either
+  way. The web maps it to an explicit message telling the player to sign out and back in (which
+  re-mirrors a fresh URL) or upload directly, instead of the earlier generic error copy.
   **Read-model `avatarHash` joins are verified-links-only, and require `image IS NOT NULL`** —
   the survivor board (hero + podium rows) and the life timeline hero join `avatars` through a
   `verified` `gamertag_links` row on `lower(gamertag)`, exactly the boundary self-unban and
@@ -1605,14 +1620,30 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   two-line no-trailing-periods headline ("DEATHS TO DATE" / "STILL STANDING") rendered via
   `FitLine` (hidden-clone measurement to the final string, jsdom-safe against a 0-width
   container) so it fills the container at any width, with the claim button in the hero itself.
-  The cold home is a four-beat pitch — hero → `Fallen` (a wall of recent obituaries) → `Rules`
-  (the three rules of the game) → `CtaSlab` (closing call-to-action with the server-browser
-  instructions) — and `ColdFork`/`TopSurvivors` (the old two-cell sign-in fork and top-5 board
-  strip) are **RETIRED — do not reintroduce them**. `Fallen` renders NOTHING on a failed OR an
-  empty obituaries feed, never a placeholder. Fetch gating is now two-directional: stats and
-  obituaries are cold-only (fetched only for a signed-out visitor), survivors are signed-in-only
-  (the sidebar's data) — neither leaks into the other's render path. `HomeSidebar` itself is now
-  verified-only, gated through `HomeShell`, not merely signed-in.
+  The cold home is a five-beat pitch, in this order — `Hero` → `Rules` (the three rules of the
+  game, moved ahead of the obituaries) → `Fallen` (a wall of recent obituaries) → `CtaSlab`
+  (closing call-to-action) → `ConnectSection` (a light closing "how to connect" section with the
+  server-browser instructions, so the page no longer ends on a stray light bar above the dark
+  footer) — and `ColdFork`/`TopSurvivors` (the old two-cell sign-in fork and top-5 board strip)
+  are **RETIRED — do not reintroduce them**. `Fallen` renders NOTHING on a failed OR an empty
+  obituaries feed, never a placeholder.
+  **The home-polish pass (2026-07-28) extended the pitch to signed-in-but-unverified visitors.**
+  `UnverifiedPitch` (`components/front-page/unverified-pitch.tsx`) renders the same five beats
+  for a signed-in user whose `accountStatus` is `unlinked`/`pending`, with every CTA pointed at
+  the on-page `#claim` ladder instead of `/login`. It is **client-gated on `useAccountStatus`,
+  not server-gated on the session cookie** — SSR renders nothing, and it stays rendering nothing
+  until status resolves to `unlinked`/`pending`, because a `verified` player must never see a
+  pitch flash before the branch below it takes over; appearing beats vanishing for the
+  unverified case. **Fetch gating is no longer cold-only** — `stats` and `obituaries` (now
+  fetched via `getSiteStatsCached`/`getObituariesFeedCached`, a cookie-free 60s shared fetch
+  cache, not the cookie-forwarding `getSiteStats`/`getObituariesFeed`) are fetched
+  **UNCONDITIONALLY, cold and signed-in alike**, since both the cold pitch and `UnverifiedPitch`
+  need them; only `survivors` (the verified sidebar's data) stays signed-in-only. **This
+  supersedes the original two-directional gating claim above — do not restore
+  stats/obituaries to cold-only.** The signed-out home renders no `AccountPanels` wrapper at
+  all — that div (with the `#claim` anchor) exists only on the signed-in branch, alongside
+  `UnverifiedPitch`. `HomeSidebar` itself is still verified-only, gated through `HomeShell`, not
+  merely signed-in.
 
 ## Monorepo (pnpm + turbo, TS/ESM, Postgres + Drizzle)
 
