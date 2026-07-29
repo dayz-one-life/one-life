@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-07-28
+
 ### Changed
 
 - The masthead avatar is a menu now (profile / claim + sign out), and the masthead row no longer
