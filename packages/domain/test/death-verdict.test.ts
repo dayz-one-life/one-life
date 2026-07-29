@@ -224,6 +224,44 @@ describe("mauled inference (corroborated)", () => {
     expect(v.cause).toBe("mauled");
   });
 
+  // ⚠️ The terminal-HP clause reads INFECTED hits only. Fire is a real recurring cause here (its
+  // own ordeal category), fire ticks run to 0 HP, and a fire death carries no killer clause — so
+  // with terminalHp computed over ALL hits, a fire death plus any infected scratch in the window
+  // reads as `mauled` at HIGH confidence, and that verdict is frozen into obituary prose that is
+  // never regenerated. `hunted` and `terminal` must rest on the same hits.
+  it("does not read a fire death corroborated by an unrelated infected scratch as mauled", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "environment", attackerLabel: "Fireplace", secondsBeforeDeath: 3, victimHp: 0.4 },
+      infectedHit(110, 60),
+    ], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  it("does not read a player-inflicted terminal hit as mauled on an infected scratch", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "player", attackerLabel: "SomeoneElse", secondsBeforeDeath: 8, victimHp: 0.9 },
+      infectedHit(115, 70),
+    ], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  // A non-terminal FallDamage hit (0.9, not <= 0) misses the fall rung; it must not be laundered
+  // into a mauling by an infected scratch either.
+  it("does not read a near-fatal fall as mauled on an infected scratch", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 8, victimHp: 0.9 },
+      infectedHit(115, 70),
+    ], []);
+    expect(v.cause).toBe("unknown");
+  });
+
+  // The hits stream shares the unconscious stream's lower bound: a hit logged after the death
+  // instant is post-death noise and is no evidence for it.
+  it("excludes a hit recorded after the death instant", () => {
+    const v = classifyDeath(base, [infectedHit(-50, 0.2)], []);
+    expect(v.cause).toBe("unknown");
+  });
+
   it("still reads a non-infected bleeding death as bled_out", () => {
     const v = classifyDeath(
       { ...base, bleedSources: 2 },

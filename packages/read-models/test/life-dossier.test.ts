@@ -21,6 +21,9 @@ let lifeId3: number;
 const gt4 = `DossierUnconscious-${svc}`;
 let pid4: number;
 let lifeId4: number;
+const gt5 = `DossierMauled-${svc}`;
+let pid5: number;
+let lifeId5: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ld", map: "sakhal", slug: `ld-${svc}`, active: true }).returning();
@@ -101,6 +104,26 @@ beforeAll(async () => {
     { serverId, playerId: pid4, gamertag: gt4, disconnecting: false, occurredAt: new Date(mins(360).getTime() - 119_000) },
     { serverId, playerId: pid4, gamertag: gt4, disconnecting: false, occurredAt: new Date(mins(360).getTime() - 121_000) },
   ]);
+
+  // A fifth life: the life 165 shape, built so that UNCONSCIOUSNESS IS THE ONLY CORROBORATION —
+  // bleedSources 0, the one infected hit leaves HP 50 (far above TERMINAL_HP_MAX), energy/water
+  // high so no condition rung fires, and no fall hit. This is the only test that fails if
+  // dossierVerdict stops forwarding recentUnconscious to classifyDeath.
+  const [p5] = await db.insert(players).values({ gamertag: gt5, lastSeenAt: mins(400) }).returning();
+  pid5 = p5!.id;
+  const [l5] = await db.insert(lives).values({
+    serverId, playerId: pid5, lifeNumber: 1, startedAt: start, endedAt: mins(360),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 1500, waterAtDeath: 1500, bleedSourcesAtDeath: 0, playtimeSeconds: 21600,
+  }).returning();
+  lifeId5 = l5!.id;
+  await db.insert(hitEvents).values({
+    serverId, victimGamertag: gt5, victimPlayerId: pid5, attackerType: "infected", attackerLabel: "Infected",
+    victimHp: 50, occurredAt: new Date(mins(360).getTime() - 30_000),
+  });
+  await db.insert(unconsciousEvents).values({
+    serverId, playerId: pid5, gamertag: gt5, disconnecting: true, occurredAt: new Date(mins(360).getTime() - 20_000),
+  });
 });
 
 afterAll(async () => {
@@ -109,7 +132,7 @@ afterAll(async () => {
   await db.delete(buildEvents).where(inArray(buildEvents.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
-  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3, pid4]));
+  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3, pid4, pid5]));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
@@ -172,5 +195,20 @@ describe("getLifeDossier", () => {
     const d = await getLifeDossier(db, serverId, lifeId4);
     expect(d).not.toBeNull();
     expect(d!.recentUnconscious.map((u) => u.secondsBeforeDeath)).toEqual([119]);
+  });
+
+  // The ONLY test that fails if dossierVerdict stops passing recentUnconscious to classifyDeath
+  // (mutate the third argument to [] and this goes red). The pure domain tests call classifyDeath
+  // directly and structurally cannot see evidence lost at the read-model boundary — the same
+  // reason the victimHp guard above exists. The life is built so unconsciousness is the ONLY
+  // corroboration available: bleedSources 0, the infected hit leaves HP 50 (well above
+  // TERMINAL_HP_MAX = 1), energy/water high, no fall hit.
+  it("forwards the unconscious evidence: infected hit at HP 50 + a knockout => mauled", async () => {
+    const d = await getLifeDossier(db, serverId, lifeId5);
+    expect(d).not.toBeNull();
+    expect(d!.death.bleedSources).toBe(0);
+    expect(d!.recentHits.map((h) => h.victimHp)).toEqual([50]); // no terminal hit to lean on
+    expect(d!.recentUnconscious).toHaveLength(1);
+    expect(dossierVerdict(d!).cause).toBe("mauled");
   });
 });

@@ -66,7 +66,10 @@ export function classifyDeath(
   recentHits: RecentHit[],
   recentUnconscious: RecentUnconscious[],
 ): DeathVerdict {
-  const recent = recentHits.filter((h) => h.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
+  // Both evidence streams share ONE window, lower bound included: a "hit" logged after the death
+  // instant is post-death noise, never evidence for it. The read-model already applies `>= 0` to
+  // both, so this only makes the pure function agree with the contract the spec states.
+  const recent = recentHits.filter((h) => h.secondsBeforeDeath >= 0 && h.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
   const starving = facts.energy != null && facts.energy <= STARVE_ENERGY_MAX;
   const dehydrated = facts.water != null && facts.water <= DEHYDRATE_WATER_MAX;
   const hunted = recent.some((h) => h.attackerType === "infected");
@@ -119,7 +122,13 @@ export function classifyDeath(
   // regresses none. Do NOT collapse this back to a bleedSources-only test.
   const bleeding = facts.bleedSources != null && facts.bleedSources > 0;
   const wentUnconscious = recentUnconsciousInWindow.length > 0;
-  const hps = recent.map((h) => h.victimHp).filter((n): n is number => n != null);
+  // ⚠️ INFECTED HITS ONLY. `hunted` and `terminal` must rest on the SAME hits, or a fire tick or
+  // a player's shot that left the victim at ~0 HP is corroborated by an unrelated infected scratch
+  // elsewhere in the 120s window — three such misattributions were reproduced, all previously
+  // `unknown`, all promoted to `mauled` at HIGH confidence, and the verdict is frozen into
+  // never-regenerated obituary prose. Coverage-neutral: life 313's 0.392 and life 119's 0.00 are
+  // both infected hits.
+  const hps = recent.filter((h) => h.attackerType === "infected").map((h) => h.victimHp).filter((n): n is number => n != null);
   const terminalHp = hps.length ? Math.min(...hps) : null;   // MIN, not the last hit — hits arrive with jitter
   const terminal = terminalHp != null && terminalHp <= TERMINAL_HP_MAX;
 

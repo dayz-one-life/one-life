@@ -63,6 +63,10 @@ describe("rebuildAll", () => {
     await db.insert(unconsciousEvents).values({
       serverId: s!.id, playerId: p!.id, gamertag: p!.gamertag, disconnecting: false, occurredAt: new Date(),
     });
+    // Assert the seed landed BEFORE rebuilding: without this the post-rebuild toHaveLength(0)
+    // passes just as happily against an insert that never wrote a row, so the cascade would go
+    // unexercised and the test would report green for the wrong reason.
+    expect(await db.select().from(unconsciousEvents).where(eq(unconsciousEvents.serverId, s!.id))).toHaveLength(1);
     await rebuildAll(db);
     const rows = await db.select().from(unconsciousEvents);
     expect(rows).toHaveLength(0);
