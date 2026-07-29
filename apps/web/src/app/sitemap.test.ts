@@ -29,7 +29,7 @@ const urls = async () => (await sitemap()).map((e) => e.url);
 describe("sitemap", () => {
   it("includes the home page and the static pages", async () => {
     const u = await urls();
-    for (const p of ["", "/about", "/obituaries"]) {
+    for (const p of ["", "/about", "/obituaries", "/terms", "/privacy"]) {
       expect(u).toContain(`https://dayzonelife.com${p}`);
     }
   });

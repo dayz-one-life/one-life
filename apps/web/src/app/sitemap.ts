@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 /** Static pages carry no `lastmod` — they change constantly or not at all, and a fabricated
  *  value trains crawlers to ignore the field. */
-const STATIC_PATHS = ["/", "/about", "/obituaries"];
+const STATIC_PATHS = ["/", "/about", "/obituaries", "/terms", "/privacy"];
 
 /** Maps an article `kind` to its route base. An unknown kind is skipped rather than guessed —
  *  emitting a URL for a kind with no route would 404. */
