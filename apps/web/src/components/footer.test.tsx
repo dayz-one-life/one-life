@@ -31,3 +31,17 @@ it("reserves bottom space for the fixed tab bar below md, and drops it at md", (
   expect(footer.className).toMatch(/pb-\[calc\(18px\+4rem\+env\(safe-area-inset-bottom\)\)\]/);
   expect(footer.className).toMatch(/md:pb-\[18px\]/);
 });
+
+it("links to the legal pages", () => {
+  render(<Footer />);
+  expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+  expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+});
+
+// ⚠️ Four links do not fit one line in a 320px column. jsdom cannot measure that, so the wrap
+// contract is pinned as a class on the link row — the on-device check is a separate item.
+it("lets the link row wrap rather than overflow a narrow column", () => {
+  render(<Footer />);
+  const nav = screen.getByRole("navigation", { name: /site information/i });
+  expect(nav.className).toContain("flex-wrap");
+});

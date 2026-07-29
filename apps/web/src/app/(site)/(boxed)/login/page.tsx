@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LoginPanel } from "@/components/login-panel";
 import { DiscordRedirect } from "@/components/discord-redirect";
 // Server-safe module: this page CALLS the predicate, which cannot cross the RSC boundary out of
@@ -30,6 +31,19 @@ export default async function LoginPage() {
           <LoginPanel providers={methods.providers} magicLink={methods.magicLink} />
         )}
       </div>
+      {/* ⚠️ Outside the state switch above: all three branches are sign-in surfaces, and a
+          consent line rendered in only one of them is one most users never see. */}
+      <p className="mt-6 font-mono text-[11px] uppercase leading-relaxed tracking-[.03em] text-ink-muted">
+        Signing in means you accept the{" "}
+        <Link href="/terms" className="underline decoration-red decoration-2 underline-offset-2">
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="underline decoration-red decoration-2 underline-offset-2">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </main>
   );
 }

@@ -12,6 +12,12 @@ import { mapLabel } from "@/components/player/format";
  */
 
 /**
+ * ⚠️ Every cookie this app sets is enumerated in `apps/web/src/content/legal/privacy.tsx` §8
+ * (Cookies). Adding another cookie here without updating that page makes the published privacy
+ * policy false.
+ */
+
+/**
  * ⚠️ A SESSION cookie — no `max-age`, so it dies with the browser session. The retired
  * `ol_last_map` lived a year, which is the wrong memory for "where was I?": it let a map you
  * opened once last spring outrank the one you have been playing all week. A session is exactly
