@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Player avatars are now circular everywhere they appear — the survivors board, player dossiers,
+  life timelines, the account row and the masthead. They used to be square in most places and
+  round in a couple of others, because three different parts of the site each drew their own. The
+  shape is now defined once. Existing avatars change appearance immediately; nothing was
+  re-uploaded or re-processed.
+
 ## [0.59.0] - 2026-07-29
 
 ### Changed
