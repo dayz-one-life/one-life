@@ -11,6 +11,11 @@ import { appendEvent } from "@onelife/event-log";
  * and `parseLine` now dispatches unconscious immediately after position. Using 0 here would
  * collide with events_idempotency_uniq and append nothing.
  *
+ * The `%unconscious%` prefilter excludes `regained consciousness` lines by itself — that string
+ * does not contain the substring "unconscious" — so those rows are never fetched and never reach
+ * parseUnconscious. Corpse lines (`(DEAD) … is unconscious`) DO match the prefilter and are
+ * excluded by parseUnconscious's own `(DEAD)` guard.
+ *
  * Idempotent — appendEvent's onConflictDoNothing on (serverId, admFileId, lineIndex, subIndex)
  * makes a re-run a no-op. Safe to run repeatedly.
  */

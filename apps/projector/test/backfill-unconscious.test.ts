@@ -12,6 +12,7 @@ let admFileId: number;
 
 const UNC_LINE = 'Player "U" (id=1 pos=<1.0, 2.0, 3.0>) is unconscious';
 const REGAINED_LINE = 'Player "U" (id=1 pos=<1.0, 2.0, 3.0>) regained consciousness';
+const DEAD_UNC_LINE = 'Player "D" (DEAD) (id=9 pos=<1.0, 2.0, 3.0>) is unconscious';
 const OCCURRED = new Date("2026-07-10T12:00:00Z");
 
 /** Seed a raw line exactly as history holds it: player.position already at subIndex 0. */
@@ -24,6 +25,7 @@ async function seed(lineIndex: number, text: string) {
 
 let uncRawLineId: number;
 let regainedRawLineId: number;
+let deadUncRawLineId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "backfill-unconscious-test" }).returning();
@@ -32,6 +34,7 @@ beforeAll(async () => {
   admFileId = f!.id;
   uncRawLineId = await seed(10, UNC_LINE);
   regainedRawLineId = await seed(11, REGAINED_LINE);
+  deadUncRawLineId = await seed(12, DEAD_UNC_LINE);
 });
 
 afterAll(async () => {
@@ -43,7 +46,7 @@ afterAll(async () => {
 });
 
 describe("backfillUnconscious", () => {
-  it("appends one event at subIndex 1, skips regained-consciousness, and is idempotent", async () => {
+  it("appends one event at subIndex 1, skips regained-consciousness and DEAD corpse lines, and is idempotent", async () => {
     const first = await backfillUnconscious(db);
     expect(first.appended).toBe(1);
 
@@ -54,10 +57,20 @@ describe("backfillUnconscious", () => {
     // collides with events_idempotency_uniq and silently appends nothing.
     expect(unc[0]!.subIndex).toBe(1);
 
-    // `regained consciousness` is not evidence of going down; the parser must ignore it.
+    // `regained consciousness` doesn't contain the substring "unconscious", so this row is
+    // excluded by the %unconscious% SQL prefilter itself — it's never fetched and never reaches
+    // parseUnconscious. This assertion is still valid end-to-end, but it does NOT exercise the
+    // parser's own exclusion logic (see the DEAD case below for that).
     const regained = await db.select().from(events)
       .where(and(eq(events.rawLineId, regainedRawLineId), eq(events.type, "player.unconscious")));
     expect(regained).toHaveLength(0);
+
+    // `(DEAD) … is unconscious` (a corpse line) DOES contain "unconscious" and so DOES pass the
+    // SQL prefilter and reach parseUnconscious — which must reject it via its (DEAD) guard. This
+    // is the case that would genuinely fail if that guard regressed.
+    const deadUnc = await db.select().from(events)
+      .where(and(eq(events.rawLineId, deadUncRawLineId), eq(events.type, "player.unconscious")));
+    expect(deadUnc).toHaveLength(0);
 
     // Re-running must be a no-op — appendEvent's onConflictDoNothing on the four-column key.
     const second = await backfillUnconscious(db);
