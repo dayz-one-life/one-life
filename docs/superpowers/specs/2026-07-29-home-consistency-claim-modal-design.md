@@ -83,6 +83,13 @@ ticket rows read as one system:
   unchanged.
 - The no-current-step-pointer rule is untouched.
 
+## 3c. Browser replica rows scale down on mobile
+
+The `BrowserReplica` host rows (`join-servers.tsx`, the `<li>` rows ONLY — not the tab strip,
+search bar, column-header row, or "Servers found" line) drop from `text-[13px]` to
+`text-[11px] md:text-[13px]` so the long host names fit a phone without truncating as hard.
+11px respects the functional type floor.
+
 ## 4. Deletions
 
 - `SignedInFooter` in `account-panels.tsx` — gone entirely. Sign-out lives in the masthead
