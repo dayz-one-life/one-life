@@ -31,4 +31,19 @@ describe("IdentityRow", () => {
     expect(container.querySelector("img")).toBeNull();
     expect(container.textContent).toContain("R"); // the lettered fallback
   });
+
+  it("renders the avatar through the shared Avatar, circular, on the paper variant", () => {
+    const { container, rerender } = render(<IdentityRow name="Rusty" provider="discord" avatarHash="abc123def4567890" />);
+    const img = container.querySelector("img")!;
+    expect(img.className).toContain("rounded-full");
+    expect(img.className).toContain("border-hairline");
+    expect(img.className).toContain("flex-none"); // survives the collapse; it sits in a flex row
+
+    rerender(<IdentityRow name="Rusty" provider="discord" avatarHash={null} />);
+    const disc = container.querySelector('[aria-hidden="true"]')!;
+    expect(disc.className).toContain("rounded-full");
+    // Accepted visual change (spec §3.3): the bespoke bg-discord blurple disc is gone.
+    expect(disc.className).toContain("bg-bone");
+    expect(disc.className).not.toContain("bg-discord");
+  });
 });
