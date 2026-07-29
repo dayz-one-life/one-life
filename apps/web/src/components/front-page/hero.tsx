@@ -7,25 +7,38 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 
 /**
  * Which visitor the pitch beats are being shown to (home-polish spec §3): `cold` (signed-out,
- * CTAs point at /login) or `unverified` (signed-in but unlinked/pending, CTAs point at the
- * on-page claim ladder via `#claim`).
+ * CTAs point at /login) or `unverified` (signed-in but unlinked/pending, CTAs point at the claim
+ * modal via `#claim` — home-consistency spec §3: the on-page ladder is gone, `#claim` now opens
+ * `ClaimModal`).
  */
 export type PitchAudience = "cold" | "unverified";
 
-/** The primary CTA — also reused by the CTA slab (Task 4) so the two asks cannot drift. */
+/**
+ * The primary CTA — also reused by the CTA slab so the two asks cannot drift.
+ *
+ * ⚠️ A hash href renders a PLAIN `<a>`, never Next's `<Link>`: same-page hash navigation goes
+ * through `pushState`, which fires NO `hashchange` event, so a `<Link href="#claim">` clicked
+ * while already on the home page would never open `ClaimModal`. `/login` (the only non-hash
+ * href) keeps `<Link>` for its normal client-side navigation.
+ */
 export function ClaimCta({ large = false, fill = false, href = "/login", label = "Claim your life →" }: {
   large?: boolean; fill?: boolean; href?: string; label?: string;
 }) {
   const size = fill
     ? "flex h-full w-full items-center justify-center px-10 py-6 text-xl md:text-2xl"
     : large ? "inline-block px-10 py-4 text-lg" : "inline-block px-7 py-3.5 text-base";
+  // red-deep as a BACKGROUND under white text on dark: deliberate (contrast improves on
+  // hover) — not a light-surface-token violation; do not "fix" in a RED-POLICY sweep.
+  const className = `-skew-x-[5deg] bg-red text-white font-display font-bold uppercase tracking-[.08em] hover:bg-red-deep ${size}`;
+  if (href.includes("#")) {
+    return (
+      <a href={href} className={className}>
+        {label}
+      </a>
+    );
+  }
   return (
-    <Link
-      href={href}
-      // red-deep as a BACKGROUND under white text on dark: deliberate (contrast improves on
-      // hover) — not a light-surface-token violation; do not "fix" in a RED-POLICY sweep.
-      className={`-skew-x-[5deg] bg-red text-white font-display font-bold uppercase tracking-[.08em] hover:bg-red-deep ${size}`}
-    >
+    <Link href={href} className={className}>
       {label}
     </Link>
   );

@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
  * ⚠️ Renders at EVERY width — this is the only route to sign-out now.
  * Pattern is MastheadBell's: owned open state, outside-click via a rootRef mousedown listener,
  * route-change close, useModalBehavior for Escape/focus (panel MUST carry tabIndex={-1}).
+ * ⚠️ Every item ALSO closes it explicitly — route-change close is not enough for a hash-only
+ * item (`/#claim` clicked from `/` changes no route), which otherwise leaves the popover open
+ * over the claim modal it just opened, holding a second body scroll-lock.
  * The popover's z-50 ranks it inside the z-40 masthead — no new altitude (LAYER LEGEND).
  */
 export function AccountAffordance() {
@@ -124,17 +127,21 @@ export function AccountAffordance() {
           className="absolute right-0 top-full z-50 mt-2 w-[200px] border border-dark-line bg-dark py-1 shadow-[0_10px_30px_rgba(0,0,0,.45)]"
         >
           {gamertag ? (
-            <Link role="menuitem" href={`/players/${playerSlug(gamertag)}`} className={itemClass}>
+            <Link role="menuitem" href={`/players/${playerSlug(gamertag)}`} className={itemClass} onClick={() => setOpen(false)}>
               Your profile →
             </Link>
           ) : pendingTag ? (
-            <Link role="menuitem" href="/#claim" className={itemClass}>
+            <Link role="menuitem" href="/#claim" className={itemClass} onClick={() => setOpen(false)}>
               Finish verification →
             </Link>
           ) : (
-            <Link role="menuitem" href="/" className={itemClass}>
+            // Plain <a>, not Next's <Link>: same-page hash navigation goes through pushState,
+            // which fires NO hashchange event — a <Link href="/#claim"> clicked while already on
+            // the home page would never open ClaimModal. From any other page this is a normal
+            // full navigation, and the modal's mount-time hash check catches it.
+            <a role="menuitem" href="/#claim" className={itemClass} onClick={() => setOpen(false)}>
               Claim your gamertag →
-            </Link>
+            </a>
           )}
           <button
             type="button"

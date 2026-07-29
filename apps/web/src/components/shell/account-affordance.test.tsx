@@ -45,9 +45,26 @@ describe("AccountAffordance", () => {
     mockStatus.mockReturnValue({ kind: "unlinked" });
     renderIt();
     fireEvent.click(screen.getByRole("button", { name: "Your account" }));
-    expect(screen.getByRole("menuitem", { name: "Claim your gamertag →" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("menuitem", { name: "Claim your gamertag →" })).toHaveAttribute("href", "/#claim");
     expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Your profile →" })).not.toBeInTheDocument();
+  });
+
+  // The menu closes on route change — and a hash-only item (`/#claim` clicked from `/`) changes
+  // no route, so without an explicit close the popover stays open ON TOP of the claim modal it
+  // just opened, holding its own body scroll-lock (seen in a browser).
+  it("closes when a menu item is clicked, including a hash-only one", () => {
+    mockStatus.mockReturnValue({ kind: "unlinked" });
+    renderIt();
+    fireEvent.click(screen.getByRole("button", { name: "Your account" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Claim your gamertag →" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    mockStatus.mockReturnValue({ kind: "pending", link: { gamertag: "X" } });
+    renderIt();
+    fireEvent.click(screen.getAllByRole("button", { name: "Your account" })[1]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Finish verification →" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("Escape closes and the panel is focusable (tabIndex -1)", () => {

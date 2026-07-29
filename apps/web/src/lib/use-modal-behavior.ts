@@ -3,6 +3,27 @@ import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
+// ⚠️ The scroll lock is REF-COUNTED, not saved per consumer. Two consumers can be open at once
+// (the masthead account menu opens the claim modal from inside itself), and a per-consumer
+// save/restore has the second one capture the first's "hidden" and put it back on the way out —
+// leaving the page locked with no dialog on screen. Only the first lock saves, only the last
+// unlock restores.
+let lockCount = 0;
+let savedOverflow = "";
+
+function lockScroll(): void {
+  if (lockCount === 0) {
+    savedOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+  }
+  lockCount += 1;
+}
+
+function unlockScroll(): void {
+  lockCount = Math.max(0, lockCount - 1);
+  if (lockCount === 0) document.body.style.overflow = savedOverflow;
+}
+
 /**
  * Shared dialog behavior for full-screen overlays (mobile menu, controls sheet):
  * focus moves into the panel on open and back to the opener on close; Escape
@@ -46,11 +67,10 @@ export function useModalBehavior(open: boolean, onClose: () => void): RefObject<
       }
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    lockScroll();
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
+      unlockScroll();
       restoreRef.current?.focus();
     };
   }, [open]);

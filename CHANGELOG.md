@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Home: one beat rhythm for signed-out, unlinked and pending visitors (Hero → Rules → Join the
+  servers → claim slab → The Fallen); the gamertag claim is a modal opened from any Link-your-
+  gamertag CTA; the stray inline sign-out bar is gone (the masthead avatar menu owns sign-out);
+  pending emote tickets match the Join-the-servers tickets; server-browser replica rows scale
+  down on phones.
+
+### Fixed
+
+- The masthead account menu now closes when you pick an item. A hash-only item ("Claim your
+  gamertag →" / "Finish verification →") changes no route, so the popover used to stay open on
+  top of the claim modal it had just opened.
+- The body scroll lock shared by every overlay is ref-counted, so two overlaps (the account menu
+  and the claim modal it opens) can no longer leave the page locked after both have closed.
+
 ## [0.62.0] - 2026-07-29
 
 ### Changed

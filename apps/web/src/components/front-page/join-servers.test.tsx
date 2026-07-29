@@ -49,14 +49,21 @@ describe("JoinServers", () => {
     expect(text).not.toMatch(/\bLB\b|\bRB\b|Ⓐ|Ⓧ|Ⓨ|Ⓑ/);
   });
 
-  it("closing line defaults to the play-first promise and accepts an override", () => {
-    const { rerender } = render(<JoinServers />);
+  it("closing line is always the play-first promise — no per-surface variant exists", () => {
+    render(<JoinServers />);
     expect(
       screen.getByText("Play first, claim later — your life is tracked from your first spawn."),
     ).toBeInTheDocument();
-    rerender(<JoinServers closing="Any server counts for your emotes." />);
-    expect(screen.getByText("Any server counts for your emotes.")).toBeInTheDocument();
-    expect(screen.queryByText(/Play first, claim later/)).not.toBeInTheDocument();
+  });
+
+  it("host rows scale down below md so long host names fit a phone", () => {
+    render(<JoinServers />);
+    const rows = screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("dayzonelife.com"));
+    expect(rows.length).toBe(3);
+    for (const row of rows) {
+      expect(row.className).toContain("text-[11px]");
+      expect(row.className).toContain("md:text-[13px]");
+    }
   });
 
   it("no copy claims live or instant updates", () => {

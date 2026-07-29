@@ -28,14 +28,14 @@ function TicketSequence({ challenge: c }: { challenge: Challenge }) {
           <li
             key={i}
             className={cn(
-              "relative flex min-h-[130px] flex-col items-center justify-center gap-1 px-4 py-8 text-center md:min-h-[170px]",
-              confirmed ? "bg-paper text-ink" : "border-2 border-dashed border-dark-line text-paper",
+              "relative flex min-h-[130px] flex-col items-center justify-center gap-1 border-2 border-ink bg-paper px-4 py-8 text-center text-ink md:min-h-[170px]",
+              !confirmed && "border-dashed",
             )}
           >
             <span
               className={cn(
                 "font-mono text-[12px] font-bold uppercase tracking-[.2em]",
-                confirmed ? "text-ink-muted/60" : "text-yellow",
+                confirmed ? "text-ink-muted/60" : "text-red-deep",
               )}
             >
               {ORDINALS[i] ?? `${i + 1}.`}
@@ -62,13 +62,14 @@ function TicketSequence({ challenge: c }: { challenge: Challenge }) {
  * The pending home's full-bleed hero (pending-hero spec §2): the emote challenge as the page's
  * centerpiece, in the cold hero's visual language — dark stage, red frame, yellow for everything
  * live. Absorbs the retired ProveItPanel; this is the pending page's only h1, and the "Step 3
- * of 3" kicker is the 3-step ladder folded to one line (LadderFrame no longer renders for
- * pending). The live branch renders the sequence as paper tickets — orders to carry out, not a
+ * of 3" kicker is the 3-step ladder folded to one line (the ladder chrome is retired). The live
+ * branch renders the sequence as paper tickets — orders to carry out, not a
  * live tracker — with a status paragraph carrying the confirmed count and the batching notice;
  * see `TicketSequence` above for the honesty rule (no current-step pointer, ever).
  *
- * RED POLICY: `red-deep` is a light-surface token and must never appear here; the frame and the
- * SkewCta background are display-scale red, allowed on dark.
+ * RED POLICY: `red-deep` is a light-surface token and never sits on the dark hero surface itself,
+ * but the ticket interiors are paper (light) surfaces — same as the Join slab's tickets — so the
+ * ordinal's `red-deep` is correct there, not a violation.
  */
 export function PendingHeroView({
   gamertag,
@@ -89,7 +90,7 @@ export function PendingHeroView({
 }) {
   const expired = !challenge || challenge.expired;
   return (
-    <section className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16">
+    <section id="claim" className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16">
       {/* Deliberately renders in BOTH the live and expired branches below (outside the ternary):
        *  an expired challenge doesn't change where the player stands in the 3-step ladder —
        *  proving is still the one remaining step either way. */}

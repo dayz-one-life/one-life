@@ -35,10 +35,15 @@ vi.mock("@/components/account/account-panels", () => ({
   AccountPanels: () => <section aria-label="Your account" />,
 }));
 // The real PendingHero reaches TanStack mutation hooks that need a QueryClientProvider this
-// suite deliberately doesn't mount.
+// suite deliberately doesn't mount. The real section carries id="claim" (pinned by
+// pending-hero.test.tsx) — mirrored on the stub so this suite's anchor-structure assertions stay
+// meaningful.
 vi.mock("@/components/front-page/pending-hero", () => ({
-  PendingHero: () => <section data-testid="pending-hero-slot" />,
+  PendingHero: () => <section id="claim" data-testid="pending-hero-slot" />,
 }));
+// ClaimModal also reaches TanStack mutation hooks via useControlsActions, same reason as above —
+// this suite is about page structure/fetch gating, not the modal (covered by claim-modal.test.tsx).
+vi.mock("@/components/account/claim-modal", () => ({ ClaimModal: () => null }));
 
 // FitLine mounts under jsdom and observes its container with ResizeObserver, which jsdom lacks.
 vi.stubGlobal(
@@ -131,16 +136,27 @@ describe("Home page: the claim anchor", () => {
     expect(container.querySelector("#claim")).not.toBeNull();
   });
 
-  it("signed out: Join the servers follows the CTA slab, is the last content block, and no account-panels wrapper renders", async () => {
+  it("signed out: Join the servers precedes the CTA slab, which precedes the Fallen wall, and no account-panels wrapper renders", async () => {
+    getObituariesFeedCached.mockResolvedValue({
+      rows: [{
+        slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
+        lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",
+        tags: [], timeAliveSeconds: 112320, kills: 4, longestKillMeters: 210, cause: "pvp",
+        deathAt: "2026-07-27T20:00:00Z",
+      }],
+      total: 1, page: 1, pageSize: 12,
+    });
     const { container } = render(await Home());
+    const joinHeading = screen.getByRole("heading", { level: 2, name: "Join the servers" });
     const claimHeading = screen.getByRole("heading", { name: /Claim it/i });
-    const connectText = screen.getByText(/Play first, claim later/i);
-    // Document order, not mere presence — the CTA slab's "Claim it" heading must precede
-    // JoinServers' copy (same DOM-position pattern as the Rules-before-Fallen check above).
+    const fallenHeading = screen.getByRole("heading", { name: /The Fallen/i });
+    // Document order: Join → Claim → Fallen (beat order per the reorder task).
     expect(
-      claimHeading.compareDocumentPosition(connectText) & Node.DOCUMENT_POSITION_FOLLOWING,
+      joinHeading.compareDocumentPosition(claimHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 2, name: "Join the servers" })).toBeInTheDocument();
+    expect(
+      claimHeading.compareDocumentPosition(fallenHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(container.querySelector("#claim")).toBeNull(); // wrapper (and anchor) absent when signed out
   });
 });
@@ -194,20 +210,17 @@ describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in 
 });
 
 describe("Home page: pending-hero slot and anchor structure", () => {
-  it("signed in: ONE #claim anchor wraps both the hero slot and the padded panels", async () => {
+  it("signed in: the ONE #claim anchor is PendingHero's own section — no wrapper div", async () => {
     cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
     getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
     const { container } = render(await Home());
     const claims = container.querySelectorAll("#claim");
     expect(claims).toHaveLength(1);
     const claim = claims[0]! as HTMLElement;
-    // Full-bleed anchor: padding lives on an INNER wrapper, never on the anchor itself — the
-    // hero must reach the viewport edges inside the anchor target.
-    expect(Array.from(claim.classList)).not.toContain("px-6");
-    expect(claim.querySelector("[data-testid='pending-hero-slot']")).not.toBeNull();
-    const padded = claim.querySelector("div.px-6");
-    expect(padded).not.toBeNull();
-    expect(padded!.querySelector("[aria-label='Your account']")).not.toBeNull();
+    expect(claim).toHaveAttribute("data-testid", "pending-hero-slot");
+    // AccountPanels renders as a sibling, no longer nested inside a padded wrapper under #claim.
+    expect(claim.querySelector("[aria-label='Your account']")).toBeNull();
+    expect(screen.getByLabelText("Your account")).toBeInTheDocument();
   });
 
   it("signed out: no hero slot and no anchor", async () => {
