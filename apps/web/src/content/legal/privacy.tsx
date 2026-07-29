@@ -154,10 +154,12 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           <li>
             <strong>OpenRouter, and the model it currently routes to</strong> — obituaries are
             written by an AI model (right now, Anthropic&rsquo;s Claude), reached through
-            OpenRouter. To write one, we send your full public gameplay record for this life and
-            your earlier ones — your gamertag, your killer&rsquo;s gamertag, map, time survived,
-            cause, weapon, distance, and your record going in — plus the headlines, attributions
-            and opening lines of recently published obituaries as style context, which can include
+            OpenRouter. To write one, we send your full gameplay record for this life and your
+            earlier ones — your gamertag, your killer&rsquo;s gamertag, map, time survived, cause,
+            weapon, distance, and your record going in. Some of what goes over is detail the site
+            itself never shows anywhere: how low your health got, and how many close calls you had
+            with infected, fire, or other players. We also send the headlines, attributions and
+            opening lines of recently published obituaries as style context, which can include
             other players&rsquo; gamertags. Your account, email and IP address are not sent.
           </li>
         </ul>

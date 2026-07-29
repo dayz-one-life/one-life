@@ -3,6 +3,10 @@ import { it, expect, describe } from "vitest";
 import PrivacyPage from "./page";
 
 const text = () => render(<PrivacyPage />).container.textContent ?? "";
+const section = (id: string) => {
+  const container = render(<PrivacyPage />).container;
+  return container.querySelector(`#${id}`)?.textContent ?? "";
+};
 
 // ⚠️ These assert CONTENT, not counts. Each is a disclosure a later copy edit could shorten away
 // with no other test noticing. If one fails, restore the clause — do not relax the assertion.
@@ -21,6 +25,12 @@ describe("load-bearing disclosures", () => {
     // The one verified-true promise in this section — currently the easiest sentence here to
     // trim away silently. Pin it so a later edit can't drop it without this test noticing.
     expect(t).toMatch(/Your account, email and IP address are not sent/i);
+  });
+
+  it("discloses that recent obituary prose is sent as style context and may name other players", () => {
+    const t = section("who-else");
+    expect(t).toMatch(/recently published obituaries as style context/i);
+    expect(t).toMatch(/other players&rsquo;? gamertags|other players’ gamertags/i);
   });
 
   it("discloses IP address and user-agent storage on the session", () => {
@@ -49,11 +59,21 @@ describe("load-bearing disclosures", () => {
   });
 
   // C1: this site sets a second first-party cookie (apps/web/src/lib/map-resolution.ts,
-  // SESSION_MAP_COOKIE) beyond the session cookie. Fails if either stops being named.
-  it("names both cookies this site sets", () => {
-    const t = text();
-    expect(t).toMatch(/session cookie/i);
+  // SESSION_MAP_COOKIE) beyond the session cookie. Scoped to the #cookies section itself (not
+  // the whole page) so this fails if §8 alone regresses — §3 also mentions the map cookie, so an
+  // assertion against the whole page's text would stay green even if §8 reverted to "One cookie:
+  // the session cookie." This is exactly where the false claim this test guards against lived.
+  it("names both cookies this site sets, in the cookies section itself", () => {
+    const t = section("cookies");
+    expect(t).toMatch(/two cookies/i);
+    expect(t).toMatch(/keeps you signed in/i);
     expect(t).toMatch(/which map you were last looking at/i);
+  });
+
+  it("states there are no third-party cookies and nothing to consent to", () => {
+    const t = section("cookies");
+    expect(t).toMatch(/no third-party cookies/i);
+    expect(t).toMatch(/nothing to consent to/i);
   });
 
   // The promise the architecture has to keep. Softening either half is a defect.

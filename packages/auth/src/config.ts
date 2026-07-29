@@ -9,10 +9,15 @@ const schema = z
     MAIL_TRANSPORT: z.enum(["console"]).default("console"),
     // Magic-link (email) sign-in is on unless explicitly disabled.
     MAGIC_LINK_ENABLED: z.enum(["true", "false"]).default("true"),
-    // ⚠️ The set of sign-in providers enabled here is disclosed in
-    // apps/web/src/content/legal/privacy.tsx §2 and apps/web/src/content/legal/terms.tsx §3.
-    // Enabling another provider without updating those pages makes the published privacy policy
-    // false.
+    // ⚠️ The set of sign-in providers enabled here — including MAGIC_LINK_ENABLED — is disclosed
+    // in apps/web/src/content/legal/privacy.tsx §2 and apps/web/src/content/legal/terms.tsx §3,
+    // which currently name only Discord and Google. Enabling another social provider, OR turning
+    // magic link on, without updating both pages makes the published privacy policy false.
+    // Magic link is a distinct case, not just a fourth provider: it collects the email address
+    // directly rather than receiving it from a provider, and that address lands in the
+    // `verification` table (packages/db/src/schema.ts), which has no FK to `user` — so those rows
+    // outlive account deletion and have to be cleared by email address in the deletion runbook,
+    // not by user id.
     DISCORD_CLIENT_ID: z.string().optional(),
     DISCORD_CLIENT_SECRET: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),
