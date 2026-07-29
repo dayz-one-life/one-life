@@ -14,11 +14,14 @@ export type LadderStep = { label: string; state: LadderState };
  *
  * Exactly one step is `current` in every state — that is what "the current step expands and the
  * others collapse to a line" means, and a second `current` would expand two panels at once.
+ *
+ * Pending no longer renders a ladder — its hero's "Step 3 of 3" kicker carries that state
+ * (pending-hero spec §2). Unlinked is the only remaining caller, so the parameter is gone.
  */
-export function ladderSteps(kind: "unlinked" | "pending"): LadderStep[] {
+export function ladderSteps(): LadderStep[] {
   return [
     { label: "Signed in", state: "done" },
-    { label: "Claim your gamertag", state: kind === "unlinked" ? "current" : "done" },
-    { label: "Prove it's you", state: kind === "unlinked" ? "upcoming" : "current" },
+    { label: "Claim your gamertag", state: "current" },
+    { label: "Prove it's you", state: "upcoming" },
   ];
 }

@@ -14,4 +14,15 @@ describe("ConnectSection", () => {
     render(<ConnectSection servers={{ kind: "ready", names: ["Chernarus"] }} />);
     expect(screen.getAllByRole("region", { name: "How to connect" })).toHaveLength(1);
   });
+
+  it("a kicker override replaces the default copy (pending-hero spec §4)", () => {
+    render(
+      <ConnectSection
+        servers={{ kind: "ready", names: ["Chernarus"] }}
+        kicker="Get in game — perform your sequence on any One Life server"
+      />,
+    );
+    expect(screen.getByText("Get in game — perform your sequence on any One Life server")).toBeInTheDocument();
+    expect(screen.queryByText(/Play first, claim later/i)).not.toBeInTheDocument();
+  });
 });

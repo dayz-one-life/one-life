@@ -2,7 +2,6 @@ import { describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TokensSummary } from "./tokens-summary";
 import { LadderFrame } from "./ladder-frame";
-import { PendingLead } from "./pending-lead";
 
 const status = vi.hoisted(() => ({ kind: "signedOut" as string }));
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => status }));
@@ -51,36 +50,28 @@ describe("TokensSummary", () => {
 
 describe("LadderFrame", () => {
   test("shows all three steps whichever one is current", () => {
-    render(<LadderFrame kind="unlinked"><p>panel</p></LadderFrame>);
+    render(<LadderFrame><p>panel</p></LadderFrame>);
     expect(screen.getByText("Signed in")).toBeInTheDocument();
     expect(screen.getByText("Claim your gamertag")).toBeInTheDocument();
     expect(screen.getByText("Prove it's you")).toBeInTheDocument();
   });
 
   test("renders the panel exactly once, not once per step", () => {
-    render(<LadderFrame kind="pending"><p>panel</p></LadderFrame>);
+    render(<LadderFrame><p>panel</p></LadderFrame>);
     expect(screen.getAllByText("panel")).toHaveLength(1);
   });
 
   test("the step states reach a screen reader, not only the decorative pips", () => {
     // The marks are aria-hidden, so without the sr-only text all three steps sound identical.
-    render(<LadderFrame kind="unlinked"><p>panel</p></LadderFrame>);
+    render(<LadderFrame><p>panel</p></LadderFrame>);
     expect(screen.getByText(/— current step/)).toBeInTheDocument();
     expect(screen.getAllByText(/— done/).length).toBeGreaterThan(0);
     expect(screen.getByText(/— not yet/)).toBeInTheDocument();
   });
 
   test("is a real ordered list, so the sequence is exposed", () => {
-    render(<LadderFrame kind="unlinked"><p>panel</p></LadderFrame>);
+    render(<LadderFrame><p>panel</p></LadderFrame>);
     expect(screen.getByRole("list", { name: "Getting set up" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-  });
-});
-
-describe("PendingLead", () => {
-  test("kicker + h1 headline", () => {
-    render(<PendingLead />);
-    expect(screen.getByText("One step left")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Prove it’s you in game" })).toBeInTheDocument();
   });
 });

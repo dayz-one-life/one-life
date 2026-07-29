@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Pending-verification hero** — the pending home now opens with the same full-bleed dark hero
+  treatment as the cold and unlinked homes: the emote challenge is the hero (red frame, yellow
+  live elements, the gamertag in the headline), the 3-step ladder folds into a "Step 3 of 3"
+  kicker, and the below-hero flow becomes a proper connect beat + the Fallen wall. `ProveItPanel`
+  and `PendingLead` are retired. Browser check outstanding: the hero at phone width (FitLine
+  sizing, chip layout).
+
 ## [0.60.0] - 2026-07-29
 
 ### Changed
