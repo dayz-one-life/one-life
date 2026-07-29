@@ -2,11 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { signIn } from "@/lib/auth-client";
 
-/** True only when Discord is the sole way in — any other configuration (dev magic-link, extra
- *  providers, a FAILED providers fetch) keeps the button page (home-polish spec §7). */
-export function isDiscordOnly(methods: { providers: string[]; magicLink: boolean } | null): boolean {
-  return !!methods && !methods.magicLink && methods.providers.length === 1 && methods.providers[0] === "discord";
-}
+// ⚠️ `isDiscordOnly` deliberately does NOT live here — it moved to `@/lib/discord-only`.
+// `login/page.tsx` is a server component and CALLS it, which is illegal across the RSC boundary
+// from a "use client" module and 500'd every /login request in v0.57.0. Do not move it back.
 
 const go = () => void signIn.social({ provider: "discord", callbackURL: "/welcome" });
 
