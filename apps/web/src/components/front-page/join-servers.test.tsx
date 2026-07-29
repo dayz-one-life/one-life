@@ -16,7 +16,7 @@ describe("JoinServers", () => {
     const items = within(steps).getAllByRole("listitem");
     expect(items).toHaveLength(3);
     expect(items[0]!.textContent).toMatch(/First/);
-    expect(items[0]!.textContent).toMatch(/Search "One Life"/);
+    expect(items[0]!.textContent).toMatch(/Search “One Life”/);
     expect(items[1]!.textContent).toMatch(/Second/);
     expect(items[1]!.textContent).toMatch(/Pick your map/);
     expect(items[2]!.textContent).toMatch(/Third/);

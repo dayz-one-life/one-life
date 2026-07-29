@@ -22,7 +22,7 @@ const HOSTS = [
 ];
 
 const STEPS = [
-  { ordinal: "First", move: `Search "One Life"` },
+  { ordinal: "First", move: "Search “One Life”" },
   { ordinal: "Second", move: "Pick your map" },
   { ordinal: "Third", move: "★ Favorite them" },
 ];
