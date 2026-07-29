@@ -111,6 +111,11 @@ describe("PendingHeroView — live challenge", () => {
     const { container } = render(view());
     expect(container.innerHTML).not.toContain("red-deep");
   });
+
+  test("the hero section carries the #claim anchor — the masthead's Finish verification lands here", () => {
+    const { container } = render(view());
+    expect(container.querySelector("section")).toHaveAttribute("id", "claim");
+  });
 });
 
 describe("PendingHeroView — expired", () => {

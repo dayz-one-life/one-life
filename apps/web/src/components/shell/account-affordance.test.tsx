@@ -45,7 +45,7 @@ describe("AccountAffordance", () => {
     mockStatus.mockReturnValue({ kind: "unlinked" });
     renderIt();
     fireEvent.click(screen.getByRole("button", { name: "Your account" }));
-    expect(screen.getByRole("menuitem", { name: "Claim your gamertag →" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("menuitem", { name: "Claim your gamertag →" })).toHaveAttribute("href", "/#claim");
     expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Your profile →" })).not.toBeInTheDocument();
   });

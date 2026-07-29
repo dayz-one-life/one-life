@@ -79,4 +79,33 @@ describe("ClaimModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("clicking the backdrop closes the dialog and clears the hash", () => {
+    setHash("#claim");
+    mockStatus.mockReturnValue({ kind: "unlinked" });
+    const { container } = render(<ClaimModal />);
+    const backdrop = container.querySelector('[aria-hidden="true"]');
+    expect(backdrop).not.toBeNull();
+    fireEvent.click(backdrop!);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(window.location.hash).toBe("");
+  });
+
+  it("opens on a hashchange fired after mount, and re-opens after a close + re-set", () => {
+    mockStatus.mockReturnValue({ kind: "unlinked" });
+    render(<ClaimModal />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // fireEvent (not a raw window.dispatchEvent) so RTL wraps the listener's state update in act().
+    window.history.replaceState(null, "", "/#claim");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    expect(screen.getByRole("dialog", { name: "Link your gamertag" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    window.history.replaceState(null, "", "/#claim");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    expect(screen.getByRole("dialog", { name: "Link your gamertag" })).toBeInTheDocument();
+  });
 });

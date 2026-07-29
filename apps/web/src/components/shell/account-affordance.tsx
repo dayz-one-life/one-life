@@ -132,9 +132,13 @@ export function AccountAffordance() {
               Finish verification →
             </Link>
           ) : (
-            <Link role="menuitem" href="/" className={itemClass}>
+            // Plain <a>, not Next's <Link>: same-page hash navigation goes through pushState,
+            // which fires NO hashchange event — a <Link href="/#claim"> clicked while already on
+            // the home page would never open ClaimModal. From any other page this is a normal
+            // full navigation, and the modal's mount-time hash check catches it.
+            <a role="menuitem" href="/#claim" className={itemClass}>
               Claim your gamertag →
-            </Link>
+            </a>
           )}
           <button
             type="button"
