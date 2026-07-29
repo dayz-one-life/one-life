@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The pending challenge is now emote tickets, and every home ends on "Join the servers."**
+  The verification hero shows your three emotes as numbered paper tickets — a confirmed emote
+  gets a red CONFIRMED stamp; nothing pretends to track you live (confirmations arrive in
+  batches, and the page says so plainly). Below it, and closing the signed-out and unlinked
+  homes too, a new full-bleed yellow "Join the servers" section shows the three moves and a
+  picture of the exact Xbox server-browser screen you'll see. Browser check outstanding: the
+  yellow slab and tickets at phone width; the replica table at 320px.
+
 - CI installs dependencies from a cached pnpm store instead of cold-downloading every run —
   `ci.yml` re-rendered with rigging v0.10.0, which now emits setup-node's `cache` input
   (shipyard#45). No behavior change to the app.

@@ -20,13 +20,15 @@ describe("UnverifiedPitch", () => {
     expect(screen.getAllByRole("link", { name: "Link your gamertag →" }).length).toBeGreaterThan(0);
   });
 
-  // dedupe: `unlinked`'s claim-ladder empty state (AccountPanels, not rendered by this component)
-  // already carries HowToConnect, so this component must not render ConnectSection — that
-  // would be a second identically-labelled "How to connect" landmark on one page.
-  it("unlinked: does NOT render ConnectSection's copy — the claim ladder's empty state owns it", () => {
+  it("unlinked: Join the servers renders AFTER the CTA slab, and no 'How to connect' landmark ships from here", () => {
     mockStatus.mockReturnValue({ kind: "unlinked" });
     render(<UnverifiedPitch {...props} />);
-    expect(screen.queryByText(/Play first, claim later/i)).not.toBeInTheDocument();
+    const cta = screen.getByRole("heading", { name: /Claim it/i });
+    const join = screen.getByRole("heading", { level: 2, name: "Join the servers" });
+    expect(cta.compareDocumentPosition(join) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The claim ladder's empty state (AccountPanels, separate mount) owns the ONLY
+    // "How to connect" landmark on the unlinked page — this component must not add one.
+    expect(screen.queryByRole("region", { name: "How to connect" })).not.toBeInTheDocument();
   });
 
   // ⚠️ Pending is NOT a pitch audience anymore (pending-verification spec §2): they already

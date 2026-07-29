@@ -1622,10 +1622,10 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   container) so it fills the container at any width, with the claim button in the hero itself.
   The cold home is a five-beat pitch, in this order — `Hero` → `Rules` (the three rules of the
   game, moved ahead of the obituaries) → `Fallen` (a wall of recent obituaries) → `CtaSlab`
-  (closing call-to-action) → `ConnectSection` (a light closing "how to connect" section with the
-  server-browser instructions, so the page no longer ends on a stray light bar above the dark
-  footer) — and `ColdFork`/`TopSurvivors` (the old two-cell sign-in fork and top-5 board strip)
-  are **RETIRED — do not reintroduce them**. `Fallen` renders NOTHING on a failed OR an empty
+  (closing call-to-action) → **`JoinServers`** (the closing connect beat; since the
+  join-the-servers pass, 2026-07-29, this is the universal yellow slab — see that entry below —
+  which replaced `ConnectSection`, now RETIRED with the earlier `ColdFork`/`TopSurvivors`) —
+  **do not reintroduce any of the retired three**. `Fallen` renders NOTHING on a failed OR an empty
   obituaries feed, never a placeholder.
   **The home-polish pass (2026-07-28) extended the pitch to signed-in-but-unverified visitors —
   narrowed to UNLINKED ONLY by the pending-verification experience (2026-07-29).**
@@ -1640,20 +1640,45 @@ an unban-token economy. Single-tenant, multi-server (Xbox). Ported lean from the
   on unlinked) is a full-bleed dark hero in the cold hero's language — red bottom frame, yellow
   for everything live, a "Step 3 of 3 — one step left" kicker (the 3-step ladder folded to one
   line; it deliberately renders in the expired state too), the gamertag in the `FitLine` h1 (the
-  pending page's only h1), the emote sequence/countdown/walkthrough inside the hero, and the
-  verbatim batching line ("DayZ reports emotes in batches — your progress can take up to 15
-  minutes to appear here. It does not update in real time.") — a test pins that no copy claims
-  live/instant updates. It **absorbed the retired `ProveItPanel` and `PendingLead` — do not
+  pending page's only h1). It **absorbed the retired `ProveItPanel` and `PendingLead` — do not
   reintroduce them**; `LadderFrame`/`ladderSteps` are unlinked-only and parameterless now.
+  **The join-the-servers pass (2026-07-29, spec
+  `docs/superpowers/specs/2026-07-29-join-the-servers-design.md`) rebuilt the hero's body as
+  EMOTE TICKETS.** The sequence renders as three paper tickets (First/Second/Third mono
+  ordinals; `["First",…,"Fifth"][i] ?? `${i+1}.``), a server-confirmed emote flips to solid
+  paper with a rotated red CONFIRMED rubber stamp (name dimmed under it), unconfirmed tickets
+  are dark with dashed borders. **⚠️ THERE IS DELIBERATELY NO CURRENT-STEP POINTER — no `←`, no
+  highlighted "next"** (a test asserts the glyph absent): the old chip strip read as a live
+  tracker, which the 15-minute ADM batching cannot honor. The walkthrough list and footnotes are
+  gone; one deck sentence + one yellow-flagged status paragraph carry the copy, whose batching
+  sentence is pinned VERBATIM ("DayZ reports emotes in batches — confirmations land up to 15
+  minutes behind, and this page does not update in real time. Perform all three and you can log
+  off; the stamp catches up on its own.") — and a test still pins that no copy claims
+  live/instant updates.
   **One `id="claim"` anchor wraps BOTH the hero and the padded `AccountPanels` wrapper**
   (`page.tsx`; the anchor div is full-bleed, padding on the inner wrapper only — the masthead's
   "Finish verification → /#claim" lands at the hero top for pending, at the padded ladder for
   unlinked), and `AccountPanels`' pending branch renders **no visible body** — only the
   unconditional `VerificationAnnouncer` sibling and the sign-out footer, pinned by
   `account-panels-pending.test.tsx`. `PendingSupport`
-  (`components/front-page/pending-support.tsx`) follows below the anchor: `ConnectSection` with
-  the pending kicker "Get in game — perform your sequence on any One Life server" (never the
-  cold "Play first, claim later," untrue post-claim) — then `Fallen`.
+  (`components/front-page/pending-support.tsx`) follows below the anchor: **`Rules` →
+  `JoinServers` → `Fallen`** (props narrowed to `{ obits }`), so the pending page mirrors the
+  cold beat rhythm; its `JoinServers` closing line is "Any server counts for your emotes."
+  (never the cold "Play first, claim later," untrue post-claim).
+  **`JoinServers` (`components/front-page/join-servers.tsx`) is the UNIVERSAL connect beat** —
+  a full-bleed yellow slab (the only yellow section on the site): FitLine "Join the servers" h2,
+  three dashed paper step-tickets (`red-deep` ordinals — correct, they sit on paper), and a
+  static replica of the Xbox server-browser screen captioned "What you'll see on your screen".
+  Mounted on cold (final block), unlinked (after `CtaSlab`) and pending; the `closing` prop is
+  the ONLY per-surface variation. **⚠️ THE REPLICA IS AN ILLUSTRATION, NOT A DATA SURFACE** —
+  its player counts are static example numbers, made honest by the caption framing (a picture
+  of the game's own UI, like a screenshot in a manual). Do NOT wire it to live data, do NOT
+  flag it under live-data honesty (that rule governs surfaces presenting OUR data), and do NOT
+  cite it as precedent for fabricated counts elsewhere. Its host names
+  (`One Life <Map> | dayzonelife.com`) are brand copy verified against a real console
+  screenshot, hand-maintained like `SEARCH_TERM`; the `HOSTS` array (Host A–Z) is where a
+  fourth map (Badlands) gets added. `HowToConnect` survives ONLY in the unlinked claim ladder's
+  empty state and the idle server rows.
   The masthead `AccountAffordance` has a pending branch: menu item "Finish verification →" →
   `/#claim`, the claimed tag's initial in the disc, and a `border-yellow` cue.
   `UnverifiedPitch` is **client-gated on `useAccountStatus`,

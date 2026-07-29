@@ -5,6 +5,7 @@ import { Hero } from "./hero";
 import { Rules } from "./rules";
 import { Fallen } from "./fallen";
 import { CtaSlab } from "./cta-slab";
+import { JoinServers } from "./join-servers";
 
 /**
  * The pitch for signed-in-but-UNLINKED visitors (home-polish spec §3; narrowed by the
@@ -14,9 +15,9 @@ import { CtaSlab } from "./cta-slab";
  * ⚠️ Pending renders NOTHING here. A pending player already claimed — every CTA in these beats
  * asks for a step they have done — and rendering nothing floats the #claim challenge section
  * (`AccountPanels`) to the top of their page. `PendingSupport` (below `#claim` in the page)
- * carries their support content instead. `unlinked` renders no ConnectSection either: its
- * claim-ladder empty state already carries HowToConnect, and a second identically-labelled
- * landmark on one page is a duplicate.
+ * carries their support content instead. `JoinServers` (mounted here after the CTA slab)
+ * carries no "How to connect" landmark of its own, so it can sit beside the claim ladder's
+ * empty state (which does carry that landmark) without duplicating it.
  *
  * Renders NOTHING until accountStatus resolves to unlinked — a verified player must never see a
  * pitch flash (SSR renders nothing here; appearing beats vanishing for the unverified).
@@ -33,6 +34,7 @@ export function UnverifiedPitch({ stats, obits }: {
       <Rules />
       <Fallen rows={obits} />
       <CtaSlab audience="unverified" />
+      <JoinServers />
     </>
   );
 }

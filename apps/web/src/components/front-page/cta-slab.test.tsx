@@ -12,7 +12,7 @@ describe("CtaSlab", () => {
     expect(screen.getByText(/You get one life\./i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Claim your life →" })).toHaveAttribute("href", "/login");
     expect(screen.getByText(/Sign in · Link your gamertag · Your life shows up here/i)).toBeInTheDocument();
-    // The slab no longer carries the connect box — that content moved to ConnectSection.
+    // The slab no longer carries the connect box — that content moved to the Join the Servers block.
     expect(screen.queryByText("One Life")).not.toBeInTheDocument();
     expect(screen.queryByText(/Play first, claim later/i)).not.toBeInTheDocument();
   });

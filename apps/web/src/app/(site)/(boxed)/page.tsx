@@ -5,11 +5,10 @@ import { Hero } from "@/components/front-page/hero";
 import { Fallen } from "@/components/front-page/fallen";
 import { Rules } from "@/components/front-page/rules";
 import { CtaSlab } from "@/components/front-page/cta-slab";
-import { ConnectSection } from "@/components/front-page/connect-section";
+import { JoinServers } from "@/components/front-page/join-servers";
 import { UnverifiedPitch } from "@/components/front-page/unverified-pitch";
 import { PendingSupport } from "@/components/front-page/pending-support";
 import { PendingHero } from "@/components/front-page/pending-hero";
-import { serversView } from "@/components/servers/how-to-connect";
 import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
 import { HomeShell } from "@/components/account/home-shell";
@@ -65,7 +64,7 @@ export default async function Home() {
           {/* Failed OR empty → [] → Fallen renders nothing (absent proof is silence). */}
           <Fallen rows={obits.data?.rows ?? []} />
           <CtaSlab />
-          <ConnectSection servers={serversView(servers.data, { failed: servers.failed })} />
+          <JoinServers />
         </>
       )}
       {signedIn && <UnverifiedPitch stats={stats.data} obits={obits.data?.rows ?? []} />}
@@ -80,12 +79,7 @@ export default async function Home() {
           </div>
         </div>
       )}
-      {signedIn && (
-        <PendingSupport
-          obits={obits.data?.rows ?? []}
-          servers={serversView(servers.data, { failed: servers.failed })}
-        />
-      )}
+      {signedIn && <PendingSupport obits={obits.data?.rows ?? []} />}
     </HomeShell>
   );
 }
