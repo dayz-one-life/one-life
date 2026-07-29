@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, hitEvents, buildEvents } from "@onelife/db";
+import { servers, players, lives, sessions, hitEvents, buildEvents, unconsciousEvents } from "@onelife/db";
 import { inArray, eq } from "drizzle-orm";
 import { getLifeDossier, dossierVerdict } from "../src/life-dossier.js";
 
@@ -18,6 +18,9 @@ let lifeId2: number;
 const gt3 = `DossierFall-${svc}`;
 let pid3: number;
 let lifeId3: number;
+const gt4 = `DossierUnconscious-${svc}`;
+let pid4: number;
+let lifeId4: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ld", map: "sakhal", slug: `ld-${svc}`, active: true }).returning();
@@ -83,14 +86,30 @@ beforeAll(async () => {
     serverId, victimGamertag: gt3, victimPlayerId: pid3, attackerType: "environment", attackerLabel: "FallDamageHealth",
     victimHp: 0, occurredAt: mins(360),
   });
+
+  // A fourth life: dedicated to the RECENT_HIT_WINDOW_S = 120 boundary for unconscious events —
+  // one row 119s before death (kept), one 121s before death (dropped), same rule as recentHits.
+  const [p4] = await db.insert(players).values({ gamertag: gt4, lastSeenAt: mins(400) }).returning();
+  pid4 = p4!.id;
+  const [l4] = await db.insert(lives).values({
+    serverId, playerId: pid4, lifeNumber: 1, startedAt: start, endedAt: mins(360),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 1500, waterAtDeath: 1500, bleedSourcesAtDeath: 0, playtimeSeconds: 21600,
+  }).returning();
+  lifeId4 = l4!.id;
+  await db.insert(unconsciousEvents).values([
+    { serverId, playerId: pid4, gamertag: gt4, disconnecting: false, occurredAt: new Date(mins(360).getTime() - 119_000) },
+    { serverId, playerId: pid4, gamertag: gt4, disconnecting: false, occurredAt: new Date(mins(360).getTime() - 121_000) },
+  ]);
 });
 
 afterAll(async () => {
+  await db.delete(unconsciousEvents).where(inArray(unconsciousEvents.serverId, [serverId]));
   await db.delete(hitEvents).where(inArray(hitEvents.serverId, [serverId]));
   await db.delete(buildEvents).where(inArray(buildEvents.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
-  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3]));
+  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3, pid4]));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
@@ -145,5 +164,13 @@ describe("getLifeDossier", () => {
     const v = dossierVerdict(d!);
     expect(v.cause).toBe("fall");
     expect(v.confidence).toBe("high");
+  });
+
+  // RECENT_HIT_WINDOW_S is 120. The far row must be dropped, exactly as recentHits drops a hit at
+  // the same distance — one window, one rule, so the two evidence streams cannot disagree.
+  it("keeps an unconscious event inside the window and drops one outside it", async () => {
+    const d = await getLifeDossier(db, serverId, lifeId4);
+    expect(d).not.toBeNull();
+    expect(d!.recentUnconscious.map((u) => u.secondsBeforeDeath)).toEqual([119]);
   });
 });
