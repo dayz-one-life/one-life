@@ -34,6 +34,11 @@ vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "s
 vi.mock("@/components/account/account-panels", () => ({
   AccountPanels: () => <section aria-label="Your account" />,
 }));
+// The real PendingHero reaches TanStack mutation hooks that need a QueryClientProvider this
+// suite deliberately doesn't mount.
+vi.mock("@/components/front-page/pending-hero", () => ({
+  PendingHero: () => <section data-testid="pending-hero-slot" />,
+}));
 
 // FitLine mounts under jsdom and observes its container with ResizeObserver, which jsdom lacks.
 vi.stubGlobal(
@@ -184,5 +189,29 @@ describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in 
   it("a failed obituaries feed renders no Fallen section and no error card", async () => {
     render(await Home()); // beforeEach default: rejected
     expect(screen.queryByRole("heading", { name: /The Fallen/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("Home page: pending-hero slot and anchor structure", () => {
+  it("signed in: ONE #claim anchor wraps both the hero slot and the padded panels", async () => {
+    cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
+    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
+    const { container } = render(await Home());
+    const claims = container.querySelectorAll("#claim");
+    expect(claims).toHaveLength(1);
+    const claim = claims[0]! as HTMLElement;
+    // Full-bleed anchor: padding lives on an INNER wrapper, never on the anchor itself — the
+    // hero must reach the viewport edges inside the anchor target.
+    expect(claim.className).not.toMatch(/px-6/);
+    expect(claim.querySelector("[data-testid='pending-hero-slot']")).not.toBeNull();
+    const padded = claim.querySelector("div.px-6");
+    expect(padded).not.toBeNull();
+    expect(padded!.querySelector("[aria-label='Your account']")).not.toBeNull();
+  });
+
+  it("signed out: no hero slot and no anchor", async () => {
+    const { container } = render(await Home());
+    expect(container.querySelector("#claim")).toBeNull();
+    expect(container.querySelector("[data-testid='pending-hero-slot']")).toBeNull();
   });
 });

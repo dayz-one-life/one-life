@@ -4,8 +4,8 @@ import { SrStatus } from "@/components/shared/sr-status";
 import type { AccountStatus } from "@/lib/account-status";
 
 /**
- * `ProveItPanel` unmounts entirely on the pending -> verified swap in `ControlsRail` /
- * `MobileControls` (replaced by `IdentityRow verified` + `TokensPanel`), taking any live region
+ * The pending surface (the full-bleed `PendingHero`, which absorbed the retired `ProveItPanel`)
+ * unmounts entirely on the pending -> verified swap in `AccountPanels`, taking any live region
  * inside it down before it can announce anything — the same "announcer must outlive the
  * unmount" problem `TokensPanel` already solves for its referrer message. Mount this
  * unconditionally as a sibling of the status-dependent body (never inside a branch keyed on

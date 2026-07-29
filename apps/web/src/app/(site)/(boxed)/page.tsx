@@ -8,6 +8,7 @@ import { CtaSlab } from "@/components/front-page/cta-slab";
 import { ConnectSection } from "@/components/front-page/connect-section";
 import { UnverifiedPitch } from "@/components/front-page/unverified-pitch";
 import { PendingSupport } from "@/components/front-page/pending-support";
+import { PendingHero } from "@/components/front-page/pending-hero";
 import { serversView } from "@/components/servers/how-to-connect";
 import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
@@ -69,8 +70,14 @@ export default async function Home() {
       )}
       {signedIn && <UnverifiedPitch stats={stats.data} obits={obits.data?.rows ?? []} />}
       {signedIn && (
-        <div id="claim" className="px-6 py-8 md:px-10">
-          <AccountPanels signInFallback={signedIn} />
+        /* One anchor wraps BOTH claim surfaces (pending-hero spec §3): the masthead's
+         * "Finish verification → /#claim" lands at the hero's top for pending, at the padded
+         * ladder for unlinked. The anchor div is full-bleed — padding on the inner wrapper. */
+        <div id="claim">
+          <PendingHero />
+          <div className="px-6 py-8 md:px-10">
+            <AccountPanels signInFallback={signedIn} />
+          </div>
         </div>
       )}
       {signedIn && (

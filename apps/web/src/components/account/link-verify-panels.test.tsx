@@ -1,15 +1,11 @@
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { LinkTagPanel } from "./link-panel";
-import { ProveItPanel } from "./verify-panel";
 import { searchClaimableGamertags } from "@/lib/api";
-import type { Challenge } from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
   searchClaimableGamertags: vi.fn(async () => ["BOOTSCOLDWATER", "BOOTSNCATS99"]),
 }));
-
-const NOW = new Date("2026-07-16T12:00:00Z").getTime();
 
 describe("LinkTagPanel", () => {
   test("renders headline, strapline, and the 1-token footnote", () => {
@@ -98,99 +94,5 @@ describe("LinkTagPanel", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole("option", { name: "BOOTSCOLDWATER" })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "BOOTSNCATS99" })).toBeInTheDocument();
-  });
-});
-
-const challenge = (over: Partial<Challenge>): Challenge => ({
-  sequence: ["facepalm", "salute", "clap"], progressIndex: 1,
-  expiresAt: "2026-07-17T10:10:00Z", expired: false, ...over,
-});
-
-describe("ProveItPanel", () => {
-  test("live challenge: kicker, headline, emote boxes with states, footnote", () => {
-    render(<ProveItPanel gamertag="BootsColdwater" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
-    expect(screen.getByText("Prove it's you")).toBeInTheDocument();
-    expect(screen.getByText("BootsColdwater — perform, in order:")).toBeInTheDocument();
-    expect(screen.getByText(/expires in 22h/i)).toBeInTheDocument();
-    const emoteList = screen.getByRole("list", { name: "Emote sequence" });
-    const items = within(emoteList).getAllByRole("listitem");
-    expect(items).toHaveLength(3);
-    expect(items[0]!.textContent).toContain("✓");
-    expect(items[1]!.textContent).toContain("←");
-    expect(items[0]).toHaveAttribute("data-done", "true");
-    expect(screen.getByText(/Only whoever controls the tag can finish this/)).toBeInTheDocument();
-  });
-
-  test("cancel fires", () => {
-    const onCancel = vi.fn();
-    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={onCancel} onReclaim={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Cancel claim" }));
-    expect(onCancel).toHaveBeenCalled();
-  });
-
-  test("expired: reclaim CTA replaces the boxes", () => {
-    const onReclaim = vi.fn();
-    render(<ProveItPanel gamertag="Boots" challenge={challenge({ expired: true })} now={NOW} onCancel={() => {}} onReclaim={onReclaim} />);
-    expect(screen.getByText("Your verification for Boots expired")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Start a new challenge →" }));
-    expect(onReclaim).toHaveBeenCalled();
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
-  });
-
-  test("cancel claim is a 44pt target below xl and announces nothing by itself", () => {
-    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
-    const btn = screen.getByRole("button", { name: "Cancel claim" });
-    expect(btn.className).toContain("min-h-[44px]");
-    expect(btn.className).toContain("xl:min-h-0");
-  });
-
-  test("progress is announced via a role=status region keyed to progressIndex", () => {
-    const { rerender } = render(
-      <ProveItPanel gamertag="Boots" challenge={challenge({ progressIndex: 1 })} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 3 confirmed");
-    rerender(
-      <ProveItPanel gamertag="Boots" challenge={challenge({ progressIndex: 2 })} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("Step 2 of 3 confirmed");
-  });
-
-  test("the status region is a separate node from the progress list", () => {
-    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
-    const status = screen.getByRole("status");
-    expect(status.tagName).not.toBe("OL");
-    const emoteList = screen.getByRole("list", { name: "Emote sequence" });
-    expect(within(emoteList).getAllByRole("listitem")).toHaveLength(3);
-  });
-
-  test("walkthrough: three numbered how-this-works steps", () => {
-    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
-    const how = screen.getByRole("list", { name: "How this works" });
-    const steps = within(how).getAllByRole("listitem");
-    expect(steps).toHaveLength(3);
-    expect(steps[0]!.textContent).toMatch(/Join any One Life server/);
-    expect(steps[1]!.textContent).toMatch(/in order/);
-    expect(steps[2]!.textContent).toMatch(/log off/i);
-  });
-
-  // ⚠️ ADM logs arrive in 5–15 minute batches. The panel must set that expectation, or a player
-  // performing the sequence and watching nothing move concludes it is broken and cancels.
-  test("batching expectation line is present and explicit", () => {
-    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
-    expect(
-      screen.getByText(
-        "DayZ reports emotes in batches — your progress can take up to 15 minutes to appear here. It does not update in real time.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  // Nothing in the panel may promise immediacy. The only allowed match for these words is the
-  // expectation line itself, which NEGATES them ("does not update in real time").
-  test("no copy claims live or instant updates", () => {
-    const { container } = render(
-      <ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
-    );
-    const text = container.textContent ?? "";
-    expect(text).not.toMatch(/instantly|immediately|watch (this|it) update|updates? live/i);
   });
 });

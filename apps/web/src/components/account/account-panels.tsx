@@ -10,14 +10,12 @@ import { useControls, useControlsActions } from "@/components/account/use-contro
 import { serverCards, transferErrorLabel } from "@/components/account/format";
 import { IdentityRow } from "@/components/account/identity-row";
 import { LinkTagPanel } from "@/components/account/link-panel";
-import { ProveItPanel } from "@/components/account/verify-panel";
 import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
 import { LadderFrame } from "@/components/account/ladder-frame";
 import { StandingGroups } from "@/components/servers/standing-groups";
 import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
 import { OnlineFriendsContainer } from "@/components/friends/online-friends";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
-import { PendingLead } from "@/components/account/pending-lead";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
   return {
@@ -112,7 +110,7 @@ export function AccountPanels({ signInFallback = false }: {
           tagLine="No gamertag"
           avatarHash={avatar.data?.hash ?? null}
         />
-        <LadderFrame kind="unlinked">
+        <LadderFrame>
           <div className="flex flex-col gap-4">
             <LinkTagPanel
               pending={a.claim.isPending}
@@ -128,24 +126,11 @@ export function AccountPanels({ signInFallback = false }: {
       </>
     );
   } else if (c.status.kind === "pending") {
-    const link = c.status.link;
-    body = (
-      <>
-        <PendingLead />
-        <IdentityRow name={link.gamertag} provider={c.provider} avatarHash={avatar.data?.hash ?? null} />
-        <LadderFrame kind="pending">
-          <ProveItPanel
-            gamertag={link.gamertag}
-            challenge={link.challenge}
-            now={now.getTime()}
-            onCancel={() => a.cancel.mutate(link.id)}
-            onReclaim={() => a.claim.mutate({ gamertag: link.gamertag })}
-            canceling={a.cancel.isPending}
-            reclaiming={a.claim.isPending}
-          />
-        </LadderFrame>
-      </>
-    );
+    // The pending surface is the full-bleed PendingHero mounted ABOVE this padded column
+    // (pending-hero spec §3). Nothing visible renders here — but the section stays mounted so
+    // VerificationAnnouncer (below) survives the pending→verified swap, and SignedInFooter
+    // keeps sign-out available in every signed-in state.
+    body = null;
   } else {
     const gamertag = c.status.link.gamertag;
     const slug = playerSlug(gamertag);

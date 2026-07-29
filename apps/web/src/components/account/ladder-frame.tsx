@@ -23,21 +23,16 @@ function StepMark({ state }: { state: LadderStep["state"] }) {
 
 /**
  * The onboarding frame: signed in → claim → prove, with the current step expanded and the others
- * collapsed to a single line. The panels themselves (`LinkTagPanel`, `ProveItPanel`) are
- * unchanged; this only arranges them.
+ * collapsed to a single line. Unlinked is the only remaining caller (pending now renders the
+ * full-bleed `PendingHero` instead of a ladder) — the panel passed as `children` is unchanged;
+ * this only arranges the steps around it.
  *
  * `children` is the current step's panel, rendered under whichever step is current. A step that
  * is not current renders its label alone — never a disabled copy of the panel, which would put
  * inert form controls in the tab order.
  */
-export function LadderFrame({
-  kind,
-  children,
-}: {
-  kind: "unlinked" | "pending";
-  children: ReactNode;
-}) {
-  const steps = ladderSteps(kind);
+export function LadderFrame({ children }: { children: ReactNode }) {
+  const steps = ladderSteps();
   return (
     <ol aria-label="Getting set up" className="flex flex-col gap-3">
       {steps.map((step) => (
