@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, admFiles, playerGamertags } from "@onelife/db";
+import { servers, players, lives, admFiles, playerGamertags, unconsciousEvents } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getCursor, setCursor, appendEvent } from "@onelife/event-log";
 import { rebuildAll, REBUILD_TRUNCATE_TABLES } from "../src/rebuild.js";
@@ -49,6 +49,23 @@ describe("rebuildAll", () => {
     // anyway. `players` must stay listed — it is the parent the cascade flows from.
     expect(REBUILD_TRUNCATE_TABLES as readonly string[]).not.toContain("player_gamertags");
     expect(REBUILD_TRUNCATE_TABLES as readonly string[]).toContain("players");
+  });
+
+  // unconscious_events is deliberately ABSENT from REBUILD_TRUNCATE_TABLES — it is cleared via the
+  // FK to players by RESTART IDENTITY CASCADE. Naming a newly-created table in that list aborts the
+  // rebuild phase, which runs BEFORE migrate (this killed the v0.42.1 deploy). If someone drops the
+  // FK, the cascade stops reaching it and rows survive a rebuild forever — this test is the alarm.
+  it("rebuildAll clears unconscious_events via the players cascade", async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svc + 1, name: "rebuild-unconscious-test" }).returning();
+    const [p] = await db.insert(players)
+      .values({ gamertag: `UC-${svc}`, dayzId: `UC=${svc}`, firstSeenAt: new Date(), lastSeenAt: new Date() })
+      .returning();
+    await db.insert(unconsciousEvents).values({
+      serverId: s!.id, playerId: p!.id, gamertag: p!.gamertag, disconnecting: false, occurredAt: new Date(),
+    });
+    await rebuildAll(db);
+    const rows = await db.select().from(unconsciousEvents);
+    expect(rows).toHaveLength(0);
   });
 
   it("after a rebuild + re-fold, one gamertag on two servers yields one global player with a per-server life", async () => {

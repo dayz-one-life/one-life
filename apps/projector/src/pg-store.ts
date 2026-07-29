@@ -1,9 +1,9 @@
 import type { Database } from "@onelife/db";
-import { players, lives, sessions, kills, hitEvents, buildEvents, positions } from "@onelife/db";
+import { players, lives, sessions, kills, hitEvents, buildEvents, positions, unconsciousEvents } from "@onelife/db";
 import { and, eq, isNull, sql, desc, lte, gt, or } from "drizzle-orm";
 import type {
   ProjectionStore, PlayerRow, LifeRow, SessionRow, EndLife,
-  KillInput, HitInput, BuildInput, PositionInput,
+  KillInput, HitInput, BuildInput, PositionInput, UnconsciousInput,
 } from "@onelife/projections";
 
 // tx is a Drizzle transaction handle (same surface as Database).
@@ -188,4 +188,9 @@ export class PgProjectionStore implements ProjectionStore {
     });
   }
   async insertPosition(p: PositionInput): Promise<void> { await this.tx.insert(positions).values(p); }
+  async insertUnconscious(u: UnconsciousInput): Promise<void> {
+    // onConflictDoNothing: the backfill re-appends historical events, and the fold is
+    // at-least-once. The natural key (server, player, occurredAt) makes a repeat a no-op.
+    await this.tx.insert(unconsciousEvents).values(u).onConflictDoNothing();
+  }
 }

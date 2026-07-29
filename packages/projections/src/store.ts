@@ -1,6 +1,6 @@
 import type {
   PlayerRow, LifeRow, SessionRow, EndLife,
-  KillInput, HitInput, BuildInput, PositionInput,
+  KillInput, HitInput, BuildInput, PositionInput, UnconsciousInput,
 } from "./types.js";
 
 export interface ProjectionStore {
@@ -34,4 +34,5 @@ export interface ProjectionStore {
   insertHit(h: HitInput): Promise<void>;
   insertBuild(b: BuildInput): Promise<void>;
   insertPosition(p: PositionInput): Promise<void>;
+  insertUnconscious(u: UnconsciousInput): Promise<void>;
 }

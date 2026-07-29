@@ -1,7 +1,7 @@
 import type { ProjectionStore } from "./store.js";
 import type {
   PlayerRow, LifeRow, SessionRow, EndLife,
-  KillInput, HitInput, BuildInput, PositionInput,
+  KillInput, HitInput, BuildInput, PositionInput, UnconsciousInput,
 } from "./types.js";
 
 type FullLife = LifeRow & { serverId: number };
@@ -25,6 +25,7 @@ export class MemoryStore implements ProjectionStore {
   hits: HitInput[] = [];
   builds: BuildInput[] = [];
   positions: PositionInput[] = [];
+  unconscious: UnconsciousInput[] = [];
   aliases: { playerId: number; gamertag: string; firstSeenAt: Date; lastSeenAt: Date }[] = [];
   private seq = 1;
 
@@ -145,4 +146,5 @@ export class MemoryStore implements ProjectionStore {
   }
   async insertBuild(b: BuildInput): Promise<void> { this.builds.push(b); }
   async insertPosition(p: PositionInput): Promise<void> { this.positions.push(p); }
+  async insertUnconscious(u: UnconsciousInput): Promise<void> { this.unconscious.push(u); }
 }
