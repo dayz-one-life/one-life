@@ -62,8 +62,8 @@ function TicketSequence({ challenge: c }: { challenge: Challenge }) {
  * The pending home's full-bleed hero (pending-hero spec §2): the emote challenge as the page's
  * centerpiece, in the cold hero's visual language — dark stage, red frame, yellow for everything
  * live. Absorbs the retired ProveItPanel; this is the pending page's only h1, and the "Step 3
- * of 3" kicker is the 3-step ladder folded to one line (LadderFrame no longer renders for
- * pending). The live branch renders the sequence as paper tickets — orders to carry out, not a
+ * of 3" kicker is the 3-step ladder folded to one line (the ladder chrome is retired). The live
+ * branch renders the sequence as paper tickets — orders to carry out, not a
  * live tracker — with a status paragraph carrying the confirmed count and the batching notice;
  * see `TicketSequence` above for the honesty rule (no current-step pointer, ever).
  *
