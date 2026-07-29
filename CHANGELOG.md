@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-07-29
+
 ### Changed
 
 - **Pending-verification hero** — the pending home now opens with the same full-bleed dark hero
