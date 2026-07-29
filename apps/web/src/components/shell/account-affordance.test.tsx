@@ -83,8 +83,8 @@ describe("AccountAffordance", () => {
     expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeInTheDocument();
   });
 
-  it("verified and unlinked discs carry no yellow pending cue", () => {
-    mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "X" } });
+  it.each(["verified", "unlinked"] as const)("%s disc carries no yellow pending cue", (kind) => {
+    mockStatus.mockReturnValue(kind === "verified" ? { kind, link: { gamertag: "X" } } : { kind });
     renderIt();
     expect(screen.getByRole("button", { name: "Your account" }).className).not.toContain("border-yellow");
   });

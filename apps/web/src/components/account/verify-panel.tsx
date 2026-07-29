@@ -79,7 +79,7 @@ export function ProveItPanel({
       </ol>
       <ol role="list" aria-label="How this works" className="mt-4 flex list-decimal flex-col gap-1.5 pl-4 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-cream-muted marker:text-yellow">
         <li>Join any One Life server.</li>
-        <li>Perform the three emotes above, in order.</li>
+        <li>Perform the emotes above, in order.</li>
         <li>Done — you can log off and close this page.</li>
       </ol>
       <p className="mt-3 border-l-2 border-yellow pl-3 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-yellow">
