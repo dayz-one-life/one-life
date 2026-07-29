@@ -12,21 +12,20 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <>
-      <LegalDoc
-        kicker="What we know about you"
-        title="Privacy Policy"
-        standfirst="What One Life collects, why, who else sees it, and how to get it deleted. No ads, no analytics, nothing sold."
-        effectiveDate={EFFECTIVE_DATE}
-        sections={PRIVACY_SECTIONS}
-      />
-      <p className="mx-auto w-full max-w-3xl px-6 pb-10 font-mono text-xs uppercase tracking-[.06em] text-ink-muted md:px-10">
+    <LegalDoc
+      kicker="What we know about you"
+      title="Privacy Policy"
+      standfirst="What One Life collects, why, who else sees it, and how to get it deleted. No ads, no analytics, nothing sold."
+      effectiveDate={EFFECTIVE_DATE}
+      sections={PRIVACY_SECTIONS}
+    >
+      <p className="mt-10 font-mono text-xs uppercase tracking-[.06em] text-ink-muted">
         See also the{" "}
         <Link href="/terms" className="underline decoration-red decoration-2 underline-offset-2">
           Terms &amp; Conditions
         </Link>
         .
       </p>
-    </>
+    </LegalDoc>
   );
 }

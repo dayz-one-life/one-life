@@ -417,6 +417,50 @@ Avatar bytes live in Postgres (`avatars.image`, a few hundred rows at ~10–30 K
 host filesystem component and nothing to add to `mirror-tiles.sh` or any other asset-sync step.
 They ride the existing `pg_dump` backup for free, same as every other table.
 
+## Deleting a player's account
+
+There is **no code path** for this — it is entirely manual, driven by an email to
+`admin@dayzonelife.com` (see `apps/web/src/content/legal/privacy.tsx` §10 "Deleting your
+account"). No admin UI, no scheduled job.
+
+Four foreign keys in `packages/db/src/schema.ts` have **no `onDelete`**, so a bare
+`DELETE FROM "user"` fails outright. Given the account's `user.id` (`$UID`) and the email on the
+account (`$EMAIL`), run these **in order**:
+
+```sql
+-- 1. verification_challenges.gamertag_link_id has no onDelete — clear it before gamertag_links.
+DELETE FROM verification_challenges
+WHERE gamertag_link_id IN (SELECT id FROM gamertag_links WHERE user_id = '$UID');
+
+-- 2. gamertag_links.user_id has no onDelete.
+DELETE FROM gamertag_links WHERE user_id = '$UID';
+
+-- 3. referrals is a link between two real users; delete both directions. (referrals.user_id
+--    cascades on user delete already; referrer_user_id does not, and blocks deleting anyone who
+--    referred another player — this covers that side.)
+DELETE FROM referrals WHERE user_id = '$UID' OR referrer_user_id = '$UID';
+
+-- 4. token_transactions.counterparty_user_id has no onDelete, and those rows belong to ANOTHER
+--    player's ledger — null the reference, do not delete the row.
+UPDATE token_transactions SET counterparty_user_id = NULL WHERE counterparty_user_id = '$UID';
+
+-- 5. The `verification` table (magic-link tokens) has NO user FK at all — it's keyed by
+--    `identifier` (the email), so it must be cleared by email, not by user id.
+DELETE FROM verification WHERE identifier = '$EMAIL';
+
+-- 6. Now every remaining reference to this user cascades: session, account, avatars,
+--    push_subscriptions, notifications, friendships, user_preferences, location_shares, and the
+--    user's own (non-counterparty) token_transactions and referrals rows.
+DELETE FROM "user" WHERE id = '$UID';
+```
+
+If a step is skipped or the order is wrong, step 6 fails on a foreign-key violation rather than
+silently leaving orphaned rows — that's the point of doing it in this order.
+
+**Not deleted by any of this, matching the privacy policy:** `lives`, `kills`, `positions` and the
+rest of the append-only gameplay record; `articles` (obituaries); and `bans`, which are keyed to
+the gamertag rather than the account and so are unaffected by an account deletion.
+
 ## TLS
 
 Certbot-managed lineage `dayzonelife.com` (apex + www). `live/ → archive/` symlinks are

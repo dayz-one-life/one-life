@@ -83,6 +83,11 @@ export function describeDeath(facts: ObituaryFacts): string {
   return `${hedge}${base} (not a player kill).${state}`;
 }
 
+/**
+ * ⚠️ Everything sent to the model here (facts below, plus `recentProseBlock`) is disclosed in
+ * `apps/web/src/content/legal/privacy.tsx` §7 (Who else touches it). Adding a field to the prompt
+ * without updating that page makes the published privacy policy false.
+ */
 /** Build the {system, user} messages for one obituary from the factual snapshot. */
 export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] = []): { system: string; user: string } {
   const lines: string[] = [];

@@ -35,9 +35,10 @@ export const TERMS_SECTIONS: LegalSection[] = [
     heading: "Your account",
     body: (
       <p>
-        You sign in with Discord. One account per person. Anything done through your account is
-        treated as done by you, so don&rsquo;t share it. If you lose access to your Discord
-        account you lose access to this one — email me and we&rsquo;ll sort it out.
+        You sign in with an account from another service — Discord or Google today, and possibly
+        another one later. One account per person. Anything done through your account is treated
+        as done by you, so don&rsquo;t share it. If you lose access to that sign-in provider you
+        lose access to this one — email me and we&rsquo;ll sort it out.
       </p>
     ),
   },
@@ -85,8 +86,8 @@ export const TERMS_SECTIONS: LegalSection[] = [
       <>
         <p>
           Every qualified life is published: how long you lived, who killed you, with what, from how
-          far, and where it ended. That record is public and it is permanent. Deleting your account
-          does not remove it.
+          far, and which map it happened on. That record is public and it is permanent. Deleting
+          your account does not remove it.
         </p>
         <p>
           Obituaries are written by a machine, and they are written to be unkind. They are

@@ -12,9 +12,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           about you is sold, rented, or handed to a data broker.
         </p>
         <p>
-          What is collected falls into three piles: what Discord tells us when you sign in, what
-          your browser tells us while you&rsquo;re here, and what the game servers write down while
-          you play. The last is the big one, and it includes where you were standing.
+          What is collected falls into three piles: what your sign-in provider tells us when you
+          sign in, what your browser tells us while you&rsquo;re here, and what the game servers
+          write down while you play. The last is the big one, and it includes where you were
+          standing.
         </p>
       </>
     ),
@@ -25,11 +26,12 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     body: (
       <>
         <p>
-          You sign in with Discord. Discord passes over your display name, your email address, your
-          Discord avatar image, and your Discord account ID. We also store the access and refresh
-          tokens Discord issues, which are what let the site confirm you are still you.
+          You sign in with an account from another service — Discord or Google today, and possibly
+          another one later. That provider passes over your display name, your email address, your
+          avatar image, and your account ID at that provider. We also store the access and refresh
+          tokens it issues, which are what let the site confirm you are still you.
         </p>
-        <p>We never see your Discord password, and we cannot read your Discord messages.</p>
+        <p>We never see your password there, and we cannot read your messages there.</p>
       </>
     ),
   },
@@ -38,7 +40,14 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     heading: "What your browser gives us",
     body: (
       <>
-        <p>A session cookie, so you stay signed in. It is the only cookie this site sets.</p>
+        <p>
+          A session cookie, so you stay signed in, and a second cookie that remembers which map you
+          were last looking at. See{" "}
+          <a className="underline decoration-red decoration-2 underline-offset-2" href="#cookies">
+            Cookies
+          </a>{" "}
+          below for the full list.
+        </p>
         <p>
           Stored alongside that session: your IP address and your browser&rsquo;s user-agent string.
           That is the standard record of where a sign-in came from, and it is how a stolen session
@@ -62,7 +71,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
         </p>
         <ul className="list-disc space-y-2 pl-5">
           <li>your gamertag, and every time you connect and disconnect</li>
-          <li>your position on the map, sampled continuously while you are alive</li>
+          <li>
+            your position on the map, sampled periodically while you are connected — pulled from
+            the server&rsquo;s own player-list dump and from anything else it logs
+          </li>
           <li>kills, hits, going unconscious, dying, and building</li>
           <li>the emotes you perform — which is how gamertag verification works</li>
         </ul>
@@ -73,7 +85,11 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           </a>
           .
         </p>
-        <p>Chat is not recorded. The log parser has no handling for it at all.</p>
+        <p>
+          Nothing you say in chat is parsed, stored as data, or published — the log parser has no
+          handling for chat at all. But the server&rsquo;s raw log is kept as-is, so if the server
+          ever happens to write a chat line into it, that line sits there unread.
+        </p>
       </>
     ),
   },
@@ -88,6 +104,9 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
         <li>
           Your per-friend switches for sharing live location and presence. Both are off unless you
           turn them on.
+        </li>
+        <li>
+          Notifications about you and your friends — stored so your inbox can show them.
         </li>
       </ul>
     ),
@@ -123,7 +142,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
         <p>Nobody buys this data. Four parties see some of it because they have to:</p>
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong>Discord</strong> — handles your sign-in.
+            <strong>Your sign-in provider</strong> (Discord or Google today) — handles your sign-in.
           </li>
           <li>
             <strong>Nitrado</strong> — hosts the game servers that write the logs.
@@ -133,11 +152,13 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
             on your device) — only if you enable notifications, and only to deliver them.
           </li>
           <li>
-            <strong>OpenRouter and Anthropic</strong> — obituaries are written by Anthropic&rsquo;s
-            Claude model, reached through OpenRouter. To write one, we send your gamertag, your
-            killer&rsquo;s gamertag, and the details of the death: map, time survived, cause,
-            weapon, distance, and your record going in. Your account, email and IP address are not
-            sent.
+            <strong>OpenRouter, and the model it currently routes to</strong> — obituaries are
+            written by an AI model (right now, Anthropic&rsquo;s Claude), reached through
+            OpenRouter. To write one, we send your full public gameplay record for this life and
+            your earlier ones — your gamertag, your killer&rsquo;s gamertag, map, time survived,
+            cause, weapon, distance, and your record going in — plus the headlines, attributions
+            and opening lines of recently published obituaries as style context, which can include
+            other players&rsquo; gamertags. Your account, email and IP address are not sent.
           </li>
         </ul>
         <p>
@@ -152,9 +173,10 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     heading: "Cookies",
     body: (
       <p>
-        One cookie: the session cookie that keeps you signed in. No analytics cookies, no
-        advertising cookies, no third-party cookies. There is no consent banner because there is
-        nothing to consent to.
+        Two cookies, both ours, neither used for tracking: the one that keeps you signed in, and one
+        that remembers which map you were last looking at. No analytics cookies, no advertising
+        cookies, no third-party cookies. There is no consent banner because there is nothing to
+        consent to.
       </p>
     ),
   },
@@ -183,17 +205,19 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           verify it another way.
         </p>
         <p>
-          <strong>Deleted</strong>: your account, your name and email, the tokens Discord issued,
-          every session — and with them the stored IP addresses and user-agents — your avatar, your
-          push subscriptions, your friendships, your preferences, your location shares, your unban
-          token balance and its history, and your gamertag link.
+          <strong>Deleted</strong>: your account, your name and email, the tokens your sign-in
+          provider issued, every session — and with them the stored IP addresses and user-agents —
+          your avatar, your push subscriptions, your friendships, your preferences, your location
+          shares, your unban token balance and its history, your referral link, and your gamertag
+          link.
         </p>
         <p>
-          <strong>Not deleted</strong>: your gameplay record and your obituaries. Lives, deaths,
-          kills and positions live in an append-only log that every part of this site is rebuilt
-          from; pulling a gamertag out of it would break the rebuild the whole system depends on. It
-          is also the premise of the product. Once your account is gone, that record stands on its
-          own with nothing here tying it to you.
+          <strong>Not deleted</strong>: your gameplay record, your obituaries, and any ban history
+          recorded against your gamertag. Lives, deaths, kills and positions live in an append-only
+          log that every part of this site is rebuilt from; pulling a gamertag out of it would break
+          the rebuild the whole system depends on. It is also the premise of the product. Bans are
+          keyed to the gamertag, not the account, so they stand on their own the same way. Once your
+          account is gone, that record stands with nothing here tying it to you.
         </p>
         <p>
           If one specific obituary is the problem, say so. That is a conversation, not a policy.

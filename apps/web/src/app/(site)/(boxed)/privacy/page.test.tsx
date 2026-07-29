@@ -18,6 +18,9 @@ describe("load-bearing disclosures", () => {
     expect(t).toContain("OpenRouter");
     expect(t).toContain("Anthropic");
     expect(t).toMatch(/your killer&rsquo;s gamertag|your killer’s gamertag/);
+    // The one verified-true promise in this section — currently the easiest sentence here to
+    // trim away silently. Pin it so a later edit can't drop it without this test noticing.
+    expect(t).toMatch(/Your account, email and IP address are not sent/i);
   });
 
   it("discloses IP address and user-agent storage on the session", () => {
@@ -30,14 +33,27 @@ describe("load-bearing disclosures", () => {
     expect(text()).toMatch(/position on the map/i);
   });
 
-  it("states that chat is not recorded", () => {
-    expect(text()).toMatch(/Chat is not recorded/i);
+  it("states that chat is not parsed, stored, or published", () => {
+    const t = text();
+    expect(t).toMatch(/Nothing you say in chat is parsed, stored as data, or published/i);
+    expect(t).toMatch(/no handling for chat/i);
   });
 
   it("states there are no ads, analytics or trackers, and nothing is sold", () => {
     const t = text();
     expect(t).toMatch(/no analytics/i);
     expect(t).toMatch(/no tracking scripts/i);
+    // The "nothing is sold" half of this test's own name — until now unasserted, so a later trim
+    // could have dropped this sentence with nothing here catching it.
+    expect(t).toMatch(/sold, rented, or handed to a data broker/i);
+  });
+
+  // C1: this site sets a second first-party cookie (apps/web/src/lib/map-resolution.ts,
+  // SESSION_MAP_COOKIE) beyond the session cookie. Fails if either stops being named.
+  it("names both cookies this site sets", () => {
+    const t = text();
+    expect(t).toMatch(/session cookie/i);
+    expect(t).toMatch(/which map you were last looking at/i);
   });
 
   // The promise the architecture has to keep. Softening either half is a defect.

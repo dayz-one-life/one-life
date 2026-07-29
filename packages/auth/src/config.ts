@@ -9,6 +9,10 @@ const schema = z
     MAIL_TRANSPORT: z.enum(["console"]).default("console"),
     // Magic-link (email) sign-in is on unless explicitly disabled.
     MAGIC_LINK_ENABLED: z.enum(["true", "false"]).default("true"),
+    // ⚠️ The set of sign-in providers enabled here is disclosed in
+    // apps/web/src/content/legal/privacy.tsx §2 and apps/web/src/content/legal/terms.tsx §3.
+    // Enabling another provider without updating those pages makes the published privacy policy
+    // false.
     DISCORD_CLIENT_ID: z.string().optional(),
     DISCORD_CLIENT_SECRET: z.string().optional(),
     GOOGLE_CLIENT_ID: z.string().optional(),

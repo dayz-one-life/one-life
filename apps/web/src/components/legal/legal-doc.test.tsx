@@ -47,9 +47,30 @@ it("gives every section its id as an anchor target, and labels it by its own hea
   }
 });
 
-// jsdom cannot see a heading sliding under the sticky masthead, so the contract is pinned as a
-// class: without scroll-mt, following a #clause link lands the heading behind the header.
-it("offsets anchor scrolling so a linked clause clears the masthead", () => {
+// jsdom cannot see whether a heading slides under the header, so the contract is pinned as a
+// class: the offset is reserved for if/when the masthead becomes sticky (it is currently
+// `relative`, not sticky — see the comment beside scroll-mt-24 in legal-doc.tsx).
+it("reserves a scroll offset on each section for a linked clause", () => {
   const { container } = doc();
   expect(container.querySelector("#who-runs-this")!.className).toMatch(/scroll-mt-/);
+});
+
+// ⚠️ Without this slot, a page composing LegalDoc has nowhere to put page-level content (e.g. a
+// cross-link to the sibling legal page) except as a sibling of <main> — landmark-orphaned.
+it("renders children inside <main>, after the sections", () => {
+  const { container } = render(
+    <LegalDoc
+      kicker="The fine print"
+      title="Terms & Conditions"
+      standfirst="These cover the website and the servers."
+      effectiveDate="29 July 2026"
+      sections={SECTIONS}
+    >
+      <p>See also the Privacy Policy.</p>
+    </LegalDoc>,
+  );
+  const main = container.querySelector("main");
+  expect(main).not.toBeNull();
+  const child = screen.getByText("See also the Privacy Policy.");
+  expect(main!.contains(child)).toBe(true);
 });

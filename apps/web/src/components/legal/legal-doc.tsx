@@ -14,6 +14,9 @@ export interface LegalDocProps {
   standfirst: string;
   effectiveDate: string;
   sections: LegalSection[];
+  /** Rendered inside `<main>`, after the sections — e.g. a cross-link to the sibling legal page.
+   *  Keeps it inside the page's one landmark rather than orphaned as a sibling of `<main>`. */
+  children?: ReactNode;
 }
 
 /**
@@ -24,7 +27,7 @@ export interface LegalDocProps {
  * `max-w-3xl`, narrower than /about's `max-w-5xl`: this is one column of continuous prose, and a
  * 5xl measure is unreadable for it.
  */
-export function LegalDoc({ kicker, title, standfirst, effectiveDate, sections }: LegalDocProps) {
+export function LegalDoc({ kicker, title, standfirst, effectiveDate, sections, children }: LegalDocProps) {
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10 md:py-14">
       <header className="border-b-[3px] border-ink pb-8">
@@ -39,7 +42,9 @@ export function LegalDoc({ kicker, title, standfirst, effectiveDate, sections }:
       </header>
 
       {sections.map((s) => (
-        // scroll-mt-24 clears the sticky masthead when someone follows a #clause link.
+        // scroll-mt-24 is a reserved offset for a #clause link, in case the masthead
+        // (apps/web/src/components/shell/header.tsx, currently `relative z-40`, not sticky) ever
+        // becomes sticky. Harmless today either way.
         <section key={s.id} id={s.id} aria-labelledby={`${s.id}-heading`} className="mt-10 scroll-mt-24">
           <h2
             id={`${s.id}-heading`}
@@ -52,6 +57,8 @@ export function LegalDoc({ kicker, title, standfirst, effectiveDate, sections }:
           </div>
         </section>
       ))}
+
+      {children}
     </main>
   );
 }

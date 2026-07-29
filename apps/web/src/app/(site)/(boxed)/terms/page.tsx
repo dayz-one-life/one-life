@@ -12,21 +12,20 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <>
-      <LegalDoc
-        kicker="The fine print"
-        title="Terms & Conditions"
-        standfirst="These cover the One Life website and the One Life servers. Using either means you accept them."
-        effectiveDate={EFFECTIVE_DATE}
-        sections={TERMS_SECTIONS}
-      />
-      <p className="mx-auto w-full max-w-3xl px-6 pb-10 font-mono text-xs uppercase tracking-[.06em] text-ink-muted md:px-10">
+    <LegalDoc
+      kicker="The fine print"
+      title="Terms & Conditions"
+      standfirst="These cover the One Life website and the One Life servers. Using either means you accept them."
+      effectiveDate={EFFECTIVE_DATE}
+      sections={TERMS_SECTIONS}
+    >
+      <p className="mt-10 font-mono text-xs uppercase tracking-[.06em] text-ink-muted">
         See also the{" "}
         <Link href="/privacy" className="underline decoration-red decoration-2 underline-offset-2">
           Privacy Policy
         </Link>
         .
       </p>
-    </>
+    </LegalDoc>
   );
 }
