@@ -6,8 +6,13 @@ import { parseEmote } from "./emote.js";
 import { parseHit } from "./hit.js";
 import { parseBuild } from "./build.js";
 import { parseTeleport } from "./teleport.js";
+import { parseUnconscious } from "./unconscious.js";
 
-/** Every ParsedLine a single raw line yields. Primary event(s) first, then position. */
+/** Every ParsedLine a single raw line yields. Primary event(s) first, then position.
+ *  ⚠️ EXCEPTION — `unconscious` is dispatched AFTER position, breaking that convention on
+ *  purpose: subIndex is this array's index, and every historical unconscious line already
+ *  stored player.position at subIndex 0. Putting it first renumbers those and collides with
+ *  events_idempotency_uniq. Do not "tidy" it back above position. */
 export function parseLine(raw: string): ParsedLine[] {
   const out: ParsedLine[] = [];
 
@@ -43,6 +48,9 @@ export function parseLine(raw: string): ParsedLine[] {
 
   const position = parsePosition(raw);
   if (position) out.push({ kind: "position", ...position });
+
+  const unconscious = parseUnconscious(raw);
+  if (unconscious) out.push({ kind: "unconscious", ...unconscious });
 
   return out;
 }

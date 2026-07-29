@@ -22,4 +22,13 @@ describe("parseLine", () => {
   it("returns empty for an unrecognized line", () => {
     expect(parseLine("10:00:00 | some future line we do not parse yet")).toEqual([]);
   });
+  // ⚠️ subIndex is the ARRAY POSITION of the parsed result (apps/ingest-worker/src/process-file.ts).
+  // All 63 historical unconscious lines already hold player.position at subIndex 0. Dispatching
+  // unconscious BEFORE position renumbers position to 1 and collides with events_idempotency_uniq
+  // on every one of them, breaking the backfill. Position MUST stay first.
+  it("emits position before unconscious so historical subIndex 0 is preserved", () => {
+    const raw = `09:25:31 | Player "XxBE4zyxX" (id=D34AD4C2 pos=<5963.2, 4071.0, 397.1>) is unconscious`;
+    const out = parseLine(raw);
+    expect(out.map((p) => p.kind)).toEqual(["position", "unconscious"]);
+  });
 });
