@@ -8,7 +8,6 @@ import Home from "./page";
 const getSurvivors = vi.fn();
 const getServers = vi.fn();
 const getLastPlayedMap = vi.fn();
-const getSiteStats = vi.fn();
 const getObituariesFeed = vi.fn();
 const getSiteStatsCached = vi.fn();
 const getObituariesFeedCached = vi.fn();
@@ -16,7 +15,6 @@ vi.mock("@/lib/api", () => ({
   getSurvivors: (...a: unknown[]) => getSurvivors(...a),
   getServers: (...a: unknown[]) => getServers(...a),
   getLastPlayedMap: (...a: unknown[]) => getLastPlayedMap(...a),
-  getSiteStats: (...a: unknown[]) => getSiteStats(...a),
   getObituariesFeed: (...a: unknown[]) => getObituariesFeed(...a),
   getSiteStatsCached: (...a: unknown[]) => getSiteStatsCached(...a),
   getObituariesFeedCached: (...a: unknown[]) => getObituariesFeedCached(...a),
@@ -128,9 +126,15 @@ describe("Home page: the claim anchor", () => {
     expect(container.querySelector("#claim")).not.toBeNull();
   });
 
-  it("signed out: the connect section is the last content block and no account-panels wrapper renders", async () => {
+  it("signed out: the connect section follows the CTA slab, is the last content block, and no account-panels wrapper renders", async () => {
     const { container } = render(await Home());
-    expect(screen.getByText(/Play first, claim later/i)).toBeInTheDocument();
+    const claimHeading = screen.getByRole("heading", { name: /Claim it/i });
+    const connectText = screen.getByText(/Play first, claim later/i);
+    // Document order, not mere presence — the CTA slab's "Claim it" heading must precede
+    // ConnectSection's copy (same DOM-position pattern as the Rules-before-Fallen check above).
+    expect(
+      claimHeading.compareDocumentPosition(connectText) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(container.querySelector("#claim")).toBeNull(); // wrapper (and anchor) absent when signed out
   });
 });
@@ -140,8 +144,7 @@ describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in 
     render(await Home());                       // signed out
     expect(getSiteStatsCached).toHaveBeenCalled();
     expect(getObituariesFeedCached).toHaveBeenCalledWith(1);
-    expect(getSiteStats).not.toHaveBeenCalled();      // the cookie-forwarding fetcher must NOT serve home
-    expect(getObituariesFeed).not.toHaveBeenCalled();
+    expect(getObituariesFeed).not.toHaveBeenCalled();  // the cookie-forwarding fetcher must NOT serve home
 
     vi.clearAllMocks();
     getSiteStatsCached.mockRejectedValue(new Error("unavailable"));
@@ -151,7 +154,6 @@ describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in 
     render(await Home());                       // signed in
     expect(getSiteStatsCached).toHaveBeenCalled();
     expect(getObituariesFeedCached).toHaveBeenCalledWith(1);
-    expect(getSiteStats).not.toHaveBeenCalled();
     expect(getObituariesFeed).not.toHaveBeenCalled();
   });
 

@@ -62,7 +62,7 @@ export default async function Home() {
           <Rules />
           {/* Failed OR empty → [] → Fallen renders nothing (absent proof is silence). */}
           <Fallen rows={obits.data?.rows ?? []} />
-          <CtaSlab servers={serversView(servers.data, { failed: servers.failed })} />
+          <CtaSlab />
           <ConnectSection servers={serversView(servers.data, { failed: servers.failed })} />
         </>
       )}

@@ -70,11 +70,16 @@ export function registerAvatarRoutes(
       raw = await fetchProviderImage(providerImage, { allowTestHosts: opts?.allowTestHosts });
     } catch (err) {
       // A failed sync leaves any existing row untouched — nothing is written below this point.
-      // Upstream answered but the image is gone/moved (Discord rotates avatar CDN URLs, and the
-      // copy stored at sign-in eventually 404s): that's the ACCOUNT's state, not our
-      // infrastructure — 409, like no_provider_image. Everything else stays 502.
-      const stale = err instanceof Error && err.message.startsWith("fetch_failed_status_");
-      if (stale) return reply.code(409).send({ error: "provider_image_stale" });
+      // Upstream answered with a 4xx (Discord rotates avatar CDN URLs, and the copy stored at
+      // sign-in eventually 404s): that's the ACCOUNT's state, not our infrastructure — 409, like
+      // no_provider_image. A 5xx is the PROVIDER's own transient failure, not the account's — the
+      // "try again" advice on the 502 branch is only honest there, so a 5xx stays 502, same as a
+      // network/timeout/allowlist failure.
+      const statusMatch = err instanceof Error && err.message.match(/^fetch_failed_status_(\d+)$/);
+      const status = statusMatch ? Number(statusMatch[1]) : null;
+      if (status !== null && status >= 400 && status < 500) {
+        return reply.code(409).send({ error: "provider_image_stale" });
+      }
       return reply.code(502).send({ error: "fetch_failed" });
     }
 

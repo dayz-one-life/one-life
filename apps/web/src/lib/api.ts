@@ -199,9 +199,6 @@ export const getLifeTrack = (mapSlug: string, n: number) =>
 export const getSurvivors = (p: { slug: string; page: number }) =>
   apiGet<SurvivorsPage>(`/api/survivors/${encodeURIComponent(p.slug)}?page=${p.page}`);
 
-/** Public fleet-wide ledger numbers for the cold home's hero. */
-export const getSiteStats = () => apiGet<SiteStats>("/api/stats");
-
 export const getObituariesFeed = (page: number) =>
   apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
 export const getObituary = (slug: string) =>

@@ -90,11 +90,12 @@ In production the common failure is a **stale provider URL**: Discord rotates av
 and the copy stored on the auth account at sign-in eventually 404s (reporter saw it as
 "non-verified users get a 502" — verification is coincidental).
 
-- `fetchProviderImage` distinguishes an upstream **HTTP non-200** (the URL is live but the image
-  is gone/moved — stale) from network/timeout/allowlist failures.
-- The route maps stale → **`409 provider_image_stale`**; everything else keeps `502
-  fetch_failed`. (409 matches the existing `no_provider_image` family: "your account state can't
-  satisfy this," not "our infrastructure failed.")
+- `fetchProviderImage` distinguishes an upstream **HTTP 4xx** (the URL is live but the image is
+  gone/moved — stale) from network/timeout/allowlist failures and upstream **5xx** responses.
+- The route maps a 4xx → **`409 provider_image_stale`**; a 5xx, along with everything else, keeps
+  `502 fetch_failed`. (409 matches the existing `no_provider_image` family: "your account state
+  can't satisfy this," not "our infrastructure failed." A 5xx is the provider's own transient
+  failure, not the account's, so the 502 branch's "try again" advice stays the honest one there.)
 - `AvatarPanel` maps both codes to honest copy: stale → "Discord has rotated your photo's link —
   sign out and back in to refresh it, or upload a photo directly."; `fetch_failed` → "Couldn't
   reach your login provider just now — try again in a minute." Announced via the existing

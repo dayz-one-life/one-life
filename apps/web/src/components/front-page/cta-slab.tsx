@@ -1,6 +1,5 @@
 "use client";
 import { useAccountStatus } from "@/lib/use-account-status";
-import type { ServersView } from "@/components/servers/how-to-connect";
 import { ClaimCta, type PitchAudience } from "./hero";
 
 /**
@@ -10,7 +9,7 @@ import { ClaimCta, type PitchAudience } from "./hero";
  * player never sees a sign-in pitch flash. Unverified: the PARENT (`UnverifiedPitch`) owns the
  * gate on unlinked/pending — gating here too would double-gate and this slab would never render.
  */
-export function CtaSlab({ audience = "cold" }: { servers: ServersView; audience?: PitchAudience }) {
+export function CtaSlab({ audience = "cold" }: { audience?: PitchAudience }) {
   const status = useAccountStatus();
   if (audience === "cold" && status.kind !== "signedOut") return null;
 

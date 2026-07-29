@@ -173,10 +173,10 @@ describe("avatar routes", () => {
     expect(meRes.json().hash).toBe(hash);
   });
 
-  // Upstream ANSWERED with a non-200 (Discord's avatar CDN URL rotated and the stored copy 404s,
-  // or here a stubbed 500) — that's the account's state, not our infrastructure, so it's a 409
-  // "provider_image_stale", not a 502. A failed sync leaves any existing row untouched.
-  it("a failed sync (upstream non-200) leaves the existing avatar untouched", async () => {
+  // Upstream ANSWERED with a 5xx (a stubbed 500) — that's the PROVIDER's own transient failure,
+  // not the account's, so it stays 502 "fetch_failed" (the "try again" advice is honest there),
+  // not a 409 "provider_image_stale". A failed sync leaves any existing row untouched.
+  it("a failed sync (upstream 5xx) leaves the existing avatar untouched", async () => {
     const upload = await uploadPng(cookie);
     const originalHash = upload.json().hash;
 
@@ -184,8 +184,8 @@ describe("avatar routes", () => {
     await db.update(user).set({ image: stub500Url }).where(eq(user.id, u!.id));
 
     const res = await app.inject({ method: "POST", url: "/me/avatar/sync", headers: { cookie } });
-    expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual({ error: "provider_image_stale" });
+    expect(res.statusCode).toBe(502);
+    expect(res.json()).toEqual({ error: "fetch_failed" });
 
     const still = await app.inject({ method: "GET", url: `/avatars/${originalHash}.webp` });
     expect(still.statusCode).toBe(200);
@@ -194,7 +194,7 @@ describe("avatar routes", () => {
     expect(row!.hash).toBe(originalHash);
   });
 
-  it("maps an upstream non-200 to 409 provider_image_stale, not a 502", async () => {
+  it("maps an upstream 4xx to 409 provider_image_stale, not a 502", async () => {
     const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
     await db.update(user).set({ image: stub404Url }).where(eq(user.id, u!.id));
 

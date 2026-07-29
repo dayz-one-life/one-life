@@ -22,6 +22,21 @@ describe("UnverifiedPitch", () => {
     expect(screen.getAllByRole("link", { name: "Link your gamertag →" }).length).toBeGreaterThan(0);
   });
 
+  // dedupe: `unlinked`'s claim-ladder empty state (AccountPanels, not rendered by this component)
+  // already carries HowToConnect, so this component must not render ConnectSection for it — that
+  // would be a second identically-labelled "How to connect" landmark on one page.
+  it("unlinked: does NOT render ConnectSection's copy — the claim ladder's empty state owns it", () => {
+    mockStatus.mockReturnValue({ kind: "unlinked" });
+    render(<UnverifiedPitch {...props} />);
+    expect(screen.queryByText(/Play first, claim later/i)).not.toBeInTheDocument();
+  });
+
+  it("pending: DOES render ConnectSection's copy — its ladder step has no connect content of its own", () => {
+    mockStatus.mockReturnValue({ kind: "pending", link: { gamertag: "X" } });
+    render(<UnverifiedPitch {...props} />);
+    expect(screen.getByText(/Play first, claim later/i)).toBeInTheDocument();
+  });
+
   it.each(["loading", "signedOut", "verified"] as const)("renders NOTHING for %s — no flash", (kind) => {
     mockStatus.mockReturnValue(kind === "verified" ? { kind, link: { gamertag: "X" } } : { kind });
     const { container } = render(<UnverifiedPitch {...props} />);
