@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Terms & Conditions (`/terms`) and Privacy Policy (`/privacy`) pages, linked from the footer and
+  from a consent line on the sign-in page. The privacy policy discloses session IP/user-agent
+  storage, map-coordinate collection, and that obituaries send a player's gamertag to
+  OpenRouter/Anthropic; deletion is promised for account data only, with the append-only gameplay
+  record explicitly excluded.
+
 ## [0.63.0] - 2026-07-29
 
 ### Changed
