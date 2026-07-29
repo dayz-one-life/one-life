@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TokensSummary } from "./tokens-summary";
 import { LadderFrame } from "./ladder-frame";
+import { PendingLead } from "./pending-lead";
 
 const status = vi.hoisted(() => ({ kind: "signedOut" as string }));
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => status }));
@@ -73,5 +74,13 @@ describe("LadderFrame", () => {
     render(<LadderFrame kind="unlinked"><p>panel</p></LadderFrame>);
     expect(screen.getByRole("list", { name: "Getting set up" })).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+});
+
+describe("PendingLead", () => {
+  test("kicker + h1 headline", () => {
+    render(<PendingLead />);
+    expect(screen.getByText("One step left")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Prove it’s you in game" })).toBeInTheDocument();
   });
 });

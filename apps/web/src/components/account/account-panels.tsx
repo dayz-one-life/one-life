@@ -17,6 +17,7 @@ import { StandingGroups } from "@/components/servers/standing-groups";
 import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
 import { OnlineFriendsContainer } from "@/components/friends/online-friends";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
+import { PendingLead } from "@/components/account/pending-lead";
 
 function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
   return {
@@ -130,6 +131,7 @@ export function AccountPanels({ signInFallback = false }: {
     const link = c.status.link;
     body = (
       <>
+        <PendingLead />
         <IdentityRow name={link.gamertag} provider={c.provider} avatarHash={avatar.data?.hash ?? null} />
         <LadderFrame kind="pending">
           <ProveItPanel

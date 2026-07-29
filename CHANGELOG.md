@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Players mid-verification now get a home page about finishing verification, not starting it: the
+  emote challenge leads the page under a "One step left" headline, connect instructions and the
+  obituary wall follow, and the old pitch — whose every button asked them to link a gamertag they
+  had already linked — no longer shows. The challenge panel now walks through the three steps and
+  says plainly that DayZ reports emotes in batches, so progress can take up to 15 minutes to
+  appear. The account menu in the masthead now says "Finish verification" and marks the avatar
+  with a pending cue instead of offering the claim step again.
+
 ## [0.58.0] - 2026-07-29
 
 ### Fixed

@@ -56,7 +56,7 @@ export function ProveItPanel({
        *  strip its list semantics. Scoped to progress only, so the expiry countdown ticking
        *  above does not re-announce every second. */}
       <SrStatus>{`Step ${challenge.progressIndex} of ${challenge.sequence.length} confirmed`}</SrStatus>
-      <ol role="list" className="mt-3.5 flex gap-2 font-mono text-[12px] tracking-[.03em]">
+      <ol role="list" aria-label="Emote sequence" className="mt-3.5 flex gap-2 font-mono text-[12px] tracking-[.03em]">
         {challenge.sequence.map((emote, i) => {
           const done = i < challenge.progressIndex;
           const current = i === challenge.progressIndex;
@@ -77,8 +77,16 @@ export function ProveItPanel({
           );
         })}
       </ol>
+      <ol role="list" aria-label="How this works" className="mt-4 flex list-decimal flex-col gap-1.5 pl-4 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-cream-muted marker:text-yellow">
+        <li>Join any One Life server.</li>
+        <li>Perform the emotes above, in order.</li>
+        <li>Done — you can log off and close this page.</li>
+      </ol>
+      <p className="mt-3 border-l-2 border-yellow pl-3 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-yellow">
+        DayZ reports emotes in batches — your progress can take up to 15 minutes to appear here. It does not update in real time.
+      </p>
       <p className="mt-3 font-mono text-[10px] uppercase leading-relaxed tracking-[.04em] text-cream-muted">
-        On any One Life server. Other emotes between are fine — order is what counts. Only whoever controls the tag can finish this.
+        Other emotes in between are fine — order is what counts. Only whoever controls the tag can finish this.
       </p>
       <div className="mt-3">
         <button type="button" onClick={onCancel} disabled={canceling} className={quietBtn}>

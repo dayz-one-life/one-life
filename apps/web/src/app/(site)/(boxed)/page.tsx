@@ -7,6 +7,7 @@ import { Rules } from "@/components/front-page/rules";
 import { CtaSlab } from "@/components/front-page/cta-slab";
 import { ConnectSection } from "@/components/front-page/connect-section";
 import { UnverifiedPitch } from "@/components/front-page/unverified-pitch";
+import { PendingSupport } from "@/components/front-page/pending-support";
 import { serversView } from "@/components/servers/how-to-connect";
 import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
@@ -66,17 +67,17 @@ export default async function Home() {
           <ConnectSection servers={serversView(servers.data, { failed: servers.failed })} />
         </>
       )}
-      {signedIn && (
-        <UnverifiedPitch
-          stats={stats.data}
-          obits={obits.data?.rows ?? []}
-          servers={serversView(servers.data, { failed: servers.failed })}
-        />
-      )}
+      {signedIn && <UnverifiedPitch stats={stats.data} obits={obits.data?.rows ?? []} />}
       {signedIn && (
         <div id="claim" className="px-6 py-8 md:px-10">
           <AccountPanels signInFallback={signedIn} />
         </div>
+      )}
+      {signedIn && (
+        <PendingSupport
+          obits={obits.data?.rows ?? []}
+          servers={serversView(servers.data, { failed: servers.failed })}
+        />
       )}
     </HomeShell>
   );

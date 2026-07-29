@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { LinkTagPanel } from "./link-panel";
 import { ProveItPanel } from "./verify-panel";
@@ -112,12 +112,13 @@ describe("ProveItPanel", () => {
     expect(screen.getByText("Prove it's you")).toBeInTheDocument();
     expect(screen.getByText("BootsColdwater — perform, in order:")).toBeInTheDocument();
     expect(screen.getByText(/expires in 22h/i)).toBeInTheDocument();
-    const items = screen.getAllByRole("listitem");
+    const emoteList = screen.getByRole("list", { name: "Emote sequence" });
+    const items = within(emoteList).getAllByRole("listitem");
     expect(items).toHaveLength(3);
     expect(items[0]!.textContent).toContain("✓");
     expect(items[1]!.textContent).toContain("←");
     expect(items[0]).toHaveAttribute("data-done", "true");
-    expect(screen.getByText("On any One Life server. Other emotes between are fine — order is what counts. Only whoever controls the tag can finish this.")).toBeInTheDocument();
+    expect(screen.getByText(/Only whoever controls the tag can finish this/)).toBeInTheDocument();
   });
 
   test("cancel fires", () => {
@@ -158,7 +159,38 @@ describe("ProveItPanel", () => {
     render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
     const status = screen.getByRole("status");
     expect(status.tagName).not.toBe("OL");
-    expect(screen.getByRole("list")).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    const emoteList = screen.getByRole("list", { name: "Emote sequence" });
+    expect(within(emoteList).getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  test("walkthrough: three numbered how-this-works steps", () => {
+    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
+    const how = screen.getByRole("list", { name: "How this works" });
+    const steps = within(how).getAllByRole("listitem");
+    expect(steps).toHaveLength(3);
+    expect(steps[0]!.textContent).toMatch(/Join any One Life server/);
+    expect(steps[1]!.textContent).toMatch(/in order/);
+    expect(steps[2]!.textContent).toMatch(/log off/i);
+  });
+
+  // ⚠️ ADM logs arrive in 5–15 minute batches. The panel must set that expectation, or a player
+  // performing the sequence and watching nothing move concludes it is broken and cancels.
+  test("batching expectation line is present and explicit", () => {
+    render(<ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />);
+    expect(
+      screen.getByText(
+        "DayZ reports emotes in batches — your progress can take up to 15 minutes to appear here. It does not update in real time.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // Nothing in the panel may promise immediacy. The only allowed match for these words is the
+  // expectation line itself, which NEGATES them ("does not update in real time").
+  test("no copy claims live or instant updates", () => {
+    const { container } = render(
+      <ProveItPanel gamertag="Boots" challenge={challenge({})} now={NOW} onCancel={() => {}} onReclaim={() => {}} />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/instantly|immediately|watch (this|it) update|updates? live/i);
   });
 });
