@@ -10,7 +10,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   too_large: "That image is too large (5 MB max).",
   not_an_image: "That file doesn't look like an image.",
   no_provider_image: "Your login method has no avatar to pull.",
-  fetch_failed: "Couldn't reach your login provider. Try again.",
+  provider_image_stale:
+    "Discord has rotated your photo's link — sign out and back in to refresh it, or upload a photo directly.",
+  fetch_failed: "Couldn't reach your login provider just now — try again in a minute.",
 };
 
 function avatarErrorMessage(err: unknown): string {
