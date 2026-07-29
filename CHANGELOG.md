@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Home: one beat rhythm for signed-out, unlinked and pending visitors (Hero → Rules → Join the
+  servers → claim slab → The Fallen); the gamertag claim is a modal opened from any Link-your-
+  gamertag CTA; the stray inline sign-out bar is gone (the masthead avatar menu owns sign-out);
+  pending emote tickets match the Join-the-servers tickets; server-browser replica rows scale
+  down on phones.
+
 ## [0.62.0] - 2026-07-29
 
 ### Changed
