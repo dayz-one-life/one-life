@@ -116,6 +116,9 @@ export function dossierVerdict(d: LifeDossier): DeathVerdictSummary {
     { mechanism: d.death.mechanism, energy: d.death.energy, water: d.death.water,
       bleedSources: d.death.bleedSources, weapon: d.death.weapon },
     d.recentHits,
+    // Unconscious-line corroboration is wired in a later task; until then this read-model
+    // relies on the bleeding/terminal-HP corroborations alone.
+    [],
   );
   return { cause, confidence, conditions };
 }
