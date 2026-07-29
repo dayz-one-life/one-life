@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   storage, map-coordinate collection, and that obituaries send a player's gamertag to
   OpenRouter/Anthropic; deletion is promised for account data only, with the append-only gameplay
   record explicitly excluded.
+- An ordered SQL runbook in `deploy/README.md` for deleting a player's account by hand — four
+  foreign keys have no `onDelete`, so the naive `DELETE FROM "user"` fails.
+
+### Note for the operator
+
+- The legal pages publish `admin@dayzonelife.com` as the only contact. **Mail must be deliverable
+  there before this is deployed** — a privacy policy naming a dead address is worse than one
+  naming none.
 
 ## [0.63.0] - 2026-07-29
 
