@@ -9,6 +9,7 @@ const KIND_TO_TYPE: Record<ParsedLine["kind"], EventType> = {
   position: "player.position",
   emote: "emote.performed",
   hit: "player.hit",
+  unconscious: "player.unconscious",
   build: "build.placed", // refined below per action
   teleport: "player.teleported",
   roster: "roster.snapshot",
