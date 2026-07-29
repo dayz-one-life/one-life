@@ -1,5 +1,8 @@
 import { LoginPanel } from "@/components/login-panel";
-import { DiscordRedirect, isDiscordOnly } from "@/components/discord-redirect";
+import { DiscordRedirect } from "@/components/discord-redirect";
+// Server-safe module: this page CALLS the predicate, which cannot cross the RSC boundary out of
+// the "use client" component module. See the comment in @/lib/discord-only.
+import { isDiscordOnly } from "@/lib/discord-only";
 import { getAuthMethods } from "@/lib/api";
 
 export const metadata = { title: "Sign in" };

@@ -1,19 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { DiscordRedirect, isDiscordOnly } from "./discord-redirect";
+import { DiscordRedirect } from "./discord-redirect";
 
 const social = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/auth-client", () => ({ signIn: { social: (...a: unknown[]) => social(...a) } }));
 
-describe("isDiscordOnly", () => {
-  it("true only for exactly [discord] with magic link off", () => {
-    expect(isDiscordOnly({ providers: ["discord"], magicLink: false })).toBe(true);
-    expect(isDiscordOnly({ providers: ["discord"], magicLink: true })).toBe(false);
-    expect(isDiscordOnly({ providers: ["discord", "google"], magicLink: false })).toBe(false);
-    expect(isDiscordOnly({ providers: [], magicLink: false })).toBe(false);
-    expect(isDiscordOnly(null)).toBe(false); // failed providers fetch → never auto-redirect
-  });
-});
+// isDiscordOnly's tests live in src/lib/discord-only.test.ts — it moved out of this client
+// module because login/page.tsx (a server component) calls it. See that file's RSC-boundary guard.
 
 describe("DiscordRedirect", () => {
   it("fires the discord social sign-in on mount and shows the fallback link", async () => {

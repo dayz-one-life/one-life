@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The sign-in page returned an error instead of loading. Everyone was locked out of signing in
+  from the moment 0.57.0 went live.
+
 ## [0.57.0] - 2026-07-28
 
 ### Changed
