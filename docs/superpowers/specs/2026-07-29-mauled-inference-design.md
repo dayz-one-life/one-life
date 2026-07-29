@@ -93,7 +93,13 @@ the corpus actually has.
 
 ### Sub-decisions
 
-- **`terminalHp` is the MINIMUM `victimHp` across hits in the window**, not the last hit's value.
+- **`terminalHp` reads INFECTED hits only** — the same hits that satisfy the `hunted` gate. Over
+  *all* hits in the window, a fire tick or a player's shot that left the victim at ~0 HP is
+  corroborated by an unrelated infected scratch, and the death is published as `mauled` at high
+  confidence: fire is a real recurring cause here, fire ticks run to 0 HP, and a fire death carries
+  no killer clause. Coverage-neutral against the table above (life 313's 0.392 and life 119's 0.00
+  are both infected hits).
+- **`terminalHp` is the MINIMUM `victimHp` across those hits**, not the last hit's value.
   Hits arrive with jitter — life 313's HP reads 3.07, then 3.15, then 2.34 — so "the last one" is not
   reliably the lowest. The two coincide on both affected lives (313 → 0.392, 119 → 0.00), so this is
   a robustness choice, not a coverage one.
