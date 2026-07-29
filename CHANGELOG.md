@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI installs dependencies from a cached pnpm store instead of cold-downloading every run —
+  `ci.yml` re-rendered with rigging v0.10.0, which now emits setup-node's `cache` input
+  (shipyard#45). No behavior change to the app.
+
 ## [0.61.0] - 2026-07-29
 
 ### Changed
