@@ -60,4 +60,19 @@ describe("useModalBehavior", () => {
     fireEvent.click(screen.getByText("bump")); // re-render → new inline onClose identity
     expect(last).toHaveFocus();
   });
+
+  // Two consumers can be open at once — the masthead account menu and the claim modal it opens.
+  // Each saving/restoring `body.style.overflow` on its own leaves the LAST one out restoring the
+  // "hidden" it captured from the FIRST, so the page stays locked with no dialog on screen
+  // (observed in a browser: click the menu's "Claim your gamertag →", the modal opens over the
+  // still-open menu, close both, body keeps `overflow: hidden`). The lock is ref-counted instead.
+  test("overlapping consumers restore the scroll lock exactly once", () => {
+    render(<div><Harness /><Harness /></div>);
+    const [openA, openB] = screen.getAllByText("open");
+    fireEvent.click(openA!);
+    fireEvent.click(openB!);
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.keyDown(document, { key: "Escape" }); // closes both (each listens on document)
+    expect(document.body.style.overflow).toBe("");
+  });
 });
