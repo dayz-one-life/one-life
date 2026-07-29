@@ -11,12 +11,61 @@ import { FitLine } from "./fit-line";
 const quietBtn =
   "inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[.05em] text-cream-muted underline underline-offset-2 hover:text-paper disabled:opacity-50";
 
+const ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"];
+
+/** The sequence as paper tickets (spec §2): orders to carry out, not a live tracker. Only
+ *  server-confirmed state renders differently — NO current-step pointer, ever. */
+function TicketSequence({ challenge: c }: { challenge: Challenge }) {
+  return (
+    <ol
+      role="list"
+      aria-label="Emote sequence"
+      className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4"
+    >
+      {c.sequence.map((emote, i) => {
+        const confirmed = i < c.progressIndex;
+        return (
+          <li
+            key={i}
+            className={cn(
+              "relative flex min-h-[130px] flex-col items-center justify-center gap-1 px-4 py-8 text-center md:min-h-[170px]",
+              confirmed ? "bg-paper text-ink" : "border-2 border-dashed border-dark-line text-paper",
+            )}
+          >
+            <span
+              className={cn(
+                "font-mono text-[12px] font-bold uppercase tracking-[.2em]",
+                confirmed ? "text-ink-muted/60" : "text-yellow",
+              )}
+            >
+              {ORDINALS[i] ?? `${i + 1}.`}
+            </span>
+            <span className={cn("font-display text-3xl font-bold uppercase leading-none md:text-5xl", confirmed && "opacity-30")}>
+              {emote}
+            </span>
+            {confirmed && (
+              <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <span className="-rotate-[8deg] border-4 border-red bg-paper/70 px-3 py-0.5 font-display text-2xl font-bold uppercase tracking-[.08em] text-red">
+                  Confirmed
+                </span>
+              </span>
+            )}
+            <span className="sr-only">{confirmed ? "— confirmed by the server" : "— not yet confirmed"}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 /**
  * The pending home's full-bleed hero (pending-hero spec §2): the emote challenge as the page's
  * centerpiece, in the cold hero's visual language — dark stage, red frame, yellow for everything
  * live. Absorbs the retired ProveItPanel; this is the pending page's only h1, and the "Step 3
  * of 3" kicker is the 3-step ladder folded to one line (LadderFrame no longer renders for
- * pending).
+ * pending). The live branch renders the sequence as paper tickets — orders to carry out, not a
+ * live tracker — with a status paragraph carrying the confirmed count and the batching notice;
+ * see `TicketSequence` above for the honesty rule (no current-step pointer, ever).
  *
  * RED POLICY: `red-deep` is a light-surface token and must never appear here; the frame and the
  * SkewCta background are display-scale red, allowed on dark.
@@ -72,60 +121,26 @@ export function PendingHeroView({
               {gamertag}
             </span>
           </h1>
-          <p className="mt-6 font-mono text-[13px] font-bold uppercase tracking-[.08em] text-yellow">
-            Perform, in order — {formatExpiry(challenge.expiresAt, now)}
+          <p className="mt-6 max-w-2xl font-sans text-lg leading-relaxed text-cream-dim">
+            Join any One Life server and perform these three emotes, in order. Other emotes in
+            between don&rsquo;t matter — the order does.
           </p>
-          {/* Separate node from the <ol> below — role="status" on the list itself would strip its
-           *  list semantics. Scoped to progress only, so the ticking countdown above does not
-           *  re-announce every second (SR-structure spec). */}
+          {/* Separate node from the <ol> below — role="status" on the list itself would strip
+           *  its list semantics (SR-structure spec). */}
           <SrStatus>{`Step ${challenge.progressIndex} of ${challenge.sequence.length} confirmed`}</SrStatus>
-          <ol
-            role="list"
-            aria-label="Emote sequence"
-            className="mt-4 flex max-w-3xl gap-2.5 font-mono text-[13px] tracking-[.03em] md:text-base"
-          >
-            {challenge.sequence.map((emote, i) => {
-              const done = i < challenge.progressIndex;
-              const current = i === challenge.progressIndex;
-              return (
-                <li
-                  key={i}
-                  data-done={String(done)}
-                  className={cn(
-                    "flex-1 px-3 py-5 text-center uppercase",
-                    done && "bg-paper font-bold text-ink",
-                    current && "border border-dashed border-dark-edge-bright bg-dark-hollow text-yellow",
-                    !done && !current && "border border-dashed border-dark-line text-cream-muted",
-                  )}
-                >
-                  {i + 1} {emote}
-                  <span aria-hidden="true">{done ? " ✓" : current ? " ←" : ""}</span>
-                </li>
-              );
-            })}
-          </ol>
-          <div className="mt-8 grid max-w-3xl gap-6 md:grid-cols-2 md:items-start">
-            <ol
-              role="list"
-              aria-label="How this works"
-              className="flex list-decimal flex-col gap-2 pl-4 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-cream-muted marker:text-yellow"
-            >
-              <li>Join any One Life server.</li>
-              <li>Perform the emotes above, in order.</li>
-              <li>Done — you can log off and close this page.</li>
-            </ol>
-            <div>
-              <p className="border-l-2 border-yellow pl-3 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-yellow">
-                DayZ reports emotes in batches — your progress can take up to 15 minutes to appear
-                here. It does not update in real time.
-              </p>
-              <p className="mt-3 font-mono text-[11px] uppercase leading-relaxed tracking-[.04em] text-cream-muted">
-                Other emotes in between are fine — order is what counts. Only whoever controls the
-                tag can finish this.
-              </p>
-            </div>
+          <div className="mt-6">
+            <TicketSequence challenge={challenge} />
           </div>
-          <div className="mt-8">
+          <p className="mt-6 max-w-2xl border-l-4 border-yellow pl-4 font-sans text-base leading-relaxed text-cream-dim">
+            <span className="font-bold text-yellow">
+              {`The server has confirmed ${challenge.progressIndex} of ${challenge.sequence.length}.`}
+            </span>{" "}
+            DayZ reports emotes in batches — confirmations land up to 15 minutes behind, and this
+            page does not update in real time. Perform all three and you can log off; the stamp
+            catches up on its own.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-6 font-mono text-[12px] uppercase tracking-[.06em]">
+            <span className="font-bold text-yellow">{formatExpiry(challenge.expiresAt, now)}</span>
             <button type="button" onClick={onCancel} disabled={canceling} className={quietBtn}>
               Cancel claim
             </button>

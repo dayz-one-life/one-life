@@ -12,7 +12,7 @@ vi.stubGlobal(
 const NOW = new Date("2026-07-16T12:00:00Z").getTime();
 
 const challenge = (over: Partial<Challenge>): Challenge => ({
-  sequence: ["facepalm", "salute", "clap"], progressIndex: 1,
+  sequence: ["point at self", "clap", "thumbs down"], progressIndex: 1,
   expiresAt: "2026-07-17T10:10:00Z", expired: false, ...over,
 });
 
@@ -28,36 +28,44 @@ const view = (over: Partial<Parameters<typeof PendingHeroView>[0]> = {}) => (
 );
 
 describe("PendingHeroView — live challenge", () => {
-  test("h1 carries the headline and the gamertag; the step kicker sits above it", () => {
+  test("h1, kicker, and the deck sentence", () => {
     render(view());
     expect(
       screen.getByRole("heading", { level: 1, name: "Prove it's you BootsColdwater" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
-    expect(screen.getByText(/one step left/i)).toBeInTheDocument();
+    expect(screen.getByText(/Join any One Life server and perform these three emotes/)).toBeInTheDocument();
   });
 
-  test("is a full-bleed dark hero with the red frame — and red-deep never appears on it", () => {
-    const { container } = render(view());
-    const section = container.querySelector("section")!;
-    expect(section.className).toContain("bg-dark");
-    expect(section.className).toContain("border-red");
-    expect(container.innerHTML).not.toContain("red-deep");
-  });
-
-  test("emote boxes render with done/current states and the expiry countdown", () => {
+  test("three tickets with ordinals; confirmed ticket is stamped, unconfirmed are dashed", () => {
     render(view());
-    expect(screen.getByText(/expires in 22h/i)).toBeInTheDocument();
-    const emoteList = screen.getByRole("list", { name: "Emote sequence" });
-    const items = within(emoteList).getAllByRole("listitem");
+    const list = screen.getByRole("list", { name: "Emote sequence" });
+    const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(3);
-    expect(items[0]!.textContent).toContain("✓");
-    expect(items[1]!.textContent).toContain("←");
-    expect(items[0]).toHaveAttribute("data-done", "true");
-    expect(screen.getByText(/Only whoever controls the tag can finish this/)).toBeInTheDocument();
+    expect(items[0]!.textContent).toMatch(/First/);
+    expect(items[0]!.textContent).toMatch(/point at self/i);
+    expect(items[0]!.textContent).toMatch(/Confirmed/);
+    expect(items[0]!.className).toContain("bg-paper");
+    expect(items[1]!.textContent).toMatch(/Second/);
+    expect(items[1]!.className).toContain("border-dashed");
+    expect(items[2]!.textContent).toMatch(/Third/);
+    expect(items[2]!.className).toContain("border-dashed");
   });
 
-  test("progress is announced via a role=status region, separate from the list", () => {
+  // ⚠️ THE HONESTY FIX (spec §2): the sequence must never render a live-tracker affordance.
+  test("no current-step pointer exists — no arrow, no 'current' highlight", () => {
+    const { container } = render(view());
+    expect(container.textContent ?? "").not.toContain("←");
+    expect(container.innerHTML).not.toContain("data-current");
+  });
+
+  test("ticket confirmation state reaches a screen reader in words", () => {
+    render(view());
+    expect(screen.getByText("— confirmed by the server")).toBeInTheDocument();
+    expect(screen.getAllByText("— not yet confirmed")).toHaveLength(2);
+  });
+
+  test("progress announces via a role=status region separate from the list", () => {
     const { rerender } = render(view({ challenge: challenge({ progressIndex: 1 }) }));
     expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 3 confirmed");
     rerender(view({ challenge: challenge({ progressIndex: 2 }) }));
@@ -65,23 +73,14 @@ describe("PendingHeroView — live challenge", () => {
     expect(screen.getByRole("status").tagName).not.toBe("OL");
   });
 
-  test("walkthrough: three numbered how-this-works steps", () => {
-    render(view());
-    const how = screen.getByRole("list", { name: "How this works" });
-    const steps = within(how).getAllByRole("listitem");
-    expect(steps).toHaveLength(3);
-    expect(steps[0]!.textContent).toMatch(/Join any One Life server/);
-    expect(steps[1]!.textContent).toMatch(/in order/);
-    expect(steps[2]!.textContent).toMatch(/log off/i);
-  });
-
-  // ⚠️ ADM logs arrive in 5–15 minute batches. The hero must set that expectation, or a player
+  // The batching expectation, in the status paragraph — VERBATIM (spec §2). Without it a player
   // performing the sequence and watching nothing move concludes it is broken and cancels.
-  test("batching expectation line is present and verbatim", () => {
+  test("status paragraph: confirmed count lead + verbatim batching copy", () => {
     render(view());
+    expect(screen.getByText("The server has confirmed 1 of 3.")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "DayZ reports emotes in batches — your progress can take up to 15 minutes to appear here. It does not update in real time.",
+        /DayZ reports emotes in batches — confirmations land up to 15 minutes behind, and this page does not update in real time\. Perform all three and you can log off; the stamp catches up on its own\./,
       ),
     ).toBeInTheDocument();
   });
@@ -91,36 +90,43 @@ describe("PendingHeroView — live challenge", () => {
     expect(container.textContent ?? "").not.toMatch(/instantly|immediately|watch (this|it) update|updates? live/i);
   });
 
-  test("cancel fires and is a 44pt target", () => {
+  test("the old walkthrough list is gone — only the emote list remains", () => {
+    render(view());
+    expect(screen.queryByRole("list", { name: "How this works" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("list")).toHaveLength(1);
+  });
+
+  test("footer: expiry countdown and a 44pt cancel that fires", () => {
     const onCancel = vi.fn();
     render(view({ onCancel }));
+    expect(screen.getByText(/expires in 22h/i)).toBeInTheDocument();
     const btn = screen.getByRole("button", { name: "Cancel claim" });
     expect(btn.className).toContain("min-h-[44px]");
     fireEvent.click(btn);
     expect(onCancel).toHaveBeenCalled();
   });
+
+  test("red-deep never appears on the dark hero", () => {
+    const { container } = render(view());
+    expect(container.innerHTML).not.toContain("red-deep");
+  });
 });
 
 describe("PendingHeroView — expired", () => {
-  test("same hero frame, expired headline as the h1, reclaim CTA replaces the boxes", () => {
+  test("same frame, kicker still renders, reclaim CTA replaces the tickets", () => {
     const onReclaim = vi.fn();
-    const { container } = render(
-      view({ challenge: challenge({ expired: true }), onReclaim }),
-    );
+    const { container } = render(view({ challenge: challenge({ expired: true }), onReclaim }));
     expect(container.querySelector("section")!.className).toContain("bg-dark");
+    expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 1, name: "Your verification for BootsColdwater expired" }),
     ).toBeInTheDocument();
-    // The "Step 3 of 3 — one step left" kicker sits outside the live/expired ternary — an
-    // expired challenge doesn't change where the player stands in the ladder.
-    expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
-    expect(screen.getByText(/one step left/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start a new challenge →" }));
     expect(onReclaim).toHaveBeenCalled();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
-  test("a null challenge renders the expired state, never a crash or an empty live board", () => {
+  test("a null challenge renders the expired state", () => {
     render(view({ challenge: null }));
     expect(screen.getByRole("button", { name: "Start a new challenge →" })).toBeInTheDocument();
   });
