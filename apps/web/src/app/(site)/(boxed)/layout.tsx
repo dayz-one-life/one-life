@@ -6,16 +6,23 @@ import type { ReactNode } from "react";
  * are not path segments, so nothing in here has a different URL than before the split.
  *
  * ⚠️ THIS IS THE ONLY PLACE A CONTENT WIDTH IS DECLARED. Pages used to each set their own and
- * disagreed — 1024 on home/About/Obituaries, 68ch on Survivors/Friends, nothing at all on
- * Terms/Privacy/Welcome/Notifications/the dossier, which therefore filled the old 1440 box. A
- * page-level `mx-auto max-w-*` on a top-level element is a regression, not a local choice.
- * The exceptions are narrow-by-design ELEMENTS inside the box, not pages: `/login`'s `max-w-md`
- * form, and the `max-w-3xl` prose measure in `legal-doc.tsx` and `obituary-article.tsx`.
+ * disagreed — 1024 on home/About/Obituaries/the life timeline, 1024 on the Survivors board and
+ * the dossier (matching, but by coincidence), 768 on Terms/Privacy via `legal-doc.tsx`, 672 on
+ * Notifications via `inbox.tsx`, and 68ch on `/friends` and the `/survivors` redirect's failure
+ * page. A page-level `mx-auto max-w-*` on a top-level element is a regression, not a local
+ * choice. The exceptions are narrow-by-design ELEMENTS inside the box, not pages: `/login`'s
+ * `max-w-md` form, and the `max-w-3xl` prose measure in `legal-doc.tsx` and
+ * `obituary-article.tsx`. One page-level exception survives OUTSIDE the box: `/maps`'s
+ * redirect-failure page (`app/(site)/maps/page.tsx`) keeps `mx-auto max-w-[68ch]` because it
+ * sits under `(site)`, not `(boxed)` — nothing else would constrain it, so it would run
+ * full-bleed. Its `/survivors` twin lost the same classes precisely because it IS in here.
  *
  * ⚠️ The box owns the width, NEVER the horizontal padding. Pages keep their own inset because
- * it is deliberately not uniform: prose surfaces use `px-6 md:px-10`, while `/survivors/[map]`
- * and the dossier declare none and run their tables edge to edge below `xl`. Padding here would
- * put gutters on those tables.
+ * it is deliberately not uniform: prose surfaces use `px-6 md:px-10` (the Survivors board and
+ * the legal pages among them), while the dossier declares NONE on `<main>` — its dark back-link
+ * strip, hero and slabs each state their own inset so they measure identically, and a padded
+ * wrapper is what made them read narrower than the hero. Padding here would reintroduce exactly
+ * that, on every page at once.
  *
  * `flex flex-1 flex-col` continues the height chain from `#main-content` so pages that fill
  * the leftover viewport (none in this group today) still could; block children keep their

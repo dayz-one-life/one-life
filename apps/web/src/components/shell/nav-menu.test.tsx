@@ -53,6 +53,9 @@ describe("NavMenu", () => {
     open();
     expect(screen.getByRole("menuitem", { name: "Survivors" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("menuitem", { name: "Home" })).not.toHaveAttribute("aria-current");
+    // …and visibly, not only to a screen reader — the active item takes the brighter token.
+    expect(screen.getByRole("menuitem", { name: "Survivors" }).className).toMatch(/(^|\s)text-paper(\s|$)/);
+    expect(screen.getByRole("menuitem", { name: "Home" }).className).not.toMatch(/(^|\s)text-paper(\s|$)/);
   });
 
   // ⚠️ Loading, failed, empty and zero are four different renders. A signed-out item set
@@ -175,6 +178,24 @@ describe("NavMenu", () => {
     render(<NavMenu />);
     open();
     expect(screen.getByRole("menu").className).toMatch(/(^|\s)z-50(\s|$)/);
+  });
+
+  // ⚠️ `role="menu"` owns only `menuitem*` / `group` / `separator` children. The account
+  // section's wrapper is a layout div with a decorative rule, so it must be `role="none"` —
+  // otherwise a generic element sits directly inside the menu and AT can skip or mis-count the
+  // items it holds.
+  it("the account section's wrapper is presentational, not a stray generic in the menu", () => {
+    mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "YrJustBad" } });
+    render(<NavMenu />);
+    open();
+    const menu = screen.getByRole("menu");
+    const wrapper = screen.getByRole("menuitem", { name: "Sign out" }).parentElement!;
+    expect(wrapper).toHaveAttribute("role", "none");
+    expect(menu.contains(wrapper)).toBe(true);
+    for (const child of Array.from(menu.children)) {
+      const role = child.getAttribute("role");
+      expect(["menuitem", "menuitemradio", "menuitemcheckbox", "group", "separator", "none"]).toContain(role);
+    }
   });
 
   it("renders at every width — no md: hiding on the trigger", () => {

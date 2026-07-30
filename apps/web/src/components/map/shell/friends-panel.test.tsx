@@ -94,6 +94,18 @@ describe("FriendsPanel", () => {
     expect(screen.getByRole("dialog")).toHaveFocus();
   });
 
+  // ⚠️ A `pb-*` side utility overrides the `p-4` shorthand's bottom side. A bare
+  // `pb-[env(safe-area-inset-bottom)]` therefore leaves NO bottom padding wherever the inset is
+  // 0 — every desktop and every non-notched phone — so the last row sits flush on the border.
+  // The inset must be added to the 1rem, not substituted for it.
+  it("keeps its 1rem of bottom padding on top of the home-indicator inset", async () => {
+    render(<FriendsPanel players={players} loading={false} />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
+    const sheet = screen.getByRole("dialog");
+    expect(sheet.className).toMatch(/pb-\[calc\(1rem\+env\(safe-area-inset-bottom\)\)\]/);
+    expect(sheet.className).not.toMatch(/pb-\[env\(safe-area-inset-bottom\)\]/);
+  });
+
   it("uses dark tokens — it is mounted on the dark bar, not the light rail", () => {
     const { container } = render(<FriendsPanel players={players} loading={false} />);
     expect(container.querySelector("button")!.className).toMatch(/text-paper/);

@@ -60,8 +60,11 @@ export function NotificationsInbox() {
     );
   }
 
+  // No width here — `app/(site)/(boxed)/layout.tsx` owns it (see the ⚠️ on that file). This used
+  // to declare `max-w-2xl`, so the 1024px loading skeleton snapped to a 672px column the moment
+  // the real page arrived.
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-10 md:px-10">
+    <main className="w-full px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-ink pb-4">
         <h1 className="font-display text-4xl font-bold uppercase tracking-[.02em] text-ink">Notifications</h1>
         <p className="mt-1 font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">

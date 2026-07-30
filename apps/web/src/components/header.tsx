@@ -42,8 +42,10 @@ export function Masthead() {
     //           (`app/layout.tsx`, which renders BEFORE the header and so would lose a z-50 tie).
     // Keep the masthead strictly BELOW 50 — an equal value leaves that decided by DOM order.
     // One compact app bar, per the design mocks (verified-desktop/pure-app-ia): wordmark left,
-    // nav inline beside it, bell + avatar right — the two-tier tabloid masthead (big centered
-    // wordmark over a nav row) is retired with the tabloid.
+    // then a right cluster of map switcher, bell, avatar and the ☰ menu — the inline nav row
+    // that used to sit beside the wordmark is gone, its items now live in `shell/nav-menu.tsx`.
+    // The two-tier tabloid masthead (big centered wordmark over a nav row) is retired with the
+    // tabloid.
     //   ⚠️ The masthead is `sticky top-0`. Sticky opens a stacking context on its own, but the
     //   explicit z-40 above predates that (the bell popover needs it) and still governs.
     <header className="sticky top-0 z-40 bg-dark">

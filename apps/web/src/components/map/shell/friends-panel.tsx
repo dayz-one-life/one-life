@@ -82,7 +82,11 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
             // no-op on a div with no tabindex — the sheet would open with focus left behind.
             tabIndex={-1}
             aria-label="Who is online on this map"
-            className="fixed inset-x-0 bottom-0 pb-[env(safe-area-inset-bottom)] z-50 max-h-[60dvh] overflow-y-auto border-y border-dark-edge bg-dark-well p-4 md:absolute md:inset-x-auto md:bottom-full md:right-0 md:mb-1 md:w-80 md:border"
+            // ⚠️ `pb-[calc(1rem+…)]`, never a bare `pb-[env(safe-area-inset-bottom)]`. A side
+            // utility overrides the `p-4` shorthand's bottom side, so the bare form dropped the
+            // sheet's 1rem of bottom padding everywhere the inset resolves to 0 — every desktop
+            // and every non-notched phone — leaving the last row flush against the border.
+            className="fixed inset-x-0 bottom-0 z-50 max-h-[60dvh] overflow-y-auto border-y border-dark-edge bg-dark-well p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:absolute md:inset-x-auto md:bottom-full md:right-0 md:mb-1 md:w-80 md:border"
           >
             <div className="mb-2 flex items-center justify-between gap-3 border-b border-dark-edge pb-2">
               <span className="font-mono text-[11px] uppercase tracking-[.08em] text-cream-muted">

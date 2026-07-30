@@ -140,7 +140,12 @@ export function NavMenu() {
           {/* ⚠️ Nothing account-shaped while the status is loading: an item set that has to be
            *  swapped a frame later is worse than one that arrives a frame late. */}
           {status.kind !== "loading" && (
-            <div className="mt-1 border-t border-dark-line pt-1">
+            // ⚠️ `role="none"`, not a bare <div>. `role="menu"` only permits `menuitem*`,
+            // `group` and `separator` children, so a generic element owned directly by the menu
+            // is invalid and can make AT skip or mis-count the items inside it. `none` because
+            // this wrapper is a layout box with a decorative rule — `group` would need an
+            // accessible name and would announce a section this menu does not really have.
+            <div role="none" className="mt-1 border-t border-dark-line pt-1">
               {status.kind === "signedOut" ? (
                 <Link role="menuitem" href="/login" onClick={close} className={itemClass}>
                   Sign in
