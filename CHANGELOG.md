@@ -15,9 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The avatar in the masthead is a link to your home page rather than a menu trigger. Signed out,
   a visible SIGN IN link stays in the masthead.
 - The masthead is sticky, so navigation is reachable from the bottom of a long board or obituary.
-- Every page except the map is now the same 1024px width on a wide monitor. Survivors and Friends
-  were much narrower than the rest; Terms, Privacy, Welcome, Notifications and the dossier were
-  much wider. Obituaries moves inside the shared content box (its URLs are unchanged).
+- Every page except the map is now the same 1024px width on a wide monitor. Friends was much
+  narrower than the rest, and Notifications was narrower still; Terms and Privacy keep their
+  narrower reading measure, as obituaries always have. Obituaries moves inside the shared content
+  box (its URLs are unchanged).
 
 ## [0.67.0] - 2026-07-30
 

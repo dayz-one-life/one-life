@@ -894,10 +894,19 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `max-w-5xl` (1024px, was 1440px)** — see the ⚠️ comment on that file, which is the source of
   truth. This retires the `max-w-[1440px]` two-column grid described in the R3 entry near the top
   of this file (already noted superseded there by pill re-homing and again by "THERE IS NO
-  SIDEBAR" above) and the 68ch/no-declaration per-page containers on Survivors, Friends, Terms,
-  Privacy, Welcome, Notifications and the dossier — all stripped. **`/obituaries` moved inside
+  SIDEBAR" above). **Be precise about what actually changed width**, because the wrong version of
+  this sentence is how a future reader concludes the rule is broader than it is: the `max-w-[68ch]`
+  containers on `/friends` and on the `/survivors` redirect's FAILURE page were stripped (the
+  user-visible board is `/survivors/[map]`, which was already 1024), `inbox.tsx`'s `max-w-2xl`
+  (672) was stripped, and the redundant `max-w-5xl` on `survivors-board.tsx` and
+  `player-profile.tsx` was stripped too — those two already equalled the box, but a component
+  restating the box's width silently diverges the moment the box moves. `/welcome` was never in
+  scope: it renders nothing, it is a redirect. Terms and Privacy did NOT widen — `legal-doc.tsx`
+  is 768 and stays 768, a prose measure. **`/obituaries` moved inside
   `(boxed)`** (URLs unchanged — route groups are not path segments). `/maps/[map]` stays outside
-  `(boxed)` and full-bleed, and `/login`'s `max-w-md` form and the `max-w-3xl` prose measures
+  `(boxed)` and full-bleed — and so does the `/maps` redirect's failure page, which therefore
+  KEEPS its `mx-auto max-w-[68ch]` while its byte-identical `/survivors` twin lost one: nothing
+  else would constrain it. `/login`'s `max-w-md` form and the `max-w-3xl` prose measures
   (`legal-doc.tsx`, `obituary-article.tsx`) survive as narrow-by-design elements inside the box,
   not exceptions to the rule.
   **The LAYER LEGEND still has exactly three altitudes — this work adds none.** `z-40` is the

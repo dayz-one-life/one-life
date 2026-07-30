@@ -16,11 +16,14 @@ same four files:
    Survivors board, an obituary — there is no route to anywhere without scrolling back to the
    top.
 3. **Pages are different widths on a wide monitor.** `(boxed)/layout.tsx` declares a 1440px box,
-   but the pages inside it disagree: home, About, `/obituaries` and the life timeline set
-   `max-w-5xl` (1024px); `/survivors` and `/friends` set `max-w-[68ch]` (~600px); Terms, Privacy,
-   Welcome, Notifications, the dossier and `/survivors/[map]` set nothing and fill the whole
-   1440. `/obituaries` is not even inside `(boxed)` — it sits directly under `(site)` and
-   centres itself.
+   but the pages inside it disagree, and they disagree in their COMPONENTS as often as in their
+   page files: home, About, `/obituaries` and the life timeline set `max-w-5xl` (1024px) on the
+   page; `/survivors/[map]` (`survivors-board.tsx`) and the dossier (`player-profile.tsx`) set
+   `max-w-5xl` in the component; Terms and Privacy are 768 via `legal-doc.tsx`; Notifications is
+   672 via `inbox.tsx`; and `/friends` plus the `/survivors` redirect's failure page set
+   `max-w-[68ch]` (~600px). Nothing actually fills the 1440 box. (`/welcome` is not in this list
+   at all: it renders nothing, it is a redirect.) `/obituaries` is not even inside `(boxed)` — it
+   sits directly under `(site)` and centres itself.
 
 The map application (`/maps/[map]`) is excluded from all of this. It deliberately sits outside
 `(boxed)` so terrain can run edge to edge, and that stays true.
@@ -168,7 +171,11 @@ Per-page containers are then **removed**, not adjusted:
 | `/about` | `mx-auto max-w-5xl px-6 py-10 md:px-10 md:py-14` | `mx-auto max-w-5xl` dropped, padding kept |
 | `/survivors` (redirect's failure page), `/friends` | `mx-auto max-w-[68ch] px-4 py-8` | `mx-auto max-w-[68ch]` dropped, padding kept |
 | life timeline (`/players/[slug]/[map]/lives/[n]`) | `mx-auto max-w-5xl px-6 py-10 md:px-10` | `mx-auto max-w-5xl` dropped, padding kept |
-| Terms, Privacy, Welcome, Notifications, dossier, `/survivors/[map]` | none (filled 1440) | unchanged; now 1024 via the layout |
+| Notifications | `components/notifications/inbox.tsx`: `mx-auto max-w-2xl` (672) | `mx-auto max-w-2xl` dropped, padding kept; now 1024 via the layout |
+| `/survivors/[map]`, dossier | `survivors-board.tsx` / `player-profile.tsx`: `mx-auto max-w-5xl` | `mx-auto max-w-5xl` dropped — already 1024, but a component restating the box's width diverges the moment the box moves |
+| Terms, Privacy | `components/legal/legal-doc.tsx`: `mx-auto max-w-3xl` (768) | **kept** — prose measure, see below |
+| `/welcome` | renders nothing (it is a redirect) | **not in scope** |
+| `/maps` (redirect's failure page) | outside `(boxed)`, `mx-auto max-w-[68ch] px-4 py-8` | **kept** — nothing else would constrain it |
 | `/login` | `mx-auto max-w-md px-6` | **kept** |
 | `/maps/[map]` | outside `(boxed)`, full-bleed | **unchanged** |
 
