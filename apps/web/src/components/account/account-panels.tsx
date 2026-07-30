@@ -1,24 +1,11 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { playerSlug } from "@/lib/slug";
-import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useControls, useControlsActions } from "@/components/account/use-controls";
-import { serverCards, transferErrorLabel } from "@/components/account/format";
-import { TokensPanel, type MutationView } from "@/components/account/tokens-panel";
-import { StandingGroups } from "@/components/servers/standing-groups";
-import { serversView } from "@/components/servers/how-to-connect";
+import { useControls } from "@/components/account/use-controls";
+import { VerifiedHome } from "@/components/account/verified-home";
 import { OnlineFriendsContainer } from "@/components/friends/online-friends";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
-
-function mutView(m: { isPending: boolean; isSuccess: boolean; isError: boolean; error: unknown }): MutationView {
-  return {
-    pending: m.isPending,
-    ok: m.isSuccess,
-    error: m.isError ? transferErrorLabel(m.error instanceof ApiError ? m.error.code : "") : null,
-  };
-}
 
 function PanelsSkeleton() {
   return (
@@ -26,17 +13,6 @@ function PanelsSkeleton() {
       <div aria-hidden className="h-10 bg-bone motion-safe:animate-pulse" />
       <div aria-hidden className="h-40 bg-bone motion-safe:animate-pulse" />
       <div aria-hidden className="h-24 bg-bone motion-safe:animate-pulse" />
-    </div>
-  );
-}
-
-/** Standing is still loading/errored — the truth is unknown, so show a placeholder rather than
- *  fabricating "idle" for every server (live-data honesty §5). */
-function ServerCardsSkeleton() {
-  return (
-    <div aria-busy="true" className="flex flex-col gap-2.5">
-      <div aria-hidden className="h-20 bg-bone motion-safe:animate-pulse" />
-      <div aria-hidden className="h-20 bg-bone motion-safe:animate-pulse" />
     </div>
   );
 }
@@ -54,9 +30,6 @@ export function AccountPanels({ signInFallback = false }: {
   signInFallback?: boolean;
 } = {}) {
   const c = useControls();
-  const a = useControlsActions();
-  const now = new Date();
-  const cards = serverCards(c.servers, c.standing);
 
   // A signed-out visitor normally gets nothing here: Home carries the hero and `CtaSlab`, and a
   // sign-in panel here would be a SECOND call to action on the same page. The old rail could
@@ -88,40 +61,14 @@ export function AccountPanels({ signInFallback = false }: {
     // avatar menu owns sign-out in every signed-in state now.
     body = null;
   } else {
-    const gamertag = c.status.link.gamertag;
-    const slug = playerSlug(gamertag);
-    // Verified home = the mock's control panel: standing groups, tokens, friends online. No
-    // identity row and no profile/sign-out footer here — the masthead avatar menu owns account
-    // entry, per the avatar-menu amendment.
+    // ⚠️ The verified home is now the ticket stage + controls slab + morgue (verified-home
+    // redesign spec §2–§4). StandingGroups / TokensPanel / the past-lives grid are gone from
+    // here; the stage's tickets own per-server standing and the slab owns tokens + invites.
     body = (
       <>
-        {c.standingLoading ? (
-          <ServerCardsSkeleton />
-        ) : (
-          <StandingGroups
-            cards={cards}
-            ownSlug={slug}
-            balance={c.balance ?? 0}
-            balanceLoading={c.balanceLoading}
-            previousBestSeconds={c.previousBestSeconds}
-            now={now}
-            onRedeem={(banId) => a.redeem.mutate(banId)}
-            redeeming={a.redeem.isPending}
-            joinServers={serversView(c.servers, { loading: c.serversLoading })}
-          />
-        )}
-        {/* The FULL panel, back from the deleted /you page (home-is-the-app spec §3): home is
-         *  the app, and Send belongs where the balance is. Spending still lives on the ban row,
-         *  which knows WHICH ban to lift. */}
-        <TokensPanel
-          balance={c.balance ?? 0}
-          balanceLoading={c.balanceLoading}
-          send={mutView(a.send)}
-          onSend={(gt) => a.send.mutate(gt)}
-          myGamertag={gamertag}
-        />
+        <VerifiedHome gamertag={c.status.link.gamertag} />
         {/* xl:hidden — the xl sidebar already mounts this; two mounts, one component (spec §4). */}
-        <div className="xl:hidden">
+        <div className="xl:hidden px-6 pb-8 md:px-10">
           <OnlineFriendsContainer />
         </div>
       </>
@@ -131,7 +78,13 @@ export function AccountPanels({ signInFallback = false }: {
   return (
     <section
       aria-label="Your account"
-      className={cn("flex flex-col gap-4", body != null && "px-6 py-8 md:px-10")}
+      className={cn(
+        "flex flex-col",
+        // ⚠️ The VERIFIED body is full-bleed — the stage, slab and morgue each state their own
+        // `px-6 md:px-10`, and a padded wrapper here is what made them read narrower than the
+        // stage. Only the stale-cookie/skeleton bodies still need the wrapper's padding.
+        body != null && c.status.kind !== "verified" && "gap-4 px-6 py-8 md:px-10",
+      )}
     >
       {/* ⚠️ Unconditional sibling of `body`, never inside a branch: it must outlive the
        *  pending -> verified panel swap to announce the change (SR-structure spec). */}

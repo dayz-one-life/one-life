@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect, RedirectType } from "next/navigation";
 import { getPlayerPage } from "@/lib/api";
 import { absoluteUrl } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { playerPageHref, shouldRedirectSlug } from "@/lib/player-page-href";
+import { ownVerifiedSlug } from "@/lib/own-slug";
 import { PlayerProfile } from "@/components/player/player-profile";
 import { formatDuration } from "@/components/player/format";
 
@@ -37,6 +38,16 @@ export default async function PlayerPageRoute({ params, searchParams }: Props) {
   const pageNum = parsePage(sp.page);
   const page = await getPlayerPage(slug, pageNum);
   if (!page) notFound();
+
+  // ⚠️ 307, NEVER 308. Whether this URL redirects depends on WHO is asking, so a permanent
+  // redirect would be cached by browsers and crawlers against a session-dependent decision and
+  // would follow the user after sign-out. The rename redirect below is a different case: a
+  // rename is permanent for everyone, so it stays 308.
+  //
+  // ⚠️ Cache-safe only because `getPlayerPage` awaits `cookies()` and sets `cache: "no-store"`,
+  // which forces this route dynamic. Do not "optimize" either away.
+  if ((await ownVerifiedSlug()) === playerSlug(page.gamertag)) redirect("/", RedirectType.replace);
+
   if (shouldRedirectSlug(slug, page.gamertag)) {
     // 308, not 307: a rename is permanent, and shared links / crawlers should consolidate onto
     // the current dossier. playerPageHref preserves ?page= so pagination survives the bounce.
