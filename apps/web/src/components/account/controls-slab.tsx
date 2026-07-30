@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { getReferralCount } from "@/lib/api";
@@ -146,9 +146,12 @@ export function ControlsSlab() {
   const { status, balance, balanceLoading } = useControls();
   const referrals = useQuery({ queryKey: ["referrals"], queryFn: getReferralCount });
   const gamertag = status.kind === "verified" ? status.link.gamertag : null;
-  // The origin is only knowable client-side; this is a client island, so it always resolves before
-  // the field is interactive. An SSR pass renders the path alone rather than a wrong absolute URL.
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  // ⚠️ The origin is read in an effect AFTER mount, never inline. `window` is undefined during
+  // SSR, so an inline read renders a relative `/i/slug` on the server and an absolute URL on the
+  // first client render — a hydration mismatch on a controlled input's `value`. Same
+  // capability-after-mount rule the share bar's `navigator.share` check follows.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
   const link = gamertag ? `${origin}/i/${playerSlug(gamertag)}` : "";
   const joinedResolved = !referrals.isLoading && !referrals.isError && referrals.data !== undefined;
 

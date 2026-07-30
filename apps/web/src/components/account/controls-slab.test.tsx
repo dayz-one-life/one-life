@@ -60,6 +60,9 @@ describe("<ControlsSlab />", () => {
     expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
   });
 
+  // ⚠️ Regression pin: reading window.location.origin inline renders a RELATIVE link during SSR
+  // and an absolute one on the first client render — a hydration mismatch on a controlled input.
+  // The effect-after-mount read makes the two agree, so the value is only absolute post-mount.
   it("builds the invite link from the viewer's own slug", () => {
     render(<ControlsSlab />);
     expect(screen.getByLabelText("Your invite link")).toHaveValue(
