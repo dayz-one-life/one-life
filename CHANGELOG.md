@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.68.0] - 2026-07-30
+
 ### Changed
 
 - The mobile bottom tab bar is replaced by a single hamburger menu in the masthead that works at
