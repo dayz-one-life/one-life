@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { useState } from "react";
 import { GamertagAutocomplete } from "./gamertag-autocomplete";
@@ -6,9 +6,11 @@ import { GamertagAutocomplete } from "./gamertag-autocomplete";
 function Harness({
   fetchSuggestions,
   exclude,
+  variant,
 }: {
   fetchSuggestions: (q: string) => Promise<string[]>;
   exclude?: string;
+  variant?: "paper" | "dark";
 }) {
   const [v, setV] = useState("");
   return (
@@ -17,6 +19,7 @@ function Harness({
       onChange={setV}
       fetchSuggestions={fetchSuggestions}
       exclude={exclude}
+      variant={variant}
       aria-label="Field"
     />
   );
@@ -30,6 +33,28 @@ describe("GamertagAutocomplete", () => {
     expect(await screen.findByRole("option", { name: "OtherGuy" })).toBeInTheDocument();
     expect(fetchSuggestions).toHaveBeenCalledTimes(1);
     expect(fetchSuggestions).toHaveBeenCalledWith("Ot");
+  });
+
+  // ⚠️ The dropdown is mounted on BOTH surfaces — dark in the claim panel, light in the
+  // controls slab's token-send field. Its tokens were hardcoded dark when the claim panel was
+  // the only consumer. RTL cannot see colour, but it can pin the swap, which is what stops a
+  // dark popup floating over the white slab (or ink-on-dark options in the claim panel).
+  test("swaps dropdown tokens with the surface it sits on", async () => {
+    const fetchSuggestions = vi.fn(async () => ["OtherGuy"]);
+    render(<Harness fetchSuggestions={fetchSuggestions} variant="paper" />);
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
+    const paperOption = await screen.findByRole("option", { name: "OtherGuy" });
+    expect(paperOption.className).toContain("text-ink-soft");
+    expect(paperOption.className).not.toContain("text-cream-dim");
+    expect(paperOption.closest("[role='listbox']")!.className).toContain("bg-white");
+
+    cleanup();
+    render(<Harness fetchSuggestions={fetchSuggestions} variant="dark" />);
+    fireEvent.change(screen.getByLabelText("Field"), { target: { value: "Ot" } });
+    const darkOption = await screen.findByRole("option", { name: "OtherGuy" });
+    expect(darkOption.className).toContain("text-cream-dim");
+    expect(darkOption.className).not.toContain("text-ink-soft");
+    expect(darkOption.closest("[role='listbox']")!.className).toContain("bg-dark-well");
   });
 
   test("does not search below the 2-char minimum", async () => {

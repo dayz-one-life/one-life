@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getServers, getSurvivors, getSiteStatsCached, getObituariesFeedCached } from "@/lib/api";
+import { getSiteStatsCached, getObituariesFeedCached } from "@/lib/api";
 import { settleFeed } from "@/lib/settle-feed";
 import { Hero } from "@/components/front-page/hero";
 import { Fallen } from "@/components/front-page/fallen";
@@ -9,9 +9,7 @@ import { JoinServers } from "@/components/front-page/join-servers";
 import { UnverifiedPitch } from "@/components/front-page/unverified-pitch";
 import { PendingSupport } from "@/components/front-page/pending-support";
 import { PendingHero } from "@/components/front-page/pending-hero";
-import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
-import { HomeShell } from "@/components/account/home-shell";
 import { ClaimModal } from "@/components/account/claim-modal";
 import { ReferralClaim } from "@/components/account/referral-claim";
 
@@ -28,8 +26,17 @@ import { ReferralClaim } from "@/components/account/referral-claim";
  *   go through `getSiteStatsCached`/`getObituariesFeedCached` — cookie-free, shared 60s fetch
  *   cache — instead of the cookie-forwarding `getSiteStats`/`getObituariesFeed`, so fetching them
  *   on every render no longer costs a per-request fleet-wide COUNT/kills-table scan.
- * - survivors + board resolution feed ONLY the verified sidebar → fetched ONLY when signed in.
- * All promises are kicked off before the servers await so they run concurrently;
+ *
+ * ⚠️ THE HOME PAGE IS ONE COLUMN, at every width. The `xl` glance sidebar and its `HomeShell`
+ * wrapper are gone: the verified home is the ticket stage, the controls slab and the morgue,
+ * full-bleed and edge to edge, and a 380px rail beside them fought that. Nothing was lost that
+ * was reachable only there — friends now render for everyone in `AccountPanels` (they were
+ * `xl:hidden` purely because the sidebar duplicated them), and the board and notification
+ * glances already had `/survivors`, `/notifications` and the masthead bell. Removing it also
+ * deleted three per-request server fetches — `getServers`, the board resolution and
+ * `getSurvivors` existed ONLY to fill that rail.
+ *
+ * Both remaining promises are kicked off before their awaits so they run concurrently;
  * settleFeed never rejects, so un-awaited promises cannot produce unhandled rejections.
  */
 export default async function Home() {
@@ -39,26 +46,11 @@ export default async function Home() {
   const statsPromise = settleFeed(getSiteStatsCached());
   const obitsPromise = settleFeed(getObituariesFeedCached(1));
 
-  const servers = await settleFeed(getServers());
-
-  // Sidebar board (verified xl glance) — its only remaining consumer is signed-in.
-  const boardSlug = signedIn ? await resolveDestinationFrom(servers.data) : null;
-  const boardServer = boardSlug ? servers.data?.find((s) => s.slug === boardSlug) ?? null : null;
-  const survivors = boardSlug
-    ? await settleFeed(getSurvivors({ slug: boardSlug, page: 1 }))
-    : { data: null, failed: false };
-
   const stats = await statsPromise;
   const obits = await obitsPromise;
 
   return (
-    <HomeShell
-      board={
-        boardSlug && boardServer
-          ? { slug: boardSlug, map: boardServer.map, rows: survivors.data?.rows.slice(0, 3) ?? [], failed: survivors.failed }
-          : null
-      }
-    >
+    <main className="mx-auto w-full min-w-0 max-w-5xl">
       {!signedIn && (
         <>
           <Hero stats={stats.data} />
@@ -83,6 +75,6 @@ export default async function Home() {
         </>
       )}
       {signedIn && <PendingSupport obits={obits.data?.rows ?? []} />}
-    </HomeShell>
+    </main>
   );
 }

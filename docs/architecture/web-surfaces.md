@@ -280,8 +280,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   adding a fourth altitude. The masthead **must** be a positioned layer: the bell popover's own
   `z-50` only ranks it *inside* the right cluster, whose `-translate-y-1/2` opens a stacking
   context — so without a layer on the header, any later-in-DOM positioned-at-`z-auto` element
-  paints over the popover (the `xl:sticky` `HomeSidebar` — **`sticky` opens a stacking context
-  regardless of z-index** — and any later `relative` wrapper). That was the v0.29.6 bug: notifications rendered *behind* the
+  paints over the popover (**`sticky` opens a stacking context regardless of z-index**, as does
+  any later `relative` wrapper). That was the v0.29.6 bug: notifications rendered *behind* the
   page. The masthead must equally stay **strictly below 50** — the skip link renders *before*
   the header, so an equal value is decided by DOM order and silently buries the only control
   keyboard users have. Both halves are one-directional: raising the masthead breaks a11y,
@@ -385,11 +385,17 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   **⚠️ The claim/verify ladder deliberately stays on Home, not `/you`** — `unlinked`/`pending` are
   onboarding states that sub-project C's three-mode home owns, and `/you` must never be the only
   route to claiming a gamertag. Sign-out renders in every signed-in state.
-  **The sidebar is Home-only.** The two-column `xl` grid moved out of `app/(site)/layout.tsx` into
-  `app/(site)/page.tsx`, so Survivors, the dossier, Friends, Notifications and About all regained
-  their full width. **⚠️ Nothing actionable may live only in `HomeSidebar`** — it does not render
-  below `xl`, so anything reachable solely from it is unreachable on a phone. That is why
-  `AccountPanels` sits in Home's main column.
+  **⚠️ THERE IS NO SIDEBAR. Home is ONE COLUMN at every width.** The `xl` glance rail
+  (`HomeSidebar`) and its `HomeShell` wrapper were deleted on 2026-07-30: the verified home is the
+  ticket stage, the controls slab and the morgue, full-bleed, and a 380px rail beside them fought
+  that. Nothing reachable only there was lost — friends render for everyone in `AccountPanels`
+  (the `xl:hidden` on that mount existed *purely* because the rail duplicated it, so removing the
+  rail without removing that guard would have deleted friends from the desktop home), and the
+  board and notification glances already had `/survivors`, `/notifications` and the masthead bell.
+  Deleting it also removed three per-request server fetches from every home render — `getServers`,
+  the board resolution and `getSurvivors` existed **only** to fill that rail, and `page.test.tsx`
+  now asserts they are not called in either cookie state. Do not reintroduce a fetch here for a
+  column that no longer renders.
   **`PageHeader`** (`components/shared/page-header.tsx`) is the shared *title · count · control*
   strip. Its `count` is a **discriminated union** (`loading | ready | failed`), not a number, so
   loading, resolved-zero and failed are three distinct renders defined once — this repo's
@@ -718,8 +724,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   supersedes the original two-directional gating claim above — do not restore
   stats/obituaries to cold-only.** The signed-out home renders no `AccountPanels` wrapper at
   all — that div (with the `#claim` anchor) exists only on the signed-in branch, alongside
-  `UnverifiedPitch`. `HomeSidebar` itself is still verified-only, gated through `HomeShell`, not
-  merely signed-in.
+  `UnverifiedPitch`. (The verified-only `HomeSidebar`/`HomeShell` gate this paragraph used to
+  describe is gone — see the one-column note above.)
 
 - **Home consistency + claim modal** ✅ (spec
   `docs/superpowers/specs/2026-07-29-home-consistency-claim-modal-design.md`, plan

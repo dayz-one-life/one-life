@@ -53,10 +53,12 @@ export function Masthead() {
 
   return (
     // ⚠️ LAYER LEGEND — the app has exactly three altitudes, and they must stay in this order:
-    //   z-auto  page content — incl. the `xl:sticky` HomeSidebar (`account/home-sidebar.tsx`) and
-    //           the `relative` image wrappers. NOTE: `sticky` opens a stacking context regardless
-    //           of z-index, and z-auto contexts still paint in tree order, so any of these
-    //           positioned LATER in the DOM paints over an unlayered masthead.
+    //   z-auto  page content — incl. the `relative` image wrappers. NOTE: `sticky` and
+    //           `position`ed elements open a stacking context regardless of z-index, and z-auto
+    //           contexts still paint in tree order, so any of these positioned LATER in the DOM
+    //           paints over an unlayered masthead. (The `xl:sticky` HomeSidebar that used to be
+    //           the worked example here is gone — home is one column now — but the hazard is a
+    //           property of `sticky`, not of that component, so the note stays.)
     //   z-40    chrome — this masthead AND the mobile TabBar (`shell/tab-bar.tsx`). They never
     //           overlap spatially, so they share a layer. Load-bearing, not decoration: the bell
     //           popover's own `z-50` only ranks it INSIDE the right cluster, whose

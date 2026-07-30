@@ -42,6 +42,7 @@ export function LinkTagPanel({
           value={tag}
           onChange={setTag}
           fetchSuggestions={searchClaimableGamertags}
+          variant="dark"
           placeholder="GAMERTAG…"
           aria-describedby={error ? errorId : undefined}
           aria-invalid={error ? true : undefined}

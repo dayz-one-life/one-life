@@ -69,7 +69,7 @@ describe("Masthead", () => {
   it("the masthead is a stacking layer above page content but below full-screen overlays", () => {
     // The bell popover's own `z-50` is scoped to the right cluster's transform-created
     // stacking context, so it cannot outrank page content on its own. Anything positioned
-    // later in the DOM at z-auto — the `xl:sticky` HomeSidebar, the `relative` image
+    // later in the DOM at z-auto — any `sticky` element, the `relative` image
     // wrappers — paints over the popover unless the header itself is a
     // positioned layer. jsdom cannot observe paint order, so the contract is pinned here.
     // Word-boundary matching on purpose: `toContain("z-50")` would also pass for `focus:z-50`.

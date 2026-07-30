@@ -67,8 +67,11 @@ export function AccountPanels({ signInFallback = false }: {
     body = (
       <>
         <VerifiedHome gamertag={c.status.link.gamertag} />
-        {/* xl:hidden — the xl sidebar already mounts this; two mounts, one component (spec §4). */}
-        <div className="xl:hidden px-6 pb-8 md:px-10">
+        {/* ⚠️ NOT `xl:hidden` any more. That guard existed only because the xl glance sidebar
+         *  mounted the same component above it — two mounts, one component. The sidebar is gone,
+         *  so this is now the ONLY mount, and hiding it at xl would delete friends from the
+         *  desktop home entirely. */}
+        <div className="px-6 pb-8 md:px-10">
           <OnlineFriendsContainer />
         </div>
       </>

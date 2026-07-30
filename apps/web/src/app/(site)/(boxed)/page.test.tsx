@@ -25,9 +25,9 @@ const cookieJar: Array<{ name: string; value: string }> = [];
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, getAll: () => cookieJar }),
 }));
-// `CtaSlab` renders only for `signedOut`, and `HomeShell`'s sidebar only for `verified` — this
-// suite is about the cold pitch, so we drive the mocked cookie jar for fetch gating and pin
-// `useAccountStatus` at `signedOut` so the pitch beats (Hero/Fallen/Rules/CtaSlab) render.
+// `CtaSlab` renders only for `signedOut` — this suite is about the cold pitch, so we drive the
+// mocked cookie jar for fetch gating and pin `useAccountStatus` at `signedOut` so the pitch
+// beats (Hero/Fallen/Rules/CtaSlab) render.
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "signedOut" }) }));
 // The account surface has its own data layer and its own tests. This file is about feed honesty,
 // so stub the account region rather than mocking every query it reaches for.
@@ -161,7 +161,7 @@ describe("Home page: the claim anchor", () => {
   });
 });
 
-describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in gets the sidebar's)", () => {
+describe("Home page: fetch gating", () => {
   it("stats and obituaries come from the CACHED cookie-free fetchers in both cookie states", async () => {
     render(await Home());                       // signed out
     expect(getSiteStatsCached).toHaveBeenCalled();
@@ -179,14 +179,19 @@ describe("Home page: fetch gating (signed-out gets the pitch's feeds, signed-in 
     expect(getObituariesFeed).not.toHaveBeenCalled();
   });
 
-  it("signed in: fetches survivors; signed out: does not", async () => {
+  // ⚠️ Home fetches NEITHER the board nor the fleet, in either cookie state. `getSurvivors` and
+  // `getServers` existed only to fill the xl glance sidebar; the sidebar is gone, and with it
+  // three per-request server round-trips. This asserts they do not creep back — a board fetch
+  // here would be paying for a rail that no longer renders.
+  it("fetches neither survivors nor servers, signed in or out", async () => {
     render(await Home()); // signed out
     expect(getSurvivors).not.toHaveBeenCalled();
+    expect(getServers).not.toHaveBeenCalled();
 
     cookieJar.push({ name: "__Secure-better-auth.session_token", value: "x" });
-    getSurvivors.mockResolvedValue({ rows: [survivor], page: 1, pageSize: 5, total: 1 });
-    render(await Home());
-    expect(getSurvivors).toHaveBeenCalled();
+    render(await Home()); // signed in
+    expect(getSurvivors).not.toHaveBeenCalled();
+    expect(getServers).not.toHaveBeenCalled();
   });
 
   it("a resolved obituaries feed renders the Fallen wall", async () => {

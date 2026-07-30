@@ -21,9 +21,12 @@ type Ticket = {
   state: ServerStanding["state"];
   /** The display-scale figure. Null when there is no number — we never fabricate one. */
   figure: string | null;
-  sub: string;
+  /** Null on a never-played ticket, which has nothing to say beyond "Not played". */
+  sub: string | null;
   /** The life this ticket's Timeline button points at. Null → no button rather than a broken link. */
   life: number | null;
+  /** No life has ever run here. Distinct from idle-with-a-history, which has a death to report. */
+  neverPlayed: boolean;
   /** Provisional = the life has not yet qualified. Must never read as qualified. */
   provisional: boolean;
   record: boolean;
@@ -39,6 +42,7 @@ function toTicket(s: ServerStanding, now: Date, previousBestSeconds: number): Ti
       figure: formatDuration(s.alive.timeAliveSeconds),
       sub: `Life ${s.alive.lifeNumber} · started ${relativeDate(s.alive.startedAt, now)}`,
       life: s.alive.lifeNumber,
+      neverPlayed: false,
       provisional: !s.alive.qualified,
       // A record only means something against a previous best that exists.
       record: previousBestSeconds > 0 && s.alive.timeAliveSeconds > previousBestSeconds,
@@ -57,21 +61,23 @@ function toTicket(s: ServerStanding, now: Date, previousBestSeconds: number): Ti
       figure: banCountdown(s.ban.expiresAt, now),
       sub: life == null ? cause : `${cause} · life ${life}`,
       life,
+      neverPlayed: false,
       provisional: false,
       record: false,
       ban: s.ban,
     };
   }
+  const neverPlayed = s.lastLifeNumber == null || s.lastEndedAt == null;
   return {
     slug: s.slug,
     map: mapLabel(s.map),
     state: "idle",
     figure: null,
-    sub:
-      s.lastLifeNumber == null || s.lastEndedAt == null
-        ? "Never played"
-        : `Died ${relativeDate(s.lastEndedAt, now)} · life ${s.lastLifeNumber}`,
+    // A never-played ticket says "Not played" and stops. It used to carry "Clear to spawn" over
+    // "Never played" under a "No life" figure — three lines restating one fact.
+    sub: neverPlayed ? null : `Died ${relativeDate(s.lastEndedAt!, now)} · life ${s.lastLifeNumber}`,
     life: s.lastLifeNumber,
+    neverPlayed,
     provisional: false,
     record: false,
     ban: null,
@@ -155,7 +161,11 @@ export function TicketStage({
       </p>
 
       <ul role="list" className={cn("mt-8 grid grid-cols-1 gap-4", cols)}>
-        {tickets.map((r) => (
+        {tickets.map((r) => {
+          // See the ⚠️ on the Timeline link below: alive and banned only, and only when the
+          // ticket actually names a life to point at.
+          const linkable = r.life != null && r.state !== "idle";
+          return (
           <li
             key={r.slug}
             aria-label={r.map}
@@ -173,36 +183,45 @@ export function TicketStage({
                 r.figure ? "text-[clamp(1.75rem,4.5vw,3rem)]" : "text-2xl",
               )}
             >
-              {r.figure ?? (r.state === "banned" ? "Lifting…" : "No life")}
+              {r.figure ?? (r.state === "banned" ? "Lifting…" : r.neverPlayed ? "Not played" : "No life")}
             </p>
-            <p className="mt-1.5 font-mono text-[10.5px] uppercase tracking-[.06em] text-ink-muted">
-              {r.state === "banned"
-                ? "Left on the ban"
-                : r.state === "alive"
-                  ? r.provisional
-                    ? "Not yet qualified"
-                    : "Alive"
-                  : "Clear to spawn"}
-            </p>
-            <p className="mt-1 font-mono text-[10.5px] uppercase tracking-[.04em] text-ink-soft">{r.sub}</p>
+            {/* A never-played ticket stops at the figure. "Clear to spawn" over "Never played"
+             *  under a "No life" headline was three restatements of nothing having happened. */}
+            {!r.neverPlayed && (
+              <p className="mt-1.5 font-mono text-[10.5px] uppercase tracking-[.06em] text-ink-muted">
+                {r.state === "banned"
+                  ? "Left on the ban"
+                  : r.state === "alive"
+                    ? r.provisional
+                      ? "Not yet qualified"
+                      : "Alive"
+                    : "Clear to spawn"}
+              </p>
+            )}
+            {r.sub && (
+              <p className="mt-1 font-mono text-[10.5px] uppercase tracking-[.04em] text-ink-soft">{r.sub}</p>
+            )}
 
-            {/* ⚠️ Every ticket carries a TIMELINE link, in BOTH viewers (Steve, 2026-07-30 — this
-             *  reverses the round-3 "no ticket links out" rule, which had itself reversed an
-             *  earlier instruction; the link is back and it stays). It points at THIS ticket's
-             *  life — the running one where the player is alive, the one that got them banned on a
-             *  banned ticket, the last one on an idle ticket. `life: null` (never played this map)
-             *  renders NO link rather than a broken one.
+            {/* ⚠️ TIMELINE LINKS ARE FOR LIVE TICKETS ONLY — alive and banned, in both viewers.
+             *  An IDLE ticket never links out, even when the player has a history on that map.
+             *
+             *  This rule has now flipped three times (Steve, 2026-07-30, latest): links on every
+             *  ticket → no ticket links out → links on every ticket → this. The reason it landed
+             *  here is that an idle ticket's headline is "No life", and a card that says there is
+             *  no life while offering a button through to one contradicts itself. Alive and banned
+             *  tickets both name a life that is currently doing something to the player, so their
+             *  links refer to what the card is about. Past lives are reachable from the morgue.
              *
              *  Spend stays owner-only and banned-only: the ticket is the one place that knows
              *  WHICH ban a token would lift. */}
-            {(r.life != null || (owner && r.state === "banned" && r.ban)) && (
+            {(linkable || (owner && r.state === "banned" && r.ban)) && (
               <div className="mt-3.5 flex flex-col gap-2">
                 {owner && r.state === "banned" && r.ban && (
                   <TicketSpend banId={r.ban.banId} liftPending={r.ban.liftPending} />
                 )}
-                {r.life != null && (
+                {linkable && (
                   <Link
-                    href={lifeHrefBySlug(slug, r.slug, r.life)}
+                    href={lifeHrefBySlug(slug, r.slug, r.life!)}
                     className="flex min-h-[38px] w-full items-center justify-center border-2 border-ink px-3 font-mono text-[10px] uppercase tracking-[.1em] text-ink hover:bg-ink hover:text-paper"
                   >
                     Timeline <span aria-hidden className="ml-1.5">→</span>
@@ -217,7 +236,8 @@ export function TicketStage({
               </span>
             )}
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {/* "View your public page" was dropped deliberately: the public view is this same stage with
