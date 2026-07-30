@@ -73,7 +73,7 @@ export default async function AboutPage() {
   const maps = formatOrList(servers.map((s) => mapLabel(s.map)));
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10 md:py-14">
+    <main className="w-full px-6 py-10 md:px-10 md:py-14">
       {/* Manifesto header */}
       <header className="border-b-[3px] border-ink pb-8">
         <Kicker>About One Life</Kicker>

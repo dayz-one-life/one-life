@@ -33,10 +33,10 @@ describe("SiteLayout", () => {
     expect(document.getElementById("main-content")!.className).not.toMatch(/\bpb-/);
   });
 
-  // The 1440px box moved into (boxed)/layout.tsx so /maps/[map] — the one page outside that
+  // The content box lives in (boxed)/layout.tsx so /maps/[map] — the one page outside that
   // group — can run terrain edge to edge on a wide desktop. A max-w restored here would quietly
   // re-box the map.
-  test("does NOT constrain width — the 1440px box belongs to (boxed)", () => {
+  test("does NOT constrain width — the content box belongs to (boxed)", () => {
     render(<SiteLayout><div data-testid="child" /></SiteLayout>);
     expect(document.getElementById("main-content")!.className).not.toMatch(/max-w/);
   });
