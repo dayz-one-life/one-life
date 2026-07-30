@@ -141,26 +141,33 @@ cleanly with no backdrop filter.
 `app/(site)/(boxed)/layout.tsx` becomes the **only** place a content width is declared:
 
 ```tsx
-<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 md:px-6">{children}</div>
+<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">{children}</div>
 ```
 
 1024px (`max-w-5xl`), replacing the 1440px box. `flex flex-1 flex-col` is kept — it continues
 the height chain from `#main-content`.
 
-The masthead's inner bar takes the identical box —
-`mx-auto flex h-14 w-full max-w-5xl items-center px-4 md:px-6` — so the wordmark aligns with the
-left edge of page content and the right cluster with its right edge. The dark bar itself stays
-full-bleed.
+**The layout owns the width, never the horizontal padding.** The old `xl:px-10` goes away with
+the 1440 box and is not replaced. Pages keep their own inset exactly as today, because it is not
+uniform on purpose: prose surfaces use `px-6 md:px-10`, while `/survivors/[map]` and the dossier
+declare none and run their tables edge to edge below `xl`. Moving padding into the layout would
+put gutters on those tables.
+
+The masthead's inner bar takes the same box plus the house prose inset —
+`mx-auto flex h-14 w-full max-w-5xl items-center gap-7 px-6 md:px-10` (was `px-4 md:px-6
+xl:px-10`) — so the wordmark aligns with the left edge of page *text* on the prose surfaces and
+the right cluster with its right edge. The dark bar itself stays full-bleed.
 
 Per-page containers are then **removed**, not adjusted:
 
 | Page | Today | After |
 | --- | --- | --- |
-| `/obituaries`, `/obituaries/[slug]` | outside `(boxed)`, `mx-auto max-w-5xl px-6 md:px-10` | **moved into `(boxed)/`**, container removed |
-| `/` (home) | `mx-auto max-w-5xl min-w-0` | container removed (`min-w-0` kept if a flex child needs it) |
-| `/about` | `mx-auto max-w-5xl px-6 md:px-10` | container removed |
-| `/survivors`, `/friends` | `mx-auto max-w-[68ch] px-4` | container removed |
-| life timeline (`/players/[slug]/[map]/lives/[n]`) | `mx-auto max-w-5xl px-6 md:px-10` | container removed |
+| `/obituaries` | outside `(boxed)`, `mx-auto max-w-5xl px-6 py-10 md:px-10` | **moved into `(boxed)/`**, `mx-auto max-w-5xl` dropped, padding kept |
+| `/obituaries/[slug]` | outside `(boxed)` | **moved into `(boxed)/`**; its `ObituaryArticleView` keeps `max-w-3xl` (prose) |
+| `/` (home) | `mx-auto max-w-5xl min-w-0` | `mx-auto max-w-5xl` dropped, `w-full min-w-0` kept |
+| `/about` | `mx-auto max-w-5xl px-6 py-10 md:px-10 md:py-14` | `mx-auto max-w-5xl` dropped, padding kept |
+| `/survivors` (redirect's failure page), `/friends` | `mx-auto max-w-[68ch] px-4 py-8` | `mx-auto max-w-[68ch]` dropped, padding kept |
+| life timeline (`/players/[slug]/[map]/lives/[n]`) | `mx-auto max-w-5xl px-6 py-10 md:px-10` | `mx-auto max-w-5xl` dropped, padding kept |
 | Terms, Privacy, Welcome, Notifications, dossier, `/survivors/[map]` | none (filled 1440) | unchanged; now 1024 via the layout |
 | `/login` | `mx-auto max-w-md px-6` | **kept** |
 | `/maps/[map]` | outside `(boxed)`, full-bleed | **unchanged** |
@@ -170,9 +177,10 @@ Two deliberate exceptions:
 - **`/login` keeps `max-w-md`.** A centred sign-in form is a narrow-by-design surface, not an
   inconsistency. "Same width" means the page container, and login's container *is* the 1024 box
   — the form is a narrow element inside it.
-- **Prose keeps its measure.** About, Terms and Privacy retain the inner `max-w-3xl` on body
-  copy. 1024px of running text is unreadable. The *page* is 1024 like every other page; the
-  paragraph is not.
+- **Prose keeps its measure.** About retains the inner `max-w-3xl` on body copy, and the two
+  components that ARE one column of prose — `components/legal/legal-doc.tsx` (Terms, Privacy)
+  and `components/obituaries/obituary-article.tsx` — keep their own `mx-auto max-w-3xl`. 1024px
+  of running text is unreadable. The *page* is 1024 like every other page; the paragraph is not.
 
 Moving `/obituaries` into `(boxed)/` does not change its URL — route groups are not path
 segments.
