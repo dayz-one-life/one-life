@@ -276,8 +276,6 @@ export type FriendPositionDto = {
 };
 export type OnlinePlayerDto = {
   gamertag: string;
-  /** An accepted friendship with the viewer. */
-  friend: boolean;
   /** Has a dot on this map — derived server-side from the same positions. INBOUND: they are
    *  sharing with the viewer. */
   sharing: boolean;

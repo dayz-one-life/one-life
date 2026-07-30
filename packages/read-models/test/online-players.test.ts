@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import {
-  user, gamertagLinks, servers, players, lives, sessions, friendships, positions,
+  user, gamertagLinks, servers, players, lives, sessions, positions,
 } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { getOnlinePlayers, ONLINE_MAX_AGE_SECONDS } from "../src/online-players.js";
@@ -15,15 +15,11 @@ let serverId = 0;
 let otherServerId = 0;
 
 /**
- * Viewer "va" (ViewerMike) plus four others, all with an open session on the map's server:
- * - "vb" (Zulu):   an accepted friend, with the VIEWER as `friendships.user_a`.
- *                  The tuneable one — the options below drive this row.
- * - "aa" (Yankee): an accepted friend, with the VIEWER as `friendships.user_b`. The pair is
- *                  canonically ordered under a CHECK (`user_a < user_b`), so seeding the mirror
- *                  branch takes a user id that sorts BEFORE the viewer's — hence "aa".
- * - "AaStranger": an unlinked stranger, alphabetically FIRST.
- * - "AbStranger": an unlinked stranger, alphabetically SECOND — the one the ordering test
- *                 makes share, so a collapse of the sharing tier into `rest` reorders them.
+ * Viewer "va" (ViewerMike) plus three others, all with an open session on the map's server:
+ * - "vb" (Zulu):   the tuneable one — the options below drive this row.
+ * - "AaStranger": alphabetically FIRST.
+ * - "AbStranger": alphabetically SECOND — the one the ordering test makes share, so a collapse
+ *                 of the sharing tier into `rest` reorders them.
  *
  * ⚠️ The stranger callsigns are prefixed rather than the obvious "Alpha"/"Bravo": every test
  * file in this package shares ONE database, and claimable.test.ts seeds a player literally
@@ -31,30 +27,24 @@ let otherServerId = 0;
  * its afterAll deleted a row this file had hung lives off. Sorting first is what the ordering
  * test needs; the name only has to be unique across the package.
  *
- * ⚠️ The callsigns are chosen so the FOUR ORDERING TIERS are distinguishable from plain
- * alphabetical order: the friends sort LAST alphabetically and the strangers FIRST, so a rank
- * function that collapses the friend/sharing tiers cannot pass the ordering test by accident.
- *
  * Every player also gets a fresh `positions` row on the map's server, because that — not the
  * global `players.last_seen_at` — is what proves someone is on THIS server.
  */
 async function seed(o: {
-  friendSeenAt?: Date;
-  friendDisconnectedAt?: Date | null;
-  /** Put the friend's fresh fix on the OTHER server instead of this one. */
-  friendSeenOnOtherServer?: boolean;
+  zuluSeenAt?: Date;
+  zuluDisconnectedAt?: Date | null;
+  /** Put Zulu's fresh fix on the OTHER server instead of this one. */
+  zuluSeenOnOtherServer?: boolean;
 } = {}) {
-  await sql`truncate table friendships, positions, sessions, lives, players, servers, gamertag_links, "user" restart identity cascade`;
+  await sql`truncate table positions, sessions, lives, players, servers, gamertag_links, "user" restart identity cascade`;
 
   await db.insert(user).values([
     { id: "va", name: "VA", email: "va@x.com" },
     { id: "vb", name: "VB", email: "vb@x.com" },
-    { id: "aa", name: "AA", email: "aa@x.com" },
   ]);
   await db.insert(gamertagLinks).values([
     { userId: "va", gamertag: "ViewerMike", status: "verified", verifiedAt: NOW },
     { userId: "vb", gamertag: "Zulu", status: "verified", verifiedAt: NOW },
-    { userId: "aa", gamertag: "Yankee", status: "verified", verifiedAt: NOW },
   ]);
 
   const [srv] = await db.insert(servers)
@@ -66,7 +56,7 @@ async function seed(o: {
     .returning();
   otherServerId = other!.id;
 
-  const friendSeenAt = o.friendSeenAt ?? NOW;
+  const zuluSeenAt = o.zuluSeenAt ?? NOW;
   const rows: {
     gamertag: string;
     seenAt: Date;
@@ -76,11 +66,10 @@ async function seed(o: {
     { gamertag: "ViewerMike", seenAt: NOW, disconnectedAt: null, positionServerId: serverId },
     {
       gamertag: "Zulu",
-      seenAt: friendSeenAt,
-      disconnectedAt: o.friendDisconnectedAt ?? null,
-      positionServerId: o.friendSeenOnOtherServer ? otherServerId : serverId,
+      seenAt: zuluSeenAt,
+      disconnectedAt: o.zuluDisconnectedAt ?? null,
+      positionServerId: o.zuluSeenOnOtherServer ? otherServerId : serverId,
     },
-    { gamertag: "Yankee", seenAt: NOW, disconnectedAt: null, positionServerId: serverId },
     { gamertag: "AaStranger", seenAt: NOW, disconnectedAt: null, positionServerId: serverId },
     { gamertag: "AbStranger", seenAt: NOW, disconnectedAt: null, positionServerId: serverId },
   ];
@@ -103,11 +92,6 @@ async function seed(o: {
       x: 1000, y: 2000, recordedAt: r.seenAt,
     });
   }
-
-  await db.insert(friendships).values([
-    { userA: "va", userB: "vb", status: "accepted", requestedBy: "va" },   // viewer is user_a
-    { userA: "aa", userB: "va", status: "accepted", requestedBy: "aa" },   // viewer is user_b
-  ]);
 }
 
 const call = (positionDtos: FriendPosition[] = []) =>
@@ -122,12 +106,11 @@ describe("getOnlinePlayers", () => {
     const other = out.find((p) => p.gamertag === "AaStranger");
     expect(other).toBeDefined();
     expect(other!.self).toBe(false);
-    expect(other!.friend).toBe(false);
     expect(other!.sharing).toBe(false);
   });
 
   it("EXCLUDES an open session whose player has not been seen for 15 minutes", async () => {
-    await seed({ friendSeenAt: STALE });
+    await seed({ zuluSeenAt: STALE });
     const out = await call();
     expect(out.map((p) => p.gamertag)).not.toContain("Zulu");
   });
@@ -137,7 +120,7 @@ describe("getOnlinePlayers", () => {
   // GLOBAL heartbeat while playing there — and would be listed as online here until the next
   // even-hour reboot. Proven red against the `players.last_seen_at` implementation.
   it("EXCLUDES a player whose only fresh activity is on ANOTHER server", async () => {
-    await seed({ friendSeenOnOtherServer: true });
+    await seed({ zuluSeenOnOtherServer: true });
     const out = await call();
     expect(out.map((p) => p.gamertag)).not.toContain("Zulu");
     // The players actually here are unaffected.
@@ -147,7 +130,7 @@ describe("getOnlinePlayers", () => {
   // The other half of the bound: someone who joined seconds ago has no position dump yet, and
   // must not be dropped for it.
   it("includes a player who just connected and has no position on this server yet", async () => {
-    await seed({ friendSeenOnOtherServer: true });
+    await seed({ zuluSeenOnOtherServer: true });
     await sql`update sessions set connected_at = ${NOW.toISOString()}
               where player_id = (select id from players where gamertag = 'Zulu')`;
     const out = await call();
@@ -155,30 +138,24 @@ describe("getOnlinePlayers", () => {
   });
 
   it("excludes a closed session even when the fix is recent", async () => {
-    await seed({ friendDisconnectedAt: new Date("2026-07-22T11:59:00Z"), friendSeenAt: NOW });
+    await seed({ zuluDisconnectedAt: new Date("2026-07-22T11:59:00Z"), zuluSeenAt: NOW });
     const out = await call();
     expect(out.map((p) => p.gamertag)).not.toContain("Zulu");
   });
 
-  // ⚠️ EVERY callsign here fights the alphabet, and each one closes a different collapse.
-  // The friends sort LAST by name and the strangers FIRST, so `p.self ? 0 : 1` (or merging
-  // friend-sharing with friend, or friend with sharing) puts a stranger too early and fails.
-  //
-  // The sharing stranger is the alphabetically LATER one on purpose. When it was AaStranger —
-  // first by name anyway — collapsing `sharing` into `rest` reproduced this exact array via
-  // the localeCompare tie-break, so the last tier boundary was undefended in the very test
-  // written to defend them. Swap these two back and that mutation passes again.
-  it("orders self, then friends sharing, then friends, then sharers, then the rest", async () => {
+  // ⚠️ EVERY callsign here fights the alphabet. The sharing stranger is the alphabetically LATER
+  // one on purpose: `p.self ? 0 : 1` alone or a collapse of the `sharing` tier into `rest` would
+  // reorder AbStranger ahead of AaStranger, which the localeCompare tie-break would otherwise
+  // paper over if the sharing stranger sorted first by name.
+  it("orders self, then sharing, then the rest", async () => {
     const out = await call([
-      { gamertag: "Zulu", x: 1, y: 1, recordedAt: NOW, self: false },
       { gamertag: "AbStranger", x: 2, y: 2, recordedAt: NOW, self: false },
     ]);
     expect(out.map((p) => p.gamertag)).toEqual([
       "ViewerMike",  // self
-      "Zulu",        // friend + sharing
-      "Yankee",      // friend
       "AbStranger",  // sharing        — later by name, so a collapse into `rest` reorders
       "AaStranger",  // neither
+      "Zulu",        // neither
     ]);
   });
 
@@ -200,16 +177,5 @@ describe("getOnlinePlayers", () => {
     for (const p of out) {
       if (p.gamertag !== "ViewerMike") expect(p.self).toBe(false);
     }
-  });
-
-  // ⚠️ The friendship join has two mirrored branches and every other fixture seeds the viewer as
-  // userA, so a copy-paste typo pointing both branches at the same side passes the whole suite.
-  // `friend-positions.test.ts` covers this join direction for the same reason.
-  it("resolves a friend when the VIEWER is friendships.userB", async () => {
-    const out = await call();
-    // Yankee's pair is seeded ("aa", "va") — the mirror of Zulu's ("va", "vb").
-    expect(out.find((p) => p.gamertag === "Yankee")!.friend).toBe(true);
-    expect(out.find((p) => p.gamertag === "Zulu")!.friend).toBe(true);
-    expect(out.find((p) => p.gamertag === "AaStranger")!.friend).toBe(false);
   });
 });

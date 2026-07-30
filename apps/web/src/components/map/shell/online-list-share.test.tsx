@@ -4,7 +4,7 @@ import type { OnlinePlayerDto } from "@/lib/types";
 import { OnlineList } from "./online-list";
 
 const p = (over: Partial<OnlinePlayerDto>): OnlinePlayerDto => ({
-  gamertag: "Boots", friend: false, sharing: false, sharedWithThem: false, self: false, ...over,
+  gamertag: "Boots", sharing: false, sharedWithThem: false, self: false, ...over,
 });
 
 const handlers = () => ({ onShare: vi.fn(), onStopSharing: vi.fn() });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import type { Database } from "@onelife/db";
-import { user, gamertagLinks, userPreferences, locationShares, servers } from "@onelife/db";
+import { user, gamertagLinks, locationShares, servers } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { eq } from "drizzle-orm";
 import { PgVerifierStore } from "../src/pg-store.js";
@@ -10,7 +10,7 @@ const { db, sql } = getTestDb();
 let serverId = 0;
 
 beforeEach(async () => {
-  await sql`truncate table location_shares, user_preferences, gamertag_links, servers, "user" restart identity cascade`;
+  await sql`truncate table location_shares, gamertag_links, servers, "user" restart identity cascade`;
   await db.insert(user).values([
     { id: "vr", name: "VR", email: "vr@x.com" },
     { id: "other", name: "OT", email: "ot@x.com" },
@@ -22,26 +22,10 @@ beforeEach(async () => {
 });
 afterAll(async () => { await sql.end(); });
 
-describe("verifyLink consent reset", () => {
-  it("resets the presence master switch when a link is verified", async () => {
-    const [link] = await db.insert(gamertagLinks)
-      .values({ userId: "vr", gamertag: "ResetMe", status: "pending" })
-      .returning();
-    await db.insert(userPreferences).values({ userId: "vr", sharePresence: true });
-
-    await db.transaction(async (tx) => {
-      const store = new PgVerifierStore(tx as unknown as Database);
-      await store.verifyLink(link!.id, new Date());
-    });
-
-    const [prefs] = await db.select().from(userPreferences).where(eq(userPreferences.userId, "vr"));
-    expect(prefs!.sharePresence).toBe(false);
-  });
-
+describe("verifyLink location-sharing reset", () => {
   // ⚠️ Sub-project E: the `share_location` half of this reset became a DELETE when that column
   // was dropped for session-scoped grants. A re-verified link is a NEW claim on that identity
-  // and must not inherit outbound sharing — the reason F2 reset the switch is the reason this
-  // deletes the rows. Mutation-tested: removing the delete makes this fail.
+  // and must not inherit outbound sharing. Mutation-tested: removing the delete makes this fail.
   it("deletes every location grant the re-verifying user had made", async () => {
     const [link] = await db.insert(gamertagLinks)
       .values({ userId: "vr", gamertag: "ResetMe", status: "pending" })
@@ -78,7 +62,7 @@ describe("verifyLink consent reset", () => {
     expect(await db.select().from(locationShares)).toHaveLength(1);
   });
 
-  it("is a no-op for a first-time verifier with no preferences row", async () => {
+  it("is a no-op for a first-time verifier with no prior grants", async () => {
     const [link] = await db.insert(gamertagLinks)
       .values({ userId: "vr", gamertag: "FirstTime", status: "pending" })
       .returning();
@@ -88,8 +72,6 @@ describe("verifyLink consent reset", () => {
       await store.verifyLink(link!.id, new Date());
     });
 
-    // No row is created just to hold a false — absent already means false.
-    expect(await db.select().from(userPreferences)).toHaveLength(0);
     const [row] = await db.select().from(gamertagLinks).where(eq(gamertagLinks.id, link!.id));
     expect(row!.status).toBe("verified");
   });

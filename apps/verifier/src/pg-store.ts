@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { gamertagLinks, locationShares, verificationChallenges, userPreferences } from "@onelife/db";
+import { gamertagLinks, locationShares, verificationChallenges } from "@onelife/db";
 import { and, asc, eq, gt, lt, ne, isNull, sql as dsql } from "drizzle-orm";
 
 export type PendingChallenge = {
@@ -58,17 +58,13 @@ export class PgVerifierStore {
   }
 
   /**
-   * Marks a link verified AND resets that user's sharing master switches.
+   * Marks a link verified AND clears that user's outbound location-sharing grants.
    *
-   * Both happen in the same transaction, deliberately. A friendship's per-pair sharing flags
-   * survive a link being released, so without this a user who releases a gamertag and later
-   * verifies a DIFFERENT one silently resurrects consent their friends granted against the old
-   * identity (F1's deferred prerequisite; see the F2 spec §4).
-   *
-   * This fires on EVERY verification, not only a re-verification. For a first-time verifier it
-   * updates zero rows — an absent user_preferences row already means false — so there is no
-   * "is this a re-verification?" branch to get wrong, and no row is created just to hold
-   * defaults.
+   * Both happen in the same transaction, deliberately. A re-verified link is a NEW claim on
+   * that identity and must not inherit outbound sharing granted under the old one — this is
+   * the session-scoped-grants half of what used to also reset a friends presence switch before
+   * the v0.69 friends teardown removed that table entirely. One-directional: it clears what
+   * this user shares, never what others share with them.
    */
   async verifyLink(linkId: number, verifiedAt: Date): Promise<void> {
     const [link] = await this.tx
@@ -77,15 +73,6 @@ export class PgVerifierStore {
       .where(eq(gamertagLinks.id, linkId))
       .returning({ userId: gamertagLinks.userId });
     if (!link) return;
-    await this.tx
-      .update(userPreferences)
-      .set({ sharePresence: false, updatedAt: verifiedAt })
-      .where(eq(userPreferences.userId, link.userId));
-    // ⚠️ The `share_location` half of this reset became a DELETE when sub-project E dropped that
-    // column for session-scoped grants. A re-verified link is a new claim on that identity and
-    // must not inherit outbound sharing — the reason F2 reset the switch is the reason this
-    // deletes the rows. One-directional: it clears what this user shares, never what others
-    // share with them.
     await this.tx.delete(locationShares).where(eq(locationShares.granterUserId, link.userId));
   }
 

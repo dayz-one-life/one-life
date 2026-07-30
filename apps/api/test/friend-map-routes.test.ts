@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
-  user, gamertagLinks, servers, players, lives, sessions, positions, friendships,
-  userPreferences, locationShares,
+  user, gamertagLinks, servers, players, lives, sessions, positions, locationShares,
 } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
@@ -147,11 +146,11 @@ describe("friend map routes", () => {
 
   // The single most important invariant of Task 2: `sharing` (in `online`) and the dots (in
   // `positions`) are ONE fact, not two independent lookups that can disagree. This seeds a
-  // friend who is both online AND sharing their location with the viewer, then asserts BOTH
+  // player who is both online AND sharing their location with the viewer, then asserts BOTH
   // sides agree. A route that passed `[]` to getOnlinePlayers instead of its own `positions`
-  // result would still show the friend online, but with `sharing: false` — this test would
-  // fail against that broken variant (verified below by literally making that change).
-  it("agrees: a friend sharing their position also shows sharing:true in the online list", async () => {
+  // result would still show them online, but with `sharing: false` — this test would fail
+  // against that broken variant (verified below by literally making that change).
+  it("agrees: a player sharing their position also shows sharing:true in the online list", async () => {
     const [viewerUser] = await db.select({ id: user.id }).from(user)
       .where(eq(user.email, email.toLowerCase()));
     const [friendUser] = await db.select({ id: user.id }).from(user)
@@ -164,19 +163,8 @@ describe("friend map routes", () => {
       userId: friendUser!.id, gamertag: friendGamertag, status: "verified", verifiedAt: now,
     });
 
-    // ⚠️ Sub-project E: visibility is a session-scoped GRANT, not friendship flags. The
-    // friendship is kept only so this fixture still exercises "a friend who has granted";
-    // friendship itself grants nothing.
-    // Canonical ordering for the `friendships` table's user_a < user_b CHECK — the package's
-    // orderPair helper was retired with the friends feature; this fixture inlines the same
-    // string comparison.
-    const [userA, userB] = viewerUser!.id < friendUser!.id
-      ? [viewerUser!.id, friendUser!.id]
-      : [friendUser!.id, viewerUser!.id];
-    await db.insert(friendships).values({
-      userA, userB, status: "accepted", requestedBy: viewerUser!.id,
-    });
-
+    // ⚠️ Sub-project E: visibility is a session-scoped GRANT — nothing else. No friendship row
+    // is needed or possible any more; the grant below is the entire fixture.
     const [p] = await db.insert(players).values({ gamertag: friendGamertag, lastSeenAt: now })
       .returning();
     const [life] = await db.insert(lives)
