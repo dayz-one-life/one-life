@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-07-30
+
 ### Changed
 
 - The avatar edit is now a dialog with a real crop stage — drag to reposition, zoom, and a single
