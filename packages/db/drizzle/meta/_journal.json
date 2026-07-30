@@ -225,6 +225,13 @@
       "when": 1786080000000,
       "tag": "0031_unconscious_events",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786170000000,
+      "tag": "0032_drop_friendships",
+      "breakpoints": true
     }
   ]
 }
