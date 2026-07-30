@@ -100,13 +100,9 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
       <ul className="list-disc space-y-2 pl-5">
         <li>An avatar, if you upload one — the image itself is stored in our database.</li>
         <li>Your gamertag claim.</li>
-        <li>Your friendships and friend requests.</li>
+        <li>Your session location-sharing grants.</li>
         <li>
-          Your per-friend switches for sharing live location and presence. Both are off unless you
-          turn them on.
-        </li>
-        <li>
-          Notifications about you and your friends — stored so your inbox can show them.
+          Notifications about you — stored so your inbox can show them.
         </li>
       </ul>
     ),
@@ -127,9 +123,9 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           stored by anything in between.
         </p>
         <p>
-          <strong>Friends only, and only if you switch it on</strong>: your live location and
-          whether you are currently playing. Off by default, set per friend, and revocable at any
-          time.
+          <strong>Whoever you grant it to, and only for one game session</strong>: your live
+          location. Off by default, granted to one person at a time, and it ends with the
+          session.
         </p>
       </>
     ),
@@ -209,7 +205,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
         <p>
           <strong>Deleted</strong>: your account, your name and email, the tokens your sign-in
           provider issued, every session — and with them the stored IP addresses and user-agents —
-          your avatar, your push subscriptions, your friendships, your preferences, your location
+          your avatar, your push subscriptions, your preferences, your location
           shares, your unban token balance and its history, your referral link, and your gamertag
           link.
         </p>

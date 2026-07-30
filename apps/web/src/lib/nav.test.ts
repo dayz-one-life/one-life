@@ -32,7 +32,6 @@ describe("activeNavKey", () => {
     ["/obituaries", "obituaries"],
     ["/obituaries/a-long-walk-ends-grumpy8269-1-3", "obituaries"],
     ["/about", "about"],
-    ["/friends", null],
     ["/login", null],
   ])("%s → %s", (path, key) => {
     expect(activeNavKey(path)).toBe(key);
@@ -41,7 +40,7 @@ describe("activeNavKey", () => {
   // The trap: every path starts with "/", so a prefix rule for Home lights it up everywhere.
   it("matches Home on the exact root path only, never as a prefix", () => {
     expect(activeNavKey("/")).toBe("home");
-    for (const path of ["/about", "/survivors", "/maps/livonia", "/friends"]) {
+    for (const path of ["/about", "/survivors", "/maps/livonia"]) {
       expect(activeNavKey(path)).not.toBe("home");
     }
   });

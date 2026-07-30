@@ -4,7 +4,6 @@ import { absoluteUrl, profileLd, ldScript } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { TicketStage } from "./ticket-stage";
 import { Morgue } from "./morgue";
-import { FriendButton } from "./friend-button";
 import { Stat } from "./stat";
 import { heroStats, monthYear } from "./format";
 
@@ -55,7 +54,6 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
               <Stat key={st.label} value={st.value} label={st.label} size="lg" hot={st.hot} />
             ))}
           </div>
-          {page.verified && <FriendButton gamertag={page.gamertag} />}
         </div>
       </section>
 

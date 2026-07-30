@@ -68,23 +68,20 @@ describe("NavMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Home" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Sign in" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Sign out" })).toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Friends" })).toBeNull();
   });
 
-  it("signedOut: Sign in, and no Friends", () => {
+  it("signedOut: Sign in", () => {
     mockStatus.mockReturnValue({ kind: "signedOut" });
     render(<NavMenu />);
     open();
     expect(screen.getByRole("menuitem", { name: "Sign in" })).toHaveAttribute("href", "/login");
-    expect(screen.queryByRole("menuitem", { name: "Friends" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Sign out" })).toBeNull();
   });
 
-  it("verified: Friends, profile link on the real slug, and Sign out", () => {
+  it("verified: profile link on the real slug, and Sign out", () => {
     mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "YrJustBad" } });
     render(<NavMenu />);
     open();
-    expect(screen.getByRole("menuitem", { name: "Friends" })).toHaveAttribute("href", "/friends");
     expect(screen.getByRole("menuitem", { name: "Your profile →" })).toHaveAttribute("href", "/players/yrjustbad");
     fireEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
     expect(teardown).toHaveBeenCalled();
@@ -97,7 +94,6 @@ describe("NavMenu", () => {
     expect(screen.getByRole("menuitem", { name: "Finish verification →" })).toHaveAttribute("href", "/#claim");
     expect(screen.queryByRole("menuitem", { name: "Claim your gamertag →" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Your profile →" })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Friends" })).toBeInTheDocument();
   });
 
   // ⚠️ Same-page hash navigation goes through pushState, which fires NO hashchange event. A
