@@ -4,7 +4,14 @@ import type { Auth } from "@onelife/auth";
 import { tokenTransactions } from "@onelife/db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
-import { getBalance, redeem, transfer, setReferrer, TokenError } from "@onelife/tokens";
+import {
+  getBalance,
+  redeem,
+  transfer,
+  setReferrer,
+  countVerifiedReferees,
+  TokenError,
+} from "@onelife/tokens";
 import { getSession } from "../auth-plugin.js";
 import { verifiedUserIdByGamertag } from "./verified-gamertag.js";
 
@@ -42,6 +49,14 @@ export function registerTokenRoutes(app: FastifyInstance, db: Database, auth: Au
         .limit(50),
     ]);
     return { balance, transactions };
+  });
+
+  // ⚠️ No subject parameter — the session is the only input, so serving another player's
+  // referral count is unexpressible rather than merely rejected.
+  app.get("/me/referrals", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    return { joined: await countVerifiedReferees(db, session.user.id) };
   });
 
   app.post("/me/tokens/redeem", async (req, reply) => {
