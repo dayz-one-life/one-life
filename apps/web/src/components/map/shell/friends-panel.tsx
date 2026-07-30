@@ -46,9 +46,10 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
         className="flex min-h-[52px] min-w-[52px] items-center justify-center gap-1.5 border border-dark-edge bg-dark/90 px-4 py-1.5 font-mono text-[15px] uppercase tracking-[.05em] text-paper md:min-h-[40px] md:min-w-[40px] md:px-3 md:text-[13px]"
       >
         <span aria-hidden>☰</span>
-        {/* "Online" — not "Friends": the panel lists every player on the server, friends first,
-            and the count is players online, not friends sharing. "Friends" here would be the
-            same class of lie the presence-switch copy was fixed for above. */}
+        {/* "Online" — not "Friends": the panel lists every player on the server, ordered self
+            first then whoever is sharing their position, and the count is players online, not
+            friends sharing. "Friends" here would be the same class of lie the presence-switch
+            copy was fixed for above. */}
         <span className="hidden md:inline">Online</span>
         {count !== null && <span>{count}</span>}
         {/* The visible label collapses to an icon below md, so the accessible name must not. */}

@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { FriendsPanel } from "./friends-panel";
 
 const players = [
-  { gamertag: "You", friend: false, sharing: true, sharedWithThem: false, self: true },
-  { gamertag: "Mate", friend: true, sharing: false, sharedWithThem: false, self: false },
+  { gamertag: "You", sharing: true, sharedWithThem: false, self: true },
+  { gamertag: "Mate", sharing: false, sharedWithThem: false, self: false },
 ];
 const NOW = new Date("2026-07-22T12:00:00.000Z");
 
