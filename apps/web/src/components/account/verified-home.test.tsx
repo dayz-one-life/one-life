@@ -10,8 +10,11 @@ vi.stubGlobal(
 
 const playerQuery = { data: undefined as unknown, isError: false, isLoading: true };
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: ({ queryKey }: { queryKey: unknown[] }) =>
-    queryKey[0] === "player-page" ? playerQuery : { data: { joined: 2 }, isLoading: false, isError: false },
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => {
+    if (queryKey[0] === "player-page") return playerQuery;
+    if (queryKey[0] === "servers") return { data: [], isLoading: false, isError: false };
+    return { data: { joined: 2 }, isLoading: false, isError: false };
+  },
 }));
 vi.mock("./use-controls", () => ({
   useControls: () => ({
@@ -69,6 +72,14 @@ describe("<VerifiedHome />", () => {
     expect(screen.getByText(/couldn.t load the obituaries/i)).toBeInTheDocument();
     // …and the controls slab, which has its own queries, is untouched.
     expect(screen.getByLabelText("Your invite link")).toBeInTheDocument();
+  });
+
+  it("offers the connect panel only when a server is actually clear to spawn", () => {
+    const { rerender } = render(<VerifiedHome gamertag="Manicdote" />);
+    expect(document.querySelector("#connect")).toBeTruthy(); // fixture standing is idle
+    playerQuery.data = { ...page, standing: [{ ...page.standing[0], state: "banned" }] };
+    rerender(<VerifiedHome gamertag="Manicdote" />);
+    expect(document.querySelector("#connect")).toBeNull();
   });
 
   it("never renders an authoritative empty morgue while the fetch is in flight", () => {

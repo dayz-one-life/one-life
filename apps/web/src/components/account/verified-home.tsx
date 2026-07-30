@@ -1,9 +1,10 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { getPlayerPage } from "@/lib/api";
+import { getPlayerPage, getServers } from "@/lib/api";
 import { playerSlug } from "@/lib/slug";
 import { TicketStage } from "@/components/player/ticket-stage";
 import { Morgue } from "@/components/player/morgue";
+import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
 import { ControlsSlab } from "./controls-slab";
 
 /**
@@ -23,8 +24,13 @@ export function VerifiedHome({ gamertag }: { gamertag: string }) {
     queryFn: () => getPlayerPage(slug),
     refetchInterval: 60_000, // ban countdowns tick once a minute
   });
+  const servers = useQuery({ queryKey: ["servers"], queryFn: getServers, staleTime: 5 * 60_000 });
   const now = new Date();
   const page = player.data ?? null;
+  // ⚠️ Only offered when the player actually has somewhere to spawn. A player alive or banned
+  // everywhere needs no connect instructions, and an UNRESOLVED standing is not an idle one —
+  // `page` must exist before this can claim either way.
+  const anyIdle = page?.standing.some((s) => s.state === "idle") ?? false;
 
   return (
     <div className="flex flex-col">
@@ -42,6 +48,17 @@ export function VerifiedHome({ gamertag }: { gamertag: string }) {
       )}
 
       <ControlsSlab />
+
+      {anyIdle && (
+        <div id="connect" className="mx-6 mt-8 border border-hairline bg-white px-3.5 py-3 md:mx-10">
+          <HowToConnect
+            servers={serversView(servers.data ?? null, {
+              loading: servers.isLoading,
+              failed: servers.isError,
+            })}
+          />
+        </div>
+      )}
 
       <Morgue
         entries={page?.obituaries ?? []}

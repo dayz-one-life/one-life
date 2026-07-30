@@ -77,6 +77,8 @@ const makePage = (standing: ServerStanding[]): PlayerPage => ({
   pastLivesTotal: 0,
   pastLivesPage: 1,
   pastLivesPageSize: 10,
+  obituaries: [],
+  obituariesTotal: 0,
 });
 
 const page = makePage([aliveStanding(), bannedStanding(), idleStanding()]);
