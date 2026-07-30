@@ -110,21 +110,46 @@ describe("<TicketStage />", () => {
     expect(screen.getByText(/survivor · unclaimed/i)).toBeInTheDocument();
   });
 
-  it("renders one ticket per server and a timeline link on each life", () => {
+  it("renders one ticket per server, whether or not the player has played there", () => {
     render(<TicketStage page={page} viewer="public" now={NOW} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-    expect(screen.getAllByRole("link", { name: /timeline/i })).toHaveLength(3);
   });
 
-  it("renders NO timeline link for a server the player has never played", () => {
+  // ⚠️ Timeline links are for LIVE tickets — alive and banned. An idle ticket says "No life", and
+  // a card denying there is a life while linking to one contradicts itself. The fixture is
+  // alive + banned + idle, so exactly two links.
+  it("links out from alive and banned tickets, never from an idle one", () => {
+    render(<TicketStage page={page} viewer="public" now={NOW} />);
+    expect(screen.getAllByRole("link", { name: /timeline/i })).toHaveLength(2);
+    const namalsk = screen.getByRole("listitem", { name: /namalsk/i }); // the idle ticket
+    expect(within(namalsk).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
+  });
+
+  // An idle ticket WITH a history still refuses to link, and still reports the death that
+  // ended it — the sub-line is the only place that fact appears.
+  it("keeps the death report on an idle ticket while withholding the link", () => {
+    render(<TicketStage page={page} viewer="owner" now={NOW} />);
+    const namalsk = screen.getByRole("listitem", { name: /namalsk/i });
+    expect(within(namalsk).getByText(/died .* life 3/i)).toBeInTheDocument();
+    expect(within(namalsk).getByText(/^no life$/i)).toBeInTheDocument();
+    expect(within(namalsk).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
+  });
+
+  // A never-played ticket is a THIRD state, distinct from idle-with-a-history. It says "Not
+  // played" and stops: it used to stack "No life" over "Clear to spawn" over "Never played",
+  // three restatements of nothing having happened.
+  it("says 'Not played', and nothing more, for a server never played", () => {
     const neverPlayed = makePage([
       aliveStanding(),
       idleStanding({ lastLifeNumber: null, lastEndedAt: null }),
     ]);
     render(<TicketStage page={neverPlayed} viewer="owner" now={NOW} />);
     const namalsk = screen.getByRole("listitem", { name: /namalsk/i });
+    expect(within(namalsk).getByText(/not played/i)).toBeInTheDocument();
+    expect(within(namalsk).queryByText(/^no life$/i)).not.toBeInTheDocument();
+    expect(within(namalsk).queryByText(/clear to spawn/i)).not.toBeInTheDocument();
+    expect(within(namalsk).queryByText(/never played/i)).not.toBeInTheDocument();
     expect(within(namalsk).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
-    expect(within(namalsk).getByText(/never played/i)).toBeInTheDocument();
   });
 
   it("offers Spend only to the owner, and only on a banned ticket", () => {

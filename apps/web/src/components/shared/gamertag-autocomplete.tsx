@@ -2,6 +2,21 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SrStatus } from "@/components/shared/sr-status";
 
+/**
+ * ⚠️ THE DROPDOWN IS TWO-SURFACE. Its tokens used to be hardcoded dark, because the claim panel
+ * was the only consumer; the token-send field on the controls slab sits on `bg-white`, and a
+ * hardcoded `bg-dark-well` popup floated a dark box over a light slab. Add a variant here rather
+ * than overriding colours at a call site — same rule, and same reason, as `Avatar`'s.
+ */
+const LIST = {
+  paper: "border-hairline bg-white",
+  dark: "border-dark-line bg-dark-well",
+} as const;
+const OPTION = {
+  paper: "text-ink-soft hover:bg-bone hover:text-ink",
+  dark: "text-cream-dim hover:bg-dark-hollow hover:text-paper",
+} as const;
+
 /** Controlled gamertag input with a debounced, race-guarded suggestion dropdown.
  *  `fetchSuggestions` is injected; `exclude` (case-insensitive) drops the current player.
  *  Pass a STABLE `fetchSuggestions` reference (a module-level function, not an inline arrow) — an unstable one re-arms the 200ms debounce every render.
@@ -21,6 +36,7 @@ export function GamertagAutocomplete({
   "aria-invalid": ariaInvalid,
   className,
   inputClassName,
+  variant = "paper",
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -36,6 +52,9 @@ export function GamertagAutocomplete({
   "aria-invalid"?: boolean;
   className?: string;
   inputClassName?: string;
+  /** Surface the dropdown sits on. Getting this wrong renders a dark popup on a light slab (or
+   *  ink-on-dark options) — see the ⚠️ above. */
+  variant?: "paper" | "dark";
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   // `open` tracks whether the listbox popup is shown; kept independent of `suggestions` so
@@ -167,7 +186,7 @@ export function GamertagAutocomplete({
         role="listbox"
         id={listId}
         hidden={!expanded}
-        className="absolute left-0 right-0 top-full z-20 max-h-[210px] overflow-y-auto border border-t-0 border-dark-line bg-dark-well"
+        className={`absolute left-0 right-0 top-full z-20 max-h-[210px] overflow-y-auto border border-t-0 ${LIST[variant]}`}
       >
         {expanded &&
           suggestions.map((s, index) => (
@@ -177,7 +196,7 @@ export function GamertagAutocomplete({
               role="option"
               aria-selected={index === highlightedIndex}
               onClick={() => pick(s)}
-              className="w-full cursor-pointer px-3 py-2 text-left font-mono text-xs uppercase text-cream-dim hover:bg-dark-hollow hover:text-paper"
+              className={`w-full cursor-pointer px-3 py-2 text-left font-mono text-xs uppercase ${OPTION[variant]}`}
             >
               {s}
             </li>

@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The home page is one column at every width — the desktop "at a glance" sidebar is gone. Friends
+  now show on desktop as well as mobile; the board and notification glances live on their own
+  pages, reachable as before from the nav and the bell.
+- The token-send field now suggests verified players as you type, the way the claim field does.
+  It only ever suggests players who can actually receive a token, and never yourself.
+- A server you have never played now reads "Not played" instead of "No life", and says nothing
+  more — it used to stack three ways of saying nothing had happened there.
+
+### Fixed
+
+- Removed the gap between the token/invite controls and the "Join the servers" slab, which showed
+  as two separate rules with a strip of page trapped between them.
+- A server where you are currently dead offered a Timeline link while its headline said "No life".
+  Timeline links are now on live tickets only — the ones where you are alive or banned.
+
 ## [0.66.0] - 2026-07-30
 
 ### Changed

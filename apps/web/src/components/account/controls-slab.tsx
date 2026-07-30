@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { getReferralCount } from "@/lib/api";
+import { getReferralCount, searchVerifiedGamertags } from "@/lib/api";
 import { playerSlug } from "@/lib/slug";
+import { GamertagAutocomplete } from "@/components/shared/gamertag-autocomplete";
 import { useControls, useControlsActions } from "./use-controls";
 import { ShareBar } from "./share-bar";
 
@@ -43,7 +44,18 @@ function FigurePending({ label }: { label: string }) {
   );
 }
 
-function SendField() {
+/**
+ * ⚠️ SUGGESTS VERIFIED PLAYERS, NOT CLAIMABLE GAMERTAGS. This field was a bare `<input>` while the
+ * claim panel next door had autocomplete, so the one place you must type a stranger's gamertag
+ * exactly right was the one place with no help. The two fetchers are NOT interchangeable:
+ * `searchClaimableGamertags` returns tags seen on the servers that nobody has linked, which is the
+ * exact set that CANNOT receive a token. `exclude` drops the sender — a token sent to yourself is
+ * rejected by the API, and offering it is offering a dead end.
+ *
+ * `searchVerifiedGamertags` is a module-level reference, per the component's stable-fetcher rule;
+ * an inline arrow re-arms the 200ms debounce on every render.
+ */
+function SendField({ own }: { own: string | null }) {
   const [to, setTo] = useState("");
   const { send } = useControlsActions();
   return (
@@ -56,12 +68,15 @@ function SendField() {
       }}
       className="flex flex-col gap-2 sm:flex-row"
     >
-      <input
+      <GamertagAutocomplete
         value={to}
-        onChange={(e) => setTo(e.target.value)}
+        onChange={setTo}
+        fetchSuggestions={searchVerifiedGamertags}
+        exclude={own ?? undefined}
         placeholder="Send to a verified player…"
         aria-label="Send a token to a verified player"
-        className="min-w-0 flex-1 border-2 border-hairline bg-paper px-3.5 py-3 font-mono text-[15px] tracking-[.02em] outline-none placeholder:text-ink-muted"
+        className="min-w-0 flex-1"
+        inputClassName="w-full border-2 border-hairline bg-paper px-3.5 py-3 font-mono text-[15px] tracking-[.02em] outline-none placeholder:text-ink-muted"
       />
       <button
         type="submit"
@@ -176,7 +191,7 @@ export function ControlsSlab() {
             sentence="One token lifts one ban, the moment you spend it."
             control={
               <div className="flex flex-col gap-3">
-                <SendField />
+                <SendField own={gamertag} />
                 <EarnChips />
               </div>
             }

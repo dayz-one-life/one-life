@@ -53,8 +53,12 @@ export function VerifiedHome({ gamertag }: { gamertag: string }) {
 
       <ControlsSlab />
 
+      {/* ⚠️ NO margin between the slab and this beat. Both state their own heavy rule — the slab
+       *  ends `border-b-2 border-ink`, `JoinServers` opens `border-t-4 border-ink` — so a gap
+       *  here rendered as two separate lines with a strip of page background trapped between
+       *  them. Butted, they read as one rule and the page reads as continuous slabs. */}
       {anyIdle && (
-        <div id="connect" className="mt-8">
+        <div id="connect">
           <JoinServers />
         </div>
       )}
