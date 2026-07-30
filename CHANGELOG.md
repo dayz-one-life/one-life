@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The avatar edit is now a dialog with a real crop stage — drag to reposition, zoom, and a single
+  Save that commits. Nothing is written until Save, so Cancel always means nothing happened.
+
+### Fixed
+
+- The verified home rendered an older text-only "How to connect" panel instead of the universal
+  "Join the servers" slab every other surface uses.
+- The player dossier's back-link strip was light, painting a white bar between the dark masthead
+  and the dark hero.
+- The player stage claimed "Survivor · verified" for every player, including gamertags nobody had
+  claimed.
+- The avatar Upload button was dark text on the dark stage — present and clickable, but invisible.
+
 ## [0.65.0] - 2026-07-30
 
 ### Added
