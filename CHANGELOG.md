@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-07-30
+
 ### Changed
 
 - The home page is one column at every width — the desktop "at a glance" sidebar is gone. Friends
