@@ -25,7 +25,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
        *  fell back to its min-height floor and Leaflet, which measures its container on creation,
        *  got a 2px box. Making this a column lets the page below grow instead of guessing.
        *
-       *  ⚠️ NO max-width here — the 1440px box lives in the nested `(boxed)/layout.tsx`, which
+       *  ⚠️ NO max-width here — the 1024px box lives in the nested `(boxed)/layout.tsx`, which
        *  every page except `/maps/[map]` sits under. The map is the one surface where a centered
        *  box is wasted terrain, and a negative-margin "full bleed" escape from a max-w parent
        *  can't reach the viewport edge without risking horizontal overflow. */}
