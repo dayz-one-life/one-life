@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags, avatars } from "@onelife/db";
+import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags, avatars, articles } from "@onelife/db";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getPlayerProfile, getPlayerLives } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
@@ -41,6 +41,13 @@ export interface ServerStanding { serverId: number; map: string; slug: string; s
    *  timestamps). */
   lastEndedAt: Date | null; }
 export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
+/** One filed obituary on a player's page — see `filedObituaries`. */
+export interface ObituaryEntry {
+  slug: string; map: string; mapSlug: string; lifeNumber: number;
+  headline: string; lede: string | null; deathAt: Date;
+  timeAliveSeconds: number; kills: number; longestKillMeters: number | null; cause: string | null;
+}
+
 export interface PlayerPage {
   gamertag: string; verified: boolean; avatarHash: string | null; firstSeenAt: Date | null; aliveAnywhere: boolean;
   totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number };
@@ -51,6 +58,9 @@ export interface PlayerPage {
   standing: ServerStanding[];
   pastLives: PastLife[];
   pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number;
+  /** FILED obituaries only — a strict subset of the ended lives. See `filedObituaries`. */
+  obituaries: ObituaryEntry[];
+  obituariesTotal: number;
 }
 
 export const PLAYER_PAST_LIVES_PAGE_SIZE = 10;
@@ -226,7 +236,75 @@ export async function getPlayerPage(
     pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), death: { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: dossierVerdict(dossier) }, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
   }
 
+  const obituaries = await filedObituaries(db, identityNames, endedLives);
+
   return { gamertag, verified: !!vf, avatarHash: avatarRow?.hash ?? null, firstSeenAt: p?.firstSeenAt ?? null, // A provisional life does NOT count: this feeds the public dossier's `Alive xN` badge and is
   // leaderboard-facing, so a grace-period player is not yet part of it.
-  aliveAnywhere: standing.some((s) => s.state === "alive" && s.alive?.qualified === true), totals, previousBestSeconds, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize };
+  aliveAnywhere: standing.some((s) => s.state === "alive" && s.alive?.qualified === true), totals, previousBestSeconds, standing, pastLives, pastLivesTotal: total, pastLivesPage: page, pastLivesPageSize: pageSize,
+  obituaries, obituariesTotal: obituaries.length };
+}
+
+/**
+ * The morgue's rows: the player's FILED obituaries, newest death first.
+ *
+ * ⚠️ This is a strict SUBSET of the player's ended lives, and that is the intended behaviour
+ * (spec §4). `apps/newsdesk` files an obituary only for a QUALIFIED death, only past the
+ * forward-only `NEWSDESK_SINCE` cutoff, and it can fail permanently at `NEWSDESK_MAX_ATTEMPTS`.
+ * A player with eleven dead lives and no filed obituary gets an EMPTY list — do not "restore"
+ * the missing lives by falling back to `pastLives`.
+ *
+ * ⚠️ Published only. A `failed` stub has no slug and a `retracted` article is a correction, not
+ * the life's obituary — neither may ever be linked as one (same rule as `life-timeline.ts`).
+ *
+ * ⚠️ The life is identified by the rebuild-stable natural key (server_id, gamertag,
+ * life_started_at), never `life_number`, which is a derived fold count and shifts if the fold
+ * changes. `articles.gamertag` is frozen at publish time, so it is matched against the player's
+ * full alias history — a rename must not orphan their own obituaries.
+ */
+async function filedObituaries(
+  db: Database,
+  identityNames: string[],
+  endedLives: { row: LifeRow; serverId: number; map: string; slug: string }[],
+): Promise<ObituaryEntry[]> {
+  if (endedLives.length === 0) return [];
+  const rows = await db
+    .select({
+      slug: articles.slug, map: articles.map, mapSlug: articles.mapSlug, serverId: articles.serverId,
+      lifeNumber: articles.lifeNumber, lifeStartedAt: articles.lifeStartedAt, deathAt: articles.deathAt,
+      timeAliveSeconds: articles.timeAliveSeconds, kills: articles.kills,
+      longestKillMeters: articles.longestKillMeters, cause: articles.cause,
+      headline: articles.headline, lede: articles.lede,
+    })
+    .from(articles)
+    .where(and(
+      eq(articles.kind, "obituary"),
+      eq(articles.status, "published"),
+      isNotNull(articles.slug),
+      inArray(sql`lower(${articles.gamertag})`, identityNames),
+    ));
+
+  // Keyed on (server_id, life_started_at) against the lives this page already resolved, so an
+  // article whose life is not one of this player's ended lives cannot slip in.
+  const byKey = new Map(endedLives.map((e) => [`${e.serverId}:${e.row.startedAt.getTime()}`, e]));
+  return rows
+    .flatMap((a) => {
+      const life = a.serverId == null || a.lifeStartedAt == null
+        ? undefined
+        : byKey.get(`${a.serverId}:${a.lifeStartedAt.getTime()}`);
+      if (!life || !a.slug) return [];
+      return [{
+        slug: a.slug,
+        map: life.map,
+        mapSlug: life.slug,
+        lifeNumber: a.lifeNumber ?? life.row.lifeNumber,
+        headline: a.headline ?? "",
+        lede: a.lede,
+        deathAt: a.deathAt ?? life.row.endedAt!,
+        timeAliveSeconds: a.timeAliveSeconds,
+        kills: a.kills,
+        longestKillMeters: a.longestKillMeters,
+        cause: a.cause,
+      }];
+    })
+    .sort((x, y) => y.deathAt.getTime() - x.deathAt.getTime());
 }

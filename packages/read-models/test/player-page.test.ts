@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags } from "@onelife/db";
+import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags, articles } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getPlayerPage } from "../src/player-page.js";
 
@@ -32,10 +32,29 @@ beforeAll(async () => {
   // proves the read model picks the most recent, not merely the first row it happens to see.
   await db.insert(lives).values({ serverId: idle, playerId: p!.id, lifeNumber: 1, startedAt: hoursAgo(90), endedAt: hoursAgo(80), playtimeSeconds: 36000 });
   await db.insert(lives).values({ serverId: idle, playerId: p!.id, lifeNumber: 2, startedAt: hoursAgo(70), endedAt: hoursAgo(60), playtimeSeconds: 36000 });
+  // One PUBLISHED obituary, keyed to the Sakhal life by (server_id, gamertag, life_started_at),
+  // plus a retracted one that must never surface. The other two ended lives have none.
+  await db.insert(articles).values([
+    {
+      kind: "obituary", status: "published", slug: `legend-sakhal-1-${svcB}`,
+      serverId: sakh, gamertag: "Legend", map: "sakhal", mapSlug: `sakh-${svcB}`,
+      lifeNumber: 1, lifeStartedAt: hoursAgo(30), deathAt: hoursAgo(6),
+      timeAliveSeconds: 14520, kills: 0, longestKillMeters: null, cause: "pvp",
+      headline: "A trade at the coast", lede: "Only one of them had decided how it would end.",
+    },
+    {
+      kind: "obituary", status: "retracted", slug: `legend-retracted-${svcB}`,
+      serverId: idle, gamertag: "Legend", map: "enoch", mapSlug: `idle-${svcC}`,
+      lifeNumber: 2, lifeStartedAt: hoursAgo(70), deathAt: hoursAgo(60),
+      timeAliveSeconds: 36000, kills: 0, longestKillMeters: null, cause: "starvation",
+      headline: "Retracted", lede: null,
+    },
+  ]);
   await db.insert(user).values({ id: uid, name: "x", email: `${uid}@example.com` });
   await db.insert(gamertagLinks).values({ userId: uid, gamertag: "Legend", status: "verified", verifiedAt: hoursAgo(50) });
 });
 afterAll(async () => {
+  await db.delete(articles).where(inArray(articles.serverId, [chern, sakh, idle]));
   await db.delete(kills).where(inArray(kills.serverId, [chern, sakh, idle]));
   await db.delete(sessions).where(inArray(sessions.serverId, [chern, sakh, idle]));
   await db.delete(bans).where(inArray(bans.serverId, [chern, sakh, idle]));
@@ -60,6 +79,22 @@ describe("getPlayerPage", () => {
     expect(pg.totals.deaths).toBe(3);
     expect(pg.totals.kills).toBe(1);
   });
+  it("returns only lives that HAVE a filed obituary", async () => {
+    // The fixture has three ended lives (one on Sakhal, two on the idle server) and exactly one
+    // published obituary, filed against the Sakhal life's natural key.
+    const pg = (await getPlayerPage(db, "Legend", now))!;
+    expect(pg.obituaries).toHaveLength(1);
+    expect(pg.obituariesTotal).toBe(1);
+    expect(pg.obituaries[0]!.slug).toBe(`legend-sakhal-1-${svcB}`);
+    expect(pg.obituaries[0]!.headline).toBe("A trade at the coast");
+    expect(pg.obituaries[0]!.lifeNumber).toBe(1);
+  });
+
+  it("ignores an obituary that was never published", async () => {
+    const pg = (await getPlayerPage(db, "Legend", now))!;
+    expect(pg.obituaries.map((o) => o.slug)).not.toContain(`legend-retracted-${svcB}`);
+  });
+
   it("has an alive standing on Chernarus with the kill list", async () => {
     const pg = (await getPlayerPage(db, "Legend", now))!;
     const alive = pg.standing.find((s) => s.state === "alive")!;
