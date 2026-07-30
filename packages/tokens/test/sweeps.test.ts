@@ -39,9 +39,16 @@ describe("grant sweeps", () => {
     expect(await getBalance(db, "sw2")).toBe(2); // verification + monthly
   });
 
-  it("grantReferral gives the referrer one per verified referee, idempotent per month", async () => {
+  it("grantReferral gives the referrer one per verified referee, idempotent", async () => {
     expect(await grantReferral(db, "2026-08")).toBe(1); // sw1 gets +1 for referring sw2
     expect(await grantReferral(db, "2026-08")).toBe(0);
     expect(await getBalance(db, "sw1")).toBe(3); // verification + monthly + referral
+  });
+
+  it("pays a referrer ONCE per referee, not once per month", async () => {
+    // Same referee, later months — must grant nothing. The month is not part of the key.
+    expect(await grantReferral(db, "2026-09")).toBe(0);
+    expect(await grantReferral(db, "2026-10")).toBe(0);
+    expect(await getBalance(db, "sw1")).toBe(3); // unchanged
   });
 });
