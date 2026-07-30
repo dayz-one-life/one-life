@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Masthead } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { TabBar } from "@/components/shell/tab-bar";
 
 /**
  * Every surface EXCEPT the map application. `/maps/[map]` deliberately sits outside this group so
@@ -16,9 +15,10 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <Masthead />
-      {/* ⚠️ The TabBar gutter is NOT here — it is on the <Footer/>, which is the last in-flow
-       *  element in the document. Padding this column instead leaves the footer itself under the
-       *  fixed bar, which hid the footer's About link (its only route below `md`). */}
+      {/* ⚠️ The bottom safe-area inset is NOT here — it is on the <Footer/>, which is the last
+       *  in-flow element in the document. Padding this column instead leaves the footer itself
+       *  under the phone's home indicator. (It used to reserve the fixed TabBar's 4rem as well;
+       *  that bar is deleted — shell/nav-menu.tsx in the masthead is the nav now.) */}
       {/* ⚠️ `flex flex-col` is load-bearing for `/maps/[map]`, which fills the space the masthead
        *  and footer leave. `flex-1` already gave THIS element a height, but it was `display:
        *  block`, so a percentage height on a child had nothing to resolve against — the map page
@@ -33,7 +33,6 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
         {children}
       </div>
       <Footer />
-      <TabBar />
     </>
   );
 }

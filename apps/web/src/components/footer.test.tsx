@@ -9,9 +9,9 @@ it("renders the colophon line on the dark bar", () => {
   expect(footer).toHaveTextContent("One Life — hardcore · 1PP · US servers");
 });
 
-// The TabBar carries Home/Map/Board/account; About is reachable ONLY here below md, so this
-// link is the mobile route to it, not decoration.
-it("carries the About link, which the tab bar does not", () => {
+// About, Terms and Privacy are reached from here and from the sign-in consent line. About is
+// also in the nav menu; Terms and Privacy are footer-only by design — nobody navigates to them.
+it("carries the About link", () => {
   render(<Footer />);
   expect(screen.getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
 });
@@ -21,15 +21,16 @@ it("links to the obituaries feed", () => {
   expect(screen.getByRole("link", { name: "Obituaries" })).toHaveAttribute("href", "/obituaries");
 });
 
-// ⚠️ Regression guard. The footer is the last in-flow element in the document, so it — not the
-// content column — must reserve space for the fixed TabBar. Without this the bar paints directly
-// over the About link at the bottom of every page, and About has no other route below `md`.
-// jsdom cannot see the overlap, so the contract is pinned as a class.
-it("reserves bottom space for the fixed tab bar below md, and drops it at md", () => {
+// ⚠️ Regression guard, narrowed. The fixed tab bar is gone, so the 4rem it reserved goes with
+// it — but the safe-area inset stays: that is the phone's home indicator, not the bar. The
+// footer is the last in-flow element in the document, so the inset belongs here and not on the
+// content column. jsdom cannot see the overlap, so the contract is pinned as a class.
+it("reserves only the safe-area inset at the bottom — the tab bar is gone", () => {
   render(<Footer />);
   const footer = screen.getByRole("contentinfo");
-  expect(footer.className).toMatch(/pb-\[calc\(18px\+4rem\+env\(safe-area-inset-bottom\)\)\]/);
-  expect(footer.className).toMatch(/md:pb-\[18px\]/);
+  expect(footer.className).toMatch(/pb-\[calc\(18px\+env\(safe-area-inset-bottom\)\)\]/);
+  expect(footer.className).not.toMatch(/4rem/);
+  expect(footer.className).not.toMatch(/md:pb-/);
 });
 
 it("links to the legal pages", () => {

@@ -57,24 +57,23 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
       {open && (
         <>
           {/* ⚠️ THE WAY OUT ON A TOUCH DEVICE. Below `md` the sheet is fixed and there is no
-              Escape key. This backdrop and the Close button below are exits and both must stay —
-              but per the map-in-shell mock, BOTH stop above the TabBar: the sheet opens over the
-              map, never over the bar that holds the way to leave the page, so the tabs stay
-              tappable throughout. `aria-hidden` + no role: it is a gesture target, not content —
-              the dialog is `aria-modal` so AT already ignores what is behind it. Same z-50
-              overlay altitude as the sheet, painted under it by DOM order, so this adds no
-              fourth altitude to the LAYER LEGEND. */}
+              Escape key. This backdrop and the Close button below are exits and both must stay.
+              (They used to stop above the fixed TabBar so its tabs stayed tappable; that bar is
+              deleted, so the backdrop covers the map fully.) `aria-hidden` + no role: it is a
+              gesture target, not content — the dialog is `aria-modal` so AT already ignores what
+              is behind it. Same z-50 overlay altitude as the sheet, painted under it by DOM
+              order, so this adds no fourth altitude to the LAYER LEGEND. */}
           <div
             aria-hidden
             data-testid="online-backdrop"
             onClick={() => setOpen(false)}
-            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] top-0 z-50 md:hidden"
+            className="fixed inset-0 z-50 md:hidden"
           />
-          {/* z-50 is the overlay altitude (LAYER LEGEND, components/header.tsx) — above the
-              z-40 bar this hangs from. A bottom sheet on a phone (stopping above the TabBar's
-              4rem + safe-area row); from `md` up an anchored panel that opens UPWARD —
-              `bottom-full`, because the trigger sits at the bottom edge of the map, where a
-              `top-full` panel renders off the bottom of the page (shipped that way once). */}
+          {/* z-50 is the overlay altitude (LAYER LEGEND, components/header.tsx). A bottom sheet
+              on a phone, sitting on the viewport floor with the home-indicator inset as padding;
+              from `md` up an anchored panel that opens UPWARD — `bottom-full`, because the
+              trigger sits at the bottom edge of the map, where a `top-full` panel renders off
+              the bottom of the page (shipped that way once). */}
           <div
             ref={panelRef}
             role="dialog"
@@ -83,7 +82,7 @@ export function FriendsPanel({ players, positions, now, loading, error, onShare,
             // no-op on a div with no tabindex — the sheet would open with focus left behind.
             tabIndex={-1}
             aria-label="Who is online on this map"
-            className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 max-h-[60dvh] overflow-y-auto border-y border-dark-edge bg-dark-well p-4 md:absolute md:inset-x-auto md:bottom-full md:right-0 md:mb-1 md:w-80 md:border"
+            className="fixed inset-x-0 bottom-0 pb-[env(safe-area-inset-bottom)] z-50 max-h-[60dvh] overflow-y-auto border-y border-dark-edge bg-dark-well p-4 md:absolute md:inset-x-auto md:bottom-full md:right-0 md:mb-1 md:w-80 md:border"
           >
             <div className="mb-2 flex items-center justify-between gap-3 border-b border-dark-edge pb-2">
               <span className="font-mono text-[11px] uppercase tracking-[.08em] text-cream-muted">
