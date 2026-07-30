@@ -2,12 +2,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { NAV_ITEMS, activeNavKey } from "@/lib/nav";
-import { cn } from "@/lib/utils";
 import { getServers } from "@/lib/api";
 import type { Server } from "@/lib/types";
 import { MastheadBell } from "@/components/notifications/bell";
 import { AccountAffordance } from "@/components/shell/account-affordance";
+import { NavMenu } from "@/components/shell/nav-menu";
 import { MapSwitcher } from "@/components/map/shell/map-switcher";
 
 /** The map switcher, in the masthead — the mock's rule for `/maps/[map]`: "the dropdown is the
@@ -24,32 +23,8 @@ function MastheadMapSwitcher({ pathname }: { pathname: string }) {
   return <MapSwitcher slug={slug} servers={mapServers} loading={servers.isPending} />;
 }
 
-function NavLinks({ active, className }: { active: string | null; className?: string }) {
-  return (
-    <>
-      {NAV_ITEMS.map((item) => (
-        <Link
-          key={item.key}
-          href={item.href}
-          aria-current={active === item.key ? "page" : undefined}
-          className={cn(
-            "border-b-2 pb-0.5",
-            active === item.key
-              ? "border-red text-paper"
-              : "border-transparent text-cream-dim hover:text-paper",
-            className,
-          )}
-        >
-          {item.label}
-        </Link>
-      ))}
-    </>
-  );
-}
-
 export function Masthead() {
   const pathname = usePathname();
-  const active = activeNavKey(pathname ?? "/");
 
   return (
     // ⚠️ LAYER LEGEND — the app has exactly three altitudes, and they must stay in this order:
@@ -70,9 +45,12 @@ export function Masthead() {
     // One compact app bar, per the design mocks (verified-desktop/pure-app-ia): wordmark left,
     // nav inline beside it, bell + avatar right — the two-tier tabloid masthead (big centered
     // wordmark over a nav row) is retired with the tabloid.
-    <header className="relative z-40 bg-dark">
-      {/* Same box as (boxed)/layout.tsx — on an ultrawide the wordmark must align with the content edge, not the viewport edge. The dark bar itself stays full-bleed. */}
-      <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-7 px-4 md:px-6 xl:px-10">
+    //   ⚠️ The masthead is `sticky top-0`. Sticky opens a stacking context on its own, but the
+    //   explicit z-40 above predates that (the bell popover needs it) and still governs.
+    <header className="sticky top-0 z-40 bg-dark">
+      {/* Same box as (boxed)/layout.tsx, plus the house prose inset (px-6 md:px-10) so the
+          wordmark aligns with page text rather than the box edge. The dark bar stays full-bleed. */}
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-7 px-6 md:px-10">
         <Link href="/" aria-label="One Life — home" className="flex-none">
           <img
             src="/brand/wordmark-primary@2x.png"
@@ -82,20 +60,13 @@ export function Masthead() {
             className="h-auto w-[105px]"
           />
         </Link>
-        {/* Below md the nav is the TabBar (shell/tab-bar.tsx): Home, Map, Board and the account
-         *  destinations. About lives in the footer. */}
-        <nav
-          aria-label="Primary"
-          className="hidden items-center gap-6 font-mono text-[11px] uppercase tracking-[.13em] md:flex"
-        >
-          <NavLinks active={active} />
-        </nav>
         {/* The bell and the account control share one right cluster; both render as plain
          *  inline controls (they used to self-position absolutely and collided). */}
         <div className="ml-auto flex min-w-0 flex-none items-center gap-2">
           <MastheadMapSwitcher pathname={pathname ?? "/"} />
           <MastheadBell />
           <AccountAffordance />
+          <NavMenu />
         </div>
       </div>
     </header>
