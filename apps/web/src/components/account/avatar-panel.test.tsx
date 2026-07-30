@@ -191,10 +191,29 @@ describe("AvatarPanel", () => {
     expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull();
   });
 
+  // A failed Save's visible error was previously cleared only in a mutation's own `onMutate` —
+  // i.e. the NEXT Save click. Staging a different draft in between (a new file, or switching to
+  // the Discord photo) left the stale "too large" alert rendered under the new preview.
+  test("staging a new draft after a failed save clears the stale visible error", async () => {
+    uploadAvatar.mockRejectedValue(new ApiError(400, "too_large"));
+    const { container } = panel();
+    pickFile();
+    await waitFor(() => expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull());
+    loadCropperImage(container);
+    await act(async () => { fireEvent.click(save()); });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/too large/i));
+
+    fireEvent.click(screen.getByRole("button", { name: /use my discord photo/i }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   // Finding #2: cropperRef.current.crop() rejects (bad canvas, failed webp encode, or a race
   // where the ref went stale) — this used to be an unhandled promise rejection: no message, no
   // error state, Save left enabled, and the user told nothing.
-  test("a crop that fails to produce a blob announces the error and does not save", async () => {
+  //
+  // Same defect class as the mutation-error finding (I1): a rejected crop must also be visible
+  // to a sighted player, not only reach the sr-only live region outside the portalled dialog.
+  test("a crop that fails to produce a blob announces the error, shows it visibly, and does not save", async () => {
     cropToBlob.mockRejectedValue(new Error("encode_failed"));
     const { container } = panel();
     pickFile();
@@ -205,6 +224,7 @@ describe("AvatarPanel", () => {
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("Something went wrong. Please try again."),
     );
+    expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong. Please try again.");
     expect(uploadAvatar).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
   });
@@ -324,5 +344,24 @@ describe("AvatarPanel", () => {
       expect(button.className).not.toContain("text-ink ");
       expect(button.className.split(/\s+/)).not.toContain("text-ink");
     }
+  });
+
+  // I4, upload trigger: the button that actually shipped invisible. It's `text-paper` on
+  // `bg-dark`, a class string outside the shared `ACTION` constant the loop above covers — so
+  // the loop testing Discord/Remove/Cancel is one assertion tripled, and reintroducing
+  // `text-ink` on THIS button specifically passes it unnoticed. This is the direct descendant of
+  // the headline defect the whole dialog exists to fix; do not fold it back into the `ACTION`
+  // loop above; it needs its own pin.
+  test("the upload trigger uses the dark-surface light token, never text-ink", async () => {
+    getAvatar.mockResolvedValue({ hash: null });
+    const { container } = panel();
+    await waitFor(() => expect(screen.getByRole("button", { name: /choose an image/i })).toBeInTheDocument());
+
+    pickFile();
+    await waitFor(() => expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull());
+    const button = screen.getByRole("button", { name: /choose a different image/i });
+    expect(button.className).toContain("text-paper");
+    expect(button.className).not.toContain("text-ink-muted");
+    expect(button.className.split(/\s+/)).not.toContain("text-ink");
   });
 });

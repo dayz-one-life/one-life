@@ -167,7 +167,15 @@ export function AvatarPanel({
         // real (if rare) failure mode, not just a defensive catch. Left unhandled this was an
         // unhandled promise rejection: no message, no error state, Save left enabled, and the
         // user told nothing at all.
-        onAnnounce(avatarErrorMessage(err));
+        //
+        // Same defect class as the mutation-error finding: `onAnnounce` alone only reaches the
+        // sr-only live region outside this portalled dialog, so a sighted player saw nothing. Set
+        // the same visible `mutationError` state the failed-mutation paragraph below renders —
+        // this is a plain imperative set, not derived from any mutation's `isError` flag, so it
+        // doesn't touch the SrStatus invariants above.
+        const message = avatarErrorMessage(err);
+        onAnnounce(message);
+        setMutationError(message);
         return;
       }
       upload.mutate(new File([blob], "avatar.webp", { type: "image/webp" }));
@@ -181,7 +189,11 @@ export function AvatarPanel({
   // Save needs a croppable image actually loaded, not merely a file picked.
   const [cropReady, setCropReady] = useState(false);
   const [cropBroken, setCropBroken] = useState(false);
-  useEffect(() => { setCropReady(false); setCropBroken(false); }, [draft]);
+  // A failed Save's visible `mutationError` otherwise survives a draft change untouched — the
+  // only place it was cleared was a mutation's own `onMutate`, i.e. the NEXT Save. Picking a
+  // different file or switching to the Discord photo after a rejected Save left the stale error
+  // ("That image is too large") rendered under the new preview until the user saved again.
+  useEffect(() => { setCropReady(false); setCropBroken(false); setMutationError(""); }, [draft]);
 
   // `avatar.isLoading` is allowed to keep "Remove photo" enabled: an in-flight `getAvatar` fetch
   // is NOT the same fact as "there is no avatar" ("loading, failed, empty and zero are four
@@ -245,6 +257,12 @@ export function AvatarPanel({
       )}
 
       <div className="flex flex-col items-start gap-2.5 border-t border-dark-line pt-4">
+        {/* ⚠️ This is the button that shipped invisible: `text-ink` on this `bg-dark` surface —
+         *  present, focusable, unreadable — is the defect this whole dialog exists to fix. Its
+         *  class string (`text-paper`, styled for emphasis as the primary action) is deliberately
+         *  outside the shared `ACTION` constant below, so it needs its own pinned regression
+         *  test (avatar-panel.test.tsx) rather than riding along with the `ACTION` loop's one
+         *  assertion tripled across Discord/Remove/Cancel. Do not fold this back into `ACTION`. */}
         <button
           type="button"
           disabled={pending}

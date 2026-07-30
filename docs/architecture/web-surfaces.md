@@ -435,12 +435,14 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   so the copy cannot drift. It **replaced** `HowToConnect` (`components/servers/how-to-connect.tsx`,
   now deleted), which covered the same no-join-URL reasoning with a plainer text panel; that file
   and its three separate mount points are gone, and `JoinServers` is the only connect block left.
-  **`SEARCH_TERM = "One Life"` is BRAND COPY, not fleet data**: every server's in-game
+  **The search term "One Life" is BRAND COPY, not fleet data.** It is inlined in `join-servers.tsx`'s
+  `STEPS` copy ("Search “One Life”") — there is no `SEARCH_TERM` constant. Every server's in-game
   browser name is `One Life <Map> | dayzonelife.com`, so one term finds all of them. It is
   deliberately NOT derived from `servers.name`, which holds the map label alone ("Chernarus") —
-  telling a player to search that returns thousands of unrelated servers. The panel equally does
-  **not** print the full browser name: we do not store it (it lives in each server's Nitrado
-  config), so any exact string here would be a guess that goes stale on the first rename.
+  telling a player to search that returns thousands of unrelated servers. `JoinServers`' replica
+  DOES print the full browser name per host (`One Life <Map> | dayzonelife.com` in `BrowserReplica`)
+  — hand-maintained brand copy verified against a real console screenshot, not derived data; see
+  below for the same fact in more detail.
   **`useControls` still exposes `serversLoading`**, the third instance of the loading/empty/failed
   shape after `standingLoading`/`balanceLoading` — `servers: []` is both the unresolved fallback
   and a genuinely empty fleet, so a consumer must check the flag before announcing an empty fleet
@@ -457,8 +459,9 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   the reason there was never a fourth step: **"Go play a session" is NOT a step**, because the claim
   autocomplete searches gamertags the LOGS have seen and anyone can type any gamertag, so the site
   can never know whether a signed-in user has played until they verify — a step that can never be
-  marked done would strand every player on it. "Go play" is the claim panel's empty state (the How
-  to connect panel), nowhere else.
+  marked done would strand every player on it. "Go play" is the claim panel's empty state — today
+  that's `JoinServers`' closing line ("Play first, claim later — your life is tracked from your
+  first spawn."), the surface that replaced the deleted `HowToConnect` — nowhere else.
   **Home's tokens block is a `TokensSummary`, not `TokensPanel`** — balance and purpose only.
   Sending and the referrer stay on `/you`; **spending stays on the ban row** (`ServerCard`'s
   `UnbanView`), which already knows which ban to lift, so a spend control in a tokens panel would
