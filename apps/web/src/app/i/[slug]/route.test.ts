@@ -7,6 +7,8 @@ const call = (slug: string) =>
 
 describe("GET /i/[slug]", () => {
   it("returns 200 HTML with OG tags and a bounce to /", async () => {
+    // isStorableSlug only allows [a-z0-9-]{1,64}, so the fixture must stay within that charset
+    // for personalization to kick in — a hyphen, not the brief's literal underscore example.
     const res = await GET(new Request("https://dayzonelife.com/i/vixxen-84"), { params: Promise.resolve({ slug: "vixxen-84" }) });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
@@ -20,15 +22,25 @@ describe("GET /i/[slug]", () => {
   });
 
   it("escapes HTML in the slug", async () => {
-    // Non-storable slug with special chars should not crash; storable slugs use esc() defensively
-    const res = await GET(new Request("https://x.test/i/a%3Cb%3E"), { params: Promise.resolve({ slug: 'a<b>' }) });
+    // A slug carrying HTML-significant characters is never storable (isStorableSlug only
+    // accepts [a-z0-9-]), so it never reaches the personalized `name`/esc() path — it must
+    // fall back to the generic, unpersonalized copy, and the raw payload must never be
+    // reflected anywhere in the document (title, meta content, or the og:url/og:image href,
+    // where it would otherwise ride through unescaped and break out of an attribute).
+    const payload = '"><script>alert(1)</script>';
+    const res = await GET(new Request(`https://x.test/i/${encodeURIComponent(payload)}`), {
+      params: Promise.resolve({ slug: payload }),
+    });
     const html = await res.text();
-    // Slug is non-storable, so no personalization; verify it doesn't appear in title
+    expect(html).not.toContain(payload);
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).not.toContain('"><script');
     expect(html).toContain("Someone dares you to survive DayZ One Life");
-    expect(html).not.toContain("a<b>");
   });
 
   it("renders generic copy and sets no cookie for a non-storable slug", async () => {
+    // Reuses the file's existing non-storable fixture value ("../../evil") from the cookie
+    // tests below.
     const res = await call("../../evil");
     expect(res.status).toBe(200);
     const html = await res.text();
