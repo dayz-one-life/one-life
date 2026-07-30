@@ -73,4 +73,18 @@ describe("AvatarCropper", () => {
     render(<AvatarCropper ref={ref} src="blob:fake" cropToBlob={vi.fn()} />);
     await expect(ref.current!.crop()).rejects.toThrow(/not loaded/i);
   });
+
+  // A wrapping element's `onLoad` never fires for this image's `load` (the DOM event doesn't
+  // bubble), so callers that need to know the crop is ready must use this prop instead.
+  test("calls onReady once the image reports natural dimensions", () => {
+    const onReady = vi.fn();
+    const ref = createRef<CropperHandle>();
+    const { container } = render(
+      <AvatarCropper ref={ref} src="blob:fake" cropToBlob={vi.fn()} onReady={onReady} />,
+    );
+    const img = container.querySelector("img")!;
+    expect(onReady).not.toHaveBeenCalled();
+    loadImage(img, 800, 400);
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
 });

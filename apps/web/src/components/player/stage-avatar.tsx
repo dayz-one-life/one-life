@@ -43,7 +43,9 @@ export function StageAvatar({
       </div>
       {open && (
         <div className="max-w-md">
-          <AvatarPanel />
+          {/* Task 4 wraps this in a dialog shell; until then, Save closes the inline panel the
+           *  same way the (now-removed) Cancel affordance used to. */}
+          <AvatarPanel onSaved={() => setOpen(false)} />
         </div>
       )}
     </div>

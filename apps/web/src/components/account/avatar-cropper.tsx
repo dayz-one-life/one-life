@@ -49,8 +49,11 @@ export const cropToBlob: CropToBlob = async (img, rect) => {
  * ⚠️ Every view mutation goes through `clampView`, including the zoom slider. See the ⚠️ in
  * `crop-geometry.ts` — a zoom-out re-clamps the offset it was holding.
  */
-export const AvatarCropper = forwardRef<CropperHandle, { src: string; cropToBlob?: CropToBlob }>(
-  function AvatarCropper({ src, cropToBlob: crop = cropToBlob }, ref) {
+export const AvatarCropper = forwardRef<
+  CropperHandle,
+  { src: string; cropToBlob?: CropToBlob; onReady?: () => void }
+>(
+  function AvatarCropper({ src, cropToBlob: crop = cropToBlob, onReady }, ref) {
     const imgRef = useRef<HTMLImageElement>(null);
     const [image, setImage] = useState<ImageSize | null>(null);
     const [view, setView] = useState<View | null>(null);
@@ -64,6 +67,10 @@ export const AvatarCropper = forwardRef<CropperHandle, { src: string; cropToBlob
       },
     }));
 
+    // ⚠️ `onReady` is called from HERE, not by a caller wrapping this component in its own
+    // `onLoad`. The DOM `load` event does not bubble, so a parent element's `onLoad` prop never
+    // fires for a descendant `<img>`'s load — only a listener attached to the `<img>` itself
+    // (this one) ever sees it. This is the only place that can tell the caller the crop is ready.
     const onLoad = () => {
       const img = imgRef.current;
       if (!img) return;
@@ -71,6 +78,7 @@ export const AvatarCropper = forwardRef<CropperHandle, { src: string; cropToBlob
       if (!size.width || !size.height) return;
       setImage(size);
       setView(initialView(size, FRAME));
+      onReady?.();
     };
 
     const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
