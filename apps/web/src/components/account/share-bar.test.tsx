@@ -11,23 +11,11 @@ afterEach(() => {
 });
 
 describe("<ShareBar />", () => {
-  it("renders the link read-only and one target per platform", () => {
+  it("renders no social share targets", () => {
     render(<ShareBar link={LINK} />);
-    expect(screen.getByLabelText("Your invite link")).toHaveValue(LINK);
-    expect(screen.getByLabelText("Share on X")).toHaveAttribute(
-      "href",
-      expect.stringContaining(encodeURIComponent(LINK)),
-    );
-    expect(screen.getByLabelText("Share on Reddit")).toBeInTheDocument();
-    expect(screen.getByLabelText("Share on WhatsApp")).toBeInTheDocument();
-    expect(screen.getByLabelText("Share by email")).toBeInTheDocument();
-  });
-
-  it("makes Discord a COPY action, not a link — Discord has no web share intent", () => {
-    render(<ShareBar link={LINK} />);
-    const discord = screen.getByLabelText("Copy for Discord");
-    expect(discord.tagName).toBe("BUTTON");
-    expect(discord).not.toHaveAttribute("href");
+    expect(screen.queryByLabelText(/share on/i)).toBeNull();
+    expect(screen.queryByLabelText(/discord/i)).toBeNull();
+    expect(screen.queryByText("More…")).toBeNull();
   });
 
   it("announces the copy confirmation in a live region", async () => {
@@ -37,12 +25,5 @@ describe("<ShareBar />", () => {
     await userEvent.click(screen.getByRole("button", { name: /copy link/i }));
     expect(writeText).toHaveBeenCalledWith(LINK);
     expect(await screen.findByText(/link copied/i)).toBeInTheDocument();
-  });
-
-  it("omits the native-share button when navigator.share is absent", () => {
-    // @ts-expect-error - deleting an optional platform capability
-    delete navigator.share;
-    render(<ShareBar link={LINK} />);
-    expect(screen.queryByRole("button", { name: /more/i })).not.toBeInTheDocument();
   });
 });
