@@ -6,7 +6,7 @@ import { notifications } from "@onelife/db";
  * the notifier duplicates out of apps/web for exactly this reason. Both copies must stay
  * in step with the notifications table's column set.
  */
-export type FriendNotificationDraft = {
+export type NotificationDraft = {
   userId: string;
   kind: string;
   naturalKey: string;
@@ -33,50 +33,8 @@ type Executor = { insert: (table: any) => any };
  * request_seq already makes a collision impossible; this is belt and braces, so a
  * duplicate key can never turn a friend request into a 500.
  */
-export async function writeNotification(tx: Executor, draft: FriendNotificationDraft): Promise<void> {
+export async function writeNotification(tx: Executor, draft: NotificationDraft): Promise<void> {
   await tx.insert(notifications).values(draft).onConflictDoNothing({ target: notifications.naturalKey });
-}
-
-/**
- * naturalKey is `friend_request:<senderUserId>:<friendshipId>:<seq>`.
- *
- * The `:<seq>` suffix is load-bearing (see the re-request test): notifications.natural_key
- * is a PLAIN GLOBAL unique index, so re-using the same key across a decline→re-request cycle
- * would have the second notification swallowed by onConflictDoNothing and the recipient
- * would never be told.
- *
- * The `<senderUserId>` segment is load-bearing too: it lets mutations.request() count how
- * many requests THIS sender has actually had delivered (a prefix match on
- * `friend_request:<senderUserId>:`), which friendships rows alone cannot answer since
- * cancel() hard-deletes the row while the notification survives. Adding it cannot introduce
- * a duplicate — the sender is fully determined by (friendshipId, seq): a given friendship
- * row's requester for a given seq never changes retroactively, so the key stays a pure
- * function of state that was already unique.
- */
-export function requestNotification(a: {
-  friendshipId: number; seq: number; recipientId: string; senderId: string; senderGamertag: string;
-}): FriendNotificationDraft {
-  return {
-    userId: a.recipientId,
-    kind: "friend_request_received",
-    naturalKey: `friend_request:${a.senderId}:${a.friendshipId}:${a.seq}`,
-    title: "Friend request",
-    body: `${a.senderGamertag} wants to be friends.`,
-    href: "/friends",
-  };
-}
-
-export function acceptedNotification(a: {
-  friendshipId: number; seq: number; senderId: string; accepterGamertag: string;
-}): FriendNotificationDraft {
-  return {
-    userId: a.senderId,
-    kind: "friend_request_accepted",
-    naturalKey: `friend_accepted:${a.friendshipId}:${a.seq}`,
-    title: "Friend request accepted",
-    body: `${a.accepterGamertag} accepted your friend request.`,
-    href: `/players/${playerSlug(a.accepterGamertag)}`,
-  };
 }
 
 /**
@@ -101,7 +59,7 @@ export function locationSharedNotification(a: {
   sessionConnectedAt: Date;
   mapSlug: string;
   mapName: string;
-}): FriendNotificationDraft {
+}): NotificationDraft {
   return {
     userId: a.granteeUserId,
     kind: "location_shared",

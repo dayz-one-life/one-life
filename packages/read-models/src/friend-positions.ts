@@ -76,7 +76,7 @@ export async function getFriendPositions(
   //
   // ⚠️ Equality against the session, not `granted_at >= connected_at`. The two would come from
   // different clocks (API wall clock vs an ADM timestamp with `servers.clock_offset_ms` applied),
-  // which differ by seconds — see the ⚠️ on `isShareEffective` in packages/friends.
+  // which differ by seconds — see the ⚠️ on `isShareEffective` in packages/location-sharing.
   //
   // ⚠️ The `gamertag_links` join is INNER and requires `verified`: a released link means no
   // coordinates, unconditionally, even though the grant row survives. Retained from F2.

@@ -5,7 +5,6 @@ import {
 } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { createAuth, type Mailer } from "@onelife/auth";
-import { orderPair } from "@onelife/friends";
 import { buildApp } from "../src/app.js";
 import { getTestDb } from "@onelife/test-support";
 
@@ -168,7 +167,12 @@ describe("friend map routes", () => {
     // ⚠️ Sub-project E: visibility is a session-scoped GRANT, not friendship flags. The
     // friendship is kept only so this fixture still exercises "a friend who has granted";
     // friendship itself grants nothing.
-    const { userA, userB } = orderPair(viewerUser!.id, friendUser!.id);
+    // Canonical ordering for the `friendships` table's user_a < user_b CHECK — the package's
+    // orderPair helper was retired with the friends feature; this fixture inlines the same
+    // string comparison.
+    const [userA, userB] = viewerUser!.id < friendUser!.id
+      ? [viewerUser!.id, friendUser!.id]
+      : [friendUser!.id, viewerUser!.id];
     await db.insert(friendships).values({
       userA, userB, status: "accepted", requestedBy: viewerUser!.id,
     });

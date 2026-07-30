@@ -8,7 +8,7 @@ import { getFriendPositions, getOnlinePlayers } from "@onelife/read-models";
 import {
   activeGrantees, grantLocation, revokeAllLocation, revokeLocation,
   locationSharedNotification, writeNotification,
-} from "@onelife/friends";
+} from "@onelife/location-sharing";
 import { getSession } from "../auth-plugin.js";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
