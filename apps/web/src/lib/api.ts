@@ -7,7 +7,7 @@ import type {
   NotificationsFeed,
   LifeTrack,
   SitemapData,
-  FriendsFeed, FriendStatusDto, FriendMap,
+  FriendMap,
 } from "./types";
 
 export class ApiError extends Error {
@@ -225,28 +225,6 @@ export const getSitemapData = () => apiGetCached<SitemapData>("/api/sitemap", SI
 /** Sitemap-only variant of `getServers()` — same endpoint, but cacheable/cookie-free. Do NOT
  *  point the regular `getServers()` (used by authenticated RSC pages) at this. */
 export const getServersCached = () => apiGetCached<Server[]>("/api/servers", SITEMAP_REVALIDATE_SECONDS);
-
-export const getFriends = (page = 1) => apiGet<FriendsFeed>(`/api/me/friends?page=${page}`);
-export const getOnlineFriends = () => apiGet<{ friends: import("./types").OnlineFriend[] }>("/api/me/friends/online");
-export const getFriendStatus = (gamertag: string) =>
-  apiGet<FriendStatusDto>(`/api/me/friends/status?gamertag=${encodeURIComponent(gamertag)}`);
-export const sendFriendRequest = (toGamertag: string) =>
-  apiSend<{ id: number; status: string }>("POST", "/api/me/friends/requests", { toGamertag });
-export const acceptFriendRequest = (id: number) =>
-  apiSend<{ ok: true }>("POST", `/api/me/friends/${id}/accept`);
-export const declineFriendRequest = (id: number) =>
-  apiSend<{ ok: true }>("POST", `/api/me/friends/${id}/decline`);
-// Bodyless DELETE: apiSend only sets content-type when a body is present, which is why
-// this must not pass one — Fastify rejects an empty JSON body with a 400.
-export const deleteFriendship = (id: number) =>
-  apiSend<{ ok: true }>("DELETE", `/api/me/friends/${id}`);
-export const patchFriendPresence = (
-  id: number, body: { share?: boolean; notify?: boolean },
-) => apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
-/** ⚠️ Presence only. Sub-project E deleted the location master switch — sharing is a
- *  session-scoped grant made on the map, not a standing preference. */
-export const patchPreferences = (body: { sharePresence?: boolean }) =>
-  apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);
 
 /** ⚠️ These three name a GRANTEE, which does not breach the no-subject rule: that rule governs
  *  coordinate EGRESS (whose position you may READ). These say who may see YOUR position, and
