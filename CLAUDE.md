@@ -139,14 +139,16 @@ Carried forward from the sub-projects that recorded it — each needs a real dev
 two signed-in accounts, and none is closed by the test suite:
 
 - M1's browser pass over `/maps` against real mirrored tiles (task 9 of its plan).
-- The 320px tab row, the safe-area calc in PWA/standalone on a notched phone, and the bell popover
-  vs the tab bar (sub-project B).
+- The 320px chrome row, the safe-area calc in PWA/standalone on a notched phone, and the bell
+  popover against page content and against the nav panel (sub-project B — its subject was the
+  deleted `TabBar`; the checks themselves are still open against what replaced it).
 - The avatar round trip: upload → the board/masthead rendering the mirrored image (login avatars).
 - The session location-share round trip: grant → dot → session end → dot gone (sub-project E).
 - Sub-project D3: moving `/maps/[map]` into `app/(site)/` and deleting the map's own chrome.
-- The four-link footer row at 320px, and the tab-bar gutter still clearing it in PWA/standalone
-  on a notched phone (legal pages). RTL pins `flex-wrap` as a class; only a browser can confirm
-  the wrap and the clearance.
+- The four-link footer row at 320px, and the footer's remaining safe-area gutter still clearing it
+  in PWA/standalone on a notched phone (legal pages; the gutter used to reserve the deleted
+  `TabBar`'s 4rem as well). RTL pins `flex-wrap` as a class; only a browser can confirm the wrap
+  and the clearance.
 - The verified-home redesign's layout claims, none of which RTL can prove and all of which need a
   **signed-in verified session**: the controls slab's `lg`-not-`md` split across the 768–1023
   band, the share row on one line at 390px, the 320px floor, the avatar pencil → `AvatarDialog`
@@ -154,7 +156,26 @@ two signed-in accounts, and none is closed by the test suite:
   `Emulation.setDeviceMetricsOverride` — `resize_window` and `--window-size` do not work here.
 - The avatar dialog's browser-only claims: the pointer drag and zoom slider actually moving the
   image (including under touch), the saved avatar matching what the preview showed, the dialog
-  painting above the masthead and tab bar without collapsing into the stage's stacking context,
+  painting above the masthead without collapsing into the stage's stacking context,
   and the dialog at 320px and in PWA/standalone on a notched phone. The crop stage has never been
   driven by a real pointer or a real touch, so the drag and the zoom slider remain unverified on
   any actual device. Needs a signed-in verified session; use CDP `Emulation.setDeviceMetricsOverride`.
+- The app-shell change (hamburger nav, sticky masthead, one width), none of which RTL can prove:
+  the masthead actually pinning while scrolling a long board or obituary, and not jumping when
+  iOS Safari collapses its URL bar; the menu panel painting above page content on a real device
+  and fitting at 320px; PWA/standalone on a notched phone now that the bottom bar is gone (the
+  footer's remaining safe-area gutter, and the map's friends sheet reaching `bottom-0` without
+  the home indicator eating its last row); the right cluster (bell + avatar + ☰, or SIGN IN + ☰)
+  at 320px; and every page at 1024 on a wide monitor — particularly `/friends`, which genuinely
+  widens from ~600px (the Survivors board does NOT: it was already 1024). Also, and none of these
+  is provable in jsdom:
+  - that `html { scroll-padding-top: 3.5rem }` actually lands `/#claim` clear of the sticky
+    masthead. This is the entire reason the rule exists, and jsdom computes no scroll geometry —
+    so the rule is shipped on argument alone.
+  - that the nav panel and the bell popover do not collide. Both are anchored `right-0` in the
+    same right cluster and both take the ref-counted body scroll lock, so opening one with the
+    other already open is the case to drive.
+  - that `sticky` really is a no-op on `/maps/[map]`. The spec asserts it because the page does
+    not scroll, but that is an untested layout claim about the one surface with a height chain —
+    and the one whose chrome the masthead now sits inside.
+  Use CDP `Emulation.setDeviceMetricsOverride`.

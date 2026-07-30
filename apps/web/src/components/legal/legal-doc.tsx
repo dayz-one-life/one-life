@@ -24,8 +24,10 @@ export interface LegalDocProps {
  * it so they cannot drift apart typographically, which is the whole reason the content lives in
  * data modules rather than in two hand-written pages.
  *
- * `max-w-3xl`, narrower than /about's `max-w-5xl`: this is one column of continuous prose, and a
- * 5xl measure is unreadable for it.
+ * `max-w-3xl`, narrower than the 1024px content box every page now sits in
+ * (`app/(site)/(boxed)/layout.tsx`): this is one column of continuous prose, and a 1024px measure
+ * is unreadable for it. One of the two prose exceptions to the box owning every width — the other
+ * is `obituaries/obituary-article.tsx`.
  */
 export function LegalDoc({ kicker, title, standfirst, effectiveDate, sections, children }: LegalDocProps) {
   return (

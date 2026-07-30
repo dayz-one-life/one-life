@@ -15,7 +15,7 @@ describe("NAV_ITEMS", () => {
   it("Survivors points at /survivors — sub-project D owns the route change", () => {
     const item = NAV_ITEMS.find((i) => i.key === "leaderboard");
     expect(item?.href).toBe("/survivors");
-    // One name for one surface: the label matches the URL, the board H1 and the tab bar.
+    // One name for one surface: the label matches the URL, the board H1 and the dossier back-link.
     expect(item?.label).toBe("Survivors");
   });
 });

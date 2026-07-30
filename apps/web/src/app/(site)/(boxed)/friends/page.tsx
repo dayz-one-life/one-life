@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function FriendsPage() {
   return (
-    <div className="mx-auto w-full max-w-[68ch] px-4 py-8">
+    <div className="w-full px-4 py-8">
       {/* No `count` here: the roster owns its own loading/empty/failed states and already reports
        *  its totals honestly. A second count in the header would be a second source of truth. */}
       <PageHeader title="Friends" />

@@ -44,7 +44,9 @@ export function SurvivorsBoard({
   const heading = `${mapLabel(slug)} survivors`;
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
+    // No width here — `app/(site)/(boxed)/layout.tsx` owns it. The inset stays: this board is a
+    // prose-inset surface, `px-6 md:px-10`.
+    <main className="w-full px-6 py-10 md:px-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: ldScript(itemListLd(page, slug)) }}

@@ -29,7 +29,7 @@ export default async function ObituariesPage({ searchParams }: Props) {
   const now = new Date();
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
+    <main className="w-full px-6 py-10 md:px-10">
       <div className="border-b-[3px] border-ink pb-4">
         <Kicker>The Morgue</Kicker>
         <h1 className="mt-2 font-display text-5xl font-bold uppercase leading-[.95] text-ink md:text-6xl">Obituaries</h1>

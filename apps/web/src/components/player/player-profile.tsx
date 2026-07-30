@@ -23,7 +23,9 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
   const stats = heroStats(page.totals);
 
   return (
-    <main className="mx-auto w-full max-w-5xl pb-10">
+    // No width here — `app/(site)/(boxed)/layout.tsx` owns it. No horizontal padding either;
+    // see the ⚠️ above.
+    <main className="w-full pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldScript(ld) }} />
 
       {/* ⚠️ This strip is `bg-dark` and butts straight against the masthead (no top padding on

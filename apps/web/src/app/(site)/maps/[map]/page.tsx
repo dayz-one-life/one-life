@@ -7,8 +7,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * ⚠️ Inside the `(site)` route group since sub-project D3, so it renders the masthead, footer and
- * tab bar like every other page. **The URL is unchanged** — route groups are not path segments —
+ * ⚠️ Inside the `(site)` route group since sub-project D3, so it renders the masthead (with the
+ * nav menu) and the footer like every other page. **The URL is unchanged** — route groups are not
+ * path segments —
  * and `/maps` (the redirect) already lived in the group, so the two halves of `/maps*` finally
  * share a layout instead of one opting out.
  */

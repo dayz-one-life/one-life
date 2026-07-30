@@ -119,7 +119,7 @@ export function MapPageView(p: MapPageViewProps) {
 /**
  * `/maps/[map]` — an ordinary page inside the site shell since sub-project D3. It used to be a
  * full-viewport application with its own two bars of chrome; the masthead is the way home now,
- * and the tab bar covers what the bottom bar did.
+ * and the hamburger menu in it covers what the map's own bottom bar did.
  *
  * ⚠️ It supplies NO `#main-content`. It used to, because it sat outside the `(site)` route group
  * and the root layout's skip link had no other target. Inside the group, `(site)/layout.tsx`

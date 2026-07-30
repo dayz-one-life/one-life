@@ -39,6 +39,10 @@
   --discord: 88 101 242;     /* #5865F2 */
 }
 
+/* ⚠️ The masthead is `sticky top-0` and 3.5rem tall, so an in-page anchor target scrolls to a
+   position UNDER it. `/#claim` is the live one. */
+html { scroll-padding-top: 3.5rem; }
+
 body { background: rgb(var(--paper)); color: rgb(var(--ink)); }
 
 /* Town / landmark labels on both maps (see `runPlaces` in components/map/map-canvas.tsx).

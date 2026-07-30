@@ -39,7 +39,7 @@ export default async function LifePageRoute({ params }: Props) {
   if (!data) notFound();
   const view = buildTimeline(data, new Date());
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
+    <main className="w-full px-6 py-10 md:px-10">
       <LifeHero data={data} view={view} />
       <div className="mt-6">
         <Timeline

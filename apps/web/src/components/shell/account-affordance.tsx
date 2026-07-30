@@ -1,75 +1,28 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useAccountStatus } from "@/lib/use-account-status";
 import { getAvatar } from "@/lib/api";
 import { Avatar } from "@/components/shared/avatar";
-import { useModalBehavior } from "@/lib/use-modal-behavior";
-import { signOutAndTeardownPush } from "@/lib/push";
-import { playerSlug } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 
 /**
- * The masthead's account control — an avatar disc that opens a small menu (profile / claim +
- * sign out). Replaces the old plain link to /you, which is deleted (avatar-account-pass spec §4).
+ * The masthead's account face: an avatar disc that LINKS TO `/`.
  *
- * ⚠️ Renders at EVERY width — this is the only route to sign-out now.
- * Pattern is MastheadBell's: owned open state, outside-click via a rootRef mousedown listener,
- * route-change close, useModalBehavior for Escape/focus (panel MUST carry tabIndex={-1}).
- * ⚠️ Every item ALSO closes it explicitly — route-change close is not enough for a hash-only
- * item (`/#claim` clicked from `/` changes no route), which otherwise leaves the popover open
- * over the claim modal it just opened, holding a second body scroll-lock.
- * The popover's z-50 ranks it inside the z-40 masthead — no new altitude (LAYER LEGEND).
+ * `/` is the player's own home — the ledger, the tickets, the controls slab — so the avatar
+ * means "you" and goes there. It used to open a popover; those items (profile / claim / sign
+ * out) moved into `shell/nav-menu.tsx`, so the masthead has exactly one menu.
+ *
+ * ⚠️ Signed out this renders a VISIBLE `Sign in` link rather than nothing. It is the primary
+ * conversion action on a marketing surface; the menu carries it too, but not only.
+ *
+ * ⚠️ Renders nothing while the status is loading — a Sign in chip swapped for an avatar a frame
+ * later teaches a player not to trust the chrome.
  */
 export function AccountAffordance() {
   const status = useAccountStatus();
   const signedIn = status.kind === "unlinked" || status.kind === "pending" || status.kind === "verified";
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar, enabled: signedIn });
-
-  const [open, setOpen] = useState(false);
-  const panelRef = useModalBehavior(open, () => setOpen(false));
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  const pathname = usePathname();
-  const prevPath = useRef(pathname);
-  useEffect(() => {
-    if (prevPath.current !== pathname) setOpen(false);
-    prevPath.current = pathname;
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  // Minimal roving-focus menu contract: focus the first item on open, then Arrow/Home/End move
-  // focus between items (wrapping). Escape/outside-click/route-close are handled above already.
-  useEffect(() => {
-    if (!open) return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const items = Array.from(panel.querySelectorAll<HTMLElement>('[role="menuitem"]'));
-    items[0]?.focus();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-      e.preventDefault();
-      const current = items.indexOf(document.activeElement as HTMLElement);
-      let next: number;
-      if (e.key === "Home") next = 0;
-      else if (e.key === "End") next = items.length - 1;
-      else if (e.key === "ArrowDown") next = current < 0 ? 0 : (current + 1) % items.length;
-      else next = current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length;
-      items[next]?.focus();
-    };
-    panel.addEventListener("keydown", onKeyDown);
-    return () => panel.removeEventListener("keydown", onKeyDown);
-  }, [open, panelRef]);
 
   if (status.kind === "loading") return null;
 
@@ -89,70 +42,21 @@ export function AccountAffordance() {
   // and mark the disc with the verification yellow so the state is visible at every width.
   const pendingTag = status.kind === "pending" ? status.link.gamertag : null;
   const initial = (gamertag ?? pendingTag)?.trim().charAt(0).toUpperCase() || "•";
-  const hash = avatar.data?.hash ?? null;
-  const itemClass =
-    "block w-full px-3 py-2 text-left font-mono text-[11px] uppercase tracking-[.08em] text-paper hover:bg-dark-well hover:text-red-soft";
 
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Your account"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls="account-menu"
-        className="group flex h-9 w-9 items-center justify-center rounded-full"
-      >
-        {/* The ring, fill and glyph all come from `Avatar` now — see the ⚠️ at that component.
-            The pending cue and the hover both reach it through `className`, which `cn` merges
-            LAST: `border-yellow` replaces the variant's `border-dark-edge-bright` (same Tailwind
-            class group), while `group-hover:border-red` is a variant group and survives alongside
-            it. That is why the cue and the hover do not cancel each other out. */}
-        <Avatar
-          hash={hash}
-          size={36}
-          fallbackInitial={initial}
-          variant="dark"
-          className={cn("group-hover:border-red group-hover:text-red", pendingTag && "border-yellow")}
-        />
-      </button>
-      {open && (
-        <div
-          ref={panelRef}
-          id="account-menu"
-          role="menu"
-          aria-label="Your account"
-          tabIndex={-1}
-          className="absolute right-0 top-full z-50 mt-2 w-[200px] border border-dark-line bg-dark py-1 shadow-[0_10px_30px_rgba(0,0,0,.45)]"
-        >
-          {gamertag ? (
-            <Link role="menuitem" href={`/players/${playerSlug(gamertag)}`} className={itemClass} onClick={() => setOpen(false)}>
-              Your profile →
-            </Link>
-          ) : pendingTag ? (
-            <Link role="menuitem" href="/#claim" className={itemClass} onClick={() => setOpen(false)}>
-              Finish verification →
-            </Link>
-          ) : (
-            // Plain <a>, not Next's <Link>: same-page hash navigation goes through pushState,
-            // which fires NO hashchange event — a <Link href="/#claim"> clicked while already on
-            // the home page would never open ClaimModal. From any other page this is a normal
-            // full navigation, and the modal's mount-time hash check catches it.
-            <a role="menuitem" href="/#claim" className={itemClass} onClick={() => setOpen(false)}>
-              Claim your gamertag →
-            </a>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => void signOutAndTeardownPush()}
-            className={itemClass}
-          >
-            Sign out
-          </button>
-        </div>
-      )}
-    </div>
+    <Link href="/" aria-label="Your home" className="group flex h-9 w-9 items-center justify-center rounded-full">
+      {/* The ring, fill and glyph all come from `Avatar` — see the ⚠️ at that component. The
+          pending cue and the hover both reach it through `className`, which `cn` merges LAST:
+          `border-yellow` replaces the variant's `border-dark-edge-bright` (same Tailwind class
+          group), while `group-hover:border-red` is a variant group and survives alongside it.
+          That is why the cue and the hover do not cancel each other out. */}
+      <Avatar
+        hash={avatar.data?.hash ?? null}
+        size={36}
+        fallbackInitial={initial}
+        variant="dark"
+        className={cn("group-hover:border-red group-hover:text-red", pendingTag && "border-yellow")}
+      />
+    </Link>
   );
 }

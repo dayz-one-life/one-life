@@ -21,29 +21,27 @@ vi.mock("@/components/notifications/bell", () => ({
 vi.mock("@/components/shell/account-affordance", () => ({
   AccountAffordance: () => <div data-testid="account-stub" />,
 }));
+vi.mock("@/components/shell/nav-menu", () => ({
+  NavMenu: () => <div data-testid="nav-menu-stub" />,
+}));
 
 describe("Masthead", () => {
-  it("renders the wordmark home link and all four nav items", () => {
+  it("renders the wordmark home link, and NO inline nav row", () => {
     render(<Masthead />);
     expect(screen.getByRole("link", { name: "One Life — home" })).toHaveAttribute("href", "/");
+    // ⚠️ The nav row is GONE — shell/nav-menu.tsx is the only nav now, at every width. A
+    // duplicate row here would give two sources of truth for the active section.
+    expect(screen.queryByRole("navigation", { name: "Primary" })).toBeNull();
     for (const label of ["Home", "Maps", "Survivors", "About"]) {
-      expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThan(0);
+      expect(screen.queryByRole("link", { name: label })).toBeNull();
     }
   });
 
-  it("marks the active section with aria-current and the red underline", () => {
-    mockPathname.mockReturnValue("/survivors/sakhal");
+  // ⚠️ This inverts a previous contract. The masthead used to assert it had NO hamburger,
+  // because the TabBar was the mobile nav. The TabBar is deleted; the hamburger is the nav.
+  it("mounts the nav menu — the one nav, at every width", () => {
     render(<Masthead />);
-    const link = screen.getAllByRole("link", { name: "Survivors" })[0]!;
-    expect(link).toHaveAttribute("aria-current", "page");
-    // Mock app bar: active = paper text over a red underline; inactive = dimmed cream.
-    expect(link.className).toContain("border-red");
-    expect(link.className).toContain("text-paper");
-  });
-
-  it("has no hamburger — the TabBar replaced the mobile menu", () => {
-    render(<Masthead />);
-    expect(screen.queryByRole("button", { name: /open menu/i })).toBeNull();
+    expect(screen.getByTestId("nav-menu-stub")).toBeInTheDocument();
   });
 
   it("wordmark declares intrinsic dimensions so the masthead cannot shift", () => {
@@ -61,6 +59,7 @@ describe("Masthead", () => {
     // Both live inside the same wrapper, which flexes to the right (`ml-auto`) — neither
     // control positions itself absolutely (the overlap the original refactor existed to fix).
     expect(account.parentElement).toBe(cluster);
+    expect(screen.getByTestId("nav-menu-stub").parentElement).toBe(cluster);
     expect(cluster?.className).toContain("ml-auto");
     expect(bell.className).not.toContain("absolute");
     expect(account.className).not.toContain("absolute");
@@ -75,7 +74,11 @@ describe("Masthead", () => {
     // Word-boundary matching on purpose: `toContain("z-50")` would also pass for `focus:z-50`.
     const { container } = render(<Masthead />);
     const className = container.querySelector("header")?.className ?? "";
-    expect(className).toMatch(/(^|\s)relative(\s|$)/);
+    // ⚠️ `sticky`, not `relative`: the masthead pins to the top so navigation is reachable from
+    // the bottom of a long board or obituary. `sticky` opens a stacking context on its own, but
+    // the explicit z-40 was already required (for the bell popover) and is unchanged.
+    expect(className).toMatch(/(^|\s)sticky(\s|$)/);
+    expect(className).toMatch(/(^|\s)top-0(\s|$)/);
 
     // The altitude must sit strictly between page content and the z-50 overlays that have to
     // cover the masthead — the skip-to-content link (app/layout.tsx). It renders BEFORE the
@@ -91,12 +94,13 @@ describe("Masthead", () => {
     const { container } = render(<Masthead />);
     const row = container.querySelector("header > div");
     expect(row).not.toBeNull();
-    // Must match the (boxed) layout's box: centered, capped at 1440px, xl gutter.
-    // Use space-based boundaries like the altitude test above, since word boundaries don't work
-    // well with Tailwind classes containing non-word chars (hyphens, brackets).
+    // Must match the (boxed) layout's box: centered, capped at 1024px (max-w-5xl), with the
+    // house prose inset so the wordmark lines up with page text.
     expect(row!.className).toMatch(/(^|\s)mx-auto(\s|$)/);
-    expect(row!.className).toMatch(/(^|\s)max-w-\[1440px\](\s|$)/);
-    expect(row!.className).toMatch(/(^|\s)xl:px-10(\s|$)/);
+    expect(row!.className).toMatch(/(^|\s)max-w-5xl(\s|$)/);
+    expect(row!.className).toMatch(/(^|\s)px-6(\s|$)/);
+    expect(row!.className).toMatch(/(^|\s)md:px-10(\s|$)/);
     expect(row!.className).toMatch(/(^|\s)w-full(\s|$)/);
+    expect(row!.className).not.toMatch(/max-w-\[1440px\]/);
   });
 });

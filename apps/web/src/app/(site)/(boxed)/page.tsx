@@ -50,7 +50,7 @@ export default async function Home() {
   const obits = await obitsPromise;
 
   return (
-    <main className="mx-auto w-full min-w-0 max-w-5xl">
+    <main className="w-full min-w-0">
       {!signedIn && (
         <>
           <Hero stats={stats.data} />

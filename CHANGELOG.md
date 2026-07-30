@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The mobile bottom tab bar is replaced by a single hamburger menu in the masthead that works at
+  every width. It carries the whole nav (Home, Maps, Survivors, Obituaries, About), Friends when
+  signed in, and the account items — profile, claim, sign out — that used to live behind the
+  avatar. The desktop inline nav row is gone with it; there is one nav now.
+- The avatar in the masthead is a link to your home page rather than a menu trigger. Signed out,
+  a visible SIGN IN link stays in the masthead.
+- The masthead is sticky, so navigation is reachable from the bottom of a long board or obituary.
+- Every page except the map is now the same 1024px width on a wide monitor. Friends was much
+  narrower than the rest, and Notifications was narrower still; Terms and Privacy keep their
+  narrower reading measure, as obituaries always have. Obituaries moves inside the shared content
+  box (its URLs are unchanged).
+
 ## [0.67.0] - 2026-07-30
 
 ### Changed
