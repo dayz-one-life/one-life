@@ -34,8 +34,7 @@ export function Masthead() {
     //           paints over an unlayered masthead. (The `xl:sticky` HomeSidebar that used to be
     //           the worked example here is gone — home is one column now — but the hazard is a
     //           property of `sticky`, not of that component, so the note stays.)
-    //   z-40    chrome — this masthead AND the mobile TabBar (`shell/tab-bar.tsx`). They never
-    //           overlap spatially, so they share a layer. Load-bearing, not decoration: the bell
+    //   z-40    chrome — this masthead. Load-bearing, not decoration: the bell
     //           popover's own `z-50` only ranks it INSIDE the right cluster, whose
     //           `-translate-y-1/2` opens a stacking context; without a layer here the popover
     //           paints behind page content.

@@ -275,9 +275,11 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   **⚠️ THE APP HAS EXACTLY THREE Z-ALTITUDES — the LAYER LEGEND at the `<header>` in
   `header.tsx` is the source of truth.** `z-auto` page content → **`z-40` masthead** → **`z-50`
   full-screen overlays** (the skip-to-content link in `app/layout.tsx`). Since sub-project B the
-  `z-40` layer has two occupants — the masthead and the mobile `TabBar`
-  (`components/shell/tab-bar.tsx`) — which never overlap spatially and so share it rather than
-  adding a fourth altitude. The masthead **must** be a positioned layer: the bell popover's own
+  `z-40` layer had two occupants — the masthead and the mobile `TabBar`
+  (`components/shell/tab-bar.tsx`) — which never overlapped spatially and so shared it rather than
+  adding a fourth altitude. **The hamburger-nav/sticky-masthead change (2026-07-30, below) deletes
+  `TabBar` outright, so the masthead is the layer's only occupant again** — the legend in
+  `header.tsx` was corrected to say so; do not restore the "two occupants" framing. The masthead **must** be a positioned layer: the bell popover's own
   `z-50` only ranks it *inside* the right cluster, whose `-translate-y-1/2` opens a stacking
   context — so without a layer on the header, any later-in-DOM positioned-at-`z-auto` element
   paints over the popover (**`sticky` opens a stacking context regardless of z-index**, as does
@@ -358,6 +360,10 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `components/account/` (identity, link, verify, tokens, `use-controls`, `format`,
   `verification-announcer`), `components/servers/` (server cards), `components/friends/` and
   `components/shared/` (`GamertagAutocomplete`).
+  **⚠️ EVERYTHING IN THIS PARAGRAPH ABOUT `TabBar` IS HISTORICAL — the component is DELETED by the
+  hamburger-nav/sticky-masthead change (2026-07-30, its own entry below).** Kept verbatim because
+  the reasoning (the safe-area calc, the footer gutter placement) is the worked example the new
+  entry's footer-gutter note points back to; do not resurrect any of it.
   **Below `md` a fixed `TabBar`** (`components/shell/tab-bar.tsx`) carries Home · Map · Survivors ·
   Friends · **Obits**, swapping Friends for Sign in when signed out (**five tabs in both states**,
   since 2026-07-28) and rendering
@@ -376,7 +382,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   browser: `elementFromPoint` on the link returned the bar). jsdom cannot see the overlap, so
   `footer.test.tsx` pins the gutter class. **This is NOT a return of the retired
   `ControlsPill`** — that was a floating account surface; this is app-wide navigation that renders
-  for signed-out visitors too.
+  for signed-out visitors too. **(2026-07-30: the bar itself is gone, and the gutter it justified
+  is gone with it — see below.)**
   **The hamburger and its full-screen menu are gone**, and **About moved to the footer**, which is
   its only route below `md`.
   **`/you` is the account page** (identity, tokens, sign-out), reached from a masthead avatar that
@@ -859,3 +866,43 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   13. **A referral pays ONCE per referee, ever.** `yyyymm` is deliberately not in the idempotency
       key — it used to be, which made this an annuity: ten referees minted 11 tokens a month
       against a 1/month base grant.
+
+## Hamburger nav + sticky masthead + one width
+
+- **The mobile `TabBar` and the desktop inline nav row are both gone, replaced by ONE menu** ✅
+  (spec `docs/superpowers/specs/2026-07-30-app-shell-hamburger-sticky-masthead-design.md`, plan
+  `docs/superpowers/plans/2026-07-30-app-shell-hamburger-sticky-masthead.md`). **Presentation
+  only** — no migration, no API route, no env var, no worker; plain `./deploy/deploy.sh`.
+  **`components/shell/nav-menu.tsx` is THE navigation now, at every width** — one hamburger
+  dropdown in the masthead carrying the site nav (Home, Maps, Survivors, Obituaries, About),
+  Friends when signed in, and the account items (Your profile / Finish verification / Claim your
+  gamertag / Sign out / Sign in). This retires everything the Sub-project B and "Home consistency"
+  entries above say about `TabBar` (`components/shell/tab-bar.tsx`, deleted along with the two
+  bottom gutters that reserved space for it — the footer's `4rem` and the map friends sheet's
+  offset; the `env(safe-area-inset-bottom)` insets themselves survive) and about the masthead
+  avatar owning a popover of account items — **`shell/account-affordance.tsx` is now just an
+  avatar disc that LINKS to `/` (the player's own home) plus the signed-out `Sign in` link; its
+  popover moved into `nav-menu.tsx`.** Every claim elsewhere in this file that an account item
+  (claim/verify/sign-out/"Finish verification →") lives in "the masthead avatar menu" or
+  `account-affordance.tsx` now means `nav-menu.tsx` — the mechanics (plain `<a>` for the hash-only
+  claim items, every item closing the menu explicitly, the ref-counted scroll lock) carried over
+  unchanged, just relocated.
+  **The masthead is `sticky top-0`, not static** — navigation stays reachable scrolling a long
+  board or obituary. `html { scroll-padding-top: 3.5rem }` was added so in-page anchors (`/#claim`)
+  land below it rather than under it.
+  **`app/(site)/(boxed)/layout.tsx` is now the ONLY place a content width is declared, at
+  `max-w-5xl` (1024px, was 1440px)** — see the ⚠️ comment on that file, which is the source of
+  truth. This retires the `max-w-[1440px]` two-column grid described in the R3 entry near the top
+  of this file (already noted superseded there by pill re-homing and again by "THERE IS NO
+  SIDEBAR" above) and the 68ch/no-declaration per-page containers on Survivors, Friends, Terms,
+  Privacy, Welcome, Notifications and the dossier — all stripped. **`/obituaries` moved inside
+  `(boxed)`** (URLs unchanged — route groups are not path segments). `/maps/[map]` stays outside
+  `(boxed)` and full-bleed, and `/login`'s `max-w-md` form and the `max-w-3xl` prose measures
+  (`legal-doc.tsx`, `obituary-article.tsx`) survive as narrow-by-design elements inside the box,
+  not exceptions to the rule.
+  **The LAYER LEGEND still has exactly three altitudes — this work adds none.** `z-40` is the
+  masthead alone again now that `TabBar` is gone (see the correction on that entry above);
+  `nav-menu.tsx`'s panel is `z-50`, ranking it inside the masthead's own stacking context, same as
+  the old account popover and the retired hamburger's full-screen menu before it.
+  **Nothing here is verified in a real browser** — see the outstanding-work entry in `CLAUDE.md`
+  added alongside this one; it must not be trimmed at PR time.

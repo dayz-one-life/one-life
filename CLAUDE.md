@@ -158,3 +158,11 @@ two signed-in accounts, and none is closed by the test suite:
   and the dialog at 320px and in PWA/standalone on a notched phone. The crop stage has never been
   driven by a real pointer or a real touch, so the drag and the zoom slider remain unverified on
   any actual device. Needs a signed-in verified session; use CDP `Emulation.setDeviceMetricsOverride`.
+- The app-shell change (hamburger nav, sticky masthead, one width), none of which RTL can prove:
+  the masthead actually pinning while scrolling a long board or obituary, and not jumping when
+  iOS Safari collapses its URL bar; the menu panel painting above page content on a real device
+  and fitting at 320px; PWA/standalone on a notched phone now that the bottom bar is gone (the
+  footer's remaining safe-area gutter, and the map's friends sheet reaching `bottom-0` without
+  the home indicator eating its last row); the right cluster (bell + avatar + ☰, or SIGN IN + ☰)
+  at 320px; and every page at 1024 on a wide monitor — particularly Survivors and Friends, which
+  each gain ~400px. Use CDP `Emulation.setDeviceMetricsOverride`.
