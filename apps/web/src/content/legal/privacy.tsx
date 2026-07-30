@@ -117,6 +117,11 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           each lasted, how it ended, your kills, your obituaries, and your position on the boards.
         </p>
         <p>
+          <strong>Any signed-in, verified player</strong>: whether you are currently on a server.
+          The map's online list shows everyone currently connected, the same way DayZ&rsquo;s own
+          in-game player list already does — nothing here hides that.
+        </p>
+        <p>
           <strong>Yours alone</strong>: your email address, your IP addresses, and your map
           coordinates. The routes that serve coordinates take no player parameter at all — there is
           no field in which to name somebody else — and they are marked never to be cached or
