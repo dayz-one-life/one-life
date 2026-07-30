@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-07-30
+
 ### Added
 
 - Verified home is now a life-tickets stage: the gamertag as the headline, one ticket per server
