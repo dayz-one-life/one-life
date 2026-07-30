@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Avatar } from "@/components/shared/avatar";
 import { AvatarPanel } from "@/components/account/avatar-panel";
+import { SrStatus } from "@/components/shared/sr-status";
 
 /**
  * The stage's identity circle.
@@ -11,6 +12,13 @@ import { AvatarPanel } from "@/components/account/avatar-panel";
  *
  * ⚠️ This pencil is the SINGLE edit path. The dossier's old "Update photo ↓" disclosure was
  * retired with it (spec §2) — two edit paths on one page is how the avatar work shipped twice.
+ *
+ * ⚠️ `SrStatus` lives HERE, not inside `AvatarPanel`. A successful save calls `onSaved`, which
+ * closes (unmounts) the panel in the same commit that would have set the announcement text — a
+ * live region that unmounts alongside its own text change announces nothing. This component
+ * outlives the panel (it stays mounted as long as the pencil does), so the region survives the
+ * close and the announcement is actually heard. Task 4 inserts `AvatarDialog` between this
+ * component and `AvatarPanel` and must pass `onAnnounce` straight through unchanged.
  */
 export function StageAvatar({
   hash,
@@ -22,6 +30,7 @@ export function StageAvatar({
   editable: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
   return (
     <div className="flex flex-col gap-3">
       <div className="relative inline-block flex-none">
@@ -45,9 +54,12 @@ export function StageAvatar({
         <div className="max-w-md">
           {/* Task 4 wraps this in a dialog shell; until then, Save closes the inline panel the
            *  same way the (now-removed) Cancel affordance used to. */}
-          <AvatarPanel onSaved={() => setOpen(false)} />
+          <AvatarPanel onSaved={() => setOpen(false)} onAnnounce={setAnnouncement} />
         </div>
       )}
+      {/* Always-mounted (per the SrStatus rule) and a SIBLING of the panel, not a descendant —
+       *  see the ⚠️ above. */}
+      <SrStatus>{announcement}</SrStatus>
     </div>
   );
 }

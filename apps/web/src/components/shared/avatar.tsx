@@ -20,13 +20,21 @@ const DISC = { paper: "bg-bone text-ink-muted", dark: "bg-dark-well text-paper" 
 /** Decorative player avatar. Silhouette is the RESOLVED EMPTY state, not an error. alt="". */
 export function Avatar({
   hash,
+  src,
   size,
   dim = false,
   fallbackInitial,
   variant = "paper",
   className,
+  onError,
 }: {
   hash: string | null;
+  /** Renders THIS url instead of building one from `hash` — e.g. a login provider's photo,
+   *  which is never stored under a hash. Still goes through the same circle/ring/variant tokens
+   *  below, which is the whole point: a call site that needs to show a foreign image URL must
+   *  not hand-roll `rounded-full border ...` itself (see the ⚠️ above). Takes priority over
+   *  `hash` when both are given. */
+  src?: string;
   size: number;
   dim?: boolean;
   /** When provided (and `hash` is null), renders this initial in the disc instead of the
@@ -38,6 +46,10 @@ export function Avatar({
   /** Merged LAST through `cn` (twMerge), so it overrides the component's own tokens by class
    *  group rather than competing with them. */
   className?: string;
+  /** Only meaningful with `src`: a foreign URL (e.g. Discord's CDN) can go stale and 404. Lets
+   *  the caller react to that — `alt=""` stays empty either way (see above), so there is no
+   *  built-in fallback text; the caller must render its own visible+SR message. */
+  onError?: () => void;
 }) {
   const box = { width: size, height: size };
   const disc = cn(
@@ -47,6 +59,16 @@ export function Avatar({
     dim && "opacity-60",
     className,
   );
+
+  if (src) {
+    return (
+      <img src={src} alt="" width={size} height={size} loading="lazy" decoding="async"
+        onError={onError}
+        style={box}
+        className={cn("rounded-full border object-cover", RING[variant],
+          dim && "opacity-60 grayscale", className)} />
+    );
+  }
 
   if (hash) {
     return (

@@ -1,8 +1,9 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import type { ReactNode } from "react";
+import { useState } from "react";
 import { AvatarPanel } from "./avatar-panel";
+import { SrStatus } from "@/components/shared/sr-status";
 import { ApiError } from "@/lib/api";
 
 const getAvatar = vi.fn();
@@ -29,11 +30,42 @@ vi.mock("@/lib/auth-client", () => ({
 const cropToBlob = vi.fn(async () => new Blob(["x"], { type: "image/webp" }));
 const onSaved = vi.fn();
 
-function wrap(ui: ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+// `AvatarPanel` no longer owns the live region (it's handed `onAnnounce` and doesn't render
+// `SrStatus` itself — see the ⚠️ in avatar-panel.tsx). This harness is a stand-in for the real
+// owner, `StageAvatar`: it stays mounted across a `Save` that closes (unmounts) the panel, which
+// is exactly the arrangement the announcement tests below depend on.
+function Harness({ cropToBlob: crop }: { cropToBlob: typeof cropToBlob }) {
+  const [open, setOpen] = useState(true);
+  const [announcement, setAnnouncement] = useState("");
+  return (
+    <>
+      {open ? (
+        <AvatarPanel
+          onSaved={() => { onSaved(); setOpen(false); }}
+          onAnnounce={setAnnouncement}
+          cropToBlob={crop}
+        />
+      ) : (
+        // Stand-in for reopening the real dialog — lets a test drive a SECOND save after the
+        // first one closed the panel, to prove the (still-mounted) live region re-announces.
+        <button type="button" onClick={() => setOpen(true)}>
+          Reopen
+        </button>
+      )}
+      <SrStatus>{announcement}</SrStatus>
+    </>
+  );
 }
-const panel = () => wrap(<AvatarPanel onSaved={onSaved} cropToBlob={cropToBlob} />);
+
+function wrap() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <Harness cropToBlob={cropToBlob} />
+    </QueryClientProvider>,
+  );
+}
+const panel = () => wrap();
 
 function pickFile(name = "avatar.png") {
   const input = screen.getByLabelText(/choose an image/i) as HTMLInputElement;
@@ -138,6 +170,43 @@ describe("AvatarPanel", () => {
     expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull();
   });
 
+  // Finding #2: cropperRef.current.crop() rejects (bad canvas, failed webp encode, or a race
+  // where the ref went stale) — this used to be an unhandled promise rejection: no message, no
+  // error state, Save left enabled, and the user told nothing.
+  test("a crop that fails to produce a blob announces the error and does not save", async () => {
+    cropToBlob.mockRejectedValue(new Error("encode_failed"));
+    const { container } = panel();
+    pickFile();
+    await waitFor(() => expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull());
+    loadCropperImage(container);
+    await waitFor(() => expect(save()).toBeEnabled());
+    await act(async () => { fireEvent.click(save()); });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Something went wrong. Please try again."),
+    );
+    expect(uploadAvatar).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  // Finding #3: a corrupt file (or a non-image renamed to look like one) never fires `load` on
+  // the cropper's <img> — onReady never fires, Save stays disabled forever, and without this the
+  // user is told nothing about why. "loading, failed, empty and zero are four different renders."
+  test("a file that fails to decode surfaces visibly and via the live region, without disabling the rest of the panel", async () => {
+    const { container } = panel();
+    pickFile();
+    await waitFor(() => expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull());
+    const img = container.querySelector("[data-testid='crop-stage'] img") as HTMLImageElement;
+    fireEvent.error(img);
+    expect(screen.getByRole("alert")).toHaveTextContent(/doesn't look like an image/i);
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/doesn't look like an image/i),
+    );
+    expect(save()).toBeDisabled(); // never became croppable — correctly still disabled
+    // The rest of the panel remains usable — the user can pick a different file instead of
+    // being stuck.
+    expect(screen.getByRole("button", { name: /choose a different image/i })).toBeEnabled();
+  });
+
   // The dossier hero is server-rendered (RSC) and isn't reachable through query invalidation.
   test("a successful change also calls router.refresh, reaching the server-rendered hero", async () => {
     getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
@@ -148,6 +217,24 @@ describe("AvatarPanel", () => {
     await act(async () => { fireEvent.click(save()); });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar removed"));
     expect(routerRefresh).toHaveBeenCalled();
+  });
+
+  // Finding #1 regression test: onSaved unmounts the panel (see Harness above) in the SAME
+  // commit the success announcement is set. If the live region lived inside AvatarPanel, it
+  // would unmount right along with the text change and nothing would ever be announced. Because
+  // the harness keeps SrStatus mounted as a sibling, the text survives the panel's unmount.
+  test("the success announcement survives the panel closing (the live region outlives the dialog)", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    removeAvatar.mockResolvedValue({ ok: true });
+    panel();
+    await waitFor(() => expect(screen.getByRole("button", { name: /remove photo/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: /remove photo/i }));
+    await act(async () => { fireEvent.click(save()); });
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    // The panel is gone (Save/Remove buttons unmounted along with it)...
+    expect(screen.queryByRole("button", { name: /^save$/i })).toBeNull();
+    // ...but the announcement it made is still in the document.
+    expect(screen.getByRole("status")).toHaveTextContent("Avatar removed");
   });
 
   test("announces on settlement, never at click", async () => {
@@ -164,7 +251,10 @@ describe("AvatarPanel", () => {
   });
 
   // Two settlements landing on the SAME text must both announce; React bails on an equal state
-  // update, so each mutation blanks the announcement in onMutate.
+  // update, so each mutation blanks the announcement in onMutate. Since a successful Save now
+  // closes the dialog (finding #1's fix), the second settlement necessarily comes from a
+  // REOPENED panel — the live region (owned by the harness, outside the panel) is what carries
+  // the "blanked → same text again" transition across that reopen.
   test("a repeated outcome re-announces", async () => {
     getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
     removeAvatar.mockResolvedValue({ ok: true });
@@ -174,6 +264,8 @@ describe("AvatarPanel", () => {
     await act(async () => { fireEvent.click(save()); });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar removed"));
 
+    fireEvent.click(screen.getByRole("button", { name: /reopen/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /remove photo/i })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /remove photo/i }));
     fireEvent.click(save());
     expect(screen.getByRole("status")).toHaveTextContent(""); // blanked on start

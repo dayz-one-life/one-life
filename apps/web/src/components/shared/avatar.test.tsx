@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, expect, test, vi } from "vitest";
 import { Avatar, avatarSrc } from "./avatar";
 
 describe("avatarSrc", () => {
@@ -72,6 +72,28 @@ describe("Avatar", () => {
       expect(el.className).not.toContain("bg-bone");
       expect(el.className).not.toContain("text-ink-muted");
     }
+  });
+
+  // ── `src`: a foreign URL (provider photo) through the same tokens as a hash avatar. ──
+  test("src renders the given url through the circle/ring tokens instead of building one from hash", () => {
+    const { container } = render(
+      <Avatar hash="ignored-when-src-is-set" src="https://cdn.discordapp.com/avatars/1/a.png" size={48} variant="dark" />,
+    );
+    const img = container.querySelector("img")!;
+    expect(img).toHaveAttribute("src", "https://cdn.discordapp.com/avatars/1/a.png");
+    expect(img).toHaveAttribute("alt", "");
+    expect(img.className).toContain("rounded-full");
+    expect(img.className).toContain("border-dark-edge-bright");
+    expect(img.className).not.toContain("border-hairline");
+  });
+
+  test("src surfaces a load failure through onError", () => {
+    const onError = vi.fn();
+    const { container } = render(<Avatar hash={null} src="https://cdn.discordapp.com/avatars/1/a.png" size={48} onError={onError} />);
+    const img = container.querySelector("img")!;
+    expect(onError).not.toHaveBeenCalled();
+    fireEvent.error(img);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   // `cn` is twMerge(clsx(...)), which resolves by Tailwind class GROUP rather than

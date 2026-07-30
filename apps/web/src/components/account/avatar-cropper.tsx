@@ -51,9 +51,9 @@ export const cropToBlob: CropToBlob = async (img, rect) => {
  */
 export const AvatarCropper = forwardRef<
   CropperHandle,
-  { src: string; cropToBlob?: CropToBlob; onReady?: () => void }
+  { src: string; cropToBlob?: CropToBlob; onReady?: () => void; onError?: () => void }
 >(
-  function AvatarCropper({ src, cropToBlob: crop = cropToBlob, onReady }, ref) {
+  function AvatarCropper({ src, cropToBlob: crop = cropToBlob, onReady, onError }, ref) {
     const imgRef = useRef<HTMLImageElement>(null);
     const [image, setImage] = useState<ImageSize | null>(null);
     const [view, setView] = useState<View | null>(null);
@@ -80,6 +80,13 @@ export const AvatarCropper = forwardRef<
       setView(initialView(size, FRAME));
       onReady?.();
     };
+
+    // Mirrors `onReady` exactly, and for the same reason: a corrupt file or a non-image renamed
+    // to look like one never fires `load`, so without this the stage sits on its hidden
+    // (`visibility: hidden`) placeholder forever with Save permanently disabled and nothing to
+    // explain why. This is what lets the caller tell the difference between "still loading" and
+    // "never going to load."
+    const onImgError = () => onError?.();
 
     const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
       if (!view) return;
@@ -134,6 +141,7 @@ export const AvatarCropper = forwardRef<
             src={src}
             alt=""
             onLoad={onLoad}
+            onError={onImgError}
             draggable={false}
             style={
               view && image

@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, getAvatar, removeAvatar, syncAvatar, uploadAvatar } from "@/lib/api";
 import { useSession } from "@/lib/auth-client";
 import { Avatar } from "@/components/shared/avatar";
-import { SrStatus } from "@/components/shared/sr-status";
 import { AvatarCropper, cropToBlob as realCropToBlob, type CropToBlob, type CropperHandle } from "./avatar-cropper";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -46,28 +45,41 @@ const ACTION = "text-left font-mono text-[11px] uppercase tracking-[.05em] text-
  * Announcements fire ON SETTLEMENT (each mutation's `onSuccess`/`onError` callback only runs
  * once the request resolves), never at click — the repo-wide SrStatus policy.
  *
- * ⚠️ `announcement` is a plain `useState` set from each mutation's own `onSuccess`/`onError`,
- * NOT derived by reading `isSuccess`/`isError` off all three mutations. TanStack mutation flags
- * stay true after settlement until that SAME mutation object runs again — a priority chain over
- * them (upload > sync > remove, say) would freeze on the first mutation's outcome forever: upload
- * once, then Remove later, and the live region never changes because `upload.isSuccess` is still
- * true and outranks `remove.isSuccess` in the chain. Setting state imperatively in each callback
- * makes "most recently settled" automatic — whichever callback fires last wins, however many
- * mutations have already settled before it.
+ * ⚠️ The live region does NOT live in this component — the caller owns it and passes
+ * `onAnnounce`. A successful save calls `onSaved()`, which the dialog uses to close (unmount)
+ * this panel, IN THE SAME COMMIT as the announcement text would have been set. A `role="status"`
+ * node that unmounts in the same commit as its text changes announces nothing — the live region
+ * has to already have gone from the accessibility tree by the time the text would have differed,
+ * so screen readers never see the change at all. Every "Avatar updated"/"Avatar removed" success
+ * announcement was silently lost this way until this was caught in review. The fix is structural,
+ * not a workaround: `SrStatus` must be rendered by something that OUTLIVES the dialog (currently
+ * `StageAvatar`, a sibling of the dialog rather than a descendant of this panel), and this
+ * component only ever calls the `onAnnounce` callback it's handed.
  *
- * ⚠️ Each mutation ALSO clears `announcement` to `""` in `onMutate` (i.e. the instant it starts,
- * not when it settles). Without this, two consecutive settlements that land on the SAME text
- * (e.g. upload succeeds, then later a sync also succeeds — both "Avatar updated") never change
- * `announcement`'s value, so React bails out of the state update (`Object.is` equality) and the
- * `role="status"` node's text never mutates a second time — a screen reader hears nothing for the
- * second action. Blanking on start forces every settlement through a fresh `""` → message
- * transition, which is what makes assistive tech re-announce even a repeated message.
+ * ⚠️ `onAnnounce` is called imperatively from each mutation's own `onSuccess`/`onError` (and from
+ * the crop-failure catch in `onSave`), NOT derived by reading `isSuccess`/`isError` off all three
+ * mutations. TanStack mutation flags stay true after settlement until that SAME mutation object
+ * runs again — a priority chain over them (upload > sync > remove, say) would freeze on the first
+ * mutation's outcome forever: upload once, then Remove later, and the live region never changes
+ * because `upload.isSuccess` is still true and outranks `remove.isSuccess` in the chain. Calling
+ * `onAnnounce` imperatively in each callback makes "most recently settled" automatic — whichever
+ * callback fires last wins, however many mutations have already settled before it.
+ *
+ * ⚠️ Each mutation ALSO calls `onAnnounce("")` in `onMutate` (i.e. the instant it starts, not
+ * when it settles). Without this, two consecutive settlements that land on the SAME text (e.g.
+ * upload succeeds, then later a sync also succeeds — both "Avatar updated") never change the
+ * caller's `announcement` state, so React bails out of the state update (`Object.is` equality)
+ * and the `role="status"` node's text never mutates a second time — a screen reader hears nothing
+ * for the second action. Blanking on start forces every settlement through a fresh `""` →
+ * message transition, which is what makes assistive tech re-announce even a repeated message.
  */
 export function AvatarPanel({
   onSaved,
+  onAnnounce,
   cropToBlob = realCropToBlob,
 }: {
   onSaved: () => void;
+  onAnnounce: (message: string) => void;
   cropToBlob?: CropToBlob;
 }) {
   const qc = useQueryClient();
@@ -83,27 +95,26 @@ export function AvatarPanel({
     void qc.invalidateQueries({ queryKey: ["player-page"] });
     router.refresh();
   };
-  const [announcement, setAnnouncement] = useState("");
-  const clearAnnouncement = () => setAnnouncement("");
-  const settled = (message: string) => () => { invalidate(); setAnnouncement(message); onSaved(); };
+  const clearAnnouncement = () => onAnnounce("");
+  const settled = (message: string) => () => { invalidate(); onAnnounce(message); onSaved(); };
 
   const upload = useMutation({
     mutationFn: uploadAvatar,
     onMutate: clearAnnouncement,
     onSuccess: settled("Avatar updated"),
-    onError: (err) => setAnnouncement(avatarErrorMessage(err)),
+    onError: (err) => onAnnounce(avatarErrorMessage(err)),
   });
   const sync = useMutation({
     mutationFn: syncAvatar,
     onMutate: clearAnnouncement,
     onSuccess: settled("Avatar updated"),
-    onError: (err) => setAnnouncement(avatarErrorMessage(err)),
+    onError: (err) => onAnnounce(avatarErrorMessage(err)),
   });
   const remove = useMutation({
     mutationFn: removeAvatar,
     onMutate: clearAnnouncement,
     onSuccess: settled("Avatar removed"),
-    onError: (err) => setAnnouncement(avatarErrorMessage(err)),
+    onError: (err) => onAnnounce(avatarErrorMessage(err)),
   });
 
   const [draft, setDraft] = useState<Draft>({ kind: "current" });
@@ -130,7 +141,17 @@ export function AvatarPanel({
 
   const onSave = async () => {
     if (draft.kind === "file") {
-      const blob = await cropperRef.current!.crop();
+      let blob;
+      try {
+        blob = await cropperRef.current!.crop();
+      } catch (err) {
+        // `crop()` throws on `canvas_unavailable`, `encode_failed`, and "image not loaded" — a
+        // real (if rare) failure mode, not just a defensive catch. Left unhandled this was an
+        // unhandled promise rejection: no message, no error state, Save left enabled, and the
+        // user told nothing at all.
+        onAnnounce(avatarErrorMessage(err));
+        return;
+      }
       upload.mutate(new File([blob], "avatar.webp", { type: "image/webp" }));
     } else if (draft.kind === "provider") {
       sync.mutate();
@@ -141,7 +162,8 @@ export function AvatarPanel({
 
   // Save needs a croppable image actually loaded, not merely a file picked.
   const [cropReady, setCropReady] = useState(false);
-  useEffect(() => { setCropReady(false); }, [draft]);
+  const [cropBroken, setCropBroken] = useState(false);
+  useEffect(() => { setCropReady(false); setCropBroken(false); }, [draft]);
 
   const canSave =
     !pending &&
@@ -158,15 +180,21 @@ export function AvatarPanel({
             src={draft.url}
             cropToBlob={cropToBlob}
             onReady={() => setCropReady(true)}
+            onError={() => {
+              // "loading, failed, empty and zero are four different renders": a file that can't
+              // be decoded (corrupt, or a non-image renamed to look like one) must not leave the
+              // stage silently stuck forever — surface it both to the live region and visibly.
+              setCropBroken(true);
+              onAnnounce(ERROR_MESSAGES.not_an_image!);
+            }}
           />
         ) : draft.kind === "provider" && providerImage ? (
-          <img
+          <Avatar
+            hash={null}
             src={providerImage}
-            alt=""
-            width={112}
-            height={112}
+            size={112}
+            variant="dark"
             onError={() => setProviderBroken(true)}
-            className="h-28 w-28 rounded-full border border-dark-edge-bright object-cover"
           />
         ) : (
           <Avatar hash={draft.kind === "removed" ? null : hash} size={112} variant="dark" />
@@ -176,6 +204,12 @@ export function AvatarPanel({
       {draft.kind === "provider" && providerBroken && (
         <p role="alert" className="font-mono text-[11px] leading-relaxed text-red">
           {ERROR_MESSAGES.provider_image_stale}
+        </p>
+      )}
+
+      {draft.kind === "file" && cropBroken && (
+        <p role="alert" className="font-mono text-[11px] leading-relaxed text-red">
+          {ERROR_MESSAGES.not_an_image}
         </p>
       )}
 
@@ -232,12 +266,6 @@ export function AvatarPanel({
           {pending ? "Saving…" : "Save"}
         </button>
       </div>
-
-      {/* Always-mounted (per the SrStatus rule): the live region must pre-exist the text change
-       *  it announces, or some screen readers won't pick up the first message. Loading is
-       *  deliberately not asserted as "no avatar" here — the silhouette renders either way, with
-       *  no accompanying claim about it being resolved-empty. */}
-      <SrStatus>{announcement}</SrStatus>
     </section>
   );
 }

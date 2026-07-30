@@ -87,4 +87,20 @@ describe("AvatarCropper", () => {
     loadImage(img, 800, 400);
     expect(onReady).toHaveBeenCalledTimes(1);
   });
+
+  // Mirrors the onReady test: a file that never fires `load` (corrupt, or a non-image renamed
+  // to look like one) must still tell the caller SOMETHING happened, or the stage sits on its
+  // hidden placeholder forever with no explanation.
+  test("calls onError when the image fails to decode, and never calls onReady", () => {
+    const onReady = vi.fn();
+    const onError = vi.fn();
+    const ref = createRef<CropperHandle>();
+    const { container } = render(
+      <AvatarCropper ref={ref} src="blob:fake" cropToBlob={vi.fn()} onReady={onReady} onError={onError} />,
+    );
+    const img = container.querySelector("img")!;
+    fireEvent.error(img);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onReady).not.toHaveBeenCalled();
+  });
 });
