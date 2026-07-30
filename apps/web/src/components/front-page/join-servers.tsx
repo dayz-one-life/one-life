@@ -10,8 +10,8 @@ import { FitLine } from "./fit-line";
  * that honest — this is a picture of the game's own UI, like a screenshot in a manual. Do not
  * wire it to live data, and do not cite it as precedent for fabricated counts on any surface
  * that presents OUR data. The host names (`One Life <Map> | dayzonelife.com`) are BRAND COPY,
- * verified against a real console screenshot (2026-07-29) and maintained by hand like
- * HowToConnect's SEARCH_TERM — a Nitrado rename must update them here.
+ * verified against a real console screenshot (2026-07-29) and maintained by hand — a Nitrado
+ * rename must update them here.
  */
 const HOSTS = [
   // Host A–Z, the real browser's default sort. Add Badlands here when it ships.

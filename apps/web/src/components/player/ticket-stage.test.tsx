@@ -94,6 +94,22 @@ describe("<TicketStage />", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Manicdote");
   });
 
+  // The kicker was hardcoded "Survivor · verified", so every unclaimed gamertag on the board
+  // advertised itself as a verified account. It must read the flag.
+  it("only calls a player verified when they actually are", () => {
+    render(<TicketStage page={page} viewer="public" now={NOW} />);
+    expect(screen.getByText(/survivor · verified/i)).toBeInTheDocument();
+    cleanup();
+    render(<TicketStage page={makePage([idleStanding()])} viewer="public" now={NOW} />);
+    expect(screen.getByText(/survivor · verified/i)).toBeInTheDocument();
+    cleanup();
+    render(
+      <TicketStage page={{ ...makePage([idleStanding()]), verified: false }} viewer="public" now={NOW} />,
+    );
+    expect(screen.queryByText(/survivor · verified/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/survivor · unclaimed/i)).toBeInTheDocument();
+  });
+
   it("renders one ticket per server and a timeline link on each life", () => {
     render(<TicketStage page={page} viewer="public" now={NOW} />);
     expect(screen.getAllByRole("listitem")).toHaveLength(3);

@@ -23,11 +23,18 @@ export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
   const stats = heroStats(page.totals);
 
   return (
-    <main className="mx-auto w-full max-w-5xl py-10">
+    <main className="mx-auto w-full max-w-5xl pb-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldScript(ld) }} />
 
-      <div className="px-6 pb-3 md:px-10">
-        <Link href="/survivors" className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted hover:text-red">
+      {/* ⚠️ This strip is `bg-dark` and butts straight against the masthead (no top padding on
+       *  `<main>`) ON PURPOSE. It sits between two dark surfaces — the masthead above and the
+       *  stage below — so a light back-link left a white bar band across the top of the page.
+       *  Dark link tokens, not `text-ink-muted`, for the same reason. */}
+      <div className="bg-dark px-6 pb-3 pt-6 md:px-10">
+        <Link
+          href="/survivors"
+          className="font-mono text-[11px] uppercase tracking-[.06em] text-cream-muted hover:text-paper"
+        >
           <span aria-hidden>← </span>Survivors
         </Link>
       </div>

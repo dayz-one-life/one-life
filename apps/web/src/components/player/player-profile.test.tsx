@@ -108,6 +108,20 @@ describe("PlayerProfile", () => {
     expect(within(tickets).getAllByRole("link", { name: /timeline/i }).length).toBeGreaterThan(0);
   });
 
+  // The strip sits between the dark masthead and the dark stage. It shipped light, which painted
+  // a white bar across the top of every dossier. RTL can't see the paint, but it can pin the
+  // token choice — a dark surface with a dark-surface link colour, and no top padding pushing
+  // the page away from the masthead.
+  test("carries the back-link on a dark strip flush against the masthead", () => {
+    const { container } = renderProfile(<PlayerProfile page={page()} now={NOW} />);
+    const back = screen.getByRole("link", { name: /survivors/i });
+    const strip = back.parentElement!;
+    expect(strip.className).toContain("bg-dark");
+    expect(back.className).toContain("text-cream-muted");
+    expect(back.className).not.toContain("text-ink-muted");
+    expect(container.querySelector("main")!.className).not.toMatch(/(^|\s)py-10(\s|$)/);
+  });
+
   test("keeps the totals strip and the friend button", () => {
     renderProfile(<PlayerProfile page={page()} now={NOW} />);
     expect(screen.getByText("Deaths")).toBeInTheDocument();
