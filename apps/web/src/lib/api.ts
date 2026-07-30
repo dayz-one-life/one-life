@@ -263,7 +263,15 @@ export const getFriendMap = (slug: string) =>
 
 /** Session-gated, `no-store, private` — the viewer's own avatar hash, or null. Never derive an
  *  avatar from `useSession()`'s `user.image`: that's the raw provider URL, and public surfaces
- *  must not hotlink it. */
+ *  must not hotlink it.
+ *
+ *  ⚠️ The one exception is `AvatarPanel`'s "Use my Discord photo" preview
+ *  (`components/account/avatar-panel.tsx`), and it is narrow enough not to reopen this rule: it
+ *  renders `user.image` only to the signed-in owner, on the owner's own session-gated dialog,
+ *  purely as a staged preview — the value is never persisted or forwarded anywhere (the actual
+ *  photo comes from a server-side `syncAvatar()` fetch on Save, not from this URL) and never
+ *  reaches an unauthenticated viewer. "Public surfaces must not hotlink it" is the rule this
+ *  guards; a private owner-only preview of the owner's own value doesn't hotlink it to anyone. */
 export const getAvatar = () => apiGet<{ hash: string | null }>("/api/me/avatar");
 
 /**

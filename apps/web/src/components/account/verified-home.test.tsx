@@ -82,6 +82,16 @@ describe("<VerifiedHome />", () => {
     expect(document.querySelector("#connect")).toBeNull();
   });
 
+  // The connect beat is the SAME universal `JoinServers` slab every other surface renders. This
+  // page shipped with the older text-only "How to connect" panel instead — the exact drift the
+  // one-component rule exists to stop — so pin the shared slab by its own landmark.
+  it("uses the universal Join-the-servers slab, not a home-only connect panel", () => {
+    render(<VerifiedHome gamertag="Manicdote" />);
+    expect(screen.getByRole("region", { name: "Join the servers" })).toBeInTheDocument();
+    expect(screen.getByTestId("browser-replica")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /how to connect/i })).not.toBeInTheDocument();
+  });
+
   it("never renders an authoritative empty morgue while the fetch is in flight", () => {
     playerQuery.data = undefined;
     playerQuery.isError = false;

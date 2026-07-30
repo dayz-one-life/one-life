@@ -119,7 +119,11 @@ export function TicketStage({
           editable={owner}
         />
         <div className="min-w-0 flex-1">
-          <p className={KICKER}>Survivor · verified</p>
+          {/* ⚠️ The kicker READS `page.verified` — it was hardcoded "Survivor · verified", which
+           *  told every visitor that a gamertag nobody has linked was a verified account. Most
+           *  players on the board are unclaimed; verification is a claim someone made, and the
+           *  page must not make it for them. */}
+          <p className={KICKER}>Survivor · {page.verified ? "verified" : "unclaimed"}</p>
           <h1 className="mt-2 font-display font-bold uppercase leading-[.9]">
             <FitLine finalText={page.gamertag} lineClassName="text-[clamp(2.25rem,8vw,7rem)]">
               {page.gamertag}

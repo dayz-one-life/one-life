@@ -1,10 +1,10 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { getPlayerPage, getServers } from "@/lib/api";
+import { getPlayerPage } from "@/lib/api";
 import { playerSlug } from "@/lib/slug";
 import { TicketStage } from "@/components/player/ticket-stage";
 import { Morgue } from "@/components/player/morgue";
-import { HowToConnect, serversView } from "@/components/servers/how-to-connect";
+import { JoinServers } from "@/components/front-page/join-servers";
 import { ControlsSlab } from "./controls-slab";
 
 /**
@@ -16,6 +16,11 @@ import { ControlsSlab } from "./controls-slab";
  * while the stage renders its own placeholder — and neither is ever allowed to bottom out into an
  * authoritative empty. The controls slab has its own queries entirely, so a dead player-page
  * fetch never takes the invite link and the balance down with it.
+ *
+ * ⚠️ The connect beat is `JoinServers` — the SAME yellow slab the cold home, the unverified pitch
+ * and the pending home render. It used to be the older text-only `HowToConnect` panel here alone,
+ * which is exactly the drift the universal beat exists to prevent. This is now the only connect
+ * block in the app; there is no second one to fall back to.
  */
 export function VerifiedHome({ gamertag }: { gamertag: string }) {
   const slug = playerSlug(gamertag);
@@ -24,7 +29,6 @@ export function VerifiedHome({ gamertag }: { gamertag: string }) {
     queryFn: () => getPlayerPage(slug),
     refetchInterval: 60_000, // ban countdowns tick once a minute
   });
-  const servers = useQuery({ queryKey: ["servers"], queryFn: getServers, staleTime: 5 * 60_000 });
   const now = new Date();
   const page = player.data ?? null;
   // ⚠️ Only offered when the player actually has somewhere to spawn. A player alive or banned
@@ -50,13 +54,8 @@ export function VerifiedHome({ gamertag }: { gamertag: string }) {
       <ControlsSlab />
 
       {anyIdle && (
-        <div id="connect" className="mx-6 mt-8 border border-hairline bg-white px-3.5 py-3 md:mx-10">
-          <HowToConnect
-            servers={serversView(servers.data ?? null, {
-              loading: servers.isLoading,
-              failed: servers.isError,
-            })}
-          />
+        <div id="connect" className="mt-8">
+          <JoinServers />
         </div>
       )}
 

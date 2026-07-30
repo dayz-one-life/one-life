@@ -149,6 +149,12 @@ two signed-in accounts, and none is closed by the test suite:
   the wrap and the clearance.
 - The verified-home redesign's layout claims, none of which RTL can prove and all of which need a
   **signed-in verified session**: the controls slab's `lg`-not-`md` split across the 768–1023
-  band, the share row on one line at 390px, the 320px floor, the avatar pencil → `AvatarPanel`
+  band, the share row on one line at 390px, the 320px floor, the avatar pencil → `AvatarDialog`
   round trip, and a real spend on a banned ticket. Use CDP
   `Emulation.setDeviceMetricsOverride` — `resize_window` and `--window-size` do not work here.
+- The avatar dialog's browser-only claims: the pointer drag and zoom slider actually moving the
+  image (including under touch), the saved avatar matching what the preview showed, the dialog
+  painting above the masthead and tab bar without collapsing into the stage's stacking context,
+  and the dialog at 320px and in PWA/standalone on a notched phone. The crop stage has never been
+  driven by a real pointer or a real touch, so the drag and the zoom slider remain unverified on
+  any actual device. Needs a signed-in verified session; use CDP `Emulation.setDeviceMetricsOverride`.
