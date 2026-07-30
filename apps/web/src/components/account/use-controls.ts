@@ -29,8 +29,11 @@ export type Controls = {
   /**
    * True while the server list behind `servers` is unresolved (loading or errored) for a signed-in
    * user. `servers` itself stays `[]` in this case, and `[]` is ALSO the genuinely-resolved "the
-   * fleet is empty" shape — a consumer must check this flag before saying so out loud (the How to
-   * connect panel does), or an in-flight fetch renders as "no servers are currently listed".
+   * fleet is empty" shape — a consumer must check this flag before saying so out loud, or an
+   * in-flight fetch renders as a genuinely empty fleet. (`HowToConnect`, the panel this flag was
+   * introduced for, was retired by the join-the-servers pass — `JoinServers` is a static
+   * illustration and doesn't read `servers`/`serversLoading` at all. The flag has no current
+   * consumer; kept for the next surface that lists the live fleet.)
    */
   serversLoading: boolean;
   /**

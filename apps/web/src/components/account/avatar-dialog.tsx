@@ -66,11 +66,11 @@ export function AvatarDialog({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center font-mono text-lg text-cream-muted hover:text-paper"
+          className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center font-mono text-lg text-cream-muted hover:text-paper"
         >
           ✕
         </button>
-        <AvatarPanel onSaved={onClose} onAnnounce={onAnnounce} cropToBlob={cropToBlob} />
+        <AvatarPanel onSaved={onClose} onCancel={onClose} onAnnounce={onAnnounce} cropToBlob={cropToBlob} />
       </div>
     </div>,
     document.body,

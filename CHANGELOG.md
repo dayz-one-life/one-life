@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The avatar edit is now a dialog with a real crop stage — drag to reposition, zoom, and a single
-  Save that commits. Nothing is written until Save, so Cancel always means nothing happened.
+  Save that commits. Nothing is written until Save, so Cancel always means nothing happened —
+  including "Remove photo", which no longer deletes on click and now only stages a removal.
+- Removed the second, older "How to connect" panel; `JoinServers` is now the only connect block
+  on the site.
 
 ### Fixed
 

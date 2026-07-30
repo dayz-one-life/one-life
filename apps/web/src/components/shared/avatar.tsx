@@ -60,19 +60,13 @@ export function Avatar({
     className,
   );
 
-  if (src) {
+  // `src` takes priority over `hash` (see the prop doc above); both resolve to the same
+  // circle/ring/variant tokens, so only the URL differs between them.
+  const url = src ?? (hash ? avatarSrc(hash) : null);
+  if (url) {
     return (
-      <img src={src} alt="" width={size} height={size} loading="lazy" decoding="async"
+      <img src={url} alt="" width={size} height={size} loading="lazy" decoding="async"
         onError={onError}
-        style={box}
-        className={cn("rounded-full border object-cover", RING[variant],
-          dim && "opacity-60 grayscale", className)} />
-    );
-  }
-
-  if (hash) {
-    return (
-      <img src={avatarSrc(hash)} alt="" width={size} height={size} loading="lazy" decoding="async"
         style={box}
         className={cn("rounded-full border object-cover", RING[variant],
           dim && "opacity-60 grayscale", className)} />

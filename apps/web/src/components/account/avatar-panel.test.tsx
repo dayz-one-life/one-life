@@ -34,6 +34,8 @@ const onSaved = vi.fn();
 // `SrStatus` itself — see the ⚠️ in avatar-panel.tsx). This harness is a stand-in for the real
 // owner, `StageAvatar`: it stays mounted across a `Save` that closes (unmounts) the panel, which
 // is exactly the arrangement the announcement tests below depend on.
+const onCancel = vi.fn();
+
 function Harness({ cropToBlob: crop }: { cropToBlob: typeof cropToBlob }) {
   const [open, setOpen] = useState(true);
   const [announcement, setAnnouncement] = useState("");
@@ -42,6 +44,7 @@ function Harness({ cropToBlob: crop }: { cropToBlob: typeof cropToBlob }) {
       {open ? (
         <AvatarPanel
           onSaved={() => { onSaved(); setOpen(false); }}
+          onCancel={() => { onCancel(); setOpen(false); }}
           onAnnounce={setAnnouncement}
           cropToBlob={crop}
         />
@@ -67,8 +70,11 @@ function wrap() {
 }
 const panel = () => wrap();
 
+// The hidden file input carries `tabIndex={-1}` and no `aria-label` (I3 minor: the visible
+// "Choose an image" button is the only intended entry point, so the accessible name isn't
+// duplicated onto the input a keyboard user should never land on). Select it directly.
 function pickFile(name = "avatar.png") {
-  const input = screen.getByLabelText(/choose an image/i) as HTMLInputElement;
+  const input = document.querySelector("input[type='file']") as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File(["x"], name, { type: "image/png" })] } });
 }
 
@@ -166,6 +172,21 @@ describe("AvatarPanel", () => {
     loadCropperImage(container);
     await act(async () => { fireEvent.click(save()); });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/too large/i));
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull();
+  });
+
+  // I1: a rejected mutation used to reach ONLY the sr-only live region — invisible to a sighted
+  // player, and (for the dialog) behind the backdrop besides. It needs the same visible
+  // `role="alert"` treatment as the panel's other two client-side failures.
+  test("a failed save is also visible to a sighted user, and the dialog would stay open with the draft intact", async () => {
+    uploadAvatar.mockRejectedValue(new ApiError(400, "too_large"));
+    const { container } = panel();
+    pickFile();
+    await waitFor(() => expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull());
+    loadCropperImage(container);
+    await act(async () => { fireEvent.click(save()); });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/too large/i));
     expect(onSaved).not.toHaveBeenCalled();
     expect(container.querySelector("[data-testid='crop-stage']")).not.toBeNull();
   });
@@ -270,5 +291,38 @@ describe("AvatarPanel", () => {
     fireEvent.click(save());
     expect(screen.getByRole("status")).toHaveTextContent(""); // blanked on start
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Avatar removed"));
+  });
+
+  // I3: Cancel replaced Reset. It has to discard the draft AND close the dialog — the same path
+  // as Escape/backdrop/✕ — not merely clear the staged draft in place.
+  test("Cancel after staging a removal fires no mutation and closes the dialog", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    panel();
+    await waitFor(() => expect(screen.getByRole("button", { name: /remove photo/i })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: /remove photo/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(removeAvatar).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /^save$/i })).toBeNull();
+  });
+
+  // I4 (headline defect regression): every action button here sits directly on the dialog's
+  // `bg-dark` surface. `text-ink`/`text-ink-muted` on that surface is exactly the "present,
+  // focusable, invisible" bug the whole branch exists to fix — pin the light token and the
+  // absence of the dark one, the way avatar.test.tsx pins `border-hairline`'s absence.
+  test("the action buttons use dark-surface tokens, never the light-surface ink tokens", async () => {
+    getAvatar.mockResolvedValue({ hash: "cafe1234feed5678" });
+    panel();
+    await waitFor(() => expect(screen.getByRole("button", { name: /remove photo/i })).toBeEnabled());
+    for (const button of [
+      screen.getByRole("button", { name: /use my discord photo/i }),
+      screen.getByRole("button", { name: /remove photo/i }),
+      screen.getByRole("button", { name: /^cancel$/i }),
+    ]) {
+      expect(button.className).toContain("text-cream-muted");
+      expect(button.className).not.toContain("text-ink-muted");
+      expect(button.className).not.toContain("text-ink ");
+      expect(button.className.split(/\s+/)).not.toContain("text-ink");
+    }
   });
 });

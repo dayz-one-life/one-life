@@ -429,18 +429,25 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   definition of "hero": one group holding one row drops its heading. No separate hero component, no
   promotion tie-break.
   **⚠️ There is no "Join server" button anywhere, and there never will be** — a console DayZ server
-  has no join URL. `HowToConnect` (`components/servers/how-to-connect.tsx`) is the honest
-  substitute, mounted in three places (cold home, the claim step, idle rows) so the copy cannot
-  drift. **`SEARCH_TERM = "One Life"` is BRAND COPY, not fleet data**: every server's in-game
+  has no join URL. `JoinServers` (`components/front-page/join-servers.tsx`) is the honest
+  substitute — a full-bleed yellow slab with the three moves as dashed paper tickets and a
+  stylized replica of the Xbox server-browser screen, identical on every surface it's mounted on,
+  so the copy cannot drift. It **replaced** `HowToConnect` (`components/servers/how-to-connect.tsx`,
+  now deleted), which covered the same no-join-URL reasoning with a plainer text panel; that file
+  and its three separate mount points are gone, and `JoinServers` is the only connect block left.
+  **`SEARCH_TERM = "One Life"` is BRAND COPY, not fleet data**: every server's in-game
   browser name is `One Life <Map> | dayzonelife.com`, so one term finds all of them. It is
   deliberately NOT derived from `servers.name`, which holds the map label alone ("Chernarus") —
   telling a player to search that returns thousands of unrelated servers. The panel equally does
   **not** print the full browser name: we do not store it (it lives in each server's Nitrado
   config), so any exact string here would be a guess that goes stale on the first rename.
-  **`useControls` gained `serversLoading`**, the third instance of the loading/empty/failed shape
-  after `standingLoading`/`balanceLoading` — `servers: []` is both the unresolved fallback and a
-  genuinely empty fleet, and `HowToConnect` says "No servers are currently listed" out loud, so an
-  in-flight fetch would otherwise announce an empty fleet. Mutation-tested.
+  **`useControls` still exposes `serversLoading`**, the third instance of the loading/empty/failed
+  shape after `standingLoading`/`balanceLoading` — `servers: []` is both the unresolved fallback
+  and a genuinely empty fleet, so a consumer must check the flag before announcing an empty fleet
+  out loud. `HowToConnect`, the panel this flag was introduced for, is gone; `JoinServers` is a
+  static illustration (see below) that never reads `servers`/`serversLoading` at all, so the flag
+  currently has no consumer. It stays in `useControls`, mutation-tested, for whichever surface
+  next lists the live fleet.
   **Home's two RSC fetches (`getSurvivors`, `getServers`) degrade INDEPENDENTLY**, each through its
   own `settleFeed`. A single shared try/catch still passes the older feed-honesty tests while
   silently gutting the other half of the page — pinned by two tests proven red against exactly
@@ -560,10 +567,29 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   silhouette exactly like no row at all. An unverified or renamed-away gamertag also yields
   `null`. **The dossier is no longer avatar-free (avatar/account pass).** It joins `avatars`
   through the same verified + non-tombstoned rule as the board and timeline, and the page's
-  signed-in owner (session gamertag matches the page, verified) gets an in-place upload/remove
-  control there — the same `AvatarPanel` component the old `/you` page carried. **`/you` is
-  DELETED**: avatar management moved onto the dossier (verified players only), and sign-out lives
-  in the masthead avatar menu (`account-affordance.tsx`) instead.
+  signed-in owner (session gamertag matches the page, verified) gets an edit control there.
+  **`/you` is DELETED**: avatar management moved onto the dossier (verified players only), and
+  sign-out lives in the masthead avatar menu (`account-affordance.tsx`) instead.
+  **The avatar edit is a modal dialog, not an in-place panel (avatar-dialog pass, 2026-07-30).**
+  `StageAvatar` (`components/player/stage-avatar.tsx`) renders the stage's identity circle plus,
+  for the owner only, a pencil that opens `AvatarDialog` (`components/account/avatar-dialog.tsx`)
+  — portalled to `document.body`, `z-50`, a drag-and-zoom crop stage
+  (`components/account/avatar-cropper.tsx`) over a staged draft that Save is the only commit point
+  for. `AvatarPanel` is now dialog-only: its interface is `{ onSaved, onCancel, onAnnounce,
+  cropToBlob? }`, it owns no live region, and it is no longer reachable outside `AvatarDialog`.
+  **⚠️ `SrStatus` ownership: the live region lives in `StageAvatar`, a SIBLING of the dialog, not
+  a descendant of it or of `AvatarPanel`.** A successful save calls `onSaved`, which closes
+  (unmounts) the dialog in the SAME commit that would set the announcement text — a `role="status"`
+  node that unmounts alongside its own text change announces nothing to a screen reader, because
+  the node is gone from the accessibility tree before the change would have been observed. Putting
+  `SrStatus` in `StageAvatar` (which outlives the dialog for as long as the pencil is mounted)
+  is what makes the announcement survive the close. `onAnnounce` is threaded unchanged from
+  `StageAvatar` through `AvatarDialog` to `AvatarPanel`, which calls it imperatively per-mutation
+  settlement (never derived from TanStack's `isSuccess`/`isError`) and blanks it in each
+  mutation's `onMutate` so a repeated outcome still re-announces. A rejected mutation is ALSO
+  surfaced as a visible `role="alert"` inside the panel — the `sr-only` live region alone isn't
+  enough for a sighted player, especially one who never opened the dialog's dark surface with
+  assistive tech running (2026-07-30 review finding).
   **Deploy:** migration `0029` creates `avatars` and drops `characters`, `character_sightings`
   **and `rpt_files`** (the RPT ingest-cursor table) — touches one durable table and drops three
   projection tables, so it deploys with a plain `./deploy/deploy.sh`, **no `--rebuild`** (nothing
@@ -674,8 +700,7 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   cite it as precedent for fabricated counts elsewhere. Its host names
   (`One Life <Map> | dayzonelife.com`) are brand copy verified against a real console
   screenshot, hand-maintained like `SEARCH_TERM`; the `HOSTS` array (Host A–Z) is where a
-  fourth map (Badlands) gets added. `HowToConnect` survives ONLY in the claim panel's empty state
-  (now inside the modal) and the idle server rows.
+  fourth map (Badlands) gets added.
   The masthead `AccountAffordance` has a pending branch: menu item "Finish verification →" →
   `/#claim`, the claimed tag's initial in the disc, and a `border-yellow` cue.
   `UnverifiedPitch` is **client-gated on `useAccountStatus`,

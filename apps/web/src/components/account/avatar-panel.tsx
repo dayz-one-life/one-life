@@ -29,7 +29,7 @@ function avatarErrorMessage(err: unknown): string {
  */
 type Draft =
   | { kind: "current" }
-  | { kind: "file"; file: File; url: string }
+  | { kind: "file"; url: string }
   | { kind: "provider" }
   | { kind: "removed" };
 
@@ -75,10 +75,14 @@ const ACTION = "text-left font-mono text-[11px] uppercase tracking-[.05em] text-
  */
 export function AvatarPanel({
   onSaved,
+  onCancel,
   onAnnounce,
   cropToBlob = realCropToBlob,
 }: {
   onSaved: () => void;
+  /** Cancel discards the staged draft and closes the dialog — the same path as Escape/backdrop/✕.
+   *  Nothing is mutated; see the ⚠️ above `Draft` for why that guarantee has to hold in full. */
+  onCancel: () => void;
   onAnnounce: (message: string) => void;
   cropToBlob?: CropToBlob;
 }) {
@@ -86,6 +90,7 @@ export function AvatarPanel({
   const router = useRouter();
   const avatar = useQuery({ queryKey: ["avatar"], queryFn: getAvatar });
   const session = useSession();
+  const [mutationError, setMutationError] = useState("");
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["avatar"] });
     // `["player-page"]` only backs Home's client-side reads — it can't reach the dossier hero,
@@ -95,26 +100,36 @@ export function AvatarPanel({
     void qc.invalidateQueries({ queryKey: ["player-page"] });
     router.refresh();
   };
-  const clearAnnouncement = () => onAnnounce("");
+  const clearAnnouncement = () => { onAnnounce(""); setMutationError(""); };
   const settled = (message: string) => () => { invalidate(); onAnnounce(message); onSaved(); };
+  // A mutation failure (`too_large`, `fetch_failed`, `provider_image_stale`, …) must be visible,
+  // not only announced: `onAnnounce` reaches `SrStatus`, which is `sr-only` and lives outside the
+  // portalled dialog — a sighted player who never opens a screen reader sees nothing at all on a
+  // rejected Save. `onError` fires exactly once per settlement, so setting both here can't
+  // desync them.
+  const onMutationError = (err: unknown) => {
+    const message = avatarErrorMessage(err);
+    onAnnounce(message);
+    setMutationError(message);
+  };
 
   const upload = useMutation({
     mutationFn: uploadAvatar,
     onMutate: clearAnnouncement,
     onSuccess: settled("Avatar updated"),
-    onError: (err) => onAnnounce(avatarErrorMessage(err)),
+    onError: onMutationError,
   });
   const sync = useMutation({
     mutationFn: syncAvatar,
     onMutate: clearAnnouncement,
     onSuccess: settled("Avatar updated"),
-    onError: (err) => onAnnounce(avatarErrorMessage(err)),
+    onError: onMutationError,
   });
   const remove = useMutation({
     mutationFn: removeAvatar,
     onMutate: clearAnnouncement,
     onSuccess: settled("Avatar removed"),
-    onError: (err) => onAnnounce(avatarErrorMessage(err)),
+    onError: onMutationError,
   });
 
   const [draft, setDraft] = useState<Draft>({ kind: "current" });
@@ -124,6 +139,9 @@ export function AvatarPanel({
   const pending = upload.isPending || sync.isPending || remove.isPending;
 
   const hash = avatar.data?.hash ?? null;
+  // ⚠️ The one sanctioned read of `useSession()`'s `user.image` in the app — see the exception
+  // carved out in `lib/api.ts`'s `getAvatar` doc. Owner-only, session-gated, staged-preview-only:
+  // never persisted, never forwarded, never shown to anyone but the signed-in owner.
   const providerImage = session.data?.user?.image ?? null;
 
   // ⚠️ The staged object URL is revoked when the draft is replaced or the panel unmounts. A
@@ -136,7 +154,7 @@ export function AvatarPanel({
   const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file after a failed save
-    if (file) setDraft({ kind: "file", file, url: URL.createObjectURL(file) });
+    if (file) setDraft({ kind: "file", url: URL.createObjectURL(file) });
   };
 
   const onSave = async () => {
@@ -165,6 +183,10 @@ export function AvatarPanel({
   const [cropBroken, setCropBroken] = useState(false);
   useEffect(() => { setCropReady(false); setCropBroken(false); }, [draft]);
 
+  // `avatar.isLoading` is allowed to keep "Remove photo" enabled: an in-flight `getAvatar` fetch
+  // is NOT the same fact as "there is no avatar" ("loading, failed, empty and zero are four
+  // different renders"), so Save must not be forced disabled just because `hash` hasn't resolved
+  // yet — that would read as "nothing to remove" when the truth is merely "don't know yet".
   const canSave =
     !pending &&
     (draft.kind === "provider" ||
@@ -172,10 +194,13 @@ export function AvatarPanel({
       (draft.kind === "file" && cropReady));
 
   return (
-    <section aria-label="Your photo" className="flex flex-col gap-5 p-5">
+    <section className="flex flex-col gap-5 p-5">
+      {/* No aria-label here — `AvatarDialog`'s `role="dialog"` already carries "Your photo" as
+       *  the accessible name; a second label on this inner section would just duplicate it. */}
       <div className="flex flex-col items-center gap-4">
         {draft.kind === "file" ? (
           <AvatarCropper
+            key={draft.url}
             ref={cropperRef}
             src={draft.url}
             cropToBlob={cropToBlob}
@@ -213,6 +238,12 @@ export function AvatarPanel({
         </p>
       )}
 
+      {mutationError && (
+        <p role="alert" className="font-mono text-[11px] leading-relaxed text-red">
+          {mutationError}
+        </p>
+      )}
+
       <div className="flex flex-col items-start gap-2.5 border-t border-dark-line pt-4">
         <button
           type="button"
@@ -226,7 +257,7 @@ export function AvatarPanel({
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          aria-label="Choose an image"
+          tabIndex={-1}
           className="sr-only"
           onChange={onFileChange}
         />
@@ -252,10 +283,10 @@ export function AvatarPanel({
         <button
           type="button"
           disabled={pending}
-          onClick={() => { setProviderBroken(false); setDraft({ kind: "current" }); }}
+          onClick={onCancel}
           className={ACTION}
         >
-          Reset
+          Cancel
         </button>
         <button
           type="button"

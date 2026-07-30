@@ -126,7 +126,7 @@ export const AvatarCropper = forwardRef<
     };
 
     return (
-      <div className="flex flex-col items-center gap-4">
+      <div className="flex w-full flex-col items-center gap-4">
         <div
           data-testid="crop-stage"
           onPointerDown={onPointerDown}
