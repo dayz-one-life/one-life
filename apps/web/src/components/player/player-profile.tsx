@@ -2,76 +2,62 @@ import Link from "next/link";
 import type { PlayerPage } from "@/lib/types";
 import { absoluteUrl, profileLd, ldScript } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
-import { PlayerHero } from "./player-hero";
-import { OwnerAvatar } from "./owner-avatar";
-import { StandingCard } from "./standing-card";
-import { PastLifeCard } from "./past-life-card";
-import { PlayerPagination } from "./player-pagination";
+import { TicketStage } from "./ticket-stage";
+import { Morgue } from "./morgue";
+import { FriendButton } from "./friend-button";
+import { Stat } from "./stat";
+import { heroStats, monthYear } from "./format";
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="font-display text-xl font-bold uppercase tracking-[.1em] text-ink">{children}</h2>;
-}
-
-export function PlayerProfile({
-  page,
-  now,
-}: {
-  page: PlayerPage;
-  now: Date;
-}) {
+/**
+ * The public dossier. The SAME stage the owner sees at `/`, with every owner affordance removed
+ * (no pencil, no spend, no invite link) — `viewer="public"` is the single switch, so the two pages
+ * cannot drift apart. `/players/{me}` 307s here's owner back to `/`.
+ *
+ * ⚠️ No horizontal padding on `<main>`. Every section below the stage runs the full width of the
+ * page column and states its own `px-6 md:px-10`, so they measure exactly as the stage does. A
+ * padded wrapper is what made the slabs read narrower than the hero during the design.
+ */
+export function PlayerProfile({ page, now }: { page: PlayerPage; now: Date }) {
   const slug = playerSlug(page.gamertag);
-  const aliveOrBanned = page.standing.filter((s) => s.state !== "idle");
   const ld = profileLd(page, absoluteUrl(`/players/${slug}`));
-  const funerals = `${page.pastLivesTotal} funeral${page.pastLivesTotal === 1 ? "" : "s"} on file`;
+  const stats = heroStats(page.totals);
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-6 py-10 md:px-10">
+    <main className="mx-auto w-full max-w-5xl py-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldScript(ld) }} />
 
-      <Link href="/survivors" className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted hover:text-red">
-        <span aria-hidden>← </span>Survivors
-      </Link>
-
-      <div className="mt-3">
-        <PlayerHero page={page} />
-        <OwnerAvatar pageGamertag={page.gamertag} />
+      <div className="px-6 pb-3 md:px-10">
+        <Link href="/survivors" className="font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted hover:text-red">
+          <span aria-hidden>← </span>Survivors
+        </Link>
       </div>
 
-      {aliveOrBanned.length > 0 && (
-        <section className="mt-7">
-          <SectionHeading>Current standing</SectionHeading>
-          <ul role="list" className="m-0 mt-3 grid list-none gap-5 p-0 md:grid-cols-2">
-            {aliveOrBanned.map((s) => (
-              <li key={s.serverId} className="grid">
-                <StandingCard standing={s} now={now} pageGamertag={page.gamertag} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <TicketStage page={page} viewer="public" now={now} />
 
-      {page.pastLivesTotal > 0 && (
-        <section className="mt-8">
-          <SectionHeading>
-            Past lives <span className="font-mono text-xs font-normal tracking-[.06em] text-ink-muted">· {funerals}</span>
-          </SectionHeading>
-          <ul role="list" className="m-0 mt-3 grid list-none gap-5 p-0 md:grid-cols-2">
-            {page.pastLives.map((l) => (
-              <li key={`${l.serverId}:${l.lifeId}`} className="grid">
-                <PastLifeCard life={l} now={now} gamertag={page.gamertag} />
-              </li>
+      <section className="px-6 py-7 md:px-10">
+        {page.firstSeenAt && (
+          <p className="font-mono text-[11px] uppercase tracking-[.05em] text-ink-muted">
+            First seen {monthYear(page.firstSeenAt)}
+          </p>
+        )}
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-x-9 gap-y-5">
+          <div className="grid grid-cols-2 gap-y-4 sm:flex sm:gap-x-9">
+            {stats.map((st) => (
+              <Stat key={st.label} value={st.value} label={st.label} size="lg" hot={st.hot} />
             ))}
-          </ul>
-          <div className="mt-5">
-            <PlayerPagination
-              slug={slug}
-              page={page.pastLivesPage}
-              total={page.pastLivesTotal}
-              pageSize={page.pastLivesPageSize}
-            />
           </div>
-        </section>
-      )}
+          {page.verified && <FriendButton gamertag={page.gamertag} />}
+        </div>
+      </section>
+
+      <Morgue
+        entries={page.obituaries}
+        total={page.obituariesTotal}
+        viewer="public"
+        state="ready"
+        playerSlug={slug}
+        now={now}
+      />
     </main>
   );
 }

@@ -1,6 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+// FitLine observes its container with ResizeObserver, which jsdom lacks.
+vi.stubGlobal(
+  "ResizeObserver",
+  vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
+);
 import { PlayerProfile } from "./player-profile";
 import type { PlayerPage, ServerStanding, PastLife } from "@/lib/types";
 
@@ -57,6 +64,22 @@ function page(overrides: Partial<PlayerPage> = {}): PlayerPage {
     pastLivesTotal: 3,
     pastLivesPage: 1,
     pastLivesPageSize: 10,
+    obituaries: [
+      {
+        slug: "yrjustbad-chernarus-1",
+        map: "chernarusplus",
+        mapSlug: "chernarus",
+        lifeNumber: 1,
+        headline: "A trade at the coast",
+        lede: null,
+        deathAt: "2026-06-02T00:00:00Z",
+        timeAliveSeconds: 3600,
+        kills: 0,
+        longestKillMeters: null,
+        cause: "pvp",
+      },
+    ],
+    obituariesTotal: 1,
     ...overrides,
   };
 }
@@ -64,42 +87,30 @@ function page(overrides: Partial<PlayerPage> = {}): PlayerPage {
 const NOW = new Date("2026-07-20T12:00:00Z");
 
 describe("PlayerProfile", () => {
-  test("Current standing is a list — one listitem per card, grid classes + list-none preserved", () => {
+  test("leads with the ticket stage and ends with the morgue", () => {
     renderProfile(<PlayerProfile page={page()} now={NOW} />);
-    const heading = screen.getByRole("heading", { name: "Current standing" });
-    const section = heading.closest("section")!;
-    const list = within(section).getByRole("list");
-    expect(list.tagName).toBe("UL");
-    expect(list.className).toContain("grid");
-    expect(list.className).toContain("md:grid-cols-2");
-    expect(list.className).toContain("gap-5");
-    expect(list.className).toContain("list-none");
-    const items = within(section).getAllByRole("listitem");
-    expect(items).toHaveLength(page().standing.length);
-    // Each <li> must itself be a grid item (a single-child grid item defaults to
-    // align-items/justify-items: stretch), so the <section> card inside fills it and the
-    // whole row aligns to equal height — the grid ITEM lives on the <li>, not the card.
-    for (const item of items) expect(item.className).toContain("grid");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("YrJustBad");
+    expect(screen.getByText(/obituar(y|ies) filed/i)).toBeInTheDocument();
   });
 
-  test("Past lives is a separate list — one listitem per funeral card, grid classes + list-none preserved", () => {
+  test("shows no owner affordances to a stranger", () => {
     renderProfile(<PlayerProfile page={page()} now={NOW} />);
-    const heading = screen.getByRole("heading", { name: /Past lives/ });
-    const section = heading.closest("section")!;
-    const list = within(section).getByRole("list");
-    expect(list.tagName).toBe("UL");
-    expect(list.className).toContain("grid");
-    expect(list.className).toContain("md:grid-cols-2");
-    expect(list.className).toContain("gap-5");
-    expect(list.className).toContain("list-none");
-    const items = within(section).getAllByRole("listitem");
-    expect(items).toHaveLength(page().pastLives.length);
-    // Same equal-height constraint as the standing list — see the comment there.
-    for (const item of items) expect(item.className).toContain("grid");
+    expect(screen.queryByRole("button", { name: /spend 1 token/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Your invite link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /update your photo/i })).not.toBeInTheDocument();
   });
 
-  test("Current standing section is omitted when everyone is idle — no stray list", () => {
-    renderProfile(<PlayerProfile page={page({ standing: [standing(1, "idle")] })} now={NOW} />);
-    expect(screen.queryByRole("heading", { name: "Current standing" })).not.toBeInTheDocument();
+  test("renders one ticket per server, each with its own timeline link", () => {
+    renderProfile(<PlayerProfile page={page()} now={NOW} />);
+    // The first list on the page is the stage's ticket row; the morgue renders its own below.
+    const tickets = screen.getAllByRole("list")[0]!;
+    expect(within(tickets).getAllByRole("listitem")).toHaveLength(page().standing.length);
+    expect(within(tickets).getAllByRole("link", { name: /timeline/i }).length).toBeGreaterThan(0);
+  });
+
+  test("keeps the totals strip and the friend button", () => {
+    renderProfile(<PlayerProfile page={page()} now={NOW} />);
+    expect(screen.getByText("Deaths")).toBeInTheDocument();
+    expect(screen.getByText("Longest life")).toBeInTheDocument();
   });
 });

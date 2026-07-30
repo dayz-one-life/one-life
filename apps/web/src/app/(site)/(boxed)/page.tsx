@@ -13,6 +13,7 @@ import { resolveDestinationFrom } from "@/lib/resolve-destination";
 import { AccountPanels } from "@/components/account/account-panels";
 import { HomeShell } from "@/components/account/home-shell";
 import { ClaimModal } from "@/components/account/claim-modal";
+import { ReferralClaim } from "@/components/account/referral-claim";
 
 /**
  * The home page (cold-home-relaunch spec). ⚠️ THE PITCH IS FOR COLD VISITORS ONLY: signed-in
@@ -75,6 +76,9 @@ export default async function Home() {
            * the hash-driven ClaimModal — there is no inline claim section anymore. */}
           <PendingHero />
           <ClaimModal />
+          {/* Renders nothing. Consumes the 30-day invite cookie once, after sign-in — this is
+           *  the page every post-login hop lands on, and /welcome only redirects. */}
+          <ReferralClaim />
           <AccountPanels signInFallback={signedIn} />
         </>
       )}

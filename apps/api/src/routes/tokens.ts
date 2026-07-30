@@ -4,13 +4,23 @@ import type { Auth } from "@onelife/auth";
 import { tokenTransactions } from "@onelife/db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
-import { getBalance, redeem, transfer, setReferrer, TokenError } from "@onelife/tokens";
+import {
+  getBalance,
+  redeem,
+  transfer,
+  setReferrer,
+  claimReferrer,
+  countVerifiedReferees,
+  TokenError,
+} from "@onelife/tokens";
+import { resolveGamertagBySlug } from "@onelife/read-models";
 import { getSession } from "../auth-plugin.js";
 import { verifiedUserIdByGamertag } from "./verified-gamertag.js";
 
 const redeemBody = z.object({ banId: z.number().int().positive().optional() });
 const transferBody = z.object({ toGamertag: z.string().min(1) });
 const referrerBody = z.object({ referrerGamertag: z.string().min(1) });
+const claimBody = z.object({ referrerSlug: z.string().min(1) });
 
 const ERROR_STATUS: Record<string, number> = {
   no_active_ban: 400,
@@ -44,6 +54,14 @@ export function registerTokenRoutes(app: FastifyInstance, db: Database, auth: Au
     return { balance, transactions };
   });
 
+  // ⚠️ No subject parameter — the session is the only input, so serving another player's
+  // referral count is unexpressible rather than merely rejected.
+  app.get("/me/referrals", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    return { joined: await countVerifiedReferees(db, session.user.id) };
+  });
+
   app.post("/me/tokens/redeem", async (req, reply) => {
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });
@@ -67,6 +85,31 @@ export function registerTokenRoutes(app: FastifyInstance, db: Database, auth: Au
       return { ok: true };
     } catch (e) {
       return onTokenError(e, reply);
+    }
+  });
+
+  /**
+   * Record a referral claim captured from an invite link.
+   *
+   * ⚠️ EVERY failure mode here is a 200 with `claimed: false`, not a 4xx. An unknown slug, an
+   * unverified referrer, a self-referral and an already-claimed referee are all things the
+   * VISITOR cannot be blamed for and must not be told about — and the caller is a
+   * fire-and-forget island whose only job is to stop retrying. The one real error is 401.
+   */
+  app.post("/me/referrer/claim", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const body = claimBody.parse(req.body);
+    const gamertag = await resolveGamertagBySlug(db, body.referrerSlug);
+    if (!gamertag) return { ok: true, claimed: false };
+    const referrerUserId = await verifiedUserIdByGamertag(db, gamertag);
+    if (!referrerUserId) return { ok: true, claimed: false };
+    try {
+      const outcome = await claimReferrer(db, { userId: session.user.id, referrerUserId });
+      return { ok: true, claimed: outcome === "claimed" };
+    } catch (e) {
+      if (e instanceof TokenError) return { ok: true, claimed: false };
+      throw e;
     }
   });
 

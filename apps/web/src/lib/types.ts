@@ -143,7 +143,11 @@ export type AliveStanding = { lifeId: number; lifeNumber: number; startedAt: str
 export type BanStanding = { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean; triggeringLifeNumber: number | null; verdict: DeathVerdictDto | null };
 export type ServerStanding = { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; lastEndedAt: string | null };
 export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
-export type PlayerPage = { gamertag: string; verified: boolean; avatarHash: string | null; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; previousBestSeconds: number; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number };
+/** One FILED obituary on a player's page. Mirrors `ObituaryEntry` in @onelife/read-models
+ *  (dates as ISO strings over the wire). A strict subset of the player's ended lives — see the
+ *  ⚠️ notes on `filedObituaries` and on `<Morgue />`. */
+export type ObituaryEntry = { slug: string; map: string; mapSlug: string; lifeNumber: number; headline: string; lede: string | null; deathAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; cause: string | null };
+export type PlayerPage = { gamertag: string; verified: boolean; avatarHash: string | null; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; previousBestSeconds: number; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number; obituaries: ObituaryEntry[]; obituariesTotal: number };
 
 /** One row of `GET /me/friends/online` — a friend online right now, and whether they share
  *  their position with the viewer (the same boolean the map payload discloses). */

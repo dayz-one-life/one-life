@@ -1,0 +1,136 @@
+import { describe, it, expect, afterEach, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+// FitLine observes its container with ResizeObserver, which jsdom lacks.
+vi.stubGlobal(
+  "ResizeObserver",
+  vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
+);
+import { render, screen, within, cleanup } from "@testing-library/react";
+import { TicketStage } from "./ticket-stage";
+import type { PlayerPage, ServerStanding } from "@/lib/types";
+
+const NOW = new Date("2026-07-30T12:00:00Z");
+
+const aliveStanding = (over: Partial<ServerStanding> = {}): ServerStanding => ({
+  serverId: 1,
+  map: "chernarusplus",
+  slug: "chernarus",
+  state: "alive",
+  alive: {
+    lifeId: 1,
+    lifeNumber: 7,
+    startedAt: "2026-07-25T09:00:00Z",
+    timeAliveSeconds: 90_000,
+    kills: 2,
+    longestKillMeters: 210,
+    killList: [],
+    qualified: true,
+    qualifiedAt: null,
+  },
+  ban: null,
+  lastLifeNumber: 6,
+  lastEndedAt: "2026-07-25T08:00:00Z",
+  ...over,
+});
+
+const bannedStanding = (): ServerStanding => ({
+  serverId: 2,
+  map: "enoch",
+  slug: "livonia",
+  state: "banned",
+  alive: null,
+  ban: {
+    banId: 42,
+    bannedAt: "2026-07-30T02:00:00Z",
+    expiresAt: "2026-07-31T02:00:00Z",
+    liftPending: false,
+    triggeringLifeNumber: 11,
+    verdict: null,
+  },
+  lastLifeNumber: 11,
+  lastEndedAt: "2026-07-30T02:00:00Z",
+});
+
+const idleStanding = (over: Partial<ServerStanding> = {}): ServerStanding => ({
+  serverId: 3,
+  map: "namalsk",
+  slug: "namalsk",
+  state: "idle",
+  alive: null,
+  ban: null,
+  lastLifeNumber: 3,
+  lastEndedAt: "2026-07-22T12:00:00Z",
+  ...over,
+});
+
+const makePage = (standing: ServerStanding[]): PlayerPage => ({
+  gamertag: "Manicdote",
+  verified: true,
+  avatarHash: null,
+  firstSeenAt: "2026-01-01T00:00:00Z",
+  aliveAnywhere: standing.some((s) => s.state === "alive"),
+  totals: { kills: 9, lives: 11, deaths: 10, longestLifeSeconds: 200_000 },
+  previousBestSeconds: 50_000,
+  standing,
+  pastLives: [],
+  pastLivesTotal: 0,
+  pastLivesPage: 1,
+  pastLivesPageSize: 10,
+  obituaries: [],
+  obituariesTotal: 0,
+});
+
+const page = makePage([aliveStanding(), bannedStanding(), idleStanding()]);
+
+afterEach(cleanup);
+
+describe("<TicketStage />", () => {
+  it("uses the gamertag as the h1 in BOTH viewers", () => {
+    render(<TicketStage page={page} viewer="public" now={NOW} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Manicdote");
+    cleanup();
+    render(<TicketStage page={page} viewer="owner" now={NOW} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Manicdote");
+  });
+
+  it("renders one ticket per server and a timeline link on each life", () => {
+    render(<TicketStage page={page} viewer="public" now={NOW} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getAllByRole("link", { name: /timeline/i })).toHaveLength(3);
+  });
+
+  it("renders NO timeline link for a server the player has never played", () => {
+    const neverPlayed = makePage([
+      aliveStanding(),
+      idleStanding({ lastLifeNumber: null, lastEndedAt: null }),
+    ]);
+    render(<TicketStage page={neverPlayed} viewer="owner" now={NOW} />);
+    const namalsk = screen.getByRole("listitem", { name: /namalsk/i });
+    expect(within(namalsk).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
+    expect(within(namalsk).getByText(/never played/i)).toBeInTheDocument();
+  });
+
+  it("offers Spend only to the owner, and only on a banned ticket", () => {
+    const { rerender } = render(<TicketStage page={page} viewer="public" now={NOW} />);
+    expect(screen.queryByRole("button", { name: /spend 1 token/i })).not.toBeInTheDocument();
+    rerender(<TicketStage page={page} viewer="owner" now={NOW} />);
+    expect(screen.getAllByRole("button", { name: /spend 1 token/i })).toHaveLength(1);
+  });
+
+  it("never renders an unqualified life as qualified", () => {
+    const grace = makePage([
+      aliveStanding({
+        alive: { ...aliveStanding().alive!, qualified: false, timeAliveSeconds: 120 },
+      }),
+    ]);
+    render(<TicketStage page={grace} viewer="owner" now={NOW} />);
+    expect(screen.getByText(/not yet qualified/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^alive$/i)).not.toBeInTheDocument();
+  });
+
+  it("shows no pencil to the public viewer", () => {
+    render(<TicketStage page={page} viewer="public" now={NOW} />);
+    expect(screen.queryByRole("button", { name: /update your photo/i })).not.toBeInTheDocument();
+  });
+});

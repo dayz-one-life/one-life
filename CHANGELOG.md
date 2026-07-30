@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Verified home is now a life-tickets stage: the gamertag as the headline, one ticket per server
+  with its own timeline link, and the token and invite controls on the page. The same surface
+  serves `/players/{slug}`; `/players/{me}` redirects home (307 — the decision depends on the
+  session, so it must never be cached as permanent).
+- Obituaries replace the past-lives grid on both the home page and the public dossier — each
+  headline links to the full obituary, with a timeline button beside it. ⚠️ The morgue lists
+  **filed obituaries only**, which is a strict subset of a player's ended lives: the newsdesk
+  files one only for a qualified death past its `NEWSDESK_SINCE` cutoff. A player with many dead
+  lives and no filed obituary sees an empty morgue, and that is intended.
+- Invite links (`/i/{slug}`) with a share bar for Discord, X, Reddit, WhatsApp and email, plus a
+  join count on the home page (`GET /me/referrals`) that counts only referees who went on to
+  verify.
+
+### Changed
+
+- A referral now pays the referrer **once** per verified player they bring in, instead of once
+  per month forever. ⚠️ The idempotency key changed, so the first sweep after this release grants
+  one extra token to every existing referrer — a one-off, deliberately not backfilled.
+- `/welcome` now sends every signed-in player to `/` rather than routing verified players to
+  their public dossier, which would immediately bounce back.
+
+### Removed
+
+- The past-lives grid, the dossier hero and standing cards, the tokens panel and the standing
+  groups — all superseded by the stage, the controls slab and the morgue. The dossier's
+  "Update photo" disclosure is gone with them: the stage's avatar pencil is now the single edit
+  path.
+
 ## [0.64.0] - 2026-07-29
 
 ### Added

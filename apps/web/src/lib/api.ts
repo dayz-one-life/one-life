@@ -155,6 +155,12 @@ export const redeemToken = (banId?: number) =>
 export const transferToken = (toGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
 
+/** How many people the viewer referred who went on to verify. Takes no subject — session only. */
+export const getReferralCount = () => apiGet<{ joined: number }>("/api/me/referrals");
+/** Called server-side by the same-origin claim handler, which holds the httpOnly invite cookie. */
+export const postReferrerClaim = (referrerSlug: string) =>
+  apiSend<{ ok: true; claimed: boolean }>("POST", "/api/me/referrer/claim", { referrerSlug });
+
 export const getNotifications = (page = 1) =>
   apiGet<NotificationsFeed>(`/api/me/notifications?page=${page}`);
 export const markNotificationsRead = (ids: number[]) =>
