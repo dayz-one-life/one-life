@@ -12,8 +12,8 @@ importers:
   .:
     devDependencies:
       '@types/node':
-        specifier: ^24.0.0
-        version: 24.13.3
+        specifier: ^26.1.2
+        version: 26.1.2
       turbo:
         specifier: ^2.1.0
         version: 2.10.5
@@ -22,7 +22,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/api:
     dependencies:
@@ -55,7 +55,7 @@ importers:
         version: link:../../packages/verification
       better-auth:
         specifier: ^1.6.23
-        version: 1.6.23(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))(next@15.5.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0)))
+        version: 1.6.23(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))(next@15.5.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0)))
       drizzle-orm:
         specifier: ^0.36.0
         version: 0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8)
@@ -67,10 +67,10 @@ importers:
         version: 10.3.1
       sharp:
         specifier: ^0.35.3
-        version: 0.35.3(@types/node@24.13.3)
+        version: 0.35.3(@types/node@26.1.2)
       stripe:
         specifier: ^18.0.0
-        version: 18.5.0(@types/node@24.13.3)
+        version: 18.5.0(@types/node@26.1.2)
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -89,7 +89,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/crier:
     dependencies:
@@ -120,7 +120,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/enforcer:
     dependencies:
@@ -157,7 +157,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/granter:
     dependencies:
@@ -188,7 +188,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/ingest-worker:
     dependencies:
@@ -231,7 +231,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/newsdesk:
     dependencies:
@@ -265,7 +265,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/notifier:
     dependencies:
@@ -308,7 +308,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/projector:
     dependencies:
@@ -351,7 +351,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/rebooter:
     dependencies:
@@ -385,7 +385,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/verifier:
     dependencies:
@@ -425,7 +425,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   apps/web:
     dependencies:
@@ -434,7 +434,7 @@ importers:
         version: 5.101.4(react@19.2.8)
       better-auth:
         specifier: ^1.6.23
-        version: 1.6.23(next@15.5.20(@babel/core@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0)))
+        version: 1.6.23(next@15.5.20(@babel/core@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0)))
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -474,7 +474,7 @@ importers:
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react':
         specifier: ^4.3.4
-        version: 4.7.0(vite@5.4.21(@types/node@24.13.3))
+        version: 4.7.0(vite@5.4.21(@types/node@26.1.2))
       autoprefixer:
         specifier: ^10.4.20
         version: 10.5.2(postcss@8.5.22)
@@ -492,7 +492,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/adm-parser:
     dependencies:
@@ -505,7 +505,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/auth:
     dependencies:
@@ -514,7 +514,7 @@ importers:
         version: link:../db
       better-auth:
         specifier: ^1.6.23
-        version: 1.6.23(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))(next@15.5.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0)))
+        version: 1.6.23(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))(next@15.5.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0)))
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -530,7 +530,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/db:
     dependencies:
@@ -549,7 +549,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/domain:
     dependencies:
@@ -562,7 +562,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/event-log:
     dependencies:
@@ -587,7 +587,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/location-sharing:
     dependencies:
@@ -609,7 +609,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/nitrado:
     devDependencies:
@@ -618,7 +618,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/projections:
     dependencies:
@@ -634,7 +634,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/read-models:
     dependencies:
@@ -662,7 +662,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/test-support:
     dependencies:
@@ -681,7 +681,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/tokens:
     dependencies:
@@ -703,7 +703,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/verification:
     dependencies:
@@ -716,7 +716,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+        version: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
 packages:
 
@@ -2168,8 +2168,8 @@ packages:
   '@types/node@20.19.43':
     resolution: {integrity: sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA==}
 
-  '@types/node@24.13.3':
-    resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
+  '@types/node@26.1.2':
+    resolution: {integrity: sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg==}
 
   '@types/react-dom@19.2.3':
     resolution: {integrity: sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==}
@@ -3358,8 +3358,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici-types@7.18.2:
-    resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
   undici@7.28.0:
     resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
@@ -4484,9 +4484,9 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@24.13.3':
+  '@types/node@26.1.2':
     dependencies:
-      undici-types: 7.18.2
+      undici-types: 8.3.0
 
   '@types/react-dom@19.2.3(@types/react@19.2.17)':
     dependencies:
@@ -4500,7 +4500,7 @@ snapshots:
     dependencies:
       '@types/node': 20.19.43
 
-  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@24.13.3))':
+  '@vitejs/plugin-react@4.7.0(vite@5.4.21(@types/node@26.1.2))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-transform-react-jsx-self': 7.29.7(@babel/core@7.29.7)
@@ -4508,7 +4508,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 5.4.21(@types/node@24.13.3)
+      vite: 5.4.21(@types/node@26.1.2)
     transitivePeerDependencies:
       - supports-color
 
@@ -4519,13 +4519,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@24.13.3))':
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@26.1.2))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 5.4.21(@types/node@24.13.3)
+      vite: 5.4.21(@types/node@26.1.2)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -4613,7 +4613,7 @@ snapshots:
 
   baseline-browser-mapping@2.10.43: {}
 
-  better-auth@1.6.23(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))(next@15.5.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))):
+  better-auth@1.6.23(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))(next@15.5.20(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))):
     dependencies:
       '@better-auth/core': 1.6.23(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.3.7(zod@3.25.76))(jose@6.2.3)(kysely@0.29.3)(nanostores@1.4.0)
       '@better-auth/drizzle-adapter': 1.6.23(@better-auth/core@1.6.23(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.3.7(zod@3.25.76))(jose@6.2.3)(kysely@0.29.3)(nanostores@1.4.0))(@better-auth/utils@0.4.2)(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))
@@ -4637,12 +4637,12 @@ snapshots:
       next: 15.5.20(@babel/core@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      vitest: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+      vitest: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - '@opentelemetry/api'
 
-  better-auth@1.6.23(next@15.5.20(@babel/core@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))):
+  better-auth@1.6.23(next@15.5.20(@babel/core@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))):
     dependencies:
       '@better-auth/core': 1.6.23(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.3.7(zod@3.25.76))(jose@6.2.3)(kysely@0.29.3)(nanostores@1.4.0)
       '@better-auth/drizzle-adapter': 1.6.23(@better-auth/core@1.6.23(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(better-call@1.3.7(zod@3.25.76))(jose@6.2.3)(kysely@0.29.3)(nanostores@1.4.0))(@better-auth/utils@0.4.2)(drizzle-orm@0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8))
@@ -4665,7 +4665,7 @@ snapshots:
       next: 15.5.20(@babel/core@7.29.7)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
-      vitest: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+      vitest: 2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0))
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
       - '@opentelemetry/api'
@@ -5497,7 +5497,7 @@ snapshots:
       '@img/sharp-win32-x64': 0.34.5
     optional: true
 
-  sharp@0.35.3(@types/node@24.13.3):
+  sharp@0.35.3(@types/node@26.1.2):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -5528,7 +5528,7 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.3
       '@img/sharp-win32-ia32': 0.35.3
       '@img/sharp-win32-x64': 0.35.3
-      '@types/node': 24.13.3
+      '@types/node': 26.1.2
 
   side-channel-list@1.0.1:
     dependencies:
@@ -5583,11 +5583,11 @@ snapshots:
     dependencies:
       min-indent: 1.0.1
 
-  stripe@18.5.0(@types/node@24.13.3):
+  stripe@18.5.0(@types/node@26.1.2):
     dependencies:
       qs: 6.15.3
     optionalDependencies:
-      '@types/node': 24.13.3
+      '@types/node': 26.1.2
 
   styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.2.8):
     dependencies:
@@ -5710,7 +5710,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@7.18.2: {}
+  undici-types@8.3.0: {}
 
   undici@7.28.0: {}
 
@@ -5722,13 +5722,13 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  vite-node@2.1.9(@types/node@24.13.3):
+  vite-node@2.1.9(@types/node@26.1.2):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 1.1.2
-      vite: 5.4.21(@types/node@24.13.3)
+      vite: 5.4.21(@types/node@26.1.2)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -5740,19 +5740,19 @@ snapshots:
       - supports-color
       - terser
 
-  vite@5.4.21(@types/node@24.13.3):
+  vite@5.4.21(@types/node@26.1.2):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.22
       rollup: 4.62.2
     optionalDependencies:
-      '@types/node': 24.13.3
+      '@types/node': 26.1.2
       fsevents: 2.3.3
 
-  vitest@2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0)):
+  vitest@2.1.9(@types/node@26.1.2)(jsdom@29.1.1(@noble/hashes@2.2.0)):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@24.13.3))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@26.1.2))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
@@ -5768,11 +5768,11 @@ snapshots:
       tinyexec: 0.3.2
       tinypool: 1.1.1
       tinyrainbow: 1.2.0
-      vite: 5.4.21(@types/node@24.13.3)
-      vite-node: 2.1.9(@types/node@24.13.3)
+      vite: 5.4.21(@types/node@26.1.2)
+      vite-node: 2.1.9(@types/node@26.1.2)
       why-is-node-running: 2.3.0
     optionalDependencies:
-      '@types/node': 24.13.3
+      '@types/node': 26.1.2
       jsdom: 29.1.1(@noble/hashes@2.2.0)
     transitivePeerDependencies:
       - less
