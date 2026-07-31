@@ -8,8 +8,8 @@ import type { ReactNode } from "react";
  * ⚠️ THIS IS THE ONLY PLACE A CONTENT WIDTH IS DECLARED. Pages used to each set their own and
  * disagreed — 1024 on home/About/Obituaries/the life timeline, 1024 on the Survivors board and
  * the dossier (matching, but by coincidence), 768 on Terms/Privacy via `legal-doc.tsx`, 672 on
- * Notifications via `inbox.tsx`, and 68ch on `/friends` and the `/survivors` redirect's failure
- * page. A page-level `mx-auto max-w-*` on a top-level element is a regression, not a local
+ * Notifications via `inbox.tsx`, and 68ch on the `/survivors` redirect's failure page. A
+ * page-level `mx-auto max-w-*` on a top-level element is a regression, not a local
  * choice. The exceptions are narrow-by-design ELEMENTS inside the box, not pages: `/login`'s
  * `max-w-md` form, and the `max-w-3xl` prose measure in `legal-doc.tsx` and
  * `obituary-article.tsx`. One page-level exception survives OUTSIDE the box: `/maps`'s

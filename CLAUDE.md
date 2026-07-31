@@ -90,6 +90,11 @@ These recur across every sub-project; the linked files hold the specific cases a
   targeted a different database and reported success; an unset `DATABASE_URL` is now a loud
   error. To migrate the test database, name it:
   `DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @onelife/db run db:migrate`.
+  **⚠️ Journal entries 0028–0032 in `packages/db/drizzle/meta/_journal.json` carry fabricated
+  FUTURE `when` timestamps (into August 2026), well ahead of wall-clock.** A new migration's
+  `when` must exceed the previous entry's or it sorts earlier and drizzle-kit silently applies
+  nothing while still reporting success. Never trust the CLI's success output alone — verify a
+  migration actually applied by checking the table exists.
   **⚠️ `turbo.json`'s `test` task declares `env` for exactly this reason.** Without it,
   `TEST_DATABASE_URL` is not part of the cache key, so repointing the suite at a different or
   unmigrated database replays a cached PASS and reports green **without running anything** —
