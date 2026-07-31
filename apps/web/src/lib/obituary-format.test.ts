@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { obituariesHref, obituaryHref, dateline, rapSheetFacts, obituaryShowingLine } from "./obituary-format";
+import { obituariesHref, obituaryHref, dateline, rapSheetFacts, obituaryShowingLine, obituaryHeadlineSize } from "./obituary-format";
 import type { ObituaryCard } from "./types";
 
 const now = new Date("2026-07-12T00:00:00Z");
@@ -45,5 +45,14 @@ describe("rapSheetFacts", () => {
 describe("obituaryShowingLine", () => {
   it("reads in-voice", () => {
     expect(obituaryShowingLine(1, 20, 45)).toBe("Showing 1–20 of 45 filed");
+  });
+});
+
+describe("obituaryHeadlineSize", () => {
+  it("steps down at the 45- and 75-char boundaries", () => {
+    expect(obituaryHeadlineSize("a".repeat(45))).toBe(76);
+    expect(obituaryHeadlineSize("a".repeat(46))).toBe(62);
+    expect(obituaryHeadlineSize("a".repeat(75))).toBe(62);
+    expect(obituaryHeadlineSize("a".repeat(76))).toBe(52);
   });
 });

@@ -35,3 +35,8 @@ export function obituaryShowingLine(page: number, pageSize: number, total: numbe
   const from = Math.min((page - 1) * pageSize + 1, to);
   return `Showing ${from}–${to} of ${total} filed`;
 }
+
+/** OG-card headline size: stepped, not fluid — satori has no clamp()/container queries. */
+export function obituaryHeadlineSize(headline: string): number {
+  return headline.length <= 45 ? 76 : headline.length <= 75 ? 62 : 52;
+}
