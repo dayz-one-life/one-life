@@ -1,3 +1,4 @@
+import { classifyEntityLabel } from "@onelife/domain";
 import type { DeathCause } from "./types.js";
 
 const KILL_RE = /Player "([^"]+)" \(DEAD\) \(id=([^\s)]+)[^)]*\) killed by Player "([^"]+)" \(id=([^\s)]+)[^)]*\)(.*)$/u;
@@ -7,13 +8,14 @@ const STATS_RE = /Stats>\s*Water:\s*([\d.]+)\s*Energy:\s*([\d.]+)\s*Bleed source
 const DEATH_VERB_RE = /\b(died|committed suicide|bled out|drowned|killed by)\b/u;
 
 const KILLED_BY_ENTITY_RE = /killed by ([A-Za-z0-9_]+)/u;
-// Ordered entity dict (first match wins). Only class-name patterns confirmable from DayZ
-// conventions ship; anything else stays "environment" with the entity captured — the
-// backfill-death-causes survey logs unmapped entities so this dict can grow (explosion still reserved).
+// Ordered entity dict (first match wins). Wolf/bear/animal are classified by the shared
+// @onelife/domain classifier (same rules the encounters read-model uses for hit labels).
+// Only class-name patterns confirmable from DayZ conventions ship; anything else stays
+// "environment" with the entity captured — the backfill-death-causes survey logs unmapped
+// entities so this dict can grow (explosion still reserved). The prefixes below (Zmb,
+// FallDamage, vehicle names) are disjoint from the Animal_ prefixes the shared classifier
+// matches, so checking the shared classifier first is order-safe.
 const ENTITY_CAUSES: readonly [RegExp, DeathCause][] = [
-  [/^Animal_CanisLupus/, "wolf"],
-  [/^Animal_UrsusArctos/, "bear"],
-  [/^Animal_/, "animal"],
   [/^Zmb/, "infected"],
   [/^FallDamage$/, "fall"],
   // DayZ base-game drivable vehicles (Central Economy events.xml; color variants share the prefix):
@@ -52,7 +54,9 @@ export function parseDeath(raw: string): {
   // next PlayerList snapshot) is NOT. This kills the delayed-DEAD-reappearance duplicate at the source.
   if (!DEATH_VERB_RE.test(lower)) return null;
   const entity = KILLED_BY_ENTITY_RE.exec(tail)?.[1] ?? null;
-  const entityCause = entity ? ENTITY_CAUSES.find(([re]) => re.test(entity))?.[1] ?? null : null;
+  const entityCause = entity
+    ? (classifyEntityLabel(entity) ?? ENTITY_CAUSES.find(([re]) => re.test(entity))?.[1] ?? null)
+    : null;
   const cause: DeathCause =
     lower.includes("bled out") ? "bled_out" :
     lower.includes("drowned") ? "drowned" :
