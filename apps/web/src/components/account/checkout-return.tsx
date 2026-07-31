@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { confirmCheckout } from "@/lib/api";
+import { SrStatus } from "@/components/shared/sr-status";
 
 type Result = { kind: "idle" } | { kind: "added"; n: number } | { kind: "replay" } | { kind: "processing" };
 
@@ -42,25 +43,27 @@ export function CheckoutReturn() {
     };
   }, [sessionId, qc, router]);
 
-  if (!sessionId || result.kind === "idle") return null;
+  if (!sessionId) return null;
   const text =
     result.kind === "added"
       ? `${result.n} token${result.n === 1 ? "" : "s"} added — thanks for keeping the servers up`
       : result.kind === "replay"
         ? "Tokens already added — thanks for keeping the servers up"
-        : "Payment processing — your tokens land shortly";
-  // A single visible, live-announcing node — not a separate SrStatus + visible pair — because
-  // both would render this SAME text and a screen-reader query (or an RTL findByText) can no
-  // longer tell them apart. Unlike the "pending -> ready" transitions elsewhere that need the
-  // live region mounted BEFORE the text change to be announced, sessionId is already known at
-  // mount here, so there is no pre-existing-region requirement to preserve.
+        : result.kind === "processing"
+          ? "Payment processing — your tokens land shortly"
+          : "";
+  // Two nodes, per the repo's SrStatus rule (see sr-status.tsx's doc comment and the idiom in
+  // self-unban-button.tsx): the live region must PRE-EXIST the text change it announces, because
+  // some screen readers only announce mutations to an already-mounted region. So as soon as we
+  // have a sessionId — before confirmCheckout resolves — we mount SrStatus with an empty string
+  // and update it in place once `result` settles. The visible copy is a separate paragraph that
+  // only appears once there's something to say (result.kind !== "idle"); it never renders empty.
   return (
-    <p
-      role="status"
-      aria-live="polite"
-      className="bg-bone px-3 py-2 font-mono text-[11px] uppercase tracking-[.06em] text-ink-soft"
-    >
-      {text}
-    </p>
+    <>
+      <SrStatus>{text}</SrStatus>
+      {result.kind !== "idle" && (
+        <p className="bg-bone px-3 py-2 font-mono text-[11px] uppercase tracking-[.06em] text-ink-soft">{text}</p>
+      )}
+    </>
   );
 }
