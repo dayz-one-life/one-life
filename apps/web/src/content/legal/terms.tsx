@@ -65,12 +65,24 @@ export const TERMS_SECTIONS: LegalSection[] = [
       <>
         <p>
           Unban tokens are earned — by verifying your gamertag, by turning up each month, and by
-          referrals. They cannot be bought, and there is nothing here to buy them with.
+          referrals — or bought on the site. A bought token is the same token as an earned one: it
+          lifts one 24-hour ban, and that is all it does.
         </p>
         <p>
-          Tokens have no cash value. They are not property, not currency, and not redeemable for
-          money or for anything outside this site. Transfers between players are final and cannot
-          be reversed.
+          The price is shown at checkout, before you pay. Payment is handled by Stripe, on
+          Stripe&rsquo;s page — your card details never touch this site. Tokens land in your
+          account when the payment clears. All sales are final except where the law says
+          otherwise, and a refund, if one is ever issued, does not undo a ban you already lifted
+          or bring back a token you already spent.
+        </p>
+        <p>
+          Tokens have no cash value — bought ones included. They are not property, not currency,
+          and not redeemable for money or for anything outside this site. Transfers between
+          players are final and cannot be reversed.
+        </p>
+        <p>
+          Buying tokens buys no standing. An admin ban still takes your account and your tokens
+          with it, paid for or not, and nothing is refunded when it does.
         </p>
         <p>
           Tokens gained through a bug or an exploit can be taken back. If the token economy changes,
@@ -182,7 +194,8 @@ export const TERMS_SECTIONS: LegalSection[] = [
       <p>
         To the fullest extent the law allows, I am not liable for any indirect, incidental, special
         or consequential damages arising out of your use of One Life. Where liability cannot be
-        excluded, it is limited to what you have paid to use One Life — which is nothing.
+        excluded, it is limited to what you have paid One Life in the twelve months before the
+        claim arose.
       </p>
     ),
   },
