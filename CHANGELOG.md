@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.3] - 2026-07-31
+
 ### Fixed
 
 - The "Your tokens" and "Invite a survivor" panels now sit at the same vertical rhythm. The
