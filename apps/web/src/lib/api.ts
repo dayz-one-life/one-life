@@ -7,7 +7,7 @@ import type {
   NotificationsFeed,
   LifeTrack,
   SitemapData,
-  FriendsFeed, FriendStatusDto, FriendMap,
+  MapShare,
 } from "./types";
 
 export class ApiError extends Error {
@@ -226,28 +226,6 @@ export const getSitemapData = () => apiGetCached<SitemapData>("/api/sitemap", SI
  *  point the regular `getServers()` (used by authenticated RSC pages) at this. */
 export const getServersCached = () => apiGetCached<Server[]>("/api/servers", SITEMAP_REVALIDATE_SECONDS);
 
-export const getFriends = (page = 1) => apiGet<FriendsFeed>(`/api/me/friends?page=${page}`);
-export const getOnlineFriends = () => apiGet<{ friends: import("./types").OnlineFriend[] }>("/api/me/friends/online");
-export const getFriendStatus = (gamertag: string) =>
-  apiGet<FriendStatusDto>(`/api/me/friends/status?gamertag=${encodeURIComponent(gamertag)}`);
-export const sendFriendRequest = (toGamertag: string) =>
-  apiSend<{ id: number; status: string }>("POST", "/api/me/friends/requests", { toGamertag });
-export const acceptFriendRequest = (id: number) =>
-  apiSend<{ ok: true }>("POST", `/api/me/friends/${id}/accept`);
-export const declineFriendRequest = (id: number) =>
-  apiSend<{ ok: true }>("POST", `/api/me/friends/${id}/decline`);
-// Bodyless DELETE: apiSend only sets content-type when a body is present, which is why
-// this must not pass one — Fastify rejects an empty JSON body with a 400.
-export const deleteFriendship = (id: number) =>
-  apiSend<{ ok: true }>("DELETE", `/api/me/friends/${id}`);
-export const patchFriendPresence = (
-  id: number, body: { share?: boolean; notify?: boolean },
-) => apiSend<{ ok: true }>("PATCH", `/api/me/friends/${id}/presence`, body);
-/** ⚠️ Presence only. Sub-project E deleted the location master switch — sharing is a
- *  session-scoped grant made on the map, not a standing preference. */
-export const patchPreferences = (body: { sharePresence?: boolean }) =>
-  apiSend<{ sharePresence: boolean }>("PATCH", "/api/me/preferences", body);
-
 /** ⚠️ These three name a GRANTEE, which does not breach the no-subject rule: that rule governs
  *  coordinate EGRESS (whose position you may READ). These say who may see YOUR position, and
  *  disclose nothing in their responses. */
@@ -258,8 +236,8 @@ export const stopSharingWith = (mapSlug: string, gamertag: string) =>
 export const stopSharingAll = (mapSlug: string) =>
   apiSend<{ ok: true }>("DELETE", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares`);
 
-export const getFriendMap = (slug: string) =>
-  apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);
+export const getMapShare = (slug: string) =>
+  apiGet<MapShare>(`/api/me/maps/${encodeURIComponent(slug)}`);
 
 /** Session-gated, `no-store, private` — the viewer's own avatar hash, or null. Never derive an
  *  avatar from `useSession()`'s `user.image`: that's the raw provider URL, and public surfaces

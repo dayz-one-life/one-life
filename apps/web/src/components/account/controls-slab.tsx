@@ -11,10 +11,6 @@ import { ShareBar } from "./share-bar";
 const SEND_HINT = "A token you send cannot come back";
 const INVITE_HINT = "+1 token when someone you invite verifies their gamertag";
 
-/** ⚠️ The two ways a token appears. Rendered as a chip row so the tokens half has the SAME number
- *  of control rows as the invite half (field + row + hint) — that is what squares the two columns. */
-const EARN_RULES = ["+1 on the 1st", "+1 per invite"];
-
 const H2 = "font-display text-2xl font-bold uppercase tracking-[.06em] text-ink";
 const HINT = "font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted";
 
@@ -89,30 +85,16 @@ function SendField({ own }: { own: string | null }) {
   );
 }
 
-function EarnChips() {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="sr-only sm:not-sr-only sm:mr-1 sm:font-mono sm:text-[10px] sm:uppercase sm:tracking-[.14em] sm:text-ink-muted">
-        Earn by
-      </span>
-      {EARN_RULES.map((rule) => (
-        <span
-          key={rule}
-          className="flex h-11 items-center border-2 border-ink bg-white px-3 font-mono text-[10px] uppercase tracking-[.06em] text-ink"
-        >
-          {rule}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 /* ══════════════════════ the two halves ══════════════════════
  * ⚠️ VERTICAL BALANCE + HEIGHT. The halves used to be written twice each, per variant, with
  * different internal rhythms, so the columns never lined up and the shorter one left a hole. They
  * now share ONE skeleton, stated once here:
  *
- *     h2 + inline figure  →  one sentence  →  [mt-auto] control  →  hint
+ *     h2 + inline figure  →  one sentence  →  [mt-auto] field+button  →  hint
+ *
+ * Each control is now exactly one row (field + button). The earn-by chips left with the share row
+ * (v0.69 spec §1+2), so the halves square: tokens half = send field + button; invite half =
+ * share input + button. Both push down with mt-auto to align at the bottom.
  *
  * ⚠️ The figures are INLINE and small. They were display-scale numerals (a 7xl balance mirrored by
  * a 7xl join count), which balanced the columns but cost ~90px per half and pushed the send field
@@ -189,12 +171,7 @@ export function ControlsSlab() {
               )
             }
             sentence="One token lifts one ban, the moment you spend it."
-            control={
-              <div className="flex flex-col gap-3">
-                <SendField own={gamertag} />
-                <EarnChips />
-              </div>
-            }
+            control={<SendField own={gamertag} />}
             hint={SEND_HINT}
           />
         </div>

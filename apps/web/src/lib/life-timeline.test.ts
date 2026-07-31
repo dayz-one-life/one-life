@@ -29,6 +29,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
       { victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) },
     ],
     qualifiedAt: { at: at(5), by: "playtime" },
+    encounters: [],
     verdict: null,
     avatarHash: null,
     obituarySlug: null,
@@ -180,5 +181,37 @@ describe("buildTimeline", () => {
     const view = buildTimeline(deadData, now);
     const death = view.events.find((e) => e.kind === "death")!;
     expect(death.kind === "death" && death.verdict).toEqual({ cause: "starvation", confidence: "low", conditions: ["starving"] });
+  });
+
+  test("interleaves encounters with the exact copy per category", () => {
+    const now = new Date(Date.parse(start) + 500 * 60_000);
+    const v = buildTimeline(
+      data({
+        encounters: [
+          { category: "wolf", attackerGamertag: null, startedAt: at(1), durationSeconds: 120, hits: 7, hpLow: 34 },
+          { category: "infected", attackerGamertag: null, startedAt: at(5), durationSeconds: 240, hits: 12, hpLow: 21 },
+          { category: "infected", attackerGamertag: null, startedAt: at(15), durationSeconds: 0, hits: 2, hpLow: null },
+          { category: "player", attackerGamertag: "Raider", startedAt: at(10), durationSeconds: 30, hits: 3, hpLow: 58 },
+        ],
+      }),
+      now,
+    );
+    const enc = v.events.filter((e) => e.kind === "encounter");
+    expect(enc.map((e) => e.title)).toEqual(
+      expect.arrayContaining(["Wolves — fought off", "Horde — 12 blows over 4m", "Infected — 2 blows", "Firefight"]),
+    );
+    const wolf = enc.find((e) => e.title.startsWith("Wolves"))!;
+    expect(wolf.line).toBe("7 blows over 2m · HP down to 34");
+    const two = enc.find((e) => e.title === "Infected — 2 blows")!;
+    expect(two.line).toBe("2 blows"); // no HP → never fabricated
+    const pvp = enc.find((e) => e.title === "Firefight")!;
+    expect(pvp.kind === "encounter" && pvp.attackerGamertag).toBe("Raider");
+    expect(pvp.line).toBe("3 hits taken · HP 58");
+  });
+
+  test("renders no encounter rows for an encounter-free life", () => {
+    const now = new Date(Date.parse(start) + 500 * 60_000);
+    const v = buildTimeline(data({ encounters: [] }), now);
+    expect(v.events.some((e) => e.kind === "encounter")).toBe(false);
   });
 });

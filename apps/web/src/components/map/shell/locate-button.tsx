@@ -2,7 +2,7 @@
 import { useId, useRef } from "react";
 import { worldSize, worldToLatLng } from "@/lib/dayz-projection";
 import { CANVAS_PX, MAX_ZOOM, type MapFocus } from "@/components/map/map-canvas";
-import type { FriendPositionDto } from "@/lib/types";
+import type { SharedPositionDto } from "@/lib/types";
 
 const LOCATE_ZOOM = 5;
 
@@ -12,7 +12,7 @@ const LOCATE_ZOOM = 5;
  *  disabled control with no stated reason is indistinguishable from a broken one, and
  *  "loading" must not render as "you are offline" (live-data honesty). */
 export function LocateButton({ self, loading, error, onLocate, mapCodename }: {
-  self: FriendPositionDto | undefined;
+  self: SharedPositionDto | undefined;
   loading: boolean;
   /** A FAILED fetch. "You appear offline" is a claim about the game; a network error is not
    *  evidence for it, and the page would then contradict its own "Couldn't load" card. */

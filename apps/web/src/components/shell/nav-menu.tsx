@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils";
  */
 export function NavMenu() {
   const status = useAccountStatus();
-  const signedIn = status.kind === "unlinked" || status.kind === "pending" || status.kind === "verified";
 
   const [open, setOpen] = useState(false);
   const panelRef = useModalBehavior(open, () => setOpen(false));
@@ -123,20 +122,6 @@ export function NavMenu() {
               {item.label}
             </Link>
           ))}
-          {/* Friends is not in NAV_ITEMS — it is behind auth, and NAV_ITEMS is the public nav
-           *  that also feeds the sitemap and the footer's reasoning. */}
-          {signedIn && (
-            <Link
-              role="menuitem"
-              href="/friends"
-              aria-current={Boolean(pathname?.startsWith("/friends")) ? "page" : undefined}
-              onClick={close}
-              className={cn(itemClass, pathname?.startsWith("/friends") && activeClass)}
-            >
-              Friends
-            </Link>
-          )}
-
           {/* ⚠️ Nothing account-shaped while the status is loading: an item set that has to be
            *  swapped a frame later is worse than one that arrives a frame late. */}
           {status.kind !== "loading" && (

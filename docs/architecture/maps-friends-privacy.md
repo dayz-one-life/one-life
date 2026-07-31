@@ -1,5 +1,10 @@
 # Maps, friends, and location privacy
 
+> **⚠️ The friends feature (friendships, roster, location grants) was removed whole in v0.69.**
+> Only session-scoped location sharing survives, now in `packages/location-sharing`. The
+> friendship/roster/F1/F3 sections below are historical record, kept for the reasoning they
+> contain — not a description of what currently ships.
+
 Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original order.
 
 ## Owner-only life location map

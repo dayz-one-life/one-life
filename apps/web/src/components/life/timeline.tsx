@@ -7,6 +7,7 @@ const DOT: Record<TimelineEvent["marker"], string> = {
   blue: "bg-blue",
   red: "bg-red",
   gray: "bg-dash",
+  yellow: "bg-yellow",
 };
 
 function meters(d: number | null): string | null {
@@ -59,6 +60,19 @@ function EventRow({ e }: { e: TimelineEvent }) {
             <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">
               {[killDetail(e.weapon, e.distanceMeters) || null, e.vitals].filter(Boolean).join(" · ") || "—"}
             </p>
+          </>
+        ) : e.kind === "encounter" ? (
+          <>
+            <p className="font-display text-xl font-bold uppercase leading-none text-ink">
+              {e.title}
+              {e.attackerGamertag && (
+                <>
+                  {" "}
+                  — hit by <GamertagLink gamertag={e.attackerGamertag} />
+                </>
+              )}
+            </p>
+            <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">{e.line}</p>
           </>
         ) : (
           <>

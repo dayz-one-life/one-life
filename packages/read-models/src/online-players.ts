@@ -1,7 +1,7 @@
 import type { Database } from "@onelife/db";
-import { friendships, gamertagLinks, players, positions, sessions } from "@onelife/db";
+import { gamertagLinks, players, positions, sessions } from "@onelife/db";
 import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
-import type { FriendPosition } from "./friend-positions.js";
+import type { SharedPosition } from "./shared-positions.js";
 
 /**
  * How recently a player must have been seen ON THIS SERVER to count as online here.
@@ -32,7 +32,6 @@ export const ONLINE_MAX_AGE_SECONDS = 900;
 
 export interface OnlinePlayer {
   gamertag: string;
-  friend: boolean;
   sharing: boolean;
   self: boolean;
 }
@@ -50,7 +49,7 @@ export interface OnlinePlayer {
  */
 export async function getOnlinePlayers(
   db: Database,
-  a: { viewerUserId: string; serverId: number; now: Date; positions: FriendPosition[] },
+  a: { viewerUserId: string; serverId: number; now: Date; positions: SharedPosition[] },
 ): Promise<OnlinePlayer[]> {
   const freshest = new Date(a.now.getTime() - ONLINE_MAX_AGE_SECONDS * 1000);
 
@@ -77,8 +76,8 @@ export async function getOnlinePlayers(
       ),
     ));
 
-  // The viewer's own verified gamertag, and their accepted friends' — both compared with
-  // lower(), matching every other gamertag comparison in this package.
+  // The viewer's own verified gamertag, compared with lower(), matching every other gamertag
+  // comparison in this package.
   const [viewer] = await db
     .select({ gamertag: gamertagLinks.gamertag })
     .from(gamertagLinks)
@@ -88,24 +87,8 @@ export async function getOnlinePlayers(
     ))
     .limit(1);
 
-  const friendRows = await db
-    .select({ gamertag: gamertagLinks.gamertag })
-    .from(friendships)
-    .innerJoin(gamertagLinks, and(
-      eq(gamertagLinks.status, "verified"),
-      or(
-        and(eq(friendships.userA, a.viewerUserId), eq(gamertagLinks.userId, friendships.userB)),
-        and(eq(friendships.userB, a.viewerUserId), eq(gamertagLinks.userId, friendships.userA)),
-      ),
-    ))
-    .where(and(
-      eq(friendships.status, "accepted"),
-      or(eq(friendships.userA, a.viewerUserId), eq(friendships.userB, a.viewerUserId)),
-    ));
-
   const lower = (s: string) => s.toLowerCase();
   const selfTag = viewer ? lower(viewer.gamertag) : null;
-  const friends = new Set(friendRows.map((r) => lower(r.gamertag)));
   // Derived from the payload's own positions — never a second consent evaluation, so the list
   // and the dots can never contradict each other.
   const sharing = new Set(a.positions.map((p) => lower(p.gamertag)));
@@ -113,14 +96,13 @@ export async function getOnlinePlayers(
   const out: OnlinePlayer[] = rows.map((r) => ({
     gamertag: r.gamertag,
     self: selfTag !== null && lower(r.gamertag) === selfTag,
-    friend: friends.has(lower(r.gamertag)),
     sharing: sharing.has(lower(r.gamertag)),
   }));
 
   // Ordering lives HERE, not in the component: the accessible legend and any future surface
   // want the same order, and a rule split across renderers drifts.
   const rank = (p: OnlinePlayer) =>
-    p.self ? 0 : p.friend && p.sharing ? 1 : p.friend ? 2 : p.sharing ? 3 : 4;
+    p.self ? 0 : p.sharing ? 1 : 2;
   return out.sort((x, y) =>
     rank(x) - rank(y) || x.gamertag.localeCompare(y.gamertag),
   );

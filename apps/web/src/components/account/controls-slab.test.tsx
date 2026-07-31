@@ -69,4 +69,10 @@ describe("<ControlsSlab />", () => {
       "https://dayzonelife.com/i/manicdote",
     );
   });
+
+  it("renders no earn-by chips — both halves are field + button + hint", () => {
+    render(<ControlsSlab />);
+    expect(screen.queryByText("+1 on the 1st")).toBeNull();
+    expect(screen.queryByText("+1 per invite")).toBeNull();
+  });
 });

@@ -1,17 +1,17 @@
-import type { FriendPositionDto, OnlinePlayerDto } from "@/lib/types";
-import { positionAge } from "../friends-map";
+import type { SharedPositionDto, OnlinePlayerDto } from "@/lib/types";
+import { positionAge } from "../positions-map";
 
 /** Who is on this server. Replaces FriendsMapLegend: it is still the screen-reader companion
  *  to a canvas with no text, so it stays a real list reached by a real button.
  *
  *  ⚠️ DARK SURFACE — cream/paper tokens only.
- *  Order comes from the server (self → friends sharing → friends → sharing → rest); do not
- *  re-sort here, or the rule lives in two places. */
+ *  Order comes from the server (self → sharing → rest); do not re-sort here, or the rule
+ *  lives in two places. */
 export function OnlineList({ players, positions, now, onShare, onStopSharing, pendingFor }: {
   players: OnlinePlayerDto[];
   /** Fixes for the players who are sharing — the ONLY source of a fix age. A row not present
    *  here has no fix and must show none: absence, not a fabricated "unknown". */
-  positions?: FriendPositionDto[];
+  positions?: SharedPositionDto[];
   now?: Date;
   /** Absent ⇒ no grant controls (a viewer who cannot grant, e.g. while offline). */
   onShare?: (gamertag: string) => void;
@@ -41,10 +41,10 @@ export function OnlineList({ players, positions, now, onShare, onStopSharing, pe
             // grant button cannot fit one 320px row — without wrapping they overprint each
             // other (shipped that way once, verified on the live site).
             className={`flex min-h-[52px] flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1 font-mono text-[15px] uppercase tracking-[.05em] md:min-h-0 md:text-[11px] ${
-              p.friend || p.self ? "text-paper" : "text-cream-dim"
+              p.self ? "text-paper" : "text-cream-dim"
             }`}
           >
-            <span className={`min-w-0 break-all ${p.friend || p.self ? "font-bold" : ""}`}>
+            <span className={`min-w-0 break-all ${p.self ? "font-bold" : ""}`}>
               {p.gamertag}
               {p.self ? " (you)" : ""}
             </span>

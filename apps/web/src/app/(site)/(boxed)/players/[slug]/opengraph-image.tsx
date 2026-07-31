@@ -7,7 +7,10 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "One Life survivor profile";
 
-const asset = (name: string) => readFile(new URL(`./${name}`, import.meta.url));
+// ⚠️ Keep `import.meta.url` bound to a variable rather than inlined as the second `new URL()`
+// argument — see the matching comment in `app/i/[slug]/card/route.tsx` for why.
+const here = import.meta.url;
+const asset = (name: string) => readFile(new URL(`../../../../../og-assets/${name}`, here));
 const dataUri = (buf: Buffer) => `data:image/png;base64,${buf.toString("base64")}`;
 
 export default async function OgImage({ params }: { params: Promise<{ slug: string }> }) {

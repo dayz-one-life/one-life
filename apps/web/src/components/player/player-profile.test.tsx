@@ -11,8 +11,6 @@ vi.stubGlobal(
 import { PlayerProfile } from "./player-profile";
 import type { PlayerPage, ServerStanding, PastLife } from "@/lib/types";
 
-// PlayerProfile renders PlayerHero, which mounts FriendButton (a TanStack Query
-// consumer) — same wrapper as player-hero.test.tsx / standing-card.test.tsx.
 function renderProfile(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
@@ -122,7 +120,7 @@ describe("PlayerProfile", () => {
     expect(container.querySelector("main")!.className).not.toMatch(/(^|\s)py-10(\s|$)/);
   });
 
-  test("keeps the totals strip and the friend button", () => {
+  test("keeps the totals strip", () => {
     renderProfile(<PlayerProfile page={page()} now={NOW} />);
     expect(screen.getByText("Deaths")).toBeInTheDocument();
     expect(screen.getByText("Longest life")).toBeInTheDocument();

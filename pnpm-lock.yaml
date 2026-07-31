@@ -41,9 +41,9 @@ importers:
       '@onelife/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@onelife/friends':
+      '@onelife/location-sharing':
         specifier: workspace:*
-        version: link:../../packages/friends
+        version: link:../../packages/location-sharing
       '@onelife/read-models':
         specifier: workspace:*
         version: link:../../packages/read-models
@@ -238,9 +238,9 @@ importers:
       '@onelife/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@onelife/friends':
+      '@onelife/location-sharing':
         specifier: workspace:*
-        version: link:../../packages/friends
+        version: link:../../packages/location-sharing
       '@onelife/read-models':
         specifier: workspace:*
         version: link:../../packages/read-models
@@ -461,6 +461,10 @@ importers:
         version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/adm-parser:
+    dependencies:
+      '@onelife/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       typescript:
         specifier: ^5.6.0
@@ -551,7 +555,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
-  packages/friends:
+  packages/location-sharing:
     dependencies:
       '@onelife/db':
         specifier: workspace:*
@@ -606,9 +610,9 @@ importers:
       '@onelife/domain':
         specifier: workspace:*
         version: link:../domain
-      '@onelife/friends':
+      '@onelife/location-sharing':
         specifier: workspace:*
-        version: link:../friends
+        version: link:../location-sharing
       drizzle-orm:
         specifier: ^0.36.0
         version: 0.36.4(@types/react@19.2.17)(kysely@0.29.3)(postgres@3.4.9)(react@19.2.8)

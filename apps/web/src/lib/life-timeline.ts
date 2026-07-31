@@ -1,4 +1,4 @@
-import type { LifeTimelineData, PlayerKill, Session, DeathVerdictDto } from "./types";
+import type { LifeTimelineData, PlayerKill, Session, DeathVerdictDto, EncounterDto } from "./types";
 import { formatDuration } from "@/components/player/format";
 
 export type Marker = "blue" | "red" | "gray" | "yellow";
@@ -10,7 +10,8 @@ export type TimelineEvent =
   | { kind: "session"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "session-group"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "qualified"; at: Date; marker: "blue"; timeLabel: string; title: string; line: string }
-  | { kind: "birth"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string };
+  | { kind: "birth"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
+  | { kind: "encounter"; at: Date; marker: "yellow"; timeLabel: string; title: string; line: string; attackerGamertag: string | null };
 
 export interface LifeTimelineView {
   alive: boolean;
@@ -72,6 +73,34 @@ function qualifiedLine(by: "playtime" | "kill" | "pvp-death"): string {
   return "Five minutes survived. The grace period ends; from here, death counts.";
 }
 
+function durLabel(seconds: number): string {
+  return `${Math.max(1, Math.round(seconds / 60))}m`;
+}
+
+/** Exact copy per spec §7. HP appears only when a tick reported one — never fabricated. */
+function encounterText(e: EncounterDto): { title: string; line: string } {
+  const hp = e.hpLow == null ? null : `HP down to ${Math.round(e.hpLow)}`;
+  const blows = `${e.hits} blow${e.hits === 1 ? "" : "s"}`;
+  switch (e.category) {
+    case "wolf":
+      return { title: e.hits >= 3 ? "Wolves — fought off" : "A wolf — fought off", line: [`${blows} over ${durLabel(e.durationSeconds)}`, hp].filter(Boolean).join(" · ") };
+    case "bear":
+      return { title: "A bear — fought off", line: [`${blows} over ${durLabel(e.durationSeconds)}`, hp].filter(Boolean).join(" · ") };
+    case "animal":
+      return { title: "Wild animal — fought off", line: [blows, hp].filter(Boolean).join(" · ") };
+    case "infected":
+      return e.hits >= 3
+        ? { title: `Horde — ${e.hits} blows over ${durLabel(e.durationSeconds)}`, line: hp ?? "Fought clear" }
+        : { title: `Infected — ${blows}`, line: hp ?? blows };
+    case "player":
+      return { title: "Firefight", line: [`${e.hits} hit${e.hits === 1 ? "" : "s"} taken`, e.hpLow == null ? null : `HP ${Math.round(e.hpLow)}`].filter(Boolean).join(" · ") };
+    case "fire":
+      return { title: `Burned — ${blows}`, line: hp ?? "Got clear of the flames" };
+    default:
+      return { title: `Took a beating — ${e.hits} hit${e.hits === 1 ? "" : "s"}`, line: hp ?? "Walked it off" };
+  }
+}
+
 function vitalsLine(life: LifeTimelineData["life"]): string | null {
   const parts: string[] = [];
   if (life.energyAtDeath != null) parts.push(`Energy ${Math.round(life.energyAtDeath)}`);
@@ -130,6 +159,13 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   // Kills
   for (const k of killObjs) {
     events.push({ kind: "kill", at: k.at, marker: "red", timeLabel: label(k.at), victimGamertag: k.victimGamertag, weapon: k.weapon, distanceMeters: k.distanceMeters, longestKill: longest !== null && k === longest });
+  }
+
+  // Encounters
+  for (const e of data.encounters) {
+    const at = new Date(e.startedAt);
+    const { title, line } = encounterText(e);
+    events.push({ kind: "encounter", at, marker: "yellow", timeLabel: label(at), title, line, attackerGamertag: e.attackerGamertag });
   }
 
   // Terminal: now (alive) or death (dead)

@@ -2,16 +2,16 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { getFriendMap, getServers, shareLocationWith, stopSharingAll, stopSharingWith } from "@/lib/api";
+import { getMapShare, getServers, shareLocationWith, stopSharingAll, stopSharingWith } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { useAccountStatus } from "@/lib/use-account-status";
-import type { FriendPositionDto } from "@/lib/types";
+import type { SharedPositionDto } from "@/lib/types";
 import { rememberMap } from "@/lib/map-resolution";
 import { mapLabel } from "@/components/player/format";
-import FriendsMap from "./friends-map";
+import PositionsMap from "./positions-map";
 import type { MapFocus } from "./map-canvas";
 import { LocateButton } from "./shell/locate-button";
-import { FriendsPanel } from "./shell/friends-panel";
+import { SharePanel } from "./shell/share-panel";
 
 // ⚠️ DARK SURFACE. The map region carries no paper anywhere — these notes sit over the terrain,
 // so they use cream/paper tokens, never the light surfaces' `text-ink-muted`. That stays true
@@ -34,15 +34,15 @@ export type MapPageViewProps = {
    *  the terrain drawable without a session. Absent only while it is still resolving. */
   mapCodename?: string;
   /** The dots, from the session-gated payload. Empty for everyone who cannot have any. */
-  positions?: readonly FriendPositionDto[];
-  /** The MAP cannot be drawn yet / at all. Distinct from a friend-payload failure, which
+  positions?: readonly SharedPositionDto[];
+  /** The MAP cannot be drawn yet / at all. Distinct from a share-payload failure, which
    *  leaves a perfectly good map with no dots on it. */
   loading?: boolean;
   error?: boolean;
   signedOut?: boolean;
   unverified?: boolean;
   /** The gated payload failed. The terrain still renders; only the dots are missing. */
-  friendsError?: boolean;
+  shareError?: boolean;
   now: Date;
   /** Where Locate last asked the map to fly. */
   focus?: MapFocus | null;
@@ -84,11 +84,11 @@ export function MapPageView(p: MapPageViewProps) {
       <Link href="/login" className="font-bold text-red underline">
         Sign in
       </Link>{" "}
-      to see where your friends are.
+      to see who&apos;s sharing with you.
     </>
   ) : p.unverified ? (
-    "Verify your gamertag to see your friends here."
-  ) : p.friendsError ? (
+    "Verify your gamertag to see shared positions."
+  ) : p.shareError ? (
     // "Couldn't load" and "nobody is sharing" are different claims about the game; an empty
     // map must never be allowed to stand in for the first.
     "Couldn't load who's on the map."
@@ -96,7 +96,7 @@ export function MapPageView(p: MapPageViewProps) {
 
   return (
     <>
-      <FriendsMap
+      <PositionsMap
         mapCodename={p.mapCodename}
         positions={p.positions ?? []}
         now={p.now}
@@ -152,10 +152,10 @@ export function MapPage({ slug }: { slug: string }) {
   useEffect(() => { if (mapCodename) rememberMap(slug); }, [slug, mapCodename]);
 
   const q = useQuery({
-    queryKey: ["friend-map", slug],
+    queryKey: ["map-share", slug],
     // A bad slug 404s below; no point asking the gated route about a map that does not exist.
     enabled: verified && Boolean(currentServer),
-    queryFn: () => getFriendMap(slug),
+    queryFn: () => getMapShare(slug),
     refetchInterval: 30_000,
   });
 
@@ -163,7 +163,7 @@ export function MapPage({ slug }: { slug: string }) {
   // directions of sharing — so the chip, the dots and the row buttons can never disagree.
   const qc = useQueryClient();
   const [pendingFor, setPendingFor] = useState<string | null>(null);
-  const invalidate = () => { void qc.invalidateQueries({ queryKey: ["friend-map", slug] }); };
+  const invalidate = () => { void qc.invalidateQueries({ queryKey: ["map-share", slug] }); };
   const share = useMutation({
     mutationFn: (gamertag: string) => shareLocationWith(slug, gamertag),
     onSettled: () => { setPendingFor(null); invalidate(); },
@@ -208,11 +208,11 @@ export function MapPage({ slug }: { slug: string }) {
           signedOut={account.kind === "signedOut"}
           unverified={account.kind === "unlinked" || account.kind === "pending"}
           // ⚠️ The map's own loading/error come from the PUBLIC server list only. The gated
-          // friend payload must never gate the terrain — that is the bug this replaced. An
+          // share payload must never gate the terrain — that is the bug this replaced. An
           // unknown slug is not an error here; it has already `notFound()`d above.
           loading={servers.isPending}
           error={servers.isError && !servers.data}
-          friendsError={q.isError && !q.data}
+          shareError={q.isError && !q.data}
           mapCodename={mapCodename}
           positions={q.data?.positions}
           focus={focus}
@@ -241,7 +241,7 @@ export function MapPage({ slug }: { slug: string }) {
         )}
 
         {/* Locate and Online overlay the map's bottom-right. Signed-out and unverified visitors
-            get no controls at all: the friend query is disabled for them, so `isPending` never
+            get no controls at all: the share query is disabled for them, so `isPending` never
             resolves and Locate would sit claiming to load a position that is never coming. */}
         {verified && (
           <div className="pointer-events-none absolute bottom-3 right-3 z-10 flex items-center gap-1">
@@ -253,7 +253,7 @@ export function MapPage({ slug }: { slug: string }) {
                 mapCodename={mapCodename ?? ""}
                 onLocate={setFocus}
               />
-              <FriendsPanel
+              <SharePanel
                 players={q.data?.online}
                 positions={q.data?.positions}
                 now={new Date()}

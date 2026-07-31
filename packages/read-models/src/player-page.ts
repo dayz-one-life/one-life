@@ -138,7 +138,13 @@ export async function getPlayerPage(
           .orderBy(sql`${lives.lifeNumber} desc`).limit(1))[0] ?? null
       : null;
 
-    if (livesRows.length === 0 && !serverBan && !anyOpenLife) continue;
+    if (livesRows.length === 0 && !serverBan && !anyOpenLife) {
+      // v0.69: every active server gets a ticket. A never-played card is idle with no life to
+      // name — it contributes nothing to totals and cannot make the page exist on its own
+      // (see the guard below), so unknown gamertags still 404.
+      standing.push({ serverId: s.id, map: s.map, slug: s.slug, state: "idle", alive: null, ban: null, lastLifeNumber: null, lastEndedAt: null });
+      continue;
+    }
 
     const profile = await getPlayerProfile(db, s.id, gamertag, now);
 
@@ -217,7 +223,8 @@ export async function getPlayerPage(
   }
 
   const total = endedLives.length;
-  if (standing.length === 0 && total === 0) return null;
+  const anyHistory = standing.some((c) => c.state !== "idle" || c.lastLifeNumber != null);
+  if (!anyHistory && total === 0) return null;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(reqPage, totalPages);

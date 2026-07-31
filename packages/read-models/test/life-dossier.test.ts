@@ -2,12 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, sessions, hitEvents, buildEvents, unconsciousEvents } from "@onelife/db";
 import { inArray, eq } from "drizzle-orm";
-import { getLifeDossier, dossierVerdict } from "../src/life-dossier.js";
+import { getLifeDossier, dossierVerdict, encountersForLife } from "../src/life-dossier.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 61e7;
 const start = new Date("2026-07-15T00:00:00Z");
 const mins = (m: number) => new Date(start.getTime() + m * 60_000);
+const secs = (s: number) => new Date(start.getTime() + s * 1_000);
 const gt = `Dossier-${svc}`;
 let serverId: number;
 let pid: number;
@@ -24,6 +25,19 @@ let lifeId4: number;
 const gt5 = `DossierMauled-${svc}`;
 let pid5: number;
 let lifeId5: number;
+// encountersForLife scenarios (Task 15).
+const gt6 = `DossierEnc1-${svc}`;
+let pid6: number;
+let lifeId6: number;
+const gt7 = `DossierEnc2-${svc}`;
+let pid7: number;
+let lifeId7: number;
+const gt8 = `DossierEnc3-${svc}`;
+let pid8: number;
+let lifeId8: number;
+const gt9 = `DossierEnc4-${svc}`;
+let pid9: number;
+let lifeId9: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "ld", map: "sakhal", slug: `ld-${svc}`, active: true }).returning();
@@ -124,6 +138,73 @@ beforeAll(async () => {
   await db.insert(unconsciousEvents).values({
     serverId, playerId: pid5, gamertag: gt5, disconnecting: true, occurredAt: new Date(mins(360).getTime() - 20_000),
   });
+
+  // Scenario 1: groups hit ticks into per-category encounters with the 120s gap rule.
+  const [p6] = await db.insert(players).values({ gamertag: gt6, lastSeenAt: secs(2000) }).returning();
+  pid6 = p6!.id;
+  const [l6] = await db.insert(lives).values({
+    serverId, playerId: pid6, lifeNumber: 1, startedAt: start, endedAt: secs(2000),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 1500, waterAtDeath: 1500, bleedSourcesAtDeath: 0, playtimeSeconds: 2000,
+  }).returning();
+  lifeId6 = l6!.id;
+  await db.insert(hitEvents).values([
+    // Infected encounter 1: three ticks 30s apart (10s/40s/70s) -> one encounter, hits 3, duration 60s.
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "infected", attackerLabel: "Infected", victimHp: 80, occurredAt: secs(10) },
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "infected", attackerLabel: "Infected", victimHp: 70, occurredAt: secs(40) },
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "infected", attackerLabel: "Infected", victimHp: 60, occurredAt: secs(70) },
+    // Infected encounter 2: gap from prior encounter's last tick (70s) to 400s is 330s > 120s.
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "infected", attackerLabel: "Infected", victimHp: 50, occurredAt: secs(400) },
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "infected", attackerLabel: "Infected", victimHp: 40, occurredAt: secs(420) },
+    // A wolf tick (attackerType environment, attackerLabel Animal_CanisLupus).
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "environment", attackerLabel: "Animal_CanisLupus", victimHp: 65, occurredAt: secs(50) },
+    // Two player ticks from "Raider".
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "player", attackerGamertag: "Raider", victimHp: 90, occurredAt: secs(200) },
+    { serverId, victimGamertag: gt6, victimPlayerId: pid6, attackerType: "player", attackerGamertag: "Raider", victimHp: 85, occurredAt: secs(230) },
+  ]);
+
+  // Scenario 2: splits simultaneous PvP by attacker and fire outranks category.
+  const [p7] = await db.insert(players).values({ gamertag: gt7, lastSeenAt: secs(2000) }).returning();
+  pid7 = p7!.id;
+  const [l7] = await db.insert(lives).values({
+    serverId, playerId: pid7, lifeNumber: 1, startedAt: start, endedAt: secs(2000),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 1500, waterAtDeath: 1500, bleedSourcesAtDeath: 0, playtimeSeconds: 2000,
+  }).returning();
+  lifeId7 = l7!.id;
+  await db.insert(hitEvents).values([
+    { serverId, victimGamertag: gt7, victimPlayerId: pid7, attackerType: "player", attackerGamertag: "AttackerA", victimHp: 70, occurredAt: secs(10) },
+    { serverId, victimGamertag: gt7, victimPlayerId: pid7, attackerType: "player", attackerGamertag: "AttackerB", victimHp: 60, occurredAt: secs(15) },
+    // A FireplaceBase-labelled environment tick -> category "fire", not "environment".
+    { serverId, victimGamertag: gt7, victimPlayerId: pid7, attackerType: "environment", attackerLabel: "FireplaceBase", victimHp: 50, occurredAt: secs(20) },
+  ]);
+
+  // Scenario 3: suppresses the death-adjacent encounter (inside RECENT_HIT_WINDOW_S of endedAt).
+  const [p8] = await db.insert(players).values({ gamertag: gt8, lastSeenAt: secs(2000) }).returning();
+  pid8 = p8!.id;
+  const [l8] = await db.insert(lives).values({
+    serverId, playerId: pid8, lifeNumber: 1, startedAt: start, endedAt: secs(2000),
+    deathCause: "died", deathWeapon: null,
+    energyAtDeath: 1500, waterAtDeath: 1500, bleedSourcesAtDeath: 0, playtimeSeconds: 2000,
+  }).returning();
+  lifeId8 = l8!.id;
+  await db.insert(hitEvents).values({
+    serverId, victimGamertag: gt8, victimPlayerId: pid8, attackerType: "infected", attackerLabel: "Infected",
+    victimHp: 20, occurredAt: new Date(secs(2000).getTime() - 30_000),
+  });
+
+  // Scenario 4: covers an OPEN life through lastSeenAt.
+  const [p9] = await db.insert(players).values({ gamertag: gt9, lastSeenAt: secs(2000) }).returning();
+  pid9 = p9!.id;
+  const [l9] = await db.insert(lives).values({
+    serverId, playerId: pid9, lifeNumber: 1, startedAt: start, endedAt: null,
+    playtimeSeconds: 0,
+  }).returning();
+  lifeId9 = l9!.id;
+  await db.insert(hitEvents).values({
+    serverId, victimGamertag: gt9, victimPlayerId: pid9, attackerType: "infected", attackerLabel: "Infected",
+    victimHp: 40, occurredAt: secs(100),
+  });
 });
 
 afterAll(async () => {
@@ -132,7 +213,7 @@ afterAll(async () => {
   await db.delete(buildEvents).where(inArray(buildEvents.serverId, [serverId]));
   await db.delete(sessions).where(inArray(sessions.serverId, [serverId]));
   await db.delete(lives).where(inArray(lives.serverId, [serverId]));
-  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3, pid4, pid5]));
+  await db.delete(players).where(inArray(players.id, [pid, pid2, pid3, pid4, pid5, pid6, pid7, pid8, pid9]));
   await db.delete(servers).where(eq(servers.id, serverId));
   await sql.end();
 });
@@ -210,5 +291,43 @@ describe("getLifeDossier", () => {
     expect(d!.recentHits.map((h) => h.victimHp)).toEqual([50]); // no terminal hit to lean on
     expect(d!.recentUnconscious).toHaveLength(1);
     expect(dossierVerdict(d!).cause).toBe("mauled");
+  });
+});
+
+describe("encountersForLife", () => {
+  it("groups hit ticks into per-category encounters with the 120s gap rule", async () => {
+    const life = (await db.select().from(lives).where(eq(lives.id, lifeId6)))[0]!;
+    const enc = await encountersForLife(db, gt6, life, null);
+    expect(enc).toHaveLength(4);
+    const infected = enc.filter((e) => e.category === "infected");
+    expect(infected[0]).toMatchObject({ hits: 3, durationSeconds: 60 });
+    expect(infected[1]).toMatchObject({ hits: 2 });
+    expect(enc.find((e) => e.category === "wolf")).toMatchObject({ hits: 1 });
+    expect(enc.find((e) => e.category === "player")).toMatchObject({ attackerGamertag: "Raider", hits: 2 });
+  });
+
+  it("splits simultaneous PvP by attacker and fire outranks category", async () => {
+    const life = (await db.select().from(lives).where(eq(lives.id, lifeId7)))[0]!;
+    const enc = await encountersForLife(db, gt7, life, null);
+    expect(enc).toHaveLength(3);
+    const players_ = enc.filter((e) => e.category === "player");
+    expect(players_).toHaveLength(2);
+    expect(players_.map((e) => e.attackerGamertag).sort()).toEqual(["AttackerA", "AttackerB"]);
+    const fire = enc.find((e) => e.category === "fire");
+    expect(fire).toMatchObject({ hits: 1, attackerGamertag: null });
+  });
+
+  it("suppresses the death-adjacent encounter", async () => {
+    const life = (await db.select().from(lives).where(eq(lives.id, lifeId8)))[0]!;
+    const enc = await encountersForLife(db, gt8, life, null);
+    expect(enc).toHaveLength(0);
+  });
+
+  it("covers an OPEN life through lastSeenAt", async () => {
+    const life = (await db.select().from(lives).where(eq(lives.id, lifeId9)))[0]!;
+    expect(life.endedAt).toBeNull();
+    const enc = await encountersForLife(db, gt9, life, secs(2000));
+    expect(enc).toHaveLength(1);
+    expect(enc[0]).toMatchObject({ category: "infected", hits: 1 });
   });
 });

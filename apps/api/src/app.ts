@@ -19,9 +19,7 @@ import { registerStatsRoutes } from "./routes/stats.js";
 import { registerObituariesRoutes } from "./routes/obituaries.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerLifeTrackRoutes } from "./routes/life-track.js";
-import { registerFriendRoutes } from "./routes/friends.js";
-import { registerPreferenceRoutes } from "./routes/preferences.js";
-import { registerFriendMapRoutes } from "./routes/friend-map.js";
+import { registerMapShareRoutes } from "./routes/map-share.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
 import { registerAvatarRoutes, registerPublicAvatarRoutes } from "./routes/avatars.js";
 import { AVATAR_MAX_BYTES } from "./lib/avatar-image.js";
@@ -54,9 +52,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerTokenRoutes(app, db, opts.auth);
     registerNotificationRoutes(app, db, opts.auth, opts.vapidPublicKey ?? "");
     registerLifeTrackRoutes(app, db, opts.auth);
-    registerFriendRoutes(app, db, opts.auth);
-    registerPreferenceRoutes(app, db, opts.auth);
-    registerFriendMapRoutes(app, db, opts.auth);
+    registerMapShareRoutes(app, db, opts.auth);
     registerLastMapRoute(app, db, opts.auth);
     registerAvatarRoutes(app, db, opts.auth, { allowTestHosts: opts.avatarAllowTestFetchLoopback });
   }

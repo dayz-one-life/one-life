@@ -97,7 +97,7 @@ export type MapFocus = { lat: number; lng: number; zoom: number; nonce: number }
 /**
  * The Leaflet shell: lifecycle, tiles, projection, first-fit and failure states.
  *
- * Extracted from TrackMap so the life trail and the friends map cannot drift apart on tile
+ * Extracted from TrackMap so the life trail and the positions map cannot drift apart on tile
  * paths or projection details. Consumers supply only a `draw` function; everything subtle
  * (map lifecycle vs. redraw split, the first-fit latch, the LayerGroup pattern, the dynamic
  * import, the error/unmapped-terrain states, the stacking context) lives here.
@@ -111,7 +111,7 @@ export default function MapCanvas({ mapCodename, draw, drawKey, className, focus
   focus?: MapFocus | null;
   /** The map centre in world metres, on every pan/zoom (rAF-throttled). */
   /** Sizing only — the container's own box. Defaults to the life-trail's fixed panel; the
-   *  friends map passes `h-full w-full` to fill a flex parent. Leaflet reads the element's
+   *  positions map passes `h-full w-full` to fill a flex parent. Leaflet reads the element's
    *  computed size on creation, so a parent chain with no definite height collapses it to 0. */
   className?: string;
 }) {

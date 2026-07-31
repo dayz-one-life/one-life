@@ -149,20 +149,25 @@ export type PastLife = { lifeId: number; serverId: number; map: string; slug: st
 export type ObituaryEntry = { slug: string; map: string; mapSlug: string; lifeNumber: number; headline: string; lede: string | null; deathAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; cause: string | null };
 export type PlayerPage = { gamertag: string; verified: boolean; avatarHash: string | null; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; previousBestSeconds: number; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number; obituaries: ObituaryEntry[]; obituariesTotal: number };
 
-/** One row of `GET /me/friends/online` — a friend online right now, and whether they share
- *  their position with the viewer (the same boolean the map payload discloses). */
-export type OnlineFriend = { gamertag: string; slug: string; map: string; sharing: boolean };
-
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; avatarHash: string | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; }
 
 export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
 
 export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
+export type EncounterDto = {
+  category: "wolf" | "bear" | "animal" | "infected" | "player" | "fire" | "environment";
+  attackerGamertag: string | null;
+  startedAt: string;
+  durationSeconds: number;
+  hits: number;
+  hpLow: number | null;
+};
 export type LifeTimelineData = {
   life: Life;
   sessions: Session[];
   kills: PlayerKill[];
+  encounters: EncounterDto[];
   qualifiedAt: QualifiedAtDto | null;
   gamertag: string;
   map: string;
@@ -270,39 +275,7 @@ export type SitemapData = {
   articles: { kind: string; slug: string; lastmod: string }[];
 };
 
-export type FriendStatusValue = "none" | "outgoing" | "incoming" | "friends" | "cooldown";
-
-export type FriendEntryDto = {
-  id: number;
-  gamertag: string;
-  slug: string;
-  status: FriendStatusValue;
-  since: string;
-  sharesPresence: boolean;
-  notifyPresence: boolean;
-};
-
-export type FriendsFeed = {
-  friends: FriendEntryDto[];
-  incoming: FriendEntryDto[];
-  outgoing: FriendEntryDto[];
-  total: number;
-  page: number;
-  pageSize: number;
-  /** The viewer's master switch — gates every per-friend share flag.
-   *  ⚠️ Presence only. Sub-project E deleted the location equivalent; the roster reports
-   *  nothing about location, because sharing is a session-scoped grant made on the map. */
-  sharePresence: boolean;
-};
-
-export type FriendStatusDto = {
-  status: FriendStatusValue;
-  friendshipId: number | null;
-  /** ISO-8601. Set only when status is "cooldown". */
-  cooldownUntil: string | null;
-};
-
-export type FriendPositionDto = {
+export type SharedPositionDto = {
   gamertag: string;
   x: number;
   y: number;
@@ -312,8 +285,6 @@ export type FriendPositionDto = {
 };
 export type OnlinePlayerDto = {
   gamertag: string;
-  /** An accepted friendship with the viewer. */
-  friend: boolean;
   /** Has a dot on this map — derived server-side from the same positions. INBOUND: they are
    *  sharing with the viewer. */
   sharing: boolean;
@@ -322,9 +293,9 @@ export type OnlinePlayerDto = {
   sharedWithThem: boolean;
   self: boolean;
 };
-export type FriendMap = {
+export type MapShare = {
   mapCodename: string;
-  positions: FriendPositionDto[];
+  positions: SharedPositionDto[];
   online: OnlinePlayerDto[];
   /** Gamertags the viewer is currently sharing with on this server. Drives the
    *  "N can see you · Stop" chip. */
@@ -333,4 +304,4 @@ export type FriendMap = {
 /** The gated `GET /me/maps` list shape. ⚠️ NOTHING IN THE WEB READS THIS ANY MORE — the map
  *  shell switched to the public `GET /servers` so the switcher works signed out. Kept as the
  *  documented shape of a route the API still serves. */
-export type MapServerDto = { slug: string; name: string; map: string; friendCount: number };
+export type MapServerDto = { slug: string; name: string; map: string };

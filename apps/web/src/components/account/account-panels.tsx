@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useControls } from "@/components/account/use-controls";
 import { VerifiedHome } from "@/components/account/verified-home";
-import { OnlineFriendsContainer } from "@/components/friends/online-friends";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
 function PanelsSkeleton() {
@@ -64,18 +63,7 @@ export function AccountPanels({ signInFallback = false }: {
     // ⚠️ The verified home is now the ticket stage + controls slab + morgue (verified-home
     // redesign spec §2–§4). StandingGroups / TokensPanel / the past-lives grid are gone from
     // here; the stage's tickets own per-server standing and the slab owns tokens + invites.
-    body = (
-      <>
-        <VerifiedHome gamertag={c.status.link.gamertag} />
-        {/* ⚠️ NOT `xl:hidden` any more. That guard existed only because the xl glance sidebar
-         *  mounted the same component above it — two mounts, one component. The sidebar is gone,
-         *  so this is now the ONLY mount, and hiding it at xl would delete friends from the
-         *  desktop home entirely. */}
-        <div className="px-6 pb-8 md:px-10">
-          <OnlineFriendsContainer />
-        </div>
-      </>
-    );
+    body = <VerifiedHome gamertag={c.status.link.gamertag} />;
   }
 
   return (

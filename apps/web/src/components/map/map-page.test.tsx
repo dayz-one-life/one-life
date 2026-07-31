@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MapPageView, MapPage } from "./map-page";
 
-vi.mock("./friends-map", () => ({ default: () => <div data-testid="friends-map" /> }));
+vi.mock("./positions-map", () => ({ default: () => <div data-testid="positions-map" /> }));
 vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "signedOut" }) }));
 vi.mock("@/lib/api", () => ({
   getServers: async () => [{ id: 1, name: "Sakhal", map: "sakhal", slug: "sakhal" }],
-  getFriendMap: async () => ({ positions: [], online: [] }),
+  getMapShare: async () => ({ positions: [], online: [] }),
 }));
 vi.mock("@/lib/map-resolution", () => ({ rememberMap: () => {} }));
 
@@ -27,34 +27,34 @@ describe("MapPageView", () => {
   // every signed-out visitor — which the primary-nav link then pointed the whole internet at.
   it("shows a signed-out visitor the terrain, with sign-in offered alongside it", () => {
     render(<MapPageView signedOut mapCodename={MAP} now={NOW} />);
-    expect(screen.getByTestId("friends-map")).toBeInTheDocument();
+    expect(screen.getByTestId("positions-map")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/sign in/i);
   });
 
   it("shows a signed-in but unverified visitor the terrain too", () => {
     render(<MapPageView unverified mapCodename={MAP} now={NOW} />);
-    expect(screen.getByTestId("friends-map")).toBeInTheDocument();
+    expect(screen.getByTestId("positions-map")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/verify/i);
   });
 
   // "Couldn't load" and "nobody is sharing" are different claims about the game. The terrain
   // is unaffected either way, so the failure belongs beside the map, not instead of it.
-  it("keeps the map when the friend payload fails, and says so", () => {
-    render(<MapPageView friendsError mapCodename={MAP} now={NOW} />);
-    expect(screen.getByTestId("friends-map")).toBeInTheDocument();
+  it("keeps the map when the share payload fails, and says so", () => {
+    render(<MapPageView shareError mapCodename={MAP} now={NOW} />);
+    expect(screen.getByTestId("positions-map")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/couldn't load who's on the map/i);
   });
 
   it("says nothing at all when there is nothing to explain", () => {
     render(<MapPageView mapCodename={MAP} positions={[]} now={NOW} />);
-    expect(screen.getByTestId("friends-map")).toBeInTheDocument();
+    expect(screen.getByTestId("positions-map")).toBeInTheDocument();
     expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("shows a skeleton while the map itself is still resolving", () => {
     const { container } = render(<MapPageView loading now={NOW} />);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(screen.queryByTestId("friends-map")).toBeNull();
+    expect(screen.queryByTestId("positions-map")).toBeNull();
   });
 
   // Without a codename there is no tile tree and no place list to draw, so there is no map to
@@ -62,13 +62,13 @@ describe("MapPageView", () => {
   it("does not pretend to draw a map with no codename", () => {
     const { container } = render(<MapPageView now={NOW} />);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(screen.queryByTestId("friends-map")).toBeNull();
+    expect(screen.queryByTestId("positions-map")).toBeNull();
   });
 
   it("distinguishes a failed map load from an empty one", () => {
     render(<MapPageView error now={NOW} />);
     expect(screen.getByRole("status")).toHaveTextContent(/couldn't load the map/i);
-    expect(screen.queryByTestId("friends-map")).toBeNull();
+    expect(screen.queryByTestId("positions-map")).toBeNull();
   });
 
   it("renders a blocking state as an overlay card, so the bar above it stays reachable", () => {

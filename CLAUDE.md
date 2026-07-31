@@ -90,6 +90,11 @@ These recur across every sub-project; the linked files hold the specific cases a
   targeted a different database and reported success; an unset `DATABASE_URL` is now a loud
   error. To migrate the test database, name it:
   `DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @onelife/db run db:migrate`.
+  **⚠️ Journal entries 0028–0032 in `packages/db/drizzle/meta/_journal.json` carry fabricated
+  FUTURE `when` timestamps (into August 2026), well ahead of wall-clock.** A new migration's
+  `when` must exceed the previous entry's or it sorts earlier and drizzle-kit silently applies
+  nothing while still reporting success. Never trust the CLI's success output alone — verify a
+  migration actually applied by checking the table exists.
   **⚠️ `turbo.json`'s `test` task declares `env` for exactly this reason.** Without it,
   `TEST_DATABASE_URL` is not part of the cache key, so repointing the suite at a different or
   unmigrated database replays a cached PASS and reports green **without running anything** —
@@ -179,3 +184,9 @@ two signed-in accounts, and none is closed by the test suite:
     not scroll, but that is an untested layout claim about the one surface with a height chain —
     and the one whose chrome the masthead now sits inside.
   Use CDP `Emulation.setDeviceMetricsOverride`.
+- The v0.69 update round's browser-only claims, none of which RTL can prove: the life-page dark
+  hero on a phone and at 1024; a real Discord/X unfurl of `/i/{slug}` plus the invite card's
+  actual 1200×630 render once deployed (the card route was never visually spot-checked — no dev
+  server was running); the controls slab at 390px after the share-row removal; and encounter rows
+  on a real life with hits (yellow dot, copy, attacker links). Use CDP
+  `Emulation.setDeviceMetricsOverride`.

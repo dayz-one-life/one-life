@@ -93,6 +93,8 @@ describe("GET /players/:gamertag/:map/lives/:n", () => {
     expect(Array.isArray(body.kills)).toBe(true);
     expect(body).toHaveProperty("qualifiedAt");
     expect(Array.isArray(body.sessions)).toBe(true);
+    // encounters rides along via the route's `...data` spread (Task 15) — always present.
+    expect(Array.isArray(body.encounters)).toBe(true);
   });
 });
 

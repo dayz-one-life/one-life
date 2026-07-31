@@ -449,8 +449,9 @@ UPDATE token_transactions SET counterparty_user_id = NULL WHERE counterparty_use
 DELETE FROM verification WHERE identifier = '$EMAIL';
 
 -- 6. Now every remaining reference to this user cascades: session, account, avatars,
---    push_subscriptions, notifications, friendships, user_preferences, location_shares, and the
---    user's own (non-counterparty) token_transactions and referrals rows.
+--    push_subscriptions, notifications, location_shares, and the user's own (non-counterparty)
+--    token_transactions and referrals rows. (`friendships` and `user_preferences` were dropped
+--    whole in v0.69 along with the friends feature — no longer part of this list.)
 DELETE FROM "user" WHERE id = '$UID';
 ```
 

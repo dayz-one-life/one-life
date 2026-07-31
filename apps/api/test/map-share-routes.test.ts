@@ -1,0 +1,257 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import {
+  user, gamertagLinks, servers, players, lives, sessions, positions, locationShares,
+} from "@onelife/db";
+import { eq } from "drizzle-orm";
+import { createAuth, type Mailer } from "@onelife/auth";
+import { buildApp } from "../src/app.js";
+import { getTestDb } from "@onelife/test-support";
+
+const { db, sql } = getTestDb();
+const svc = Math.floor(Math.random() * 1e8) + 8e8;
+const email = `map${svc}@example.com`;
+const pendingEmail = `mappending${svc}@example.com`;
+const friendEmail = `mapfriend${svc}@example.com`;
+const unlinkedEmail = `mapunlinked${svc}@example.com`;
+
+let lastLink = "";
+const captureMailer: Mailer = { async send(msg) { lastLink = msg.url; } };
+const auth = createAuth(db, {
+  secret: "s".repeat(32), baseURL: "http://localhost", trustedOrigins: ["http://localhost"],
+  providers: {}, mailer: captureMailer,
+});
+const app = buildApp(db, { auth, corsOrigins: ["http://localhost"], vapidPublicKey: "TEST" });
+
+function cookieHeader(setCookie: string | string[] | undefined): string {
+  const arr = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  return arr.map((c) => c.split(";")[0]).join("; ");
+}
+async function signIn(addr: string): Promise<string> {
+  await app.inject({
+    method: "POST", url: "/api/auth/sign-in/magic-link",
+    headers: { "content-type": "application/json", host: "localhost", origin: "http://localhost" },
+    payload: { email: addr },
+  });
+  const verify = await app.inject({
+    method: "GET", url: lastLink.replace(/^https?:\/\/[^/]+/, ""), headers: { host: "localhost" },
+  });
+  return cookieHeader(verify.headers["set-cookie"] as string | string[] | undefined);
+}
+
+let cookie = "";
+let pendingCookie = "";
+let unlinkedCookie = "";
+
+beforeAll(async () => {
+  await app.ready();
+  cookie = await signIn(email);
+  pendingCookie = await signIn(pendingEmail);
+  unlinkedCookie = await signIn(unlinkedEmail);
+  await signIn(friendEmail); // only to create the `user` row; no request uses this cookie
+  await db.insert(servers)
+    .values({ nitradoServiceId: svc, name: "Sakhal", map: "sakhal", slug: `sakhal-${svc}` });
+  // Seeded once here, not inside a later `it`: several tests below need `cookie`'s owner
+  // already verified, and a test that only ran because an earlier one in this file happened
+  // to create the row first is a fixture bug wearing a feature-regression costume — running
+  // any one of them with `.only` must not 403.
+  const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email.toLowerCase()));
+  await db.insert(gamertagLinks)
+    .values({ userId: u!.id, gamertag: `Mapper${svc}`, status: "verified", verifiedAt: new Date() });
+});
+afterAll(async () => { await app.close(); await sql.end(); });
+
+const get = (url: string, c?: string) =>
+  app.inject({ method: "GET", url, headers: c ? { cookie: c } : {} });
+const post = (url: string, c: string | undefined, payload: Record<string, unknown>) =>
+  app.inject({
+    method: "POST", url, payload,
+    headers: { "content-type": "application/json", ...(c ? { cookie: c } : {}) },
+  });
+const del = (url: string, c?: string) =>
+  app.inject({ method: "DELETE", url, headers: c ? { cookie: c } : {} });
+
+describe("map share routes", () => {
+  it("401s when signed out", async () => {
+    expect((await get(`/me/maps/sakhal-${svc}`)).statusCode).toBe(401);
+    expect((await get("/me/maps")).statusCode).toBe(401);
+  });
+
+  it("403s not_verified for a signed-in user with no verified gamertag", async () => {
+    // A dedicated unlinked user — `cookie`'s owner is verified from `beforeAll` onward so the
+    // later tests in this file don't depend on execution order to find them verified.
+    const res = await get(`/me/maps/sakhal-${svc}`, unlinkedCookie);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("not_verified");
+  });
+
+  // A pending link is a claim typed into a box, not proof — only emote verification unlocks
+  // coordinates. Anyone can type any gamertag; a pending link must be exactly as insufficient
+  // as no link at all.
+  it("403s not_verified for a signed-in user with only a PENDING gamertag link", async () => {
+    const [u] = await db.select({ id: user.id }).from(user)
+      .where(eq(user.email, pendingEmail.toLowerCase()));
+    await db.insert(gamertagLinks)
+      .values({ userId: u!.id, gamertag: `Pending${svc}`, status: "pending" });
+
+    const res = await get(`/me/maps/sakhal-${svc}`, pendingCookie);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("not_verified");
+  });
+
+  it("serves the map once verified, with no-store", async () => {
+    // The verified link itself is seeded once in beforeAll — this test only asserts the
+    // response shape a verified caller gets, not the pending→verified transition.
+    const res = await get(`/me/maps/sakhal-${svc}`, cookie);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().mapCodename).toBe("sakhal");
+    expect(Array.isArray(res.json().positions)).toBe(true);
+    expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.headers["cache-control"]).toContain("private");
+  });
+
+  it("404s an unknown server slug", async () => {
+    expect((await get("/me/maps/no-such-server", cookie)).statusCode).toBe(404);
+  });
+
+  it("lists servers with no viewer-specific fields", async () => {
+    const res = await get("/me/maps", cookie);
+    expect(res.statusCode).toBe(200);
+    const entry = res.json().servers.find((s: { slug: string }) => s.slug === `sakhal-${svc}`);
+    expect(entry).toEqual({ slug: `sakhal-${svc}`, name: expect.any(String), map: "sakhal" });
+  });
+
+  it("serves the online list alongside the positions", async () => {
+    // Seed: viewer verified + online, a stranger online, both with fresh last_seen_at.
+    const [server] = await db.select().from(servers).where(eq(servers.slug, `sakhal-${svc}`));
+    const now = new Date();
+
+    for (const gamertag of [`Mapper${svc}`, "Stranger"]) {
+      const [p] = await db.insert(players).values({ gamertag, lastSeenAt: now }).returning();
+      const [life] = await db.insert(lives)
+        .values({ serverId: server!.id, playerId: p!.id, lifeNumber: 1, startedAt: now })
+        .returning();
+      await db.insert(sessions).values({
+        serverId: server!.id, playerId: p!.id, lifeId: life!.id,
+        connectedAt: now, disconnectedAt: null,
+      });
+    }
+
+    const res = await get(`/me/maps/sakhal-${svc}`, cookie);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.online.map((o: { gamertag: string }) => o.gamertag)).toContain("Stranger");
+    expect(body.online[0].self).toBe(true); // the viewer sorts first
+  });
+
+  // The single most important invariant of Task 2: `sharing` (in `online`) and the dots (in
+  // `positions`) are ONE fact, not two independent lookups that can disagree. This seeds a
+  // player who is both online AND sharing their location with the viewer, then asserts BOTH
+  // sides agree. A route that passed `[]` to getOnlinePlayers instead of its own `positions`
+  // result would still show them online, but with `sharing: false` — this test would fail
+  // against that broken variant (verified below by literally making that change).
+  it("agrees: a player sharing their position also shows sharing:true in the online list", async () => {
+    const [viewerUser] = await db.select({ id: user.id }).from(user)
+      .where(eq(user.email, email.toLowerCase()));
+    const [friendUser] = await db.select({ id: user.id }).from(user)
+      .where(eq(user.email, friendEmail.toLowerCase()));
+    const [server] = await db.select().from(servers).where(eq(servers.slug, `sakhal-${svc}`));
+    const now = new Date();
+    const friendGamertag = `Buddy${svc}`;
+
+    await db.insert(gamertagLinks).values({
+      userId: friendUser!.id, gamertag: friendGamertag, status: "verified", verifiedAt: now,
+    });
+
+    // ⚠️ Sub-project E: visibility is a session-scoped GRANT — nothing else. No friendship row
+    // is needed or possible any more; the grant below is the entire fixture.
+    const [p] = await db.insert(players).values({ gamertag: friendGamertag, lastSeenAt: now })
+      .returning();
+    const [life] = await db.insert(lives)
+      .values({ serverId: server!.id, playerId: p!.id, lifeNumber: 1, startedAt: now })
+      .returning();
+    await db.insert(sessions).values({
+      serverId: server!.id, playerId: p!.id, lifeId: life!.id,
+      connectedAt: now, disconnectedAt: null,
+    });
+    // The grant, snapshotting the session that was just opened.
+    await db.insert(locationShares).values({
+      granterUserId: friendUser!.id, granteeUserId: viewerUser!.id, serverId: server!.id,
+      granterSessionConnectedAt: now,
+    });
+    await db.insert(positions).values({
+      serverId: server!.id, playerId: p!.id, gamertag: friendGamertag,
+      x: 3000, y: 3500, recordedAt: now,
+    });
+
+    const res = await get(`/me/maps/sakhal-${svc}`, cookie);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.positions.map((pos: { gamertag: string }) => pos.gamertag))
+      .toContain(friendGamertag);
+    const onlineFriend = body.online
+      .find((o: { gamertag: string }) => o.gamertag === friendGamertag);
+    expect(onlineFriend).toBeTruthy();
+    expect(onlineFriend.sharing).toBe(true);
+  });
+
+  it("still refuses a caller with no verified link", async () => {
+    // Unchanged behaviour, re-asserted because this route now returns more data.
+    const res = await get(`/me/maps/sakhal-${svc}`, pendingCookie);
+    expect(res.statusCode).toBe(403);
+  });
+
+});
+
+/**
+ * ⚠️ THESE ROUTES TAKE A GAMERTAG AND THAT DOES NOT BREACH THE NO-SUBJECT RULE.
+ *
+ * That rule governs coordinate EGRESS — `GET /me/maps/:slug` must not let a caller name whose
+ * position to read. These name who may see the CALLER'S OWN position, in the opposite direction,
+ * and disclose nothing in their responses. The tests below pin both halves: the grant works, and
+ * the response body never carries anything about the grantee.
+ */
+describe("location share grants", () => {
+  const url = () => `/me/maps/sakhal-${svc}/shares`;
+
+  it("401s when signed out", async () => {
+    expect((await post(url(), undefined, { gamertag: "Anyone" })).statusCode).toBe(401);
+    expect((await del(url())).statusCode).toBe(401);
+  });
+
+  it("403s a caller with only a pending link", async () => {
+    expect((await post(url(), pendingCookie, { gamertag: "Anyone" })).statusCode).toBe(403);
+  });
+
+  it("404s an unknown server slug", async () => {
+    expect((await post(`/me/maps/nope/shares`, cookie, { gamertag: "Anyone" })).statusCode).toBe(404);
+  });
+
+  it("400s a grant to a gamertag with no verified link", async () => {
+    const res = await post(url(), cookie, { gamertag: `NotVerified${svc}` });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: "not_verified" });
+  });
+
+  it("400s a grant with no gamertag at all", async () => {
+    expect((await post(url(), cookie, {})).statusCode).toBe(400);
+  });
+
+  // ⚠️ The response must disclose NOTHING about the grantee. A body echoing their gamertag,
+  // online state or user id would turn a write route into a directory lookup.
+  it("discloses nothing in its response body", async () => {
+    const res = await post(url(), cookie, { gamertag: `Buddy${svc}` });
+    // Either it succeeded or the caller is offline; in both cases the body is opaque.
+    expect(JSON.stringify(res.json())).not.toMatch(new RegExp(`Buddy${svc}`, "i"));
+  });
+
+  it("revoking a grant that cannot exist is a no-op, not a 404", async () => {
+    // A 404 here would confirm whether a gamertag is verified to anyone who can call it.
+    const res = await del(`${url()}/NeverHeardOf${svc}`, cookie);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("revoke-all is idempotent", async () => {
+    expect((await del(url(), cookie)).statusCode).toBe(200);
+    expect((await del(url(), cookie)).statusCode).toBe(200);
+  });
+});
