@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.72.1] - 2026-07-31
+
 ### Changed
 
 - The buy-tokens button now sits on the same row as the send field (label shortened to
