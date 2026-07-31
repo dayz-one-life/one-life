@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The friends feature is gone in its entirety: the Friends page, friend requests and rosters,
+  the friend button on player profiles, the online-friends panel on the home page, friend-request
+  and presence notifications, and the friendships data itself (the database tables are dropped).
+  Map location sharing survives it — sharing runs on session-scoped grants and always did — and
+  that surface no longer says "friends" anywhere: the panel is about who is sharing with you.
+- The social share-target row (X, Reddit, WhatsApp, email, Discord) and the native share button
+  are gone from the invite bar — it is the link and a Copy button now. The "earn by" chips left
+  the token controls with it, so both halves of the controls slab are back to field + button + hint.
+
+### Added
+
+- Invite links (`/i/yourname`) now unfurl properly when pasted into Discord, X, and other chat
+  apps: a personalized card — "{NAME} dares you to survive DayZ One Life" over the COME DIE WITH
+  ME. poster — instead of a bare link. Human visitors still land on the home page as before.
+- The life timeline now shows the fights a survivor lived through, not just the kills: wolf and
+  bear attacks, infected hordes, firefights (naming the attacker), and burns appear as their own
+  timeline entries with how many blows landed and how low health got.
+
+### Changed
+
+- A player's dossier now shows a ticket for every active server, including ones they have never
+  set foot on — those read as not-played rather than being omitted.
+- Ticket "Timeline →" links only appear on a life that is currently running. A banned ticket
+  still names its life, and past lives remain reachable from the morgue.
+- The life page opens with the same dark stage treatment as the dossier — avatar, Alive/Died
+  badge, and the life's five key stats over the timeline.
+
 ## [0.68.0] - 2026-07-30
 
 ### Changed
