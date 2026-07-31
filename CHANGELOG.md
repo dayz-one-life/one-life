@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Token store: verified players can buy unban tokens via Stripe Checkout — buy buttons on
+  the home controls slab and the banned ticket, webhook + return-trip fulfillment into the
+  token ledger, unset-means-OFF until the Stripe env and price label are configured.
+
 ## [0.71.0] - 2026-07-31
 
 ### Added

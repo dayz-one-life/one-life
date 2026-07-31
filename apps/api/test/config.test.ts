@@ -25,3 +25,21 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, DATABASE_URL: "" })).toThrow();
   });
 });
+
+describe("stripe config", () => {
+  it("is null when unset", () => {
+    expect(loadConfig(base).stripe).toBeNull();
+  });
+  it("is null when only partially set", () => {
+    expect(loadConfig({ ...base, STRIPE_SECRET_KEY: "sk_test_x" }).stripe).toBeNull();
+  });
+  it("is populated when all three are set", () => {
+    const cfg = loadConfig({
+      ...base,
+      STRIPE_SECRET_KEY: "sk_test_x",
+      STRIPE_WEBHOOK_SECRET: "whsec_x",
+      STRIPE_TOKEN_PRICE_ID: "price_x",
+    });
+    expect(cfg.stripe).toEqual({ secretKey: "sk_test_x", webhookSecret: "whsec_x", priceId: "price_x" });
+  });
+});

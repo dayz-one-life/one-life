@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { redeemToken } from "@/lib/api";
+import { createCheckout, redeemToken } from "@/lib/api";
+import { tokenPriceLabel } from "@/components/account/buy-tokens";
 import { SrStatus } from "@/components/shared/sr-status";
 
 /**
@@ -16,6 +17,7 @@ import { SrStatus } from "@/components/shared/sr-status";
  */
 export function TicketSpend({ banId, liftPending }: { banId: number; liftPending: boolean }) {
   const [pending, setPending] = useState(liftPending);
+  const [buying, setBuying] = useState(false);
   const router = useRouter();
 
   if (pending) {
@@ -29,22 +31,42 @@ export function TicketSpend({ banId, liftPending }: { banId: number; liftPending
     );
   }
   return (
-    <button
-      type="button"
-      onClick={async () => {
-        setPending(true);
-        try {
-          await redeemToken(banId);
-          // The stage is server-rendered on the dossier and query-driven on the home page;
-          // `refresh()` re-runs the RSC fetch, which is the one path that serves both.
-          router.refresh();
-        } catch {
-          setPending(false);
-        }
-      }}
-      className="w-full bg-red px-3 py-2.5 font-mono text-[10px] uppercase tracking-[.1em] text-white"
-    >
-      Spend 1 token
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={async () => {
+          setPending(true);
+          try {
+            await redeemToken(banId);
+            // The stage is server-rendered on the dossier and query-driven on the home page;
+            // `refresh()` re-runs the RSC fetch, which is the one path that serves both.
+            router.refresh();
+          } catch {
+            setPending(false);
+          }
+        }}
+        className="w-full bg-red px-3 py-2.5 font-mono text-[10px] uppercase tracking-[.1em] text-white"
+      >
+        Spend 1 token
+      </button>
+      {tokenPriceLabel() && (
+        <button
+          type="button"
+          disabled={buying}
+          onClick={async () => {
+            setBuying(true);
+            try {
+              const { url } = await createCheckout();
+              window.location.assign(url);
+            } catch {
+              setBuying(false);
+            }
+          }}
+          className="mt-2 w-full border-2 border-ink bg-paper px-3 py-2.5 font-mono text-[10px] uppercase tracking-[.1em] text-ink hover:bg-ink hover:text-paper disabled:opacity-40"
+        >
+          {buying ? "Opening checkout…" : `Buy a token — ${tokenPriceLabel()}`}
+        </button>
+      )}
+    </>
   );
 }

@@ -24,6 +24,11 @@ vi.mock("./use-controls", () => ({
   }),
   useControlsActions: () => ({ send: { mutate: vi.fn(), isPending: false } }),
 }));
+// The controls slab mounts BuyTokensButton/CheckoutReturn, which reach next/navigation's
+// useSearchParams (not stubbed above) and the react-query client — irrelevant to what this
+// suite asserts, so they're stubbed out the same way controls-slab.test.tsx does.
+vi.mock("./buy-tokens", () => ({ BuyTokensButton: () => null }));
+vi.mock("./checkout-return", () => ({ CheckoutReturn: () => null }));
 
 const { VerifiedHome } = await import("./verified-home");
 

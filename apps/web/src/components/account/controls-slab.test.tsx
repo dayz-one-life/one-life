@@ -13,6 +13,11 @@ vi.mock("./use-controls", () => ({
   useControlsActions: () => ({ send: { mutate: vi.fn(), isPending: false, isError: false, isSuccess: false } }),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => referrals }));
+// The slab now mounts BuyTokensButton/CheckoutReturn, which reach next/navigation and
+// react-query's query client — irrelevant to what this suite asserts (layout/figures/link),
+// so they're stubbed out rather than wiring a router + query-client provider here.
+vi.mock("./buy-tokens", () => ({ BuyTokensButton: () => null }));
+vi.mock("./checkout-return", () => ({ CheckoutReturn: () => null }));
 
 const { ControlsSlab } = await import("./controls-slab");
 

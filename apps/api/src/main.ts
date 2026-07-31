@@ -4,6 +4,7 @@ import { createAuth, loadAuthConfig } from "@onelife/auth";
 import { loadConfig } from "./config.js";
 import { buildApp } from "./app.js";
 import { autoPopulateAvatar } from "./lib/avatar-autopopulate.js";
+import { createStripeGateway } from "./lib/stripe-gateway.js";
 
 const cfg = loadConfig(process.env);
 const log = pino({ level: cfg.logLevel });
@@ -27,9 +28,16 @@ if (!cfg.vapidPublicKey) {
   log.warn("VAPID_PUBLIC_KEY is unset — push notifications cannot be enabled by any user");
 }
 
+const stripeEnvCount = [process.env.STRIPE_SECRET_KEY, process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_TOKEN_PRICE_ID].filter(Boolean).length;
+if (cfg.stripe === null && stripeEnvCount > 0) {
+  log.warn("Stripe env is partially set — the token store is OFF (needs STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_TOKEN_PRICE_ID)");
+}
+const stripe = cfg.stripe ? createStripeGateway(cfg.stripe) : undefined;
+
 const app = buildApp(db, {
   auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins,
   vapidPublicKey: cfg.vapidPublicKey,
+  stripe,
 });
 
 app.listen({ port: cfg.port, host: "0.0.0.0" })

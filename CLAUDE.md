@@ -184,6 +184,11 @@ two signed-in accounts, and none is closed by the test suite:
     not scroll, but that is an untested layout claim about the one surface with a height chain —
     and the one whose chrome the masthead now sits inside.
   Use CDP `Emulation.setDeviceMetricsOverride`.
+- The token store's browser-only claims: the full live round trip against Stripe **test mode**
+  (buy → hosted checkout → return leg → "N tokens added" note → balance bump, plus a webhook
+  delivery race), and both buy surfaces (controls slab, banned ticket) at 320px. Needs a
+  signed-in verified session and the four `STRIPE_*`/`NEXT_PUBLIC_TOKEN_PRICE_LABEL` vars set
+  to test-mode values; use CDP `Emulation.setDeviceMetricsOverride`.
 - The v0.69 update round's browser-only claims, none of which RTL can prove: the life-page dark
   hero on a phone and at 1024; a real Discord/X unfurl of `/i/{slug}` plus the invite card's
   actual 1200×630 render once deployed (the card route was never visually spot-checked — no dev
