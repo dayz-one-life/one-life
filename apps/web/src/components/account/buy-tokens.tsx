@@ -17,10 +17,17 @@ export function BuyTokensButton({ className }: { className?: string }) {
   const [busy, setBusy] = useState(false);
   const label = tokenPriceLabel();
   if (!label) return null;
+  // The visible label is just BUY — it sits in the send row, where the long form crowded the
+  // field (Steve, 2026-07-31). The price still travels in the accessible name and the tooltip,
+  // so the amount is knowable before Stripe's page. The label stays constant while busy: a text
+  // swap reflows the shared row; disabled + opacity is the feedback, and the redirect is imminent.
   return (
     <button
       type="button"
       disabled={busy}
+      aria-busy={busy}
+      aria-label={`Buy tokens — ${label} each`}
+      title={`Buy tokens — ${label} each`}
       onClick={async () => {
         setBusy(true);
         try {
@@ -35,7 +42,7 @@ export function BuyTokensButton({ className }: { className?: string }) {
         className,
       )}
     >
-      {busy ? "Opening checkout…" : `Buy tokens — ${label} each`}
+      Buy
     </button>
   );
 }
