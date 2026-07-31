@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, formatMeters, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, relativeDate } from "./format";
+import { formatDuration, formatMeters, banCountdown, heroStats, aliveMaps, mapLabel, monthYear, monthDayYear, relativeDate } from "./format";
 import type { ServerStanding } from "@/lib/types";
 
 describe("player format helpers", () => {
@@ -72,5 +72,14 @@ describe("formatMeters", () => {
   it("rounds and separates the unit with a non-breaking space", () => {
     expect(formatMeters(374.6)).toBe("375 m");
     expect(formatMeters(2)).toBe("2 m");
+  });
+});
+
+describe("monthDayYear", () => {
+  it("formats an ISO instant as Mon D, YYYY in UTC", () => {
+    expect(monthDayYear("2026-07-30T22:27:32.000Z")).toBe("Jul 30, 2026");
+  });
+  it("does not shift the day across the UTC midnight boundary", () => {
+    expect(monthDayYear("2026-01-01T00:00:01.000Z")).toBe("Jan 1, 2026");
   });
 });

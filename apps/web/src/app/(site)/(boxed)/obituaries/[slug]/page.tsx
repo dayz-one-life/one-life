@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description: a.lede,
     alternates: { canonical: absoluteUrl(obituaryHref(slug)) },
-    openGraph: { title, description: a.lede, url: absoluteUrl(obituaryHref(slug)), type: "article" },
+    openGraph: { title, description: a.lede, url: absoluteUrl(obituaryHref(slug)), type: "article", publishedTime: a.deathAt },
     twitter: { card: "summary_large_image", title, description: a.lede },
   };
 }
