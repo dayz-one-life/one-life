@@ -68,12 +68,12 @@ the source of truth for token grants.
 
 ### API routes (`apps/api`)
 
-- `POST /me/tokens/checkout` — verified-only; body `{ quantity? }` (default 1;
-  Stripe's UI can still adjust it). 403 `not_verified` for unverified users;
-  503 when Stripe env is unset.
+- `POST /me/tokens/checkout` — verified-only; no body (quantity is chosen on
+  Stripe's hosted page via `adjustable_quantity`, 1–20). 403 `not_verified`
+  for unverified users; 503 when Stripe env is unset.
 - `POST /me/tokens/checkout/confirm` — body `{ sessionId }`. Verifies the
   session's `client_reference_id` matches the caller (403 otherwise);
-  fulfills if paid; returns `{ granted, balance }`.
+  fulfills if paid; returns `{ granted, paid, balance }`.
 - `POST /stripe/webhook` — no auth session; the Stripe signature (verified
   against `STRIPE_WEBHOOK_SECRET`, using the raw request body — the one
   Fastify route that needs raw-body access) is the authentication. 400 on a
