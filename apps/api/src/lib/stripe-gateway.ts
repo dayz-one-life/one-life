@@ -51,7 +51,14 @@ export function createStripeGateway(cfg: { secretKey: string; webhookSecret: str
     },
     webhookSessionId(rawBody, signature) {
       const event = stripe.webhooks.constructEvent(rawBody, signature, cfg.webhookSecret); // throws on bad sig
-      if (event.type !== "checkout.session.completed") return null;
+      // `completed` fires immediately but, for delayed-notification payment methods enabled in
+      // the Stripe dashboard, arrives UNPAID — the later `async_payment_succeeded` is the event
+      // that actually confirms payment. The handler is already payment-status-driven via
+      // retrieveSession, so honoring both event types is the whole fix; without it, a delayed
+      // payment method takes the buyer's money and never grants tokens.
+      if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") {
+        return null;
+      }
       return (event.data.object as Stripe.Checkout.Session).id;
     },
   };

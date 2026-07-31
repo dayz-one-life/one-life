@@ -15,6 +15,10 @@ describe("stripe gateway webhook verification", () => {
     const payload = JSON.stringify({ id: "evt_1", type: "checkout.session.completed", data: { object: { id: "cs_test_123" } } });
     expect(gw.webhookSessionId(Buffer.from(payload), signedPayload(payload))).toBe("cs_test_123");
   });
+  it("returns the session id for a signed checkout.session.async_payment_succeeded (delayed payment methods)", () => {
+    const payload = JSON.stringify({ id: "evt_4", type: "checkout.session.async_payment_succeeded", data: { object: { id: "cs_test_456" } } });
+    expect(gw.webhookSessionId(Buffer.from(payload), signedPayload(payload))).toBe("cs_test_456");
+  });
   it("returns null for other event types", () => {
     const payload = JSON.stringify({ id: "evt_2", type: "payment_intent.succeeded", data: { object: { id: "pi_1" } } });
     expect(gw.webhookSessionId(Buffer.from(payload), signedPayload(payload))).toBeNull();

@@ -63,6 +63,14 @@ export function registerStoreRoutes(
         const s = await gateway.retrieveSession(sessionId);
         if (s?.paid && s.clientReferenceId) {
           await fulfillPurchase(db, { userId: s.clientReferenceId, sessionId, quantity: s.quantity });
+        } else {
+          // A checkout event resolved to a session we cannot fulfill — either it's genuinely
+          // unpaid (delayed payment method still pending) or missing a clientReferenceId
+          // (shouldn't happen; every checkout we create sets one). Previously this was a
+          // silent no-op with no trace anywhere. Log so an operator can tell "waiting on the
+          // buyer's bank" apart from "something is actually broken".
+          req.log.warn({ sessionId, paid: s?.paid ?? null, clientReferenceId: s?.clientReferenceId ?? null },
+            "stripe webhook: checkout session not fulfillable");
         }
       }
       return { received: true };

@@ -23,7 +23,11 @@ const fake: StripeGateway = {
   webhookSessionId(rawBody, signature) {
     if (signature !== "good") throw new Error("bad signature");
     const parsed = JSON.parse(rawBody.toString());
-    return parsed.type === "checkout.session.completed" ? parsed.sessionId : null;
+    // Mirrors the real gateway: both checkout.session.completed and the delayed-payment-method
+    // confirmation event carry a fulfillable session id.
+    return parsed.type === "checkout.session.completed" || parsed.type === "checkout.session.async_payment_succeeded"
+      ? parsed.sessionId
+      : null;
   },
 };
 
@@ -130,6 +134,19 @@ describe("POST /stripe/webhook", () => {
   it("fulfills a paid session exactly once across webhook retries", async () => {
     sessions.set("cs_hook", { paid: true, clientReferenceId: userId, quantity: 1 });
     const payload = JSON.stringify({ type: "checkout.session.completed", sessionId: "cs_hook" });
+    const before = await getBalance(db, userId);
+    for (let i = 0; i < 2; i++) {
+      const r = await app.inject({
+        method: "POST", url: "/stripe/webhook", payload,
+        headers: { "content-type": "application/json", "stripe-signature": "good" },
+      });
+      expect(r.statusCode).toBe(200);
+    }
+    expect(await getBalance(db, userId)).toBe(before + 1);
+  });
+  it("fulfills a paid session from checkout.session.async_payment_succeeded (delayed payment methods)", async () => {
+    sessions.set("cs_async_hook", { paid: true, clientReferenceId: userId, quantity: 1 });
+    const payload = JSON.stringify({ type: "checkout.session.async_payment_succeeded", sessionId: "cs_async_hook" });
     const before = await getBalance(db, userId);
     for (let i = 0; i < 2; i++) {
       const r = await app.inject({

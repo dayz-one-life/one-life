@@ -91,9 +91,13 @@ in `apps/api/src/routes/tokens.ts`.
   render as zero or as failure of the purchase — show "payment processing,
   tokens land shortly" (the webhook will catch it). Loading, failed, empty
   and zero remain four different renders.
-- **Banned ticket** (`components/player/self-unban-button.tsx` /
-  `ticket-spend.tsx` area): in the `no-tokens` state, add "Buy a token"
-  beside the existing earn-paths copy — same checkout call.
+- **Banned ticket** (`components/player/ticket-spend.tsx`): shipped as "Buy a
+  token" shown beneath "Spend 1 token" whenever the store is configured
+  (ON) — not gated to a `no-tokens` state as originally scoped here. `TicketSpend`
+  is deliberately mountable without a query provider and has no way to know
+  the caller's balance, so it cannot distinguish `no-tokens` from
+  has-tokens; showing the buy affordance unconditionally when the store is
+  on is the simplest correct rendering given that constraint.
 - Display price comes from `NEXT_PUBLIC_TOKEN_PRICE_LABEL`; Stripe's Price
   object stays authoritative for what is actually charged.
 
@@ -119,6 +123,12 @@ the payments equivalent of the workers' dry-run default.
 - **Unpaid/expired session confirmed:** no grant; respond with granted 0 and
   payment state so the web can keep showing "processing" or drop the flag.
 - **Transient Stripe errors on session retrieval:** propagate (webhook 500s → Stripe retries) rather than reading as missing session; only `resource_missing` errors return null.
+- **Delayed-notification payment methods:** `checkout.session.completed` can
+  arrive before the buyer has actually paid; `checkout.session.async_payment_succeeded`
+  is the event that confirms it later. The webhook honors both event types
+  (the handler is already payment-status-driven via `retrieveSession`), so a
+  delayed payment method fulfills once it eventually pays instead of being
+  silently dropped.
 - **User unverified at fulfillment time** (verified at checkout, link revoked
   mid-payment): still fulfill — money was taken, tokens are userId-scoped and
   spendable once re-verified. Eligibility is a checkout-time gate only.

@@ -20,7 +20,12 @@ export function CheckoutReturn() {
   const params = useSearchParams();
   const router = useRouter();
   const qc = useQueryClient();
-  const sessionId = params.get("checkout");
+  // Captured once on mount: the render must not depend on the live search params after that,
+  // because the effect below strips the `checkout` param via router.replace(), and a render
+  // still reading params.get("checkout") would unmount the settled note (and its live region)
+  // the instant the param is gone. See the ⚠️ this fixes: "the note lives in state" comment
+  // below was previously false — the render was reading from the URL, not state.
+  const [sessionId] = useState(() => params.get("checkout"));
   const [result, setResult] = useState<Result>({ kind: "idle" });
 
   useEffect(() => {
@@ -36,7 +41,10 @@ export function CheckoutReturn() {
       } catch {
         if (!cancelled) setResult({ kind: "processing" });
       }
-      router.replace("/", { scroll: false }); // strip the param; the note lives in state
+      // Strip the param now that we've settled — but not if the caller navigated away and
+      // cleanup already fired; yanking them back to "/" after they left would be worse than
+      // leaving a stale query param behind.
+      if (!cancelled) router.replace("/", { scroll: false }); // the note lives in state, not params
     })();
     return () => {
       cancelled = true;

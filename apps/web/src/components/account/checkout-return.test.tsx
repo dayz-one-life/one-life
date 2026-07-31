@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CheckoutReturn } from "./checkout-return";
 
@@ -7,20 +7,29 @@ const confirmCheckout = vi.fn();
 vi.mock("@/lib/api", () => ({ confirmCheckout: (...a: unknown[]) => confirmCheckout(...a) }));
 
 const replace = vi.fn();
+// Stable across renders, matching the real next/navigation useRouter() (which memoizes the
+// router object) — a fresh object literal on every call would put a changing reference in the
+// effect's dependency array and defeat the whole point of capturing sessionId once.
+const router = { replace };
+// A mutable holder so a test can simulate the param strip mid-flight (router.replace nulling
+// `checkout`) between renders — useSearchParams() must be able to CHANGE across rerenders.
 let params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => params,
-  useRouter: () => ({ replace }),
+  useRouter: () => router,
   usePathname: () => "/",
 }));
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <CheckoutReturn />
     </QueryClientProvider>,
   );
+  // Expose a rerender that keeps the SAME QueryClient — a fresh client would change props on
+  // an unrelated ancestor and isn't what we want to exercise here (the param-strip rerender).
+  return { ...view, rerenderSameClient: () => view.rerender(<QueryClientProvider client={qc}><CheckoutReturn /></QueryClientProvider>) };
 }
 
 beforeEach(() => {
@@ -70,5 +79,19 @@ describe("CheckoutReturn", () => {
     confirmCheckout.mockRejectedValue(new Error("network"));
     mount();
     expect(await screen.findAllByText(/payment processing/i)).toHaveLength(2);
+  });
+  it("survives the param strip — the settled note and its live region outlive router.replace", async () => {
+    params = new URLSearchParams("checkout=cs_1");
+    confirmCheckout.mockResolvedValue({ granted: 2, paid: true, balance: 5 });
+    const { rerenderSameClient } = mount();
+    await screen.findAllByText(/2 tokens added/i);
+    // Simulate router.replace("/", ...) having stripped the query param: useSearchParams()
+    // now returns an empty params object, as it would after a real navigation.
+    params = new URLSearchParams();
+    await act(async () => {
+      rerenderSameClient();
+    });
+    expect(screen.getAllByText(/2 tokens added/i)).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent(/2 tokens added/i);
   });
 });
