@@ -11,6 +11,7 @@ of the Page.
    as the Page admin).
 3. **Exchange for a long-lived User token** (60 days):
    `curl "https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id={APP_ID}&client_secret={APP_SECRET}&fb_exchange_token={SHORT_TOKEN}"`
+   Prefix the command with a space so it stays out of shell history (with HISTCONTROL=ignorespace), and run it on your own machine, not the server.
 4. **Get the Page ID and a Page token** (Page tokens minted from a long-lived User token do
    not expire):
    `curl "https://graph.facebook.com/v21.0/me/accounts?access_token={LONG_USER_TOKEN}"`

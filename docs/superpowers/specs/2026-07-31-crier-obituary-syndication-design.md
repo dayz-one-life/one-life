@@ -97,7 +97,7 @@ Rows at the attempt cap stay visible in the table as the poison record; no autom
 | `CRIER_SINCE` | ISO instant; unset = worker does nothing (forward-only cutoff; set to enablement time to skip history) |
 | `CRIER_DISCORD_WEBHOOK_URL` | presence enables the Discord channel |
 | `CRIER_FB_PAGE_ID` + `CRIER_FB_PAGE_ACCESS_TOKEN` | presence of both enables the Facebook channel |
-| `CRIER_INTERVAL_MS` | tick interval, default 60000 |
+| `CRIER_INTERVAL_SECONDS` | tick interval in seconds, default 60 |
 | `CRIER_BATCH_CAP` | posts per tick, default 10 |
 | `DATABASE_URL` | as every worker |
 | `SITE_URL` | absolute link base, default `https://dayzonelife.com` |

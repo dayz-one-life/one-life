@@ -13,7 +13,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 async function loop(): Promise<void> {
   log.info({ interval: cfg.intervalSeconds, dryRun: cfg.dryRun, since: cfg.since?.toISOString() ?? null }, "crier starting");
   if (cfg.dryRun) log.warn("CRIER_DRY_RUN is true — nothing will be posted");
-  if (!cfg.since) log.warn("CRIER_SINCE is unset — syndication is OFF");
+  if (!cfg.since) log.warn(process.env.CRIER_SINCE ? "CRIER_SINCE is set but unparseable — syndication is OFF" : "CRIER_SINCE is unset — syndication is OFF");
   if (!cfg.discordWebhookUrl && !cfg.fbPageId) log.warn("no channel credentials configured — nothing to post to");
 
   // eslint-disable-next-line no-constant-condition
