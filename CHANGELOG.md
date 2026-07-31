@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-07-31
+
 ### Added
 
 - Obituaries now unfurl with a share image on Discord and X: a 1200×630 card carrying the
