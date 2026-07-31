@@ -502,3 +502,19 @@ export const locationShares = pgTable("location_shares", {
   // Serves the read path: "who has granted to ME on this server".
   byGrantee: index("location_shares_grantee_idx").on(t.granteeUserId, t.serverId),
 }));
+
+// ── Obituary syndication ledger. Durable: records real external side effects (Discord/Facebook
+// posts), so it must survive --rebuild — NEVER list it in REBUILD_TRUNCATE_TABLES. Joins
+// `articles` by slug with NO FK: a projector rebuild must neither wipe nor invalidate it.
+// One row per (slug, channel); posted_at NULL until the post succeeds; attempts bounds retries.
+export const syndications = pgTable("syndications", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  slug: text("slug").notNull(),
+  channel: text("channel").notNull(),                 // 'discord' | 'facebook'
+  postedAt: timestamp("posted_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqSlugChannel: uniqueIndex("syndications_slug_channel_uniq").on(t.slug, t.channel),
+}));

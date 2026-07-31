@@ -232,6 +232,13 @@
       "when": 1786170000000,
       "tag": "0032_drop_friendships",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786180000000,
+      "tag": "0033_syndications",
+      "breakpoints": true
     }
   ]
 }
