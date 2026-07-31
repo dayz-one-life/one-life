@@ -20,10 +20,14 @@ describe("load-bearing clauses", () => {
     expect(t).toMatch(/not affiliated with/i);
   });
 
-  it("states that unban tokens have no cash value and are not owed back", () => {
+  it("states that unban tokens have no cash value and covers purchases honestly", () => {
     const t = text();
     expect(t).toMatch(/no cash value/i);
-    expect(t).toMatch(/cannot be bought/i);
+    // The purchase terms the token store depends on: final sales (with the lawful-exception
+    // hedge), Stripe as the card-handler, and no privileges attached to paying.
+    expect(t).toMatch(/all sales are final except where the law says otherwise/i);
+    expect(t).toMatch(/card details never touch this site/i);
+    expect(t).toMatch(/buying tokens buys no standing/i);
   });
 
   it("states that obituaries are machine-written and not statements of fact about the player", () => {

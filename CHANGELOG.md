@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Terms & Privacy updated for the token store: the terms' unban-token section now covers
+  purchases (Stripe checkout, final sales except where law requires, refunds don't undo a
+  lift, paying buys no standing), the liability cap no longer claims the site is free, and
+  the privacy policy names Stripe as a payment processor, what purchase data is stored,
+  and that Stripe retains payment records after account deletion. Effective date bumped.
+
 ## [0.72.1] - 2026-07-31
 
 ### Changed

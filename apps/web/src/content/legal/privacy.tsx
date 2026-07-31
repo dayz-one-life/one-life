@@ -15,7 +15,12 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           What is collected falls into three piles: what your sign-in provider tells us when you
           sign in, what your browser tells us while you&rsquo;re here, and what the game servers
           write down while you play. The last is the big one, and it includes where you were
-          standing.
+          standing. If you buy unban tokens there is a fourth, small pile: Stripe handles the
+          payment and a purchase record lands here — see{" "}
+          <a className="underline decoration-red decoration-2 underline-offset-2" href="#who-else">
+            Who else touches it
+          </a>
+          .
         </p>
       </>
     ),
@@ -140,7 +145,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     heading: "Who else touches it",
     body: (
       <>
-        <p>Nobody buys this data. Four parties see some of it because they have to:</p>
+        <p>Nobody buys this data. Five parties see some of it because they have to:</p>
         <ul className="list-disc space-y-2 pl-5">
           <li>
             <strong>Your sign-in provider</strong> (Discord or Google today) — handles your sign-in.
@@ -151,6 +156,21 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           <li>
             <strong>Your browser&rsquo;s push service</strong> (Apple, Google or Mozilla, depending
             on your device) — only if you enable notifications, and only to deliver them.
+          </li>
+          <li>
+            <strong>Stripe</strong> — handles payment if you buy unban tokens. Checkout happens on
+            Stripe&rsquo;s page, not this one: Stripe sees your card details, your email, and
+            whatever else it collects under{" "}
+            <a
+              className="underline decoration-red decoration-2 underline-offset-2"
+              href="https://stripe.com/privacy"
+              rel="noopener noreferrer"
+            >
+              its own privacy policy
+            </a>
+            ; this site never sees your card number. What gets stored here is a purchase record —
+            Stripe&rsquo;s reference for the checkout, how many tokens, and when — tied to your
+            account.
           </li>
           <li>
             <strong>OpenRouter, and the model it currently routes to</strong> — obituaries are
@@ -221,6 +241,11 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
           the rebuild the whole system depends on. It is also the premise of the product. Bans are
           keyed to the gamertag, not the account, so they stand on their own the same way. Once your
           account is gone, that record stands with nothing here tying it to you.
+        </p>
+        <p>
+          If you ever bought tokens, the payment records at Stripe also survive — financial rules
+          require Stripe to keep them, and deleting your account here does not delete them there.
+          The purchase rows in our own ledger go with everything else.
         </p>
         <p>
           If one specific obituary is the problem, say so. That is a conversation, not a policy.
