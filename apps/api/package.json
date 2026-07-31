@@ -19,7 +19,7 @@
     "@onelife/tokens": "workspace:*",
     "@onelife/verification": "workspace:*",
     "better-auth": "^1.6.23",
-    "drizzle-orm": "^0.36.0",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.0.0",
     "pino": "^10.3.1",
     "sharp": "^0.35.3",
