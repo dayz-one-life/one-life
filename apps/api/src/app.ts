@@ -23,6 +23,8 @@ import { registerMapShareRoutes } from "./routes/map-share.js";
 import { registerSitemapRoutes } from "./routes/sitemap.js";
 import { registerAvatarRoutes, registerPublicAvatarRoutes } from "./routes/avatars.js";
 import { AVATAR_MAX_BYTES } from "./lib/avatar-image.js";
+import { registerStoreRoutes } from "./routes/store.js";
+import type { StripeGateway } from "./lib/stripe-gateway.js";
 
 export interface AuthOptions {
   auth: Auth;
@@ -32,6 +34,7 @@ export interface AuthOptions {
   // Test-only — never set in production. Threaded to fetchProviderImage's provider-host
   // allowlist so tests can exercise the sync/autopopulate paths against a local stub server.
   avatarAllowTestFetchLoopback?: boolean;
+  stripe?: StripeGateway;
 }
 
 export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
@@ -50,6 +53,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     registerMeRoute(app, opts.auth);
     registerGamertagLinkRoutes(app, db, opts.auth);
     registerTokenRoutes(app, db, opts.auth);
+    registerStoreRoutes(app, db, opts.auth, opts.stripe, opts.corsOrigins[0] ?? "http://localhost:3000");
     registerNotificationRoutes(app, db, opts.auth, opts.vapidPublicKey ?? "");
     registerLifeTrackRoutes(app, db, opts.auth);
     registerMapShareRoutes(app, db, opts.auth);
