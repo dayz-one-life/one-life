@@ -179,3 +179,9 @@ two signed-in accounts, and none is closed by the test suite:
     not scroll, but that is an untested layout claim about the one surface with a height chain —
     and the one whose chrome the masthead now sits inside.
   Use CDP `Emulation.setDeviceMetricsOverride`.
+- The v0.69 update round's browser-only claims, none of which RTL can prove: the life-page dark
+  hero on a phone and at 1024; a real Discord/X unfurl of `/i/{slug}` plus the invite card's
+  actual 1200×630 render once deployed (the card route was never visually spot-checked — no dev
+  server was running); the controls slab at 390px after the share-row removal; and encounter rows
+  on a real life with hits (yellow dot, copy, attacker links). Use CDP
+  `Emulation.setDeviceMetricsOverride`.
