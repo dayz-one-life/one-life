@@ -13,6 +13,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) }],
     qualifiedAt: { at: at(5), by: "playtime" },
+    encounters: [],
     verdict: null,
     avatarHash: null,
     obituarySlug: null,
@@ -79,5 +80,19 @@ describe("Timeline", () => {
     expect(list.className).toContain("list-none");
     expect(list.className).toContain("mt-4");
     expect(screen.getAllByRole("listitem")).toHaveLength(view.events.length);
+  });
+
+  test("encounter row shows title, line, a yellow dot, and links the attacker for a player encounter", () => {
+    const now = new Date(Date.parse(start) + 200 * 60_000);
+    const d = data({
+      kills: [],
+      encounters: [{ category: "player", attackerGamertag: "Raider", startedAt: at(30), durationSeconds: 30, hits: 3, hpLow: 58 }],
+    });
+    render(<Timeline view={buildTimeline(d, now)} />);
+    expect(screen.getByText(/Firefight/)).toBeInTheDocument();
+    expect(screen.getByText("3 hits taken · HP 58")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Raider" })).toBeInTheDocument();
+    const dot = document.querySelector(".bg-yellow");
+    expect(dot).toBeInTheDocument();
   });
 });

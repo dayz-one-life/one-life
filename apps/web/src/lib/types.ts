@@ -155,10 +155,19 @@ export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: numbe
 export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
 
 export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
+export type EncounterDto = {
+  category: "wolf" | "bear" | "animal" | "infected" | "player" | "fire" | "environment";
+  attackerGamertag: string | null;
+  startedAt: string;
+  durationSeconds: number;
+  hits: number;
+  hpLow: number | null;
+};
 export type LifeTimelineData = {
   life: Life;
   sessions: Session[];
   kills: PlayerKill[];
+  encounters: EncounterDto[];
   qualifiedAt: QualifiedAtDto | null;
   gamertag: string;
   map: string;
