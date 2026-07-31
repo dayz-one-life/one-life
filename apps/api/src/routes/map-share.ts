@@ -4,7 +4,7 @@ import type { Auth } from "@onelife/auth";
 import { gamertagLinks, players, servers } from "@onelife/db";
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getFriendPositions, getOnlinePlayers } from "@onelife/read-models";
+import { getSharedPositions, getOnlinePlayers } from "@onelife/read-models";
 import {
   activeGrantees, grantLocation, revokeAllLocation, revokeLocation,
   locationSharedNotification, writeNotification,
@@ -16,7 +16,7 @@ const params = z.object({ mapSlug: z.string().min(1) });
 const shareBody = z.object({ gamertag: z.string().min(1) });
 
 /** The viewer's own resolved `players` row for a gamertag, most-recently-seen first.
- *  Mirrors the rule in getPlayer/resolveSlugMatch/friend-positions: a gamertag is a current
+ *  Mirrors the rule in getPlayer/resolveSlugMatch/shared-positions: a gamertag is a current
  *  LABEL since migration 0025, so a recycled name can match two rows and the newest wins. */
 async function resolvePlayerId(db: Database, gamertag: string): Promise<number | null> {
   const [row] = await db
@@ -60,7 +60,7 @@ async function verifiedGamertag(db: Database, userId: string): Promise<string | 
  * rejected — the same property the owner-only track route holds. Do not add a
  * gamertag/slug/userId parameter to either of these for any reason.
  */
-export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth: Auth): void {
+export function registerMapShareRoutes(app: FastifyInstance, db: Database, auth: Auth): void {
   app.get("/me/maps", async (req, reply) => {
     const session = await getSession(auth, req);
     if (!session) return reply.code(401).send({ error: "unauthorized" });
@@ -74,19 +74,10 @@ export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth
       .where(and(eq(servers.active, true), isNotNull(servers.slug)))
       .orderBy(asc(servers.name));
 
-    const now = new Date();
-    const out = [];
-    for (const s of rows) {
-      const positions = await getFriendPositions(db, {
-        viewerUserId: session.user.id, serverId: s.id, now,
-      });
-      out.push({
-        slug: s.slug as string, name: s.name, map: s.map,
-        // The viewer's own dot is not a "friend on this server".
-        friendCount: positions.filter((p) => !p.self).length,
-      });
-    }
-    // Counts are derived from who is sharing with this viewer — as sensitive as the map itself.
+    const out = rows.map((s) => ({ slug: s.slug as string, name: s.name, map: s.map }));
+    // Nothing in this response is derived from a viewer-specific query any more — the count was
+    // the one field that was, and nothing renders it (see map-switcher.tsx). Cache header stays
+    // conservative anyway: this is still a `/me` route.
     reply.header("cache-control", "no-store, private");
     return { servers: out };
   });
@@ -103,7 +94,7 @@ export function registerFriendMapRoutes(app: FastifyInstance, db: Database, auth
     if (!server) return reply.code(404).send({ error: "not_found" });
 
     const now = new Date();
-    const positions = await getFriendPositions(db, {
+    const positions = await getSharedPositions(db, {
       viewerUserId: session.user.id, serverId: server.id, now,
     });
     // Composed from the SAME positions the payload returns, so `sharing` and the dots are one

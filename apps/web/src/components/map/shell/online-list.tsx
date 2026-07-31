@@ -1,5 +1,5 @@
-import type { FriendPositionDto, OnlinePlayerDto } from "@/lib/types";
-import { positionAge } from "../friends-map";
+import type { SharedPositionDto, OnlinePlayerDto } from "@/lib/types";
+import { positionAge } from "../positions-map";
 
 /** Who is on this server. Replaces FriendsMapLegend: it is still the screen-reader companion
  *  to a canvas with no text, so it stays a real list reached by a real button.
@@ -11,7 +11,7 @@ export function OnlineList({ players, positions, now, onShare, onStopSharing, pe
   players: OnlinePlayerDto[];
   /** Fixes for the players who are sharing — the ONLY source of a fix age. A row not present
    *  here has no fix and must show none: absence, not a fabricated "unknown". */
-  positions?: FriendPositionDto[];
+  positions?: SharedPositionDto[];
   now?: Date;
   /** Absent ⇒ no grant controls (a viewer who cannot grant, e.g. while offline). */
   onShare?: (gamertag: string) => void;

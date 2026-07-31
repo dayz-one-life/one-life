@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { FriendsPanel } from "./friends-panel";
+import { SharePanel } from "./share-panel";
 
 const players = [
   { gamertag: "You", sharing: true, sharedWithThem: false, self: true },
@@ -9,9 +9,9 @@ const players = [
 ];
 const NOW = new Date("2026-07-22T12:00:00.000Z");
 
-describe("FriendsPanel", () => {
+describe("SharePanel", () => {
   it("opens a list of who is online", async () => {
-    render(<FriendsPanel players={players} loading={false} />);
+    render(<SharePanel players={players} loading={false} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
@@ -26,7 +26,7 @@ describe("FriendsPanel", () => {
       { gamertag: "You", x: 0, y: 0, recordedAt: "2026-07-22T11:59:00.000Z", sharedWithThem: false, self: true },
     ];
     const now = new Date("2026-07-22T12:00:00.000Z");
-    render(<FriendsPanel players={players} positions={positions} now={now} loading={false} />);
+    render(<SharePanel players={players} positions={positions} now={now} loading={false} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     expect(screen.getByText(/on the map · 1m ago/i)).toBeInTheDocument();
   });
@@ -35,17 +35,17 @@ describe("FriendsPanel", () => {
     // "Online 3" on a server with three people on it, one of whom is you. Excluding yourself
     // makes the number disagree with the list directly beneath it and with the server's own
     // player count, for no gain — you know whether you are playing.
-    render(<FriendsPanel players={players} loading={false} />);
+    render(<SharePanel players={players} loading={false} />);
     expect(screen.getByRole("button", { name: /online 2/i })).toBeInTheDocument();
   });
 
   it("shows a loading state instead of a fabricated zero", () => {
-    render(<FriendsPanel players={undefined} loading />);
+    render(<SharePanel players={undefined} loading />);
     expect(screen.getByRole("button", { name: /online/i })).not.toHaveAccessibleName(/online 0/i);
   });
 
   it("says plainly when nobody is online", async () => {
-    render(<FriendsPanel players={[]} loading={false} />);
+    render(<SharePanel players={[]} loading={false} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     expect(screen.getByText(/nobody is on this server/i)).toBeInTheDocument();
   });
@@ -53,7 +53,7 @@ describe("FriendsPanel", () => {
   it("does not report a failed fetch as an empty server", async () => {
     // "Nobody is online" is a claim about the game. A network error is not evidence for it,
     // and the page's own overlay card already says the load failed.
-    render(<FriendsPanel players={undefined} loading={false} error />);
+    render(<SharePanel players={undefined} loading={false} error />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/couldn't load/i);
     expect(screen.queryByText(/nobody is on this server/i)).toBeNull();
@@ -65,7 +65,7 @@ describe("FriendsPanel", () => {
     // no way out on a touch device — no trigger to tap, no Escape key, and (before this) no
     // backdrop. Reported from a real phone.
     const user = userEvent.setup();
-    render(<FriendsPanel players={players} loading={false} now={NOW} />);
+    render(<SharePanel players={players} loading={false} now={NOW} />);
     await user.click(screen.getByRole("button", { name: /online/i }));
     const dialog = screen.getByRole("dialog");
     const close = within(dialog).getByRole("button", { name: /close/i });
@@ -75,21 +75,21 @@ describe("FriendsPanel", () => {
 
   it("closes when the map behind it is tapped", async () => {
     const user = userEvent.setup();
-    render(<FriendsPanel players={players} loading={false} now={NOW} />);
+    render(<SharePanel players={players} loading={false} now={NOW} />);
     await user.click(screen.getByRole("button", { name: /online/i }));
     await user.click(screen.getByTestId("online-backdrop"));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("keeps the backdrop out of the accessibility tree — it is a gesture, not content", () => {
-    render(<FriendsPanel players={players} loading={false} now={NOW} />);
+    render(<SharePanel players={players} loading={false} now={NOW} />);
     expect(screen.queryByTestId("online-backdrop")).toBeNull();
   });
 
   it("moves focus into the sheet it opens", async () => {
     // useModalBehavior focuses the panel; without tabIndex={-1} that is a silent no-op and
     // the sheet opens with focus left on the trigger behind it.
-    render(<FriendsPanel players={players} loading={false} />);
+    render(<SharePanel players={players} loading={false} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     expect(screen.getByRole("dialog")).toHaveFocus();
   });
@@ -99,7 +99,7 @@ describe("FriendsPanel", () => {
   // 0 — every desktop and every non-notched phone — so the last row sits flush on the border.
   // The inset must be added to the 1rem, not substituted for it.
   it("keeps its 1rem of bottom padding on top of the home-indicator inset", async () => {
-    render(<FriendsPanel players={players} loading={false} />);
+    render(<SharePanel players={players} loading={false} />);
     await userEvent.setup().click(screen.getByRole("button", { name: /online/i }));
     const sheet = screen.getByRole("dialog");
     expect(sheet.className).toMatch(/pb-\[calc\(1rem\+env\(safe-area-inset-bottom\)\)\]/);
@@ -107,7 +107,7 @@ describe("FriendsPanel", () => {
   });
 
   it("uses dark tokens — it is mounted on the dark bar, not the light rail", () => {
-    const { container } = render(<FriendsPanel players={players} loading={false} />);
+    const { container } = render(<SharePanel players={players} loading={false} />);
     expect(container.querySelector("button")!.className).toMatch(/text-paper/);
   });
 });

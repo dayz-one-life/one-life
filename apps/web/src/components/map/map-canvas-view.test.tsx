@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import MapCanvas from "./map-canvas";
 
-// Same shape as track-map.test.tsx / friends-map-draw.test.tsx: jsdom has no layout, so real
+// Same shape as track-map.test.tsx / positions-map-draw.test.tsx: jsdom has no layout, so real
 // Leaflet cannot initialise and EVERY symbol the component touches must be doubled — a partial
 // mock throws inside the effect's promise as an unhandled rejection, leaving a green test that
 // exercised nothing.

@@ -34,7 +34,7 @@ export async function resolveSlugMatch(db: Database, input: string): Promise<Slu
   // gamertag became a current label rather than an identity) — a recycled name can legitimately
   // match two players rows, so resolve to the most-recently-seen one, `id` as a stable
   // tie-break. Same rule as apps/projector/src/pg-store.ts's getPlayer and
-  // packages/read-models/src/friend-positions.ts.
+  // packages/read-models/src/shared-positions.ts.
   const direct = await db
     .select({ gamertag: players.gamertag })
     .from(players)

@@ -22,7 +22,7 @@ export class PgProjectionStore implements ProjectionStore {
     // disconnect, death, kill, hit, build and position — to the account that gave the name up,
     // not the one that now holds it: split-brain. Resolve to the MOST RECENTLY SEEN row
     // instead, with `id` as a stable tie-break — the same rule
-    // `packages/read-models/src/friend-positions.ts` already applies, so there is one rule
+    // `packages/read-models/src/shared-positions.ts` already applies, so there is one rule
     // rather than two.
     const r = await this.tx.select().from(players)
       .where(sql`lower(${players.gamertag}) = lower(${gamertag})`)

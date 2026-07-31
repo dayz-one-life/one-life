@@ -5,7 +5,7 @@ import {
 import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { MARKER_MAX_AGE_SECONDS } from "./life-track-shape.js";
 
-export interface FriendPosition {
+export interface SharedPosition {
   gamertag: string;
   x: number;
   y: number;
@@ -24,10 +24,10 @@ export interface FriendPosition {
  * The join to `gamertag_links` is INNER and requires `verified`: a released link means no
  * coordinates, unconditionally, even though the grant row survives. Retained from F2.
  */
-export async function getFriendPositions(
+export async function getSharedPositions(
   db: Database,
   a: { viewerUserId: string; serverId: number; now: Date },
-): Promise<FriendPosition[]> {
+): Promise<SharedPosition[]> {
   const freshest = new Date(a.now.getTime() - MARKER_MAX_AGE_SECONDS * 1000);
 
   // The viewer's own gamertag + resolved player id. No verified link ⇒ no map at all (the
@@ -201,7 +201,7 @@ export async function getFriendPositions(
         self: Number(r.player_id) === viewer.playerId,
       };
     })
-    .filter((r): r is FriendPosition => r !== null);
+    .filter((r): r is SharedPosition => r !== null);
 
   // ⚠️ THE ONE exception to "no open session + fresh fix, no dot" — and it is SELF-ONLY, by
   // design and not by accident. The no-position-after-logout rule exists because where a DayZ

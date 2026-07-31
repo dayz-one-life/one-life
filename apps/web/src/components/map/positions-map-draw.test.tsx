@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
-import FriendsMap from "./friends-map";
-import type { FriendMap } from "@/lib/types";
+import PositionsMap from "./positions-map";
+import type { MapShare } from "@/lib/types";
 
 // Same shape as track-map.test.tsx: jsdom has no layout, so real Leaflet cannot initialise and
 // EVERY symbol the component touches must be doubled — a partial mock throws inside the effect's
@@ -21,7 +21,7 @@ const zoomHandlers: Array<() => void> = [];
 let currentZoom = 0;
 const mapObj = {
   unproject, fitBounds: vi.fn(), setView: vi.fn(), remove: vi.fn(),
-  // FriendsMap drives MapCanvas's focus/onCenterChange props, so the double needs the view
+  // PositionsMap drives MapCanvas's focus/onCenterChange props, so the double needs the view
   // API too — without it the centre-report rAF throws as an UNHANDLED error, which vitest
   // reports separately from the assertions and leaves every test in this file green.
   flyTo: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock("leaflet", () => ({
 }));
 
 const MAP = "chernarusplus";
-const positions: FriendMap["positions"] = [
+const positions: MapShare["positions"] = [
   { gamertag: "You", x: 1000, y: 1000, recordedAt: "2026-07-22T11:59:00Z", self: true },
   { gamertag: "Mate", x: 5000, y: 5000, recordedAt: "2026-07-22T11:50:00Z", self: false },
 ];
@@ -66,24 +66,24 @@ const NOW = new Date("2026-07-22T12:00:00Z");
 
 beforeEach(() => { vi.clearAllMocks(); zoomHandlers.length = 0; currentZoom = 0; });
 
-describe("FriendsMap drawing", () => {
-  it("draws one dot for the viewer and one per sharing friend", async () => {
-    render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+describe("PositionsMap drawing", () => {
+  it("draws one dot for the viewer and one per person sharing with them", async () => {
+    render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(circleMarker).toHaveBeenCalledTimes(2));
   });
 
   it("never draws a trail — last known position only", async () => {
     // A route trail shows direction, pace and habitual locations, i.e. an interception tool
     // (F2 spec §4). This map is dots, full stop.
-    render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+    render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(circleMarker).toHaveBeenCalled());
     expect(polyline).not.toHaveBeenCalled();
   });
 
   it("labels every dot with its gamertag, permanently", async () => {
     // A dot with no callsign is unreadable on a squad map, and a click-to-reveal popup
-    // defeats the point of showing friends at a glance.
-    render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+    // defeats the point of showing who is nearby at a glance.
+    render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(bindTooltip).toHaveBeenCalledTimes(2));
     const labels = bindTooltip.mock.calls.map((c) => c[0] as string);
     expect(labels).toEqual(["You (you)", "Mate"]);
@@ -94,8 +94,8 @@ describe("FriendsMap drawing", () => {
 
   it("labels places under the dots, in a dedicated low pane", async () => {
     // Leaflet puts markers at z-index 600 and our dots at 400, so without an explicit pane
-    // a town name paints OVER the friend it is meant to help you find.
-    render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+    // a town name paints OVER the dot it is meant to help you find.
+    render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(marker).toHaveBeenCalled());
     expect(mapObj.createPane).toHaveBeenCalledWith("places");
     for (const call of marker.mock.calls) {
@@ -106,7 +106,7 @@ describe("FriendsMap drawing", () => {
   });
 
   it("adds more place labels as the reader zooms in", async () => {
-    render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+    render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(marker).toHaveBeenCalled());
     const wide = marker.mock.calls.length;
 
@@ -120,7 +120,7 @@ describe("FriendsMap drawing", () => {
     // `width: 0; height: 0` on the ROOT, so a background there paints a dash and the text
     // overflows it unbacked — the v0.38.1 bug. The visible box must be an inner element.
     // The name itself still has to be escaped, since divIcon takes raw markup.
-    render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+    render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(divIcon).toHaveBeenCalled());
     for (const call of divIcon.mock.calls) {
       const { html } = call[0] as { html: string };
@@ -129,7 +129,7 @@ describe("FriendsMap drawing", () => {
   });
 
   it("fills its container rather than a fixed-height panel", async () => {
-    const { container } = render(<FriendsMap mapCodename={MAP} positions={positions} now={NOW} />);
+    const { container } = render(<PositionsMap mapCodename={MAP} positions={positions} now={NOW} />);
     await waitFor(() => expect(mapFn).toHaveBeenCalled());
     const canvas = container.querySelector(".isolate")!;
     expect(canvas.className).toContain("h-full");

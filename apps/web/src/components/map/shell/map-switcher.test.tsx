@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { MapSwitcher } from "./map-switcher";
 
 const servers = [
-  { slug: "chernarus", name: "Chernarus", map: "chernarusplus", friendCount: 2 },
-  { slug: "livonia", name: "Livonia", map: "enoch", friendCount: 0 },
+  { slug: "chernarus", name: "Chernarus", map: "chernarusplus" },
+  { slug: "livonia", name: "Livonia", map: "enoch" },
 ];
 
 describe("MapSwitcher", () => {
@@ -14,9 +14,9 @@ describe("MapSwitcher", () => {
   });
 
   it("carries NO count — this menu switches maps, it does not report on them", async () => {
-    // It used to render friendCount (friends sharing a position there) as a bare number.
-    // Once the ☰ button started counting players online, the same bar showed two different
-    // counts about the same server, one unlabelled: "LIVONIA … 0" beside "ONLINE 12".
+    // It used to render a per-server share count as a bare number. Once the ☰ button started
+    // counting players online, the same bar showed two different counts about the same server,
+    // one unlabelled: "LIVONIA … 0" beside "ONLINE 12".
     render(<MapSwitcher slug="chernarus" servers={servers} loading={false} />);
     screen.getByRole("button", { name: /chernarus/i }).click();
     expect(await screen.findByRole("menuitem", { name: /chernarus/i })).toBeInTheDocument();

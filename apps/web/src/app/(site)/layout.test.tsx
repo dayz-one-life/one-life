@@ -19,7 +19,7 @@ describe("SiteLayout", () => {
 
   // ⚠️ The fixed bottom tab bar is DELETED — shell/nav-menu.tsx in the masthead is the nav at
   // every width now. Reintroducing a bar here also reintroduces the two gutters (the footer's
-  // and the map friends sheet's) that had to reserve space for it.
+  // and the map's share sheet's) that had to reserve space for it.
   test("renders no bottom bar", () => {
     render(<SiteLayout><div data-testid="child" /></SiteLayout>);
     expect(screen.queryByRole("navigation", { name: /quick access/i })).toBeNull();

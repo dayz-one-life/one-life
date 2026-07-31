@@ -3,7 +3,7 @@ import { user, gamertagLinks } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { inArray } from "drizzle-orm";
 
-// The two REJECTION halves of migration 0024 are asserted in friend-positions.test.ts, where the
+// The two REJECTION halves of migration 0024 are asserted in shared-positions.test.ts, where the
 // state they used to construct lived. This file holds the third assertion, which has no home
 // there: that the verified index is still PARTIAL.
 const { db, sql } = getTestDb();

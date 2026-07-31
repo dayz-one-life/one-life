@@ -70,7 +70,7 @@ const post = (url: string, c: string | undefined, payload: Record<string, unknow
 const del = (url: string, c?: string) =>
   app.inject({ method: "DELETE", url, headers: c ? { cookie: c } : {} });
 
-describe("friend map routes", () => {
+describe("map share routes", () => {
   it("401s when signed out", async () => {
     expect((await get(`/me/maps/sakhal-${svc}`)).statusCode).toBe(401);
     expect((await get("/me/maps")).statusCode).toBe(401);
@@ -113,12 +113,11 @@ describe("friend map routes", () => {
     expect((await get("/me/maps/no-such-server", cookie)).statusCode).toBe(404);
   });
 
-  it("lists servers with friend counts", async () => {
+  it("lists servers with no viewer-specific fields", async () => {
     const res = await get("/me/maps", cookie);
     expect(res.statusCode).toBe(200);
     const entry = res.json().servers.find((s: { slug: string }) => s.slug === `sakhal-${svc}`);
-    expect(entry).toBeTruthy();
-    expect(entry.friendCount).toBe(0);
+    expect(entry).toEqual({ slug: `sakhal-${svc}`, name: expect.any(String), map: "sakhal" });
   });
 
   it("serves the online list alongside the positions", async () => {

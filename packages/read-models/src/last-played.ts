@@ -37,7 +37,7 @@ export async function getLastPlayedMapSlug(db: Database, userId: string): Promis
   // a CURRENT LABEL since migration 0025, so a recycled name can match two `players` rows at
   // once; joining sessions across both would silently mix a departed holder's history into this
   // user's. Most-recently-seen wins, `id` ascending as the tie-break — the same rule
-  // `getPlayer`, `resolveSlugMatch` and `friend-positions` all apply.
+  // `getPlayer`, `resolveSlugMatch` and `shared-positions` all apply.
   const [viewer] = await db
     .select({ playerId: players.id })
     .from(gamertagLinks)

@@ -4,7 +4,7 @@ import {
 } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { eq } from "drizzle-orm";
-import { getFriendPositions } from "../src/friend-positions.js";
+import { getSharedPositions } from "../src/shared-positions.js";
 
 const { db, sql } = getTestDb();
 const NOW = new Date("2026-07-22T12:00:00Z");
@@ -75,7 +75,7 @@ async function seed(o: {
   }
 }
 
-const call = () => getFriendPositions(db, { viewerUserId: "va", serverId, now: NOW });
+const call = () => getSharedPositions(db, { viewerUserId: "va", serverId, now: NOW });
 
 beforeEach(() => seed());
 afterAll(async () => {
@@ -87,7 +87,7 @@ afterAll(async () => {
   await sql.end();
 });
 
-describe("getFriendPositions", () => {
+describe("getSharedPositions", () => {
   it("returns the viewer's own dot and a granting subject's", async () => {
     const out = await call();
     expect(out.map((p) => p.gamertag).sort()).toEqual(["SubjectBravo", "ViewerAlpha"]);
@@ -257,7 +257,7 @@ describe("getFriendPositions", () => {
   // can no longer hold VERIFIED links that differ only in case and fold onto the same `players`
   // row. This asserts the rejection.
   //
-  // The `claim()` guard in `getFriendPositions` (viewer-first, so a marker can never be flagged
+  // The `claim()` guard in `getSharedPositions` (viewer-first, so a marker can never be flagged
   // `self` while carrying another subject's callsign) is likewise RETAINED. It costs nothing,
   // and the thing it prevents — one dot that is simultaneously "you" and someone else — is
   // exactly the kind of defect that is invisible until someone is ambushed at it.

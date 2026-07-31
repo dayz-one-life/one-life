@@ -1,9 +1,9 @@
 "use client";
 import MapCanvas, { type DrawContext, type MapFocus } from "./map-canvas";
-import type { FriendPositionDto } from "@/lib/types";
+import type { SharedPositionDto } from "@/lib/types";
 
 const SELF_COLOR = "#2563eb";
-const FRIEND_COLOR = "#c8102e";
+const SHARED_COLOR = "#c8102e";
 
 /** Age of one fix, per dot — the page never stamps a single time across all of them. */
 export function positionAge(recordedAt: string, now: Date): string {
@@ -16,14 +16,14 @@ export function positionAge(recordedAt: string, now: Date): string {
 }
 
 /**
- * ⚠️ Takes the codename and the dots SEPARATELY, not one `FriendMap` payload, because they now
+ * ⚠️ Takes the codename and the dots SEPARATELY, not one `MapShare` payload, because they now
  * come from different places and one of them is optional. The codename comes from the PUBLIC
  * server list, so terrain and towns draw for everyone; the dots come from the session-gated
  * `/me/maps/:slug`, so a signed-out or unverified visitor renders the same map with none.
  */
-export default function FriendsMap({ mapCodename, positions, now, focus }: {
+export default function PositionsMap({ mapCodename, positions, now, focus }: {
   mapCodename: string;
-  positions: readonly FriendPositionDto[];
+  positions: readonly SharedPositionDto[];
   now: Date;
   focus?: MapFocus | null;
   /** Passed straight through to MapCanvas. The centre is owned by MapPage, because the chip
@@ -35,7 +35,7 @@ export default function FriendsMap({ mapCodename, positions, now, focus }: {
     for (const p of positions) {
       const at = pt(p.x, p.y);
       const c = L.circleMarker(at, {
-        radius: 7, color: p.self ? SELF_COLOR : FRIEND_COLOR, weight: 2, fill: false,
+        radius: 7, color: p.self ? SELF_COLOR : SHARED_COLOR, weight: 2, fill: false,
         dashArray: "3 3", // dashed = approximate, matching the life trail's markers
       });
       c.addTo(group);
@@ -45,14 +45,14 @@ export default function FriendsMap({ mapCodename, positions, now, focus }: {
       // bar's OnlineList (the accessible companion to this canvas) — the label carries
       // identity only, so a crowded map does not become a wall of text.
       c.bindTooltip?.(`${p.gamertag}${p.self ? " (you)" : ""}`, {
-        permanent: true, direction: "top", offset: [0, -8], className: "friend-label",
+        permanent: true, direction: "top", offset: [0, -8], className: "shared-label",
       });
       all.push(at);
     }
     return all;
   }
 
-  // No legend/list is rendered here: it lives in the map's FriendsPanel (the online list,
+  // No legend/list is rendered here: it lives in the map's SharePanel (the online list,
   // @/components/map/shell/online-list), which is its only home.
   //
   // ⚠️ `absolute inset-0`, NOT a `h-full` chain. The map fills a `flex-1` box, and a percentage

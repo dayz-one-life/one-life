@@ -54,7 +54,7 @@ describe("StageAvatar", () => {
     // puts focus ON the pencil in the first place — `useModalBehavior`'s restore would then be
     // restoring focus to `document.body`, and the assertion below would pass or fail for the
     // wrong reason regardless of whether focus-restore actually works. userEvent simulates that
-    // default action, matching the elsewhere-established pattern (see friends-panel.test.tsx's
+    // default action, matching the elsewhere-established pattern (see share-panel.test.tsx's
     // "moves focus into the sheet it opens").
     await userEvent.setup().click(pencil);
     await screen.findByRole("dialog");

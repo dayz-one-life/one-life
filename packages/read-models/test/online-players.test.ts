@@ -4,7 +4,7 @@ import {
 } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { getOnlinePlayers, ONLINE_MAX_AGE_SECONDS } from "../src/online-players.js";
-import type { FriendPosition } from "../src/friend-positions.js";
+import type { SharedPosition } from "../src/shared-positions.js";
 
 const { db, sql } = getTestDb();
 const NOW = new Date("2026-07-22T12:00:00Z");
@@ -94,7 +94,7 @@ async function seed(o: {
   }
 }
 
-const call = (positionDtos: FriendPosition[] = []) =>
+const call = (positionDtos: SharedPosition[] = []) =>
   getOnlinePlayers(db, { viewerUserId: "va", serverId, now: NOW, positions: positionDtos });
 
 beforeEach(() => seed());

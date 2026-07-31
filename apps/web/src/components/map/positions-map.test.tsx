@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { positionAge } from "./friends-map";
+import { positionAge } from "./positions-map";
 
 vi.mock("./map-canvas", () => ({ default: () => <div data-testid="canvas" /> }));
 

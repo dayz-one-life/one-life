@@ -1,7 +1,7 @@
 import type { Database } from "@onelife/db";
 import { gamertagLinks, players, positions, sessions } from "@onelife/db";
 import { and, eq, gte, isNull, or, sql } from "drizzle-orm";
-import type { FriendPosition } from "./friend-positions.js";
+import type { SharedPosition } from "./shared-positions.js";
 
 /**
  * How recently a player must have been seen ON THIS SERVER to count as online here.
@@ -49,7 +49,7 @@ export interface OnlinePlayer {
  */
 export async function getOnlinePlayers(
   db: Database,
-  a: { viewerUserId: string; serverId: number; now: Date; positions: FriendPosition[] },
+  a: { viewerUserId: string; serverId: number; now: Date; positions: SharedPosition[] },
 ): Promise<OnlinePlayer[]> {
   const freshest = new Date(a.now.getTime() - ONLINE_MAX_AGE_SECONDS * 1000);
 

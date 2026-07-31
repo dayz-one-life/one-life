@@ -7,7 +7,7 @@ import type {
   NotificationsFeed,
   LifeTrack,
   SitemapData,
-  FriendMap,
+  MapShare,
 } from "./types";
 
 export class ApiError extends Error {
@@ -236,8 +236,8 @@ export const stopSharingWith = (mapSlug: string, gamertag: string) =>
 export const stopSharingAll = (mapSlug: string) =>
   apiSend<{ ok: true }>("DELETE", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares`);
 
-export const getFriendMap = (slug: string) =>
-  apiGet<FriendMap>(`/api/me/maps/${encodeURIComponent(slug)}`);
+export const getMapShare = (slug: string) =>
+  apiGet<MapShare>(`/api/me/maps/${encodeURIComponent(slug)}`);
 
 /** Session-gated, `no-store, private` — the viewer's own avatar hash, or null. Never derive an
  *  avatar from `useSession()`'s `user.image`: that's the raw provider URL, and public surfaces

@@ -266,7 +266,7 @@ export type SitemapData = {
   articles: { kind: string; slug: string; lastmod: string }[];
 };
 
-export type FriendPositionDto = {
+export type SharedPositionDto = {
   gamertag: string;
   x: number;
   y: number;
@@ -284,9 +284,9 @@ export type OnlinePlayerDto = {
   sharedWithThem: boolean;
   self: boolean;
 };
-export type FriendMap = {
+export type MapShare = {
   mapCodename: string;
-  positions: FriendPositionDto[];
+  positions: SharedPositionDto[];
   online: OnlinePlayerDto[];
   /** Gamertags the viewer is currently sharing with on this server. Drives the
    *  "N can see you · Stop" chip. */
