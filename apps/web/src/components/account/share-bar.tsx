@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { SrStatus } from "@/components/shared/sr-status";
 
 /** The invite link + copy control. The social-target row and native-share button were removed
  *  2026-07-30 (v0.69 spec §1) — they did not work as intended. */
@@ -28,10 +29,15 @@ export function ShareBar({ link }: { link: string }) {
           Copy link
         </button>
       </div>
-      {/* Live region so the copy confirmation is announced, not just seen. Starts empty. */}
-      <span aria-live="polite" className="font-mono text-[10px] uppercase tracking-[.1em] text-ink">
-        {note}
-      </span>
+      {/* ⚠️ Two nodes, per the SrStatus idiom (see checkout-return.tsx): the live region is
+       *  pre-mounted but sr-only, so the idle bar reserves NO visible note space. A visible
+       *  always-mounted note made this control taller than the tokens half's send row, and the
+       *  slab's mt-auto bottom-alignment turned the difference into stray white space above the
+       *  send field next door. The visible note only mounts once there is something to say. */}
+      <SrStatus>{note}</SrStatus>
+      {note && (
+        <span className="font-mono text-[10px] uppercase tracking-[.1em] text-ink">{note}</span>
+      )}
     </div>
   );
 }
