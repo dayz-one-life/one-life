@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { getReferralCount, searchVerifiedGamertags } from "@/lib/api";
@@ -7,6 +7,8 @@ import { playerSlug } from "@/lib/slug";
 import { GamertagAutocomplete } from "@/components/shared/gamertag-autocomplete";
 import { useControls, useControlsActions } from "./use-controls";
 import { ShareBar } from "./share-bar";
+import { BuyTokensButton } from "./buy-tokens";
+import { CheckoutReturn } from "./checkout-return";
 
 const SEND_HINT = "A token you send cannot come back";
 const INVITE_HINT = "+1 token when someone you invite verifies their gamertag";
@@ -171,7 +173,15 @@ export function ControlsSlab() {
               )
             }
             sentence="One token lifts one ban, the moment you spend it."
-            control={<SendField own={gamertag} />}
+            control={
+              <div className="flex flex-col gap-3">
+                <SendField own={gamertag} />
+                <Suspense fallback={null}>
+                  <CheckoutReturn />
+                </Suspense>
+                <BuyTokensButton className="self-start" />
+              </div>
+            }
             hint={SEND_HINT}
           />
         </div>

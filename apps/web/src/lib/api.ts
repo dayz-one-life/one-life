@@ -154,6 +154,11 @@ export const redeemToken = (banId?: number) =>
   apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
 export const transferToken = (toGamertag: string) =>
   apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
+export const createCheckout = () => apiSend<{ url: string }>("POST", "/api/me/tokens/checkout", {});
+export const confirmCheckout = (sessionId: string) =>
+  apiSend<{ granted: number; paid: boolean; balance: number }>("POST", "/api/me/tokens/checkout/confirm", {
+    sessionId,
+  });
 
 /** How many people the viewer referred who went on to verify. Takes no subject — session only. */
 export const getReferralCount = () => apiGet<{ joined: number }>("/api/me/referrals");
