@@ -103,7 +103,17 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `/players/[slug]/[map]/lives/[n]` (canvas 14a): a character-portrait hero (`LifeHero`, the life's
   resolved `getLifeCharacter` → `/characters/<name>.webp`) with a **factual** `Life {n} · {mapLabel}`
   headline + a Time-alive/Kills/Longest-kill/Sessions/Qualified stat
-  band, and a newest-first event **`Timeline`** (`@/components/life/`). The event list is built by a
+  band, and a newest-first event **`Timeline`** (`@/components/life/`).
+  **⚠️ Every event offset is PLAYED time, not wall-clock time since `life.startedAt`** — the
+  `playedSecondsAt` helper in `@/lib/life-timeline`, whose session accounting mirrors
+  `liveTimeAlive` exactly (closed sessions contribute their stored `durationSeconds`; an open one
+  accrues only to `lastSeenAt ?? connectedAt`; only the session containing the instant is
+  pro-rated). It shipped as wall-clock and read as broken data: a two-week-old life with three
+  hours of play labelled its events `463h 04m in` directly beneath a hero reading
+  `TIME ALIVE 3h 35m`. Both numbers were true; putting two clocks on one axis was the bug. The
+  terminal death row is labelled from the life's stored `playtimeSeconds` rather than from
+  `playedSecondsAt(endedAt)` so the last row can never disagree with the hero, the board or the
+  obituary by a minute. The event list is built by a
   pure **`buildTimeline(data, now)`** (`@/lib/life-timeline`): birth → life qualified → session
   starts (consecutive **kill-free** sessions collapse into one `Sessions N–M` row) → kills (a yellow
   **Longest kill** chip on the max-distance kill) → the terminal `death` row (carrying the
@@ -866,6 +876,29 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   13. **A referral pays ONCE per referee, ever.** `yyyymm` is deliberately not in the idempotency
       key — it used to be, which made this an annuity: ten referees minted 11 tokens a month
       against a 1/month base grant.
+  14. **The signed-in home's placeholders are LAYOUT RESERVATIONS, and their geometry is
+      load-bearing.** `StageSkeleton` (`ticket-stage.tsx`) and `Morgue`'s loading render exist to
+      hold open the space their resolved content will occupy — the home measured **CLS 0.672** on
+      production against a 0.1 "good" budget, essentially all of it one shift when a ~150px
+      "Reading your file…" stub was replaced by a 583px stage and a morgue. Consequences:
+      - **`StageSkeleton` must track `TicketStage`'s geometry** — same section padding, same
+        `cols` formula, same `min-h-[210px]` cards. A card GRID rather than one fixed `min-h` is
+        what makes the reservation hold at every width, including the mobile column where the
+        stacked tickets are several times the desktop row's height.
+      - **`slots` is a count of empty boxes, not a claim about the fleet.** It follows the
+        `servers` query when that has resolved and falls back to `FALLBACK_TICKET_SLOTS`
+        otherwise. Being wrong costs a small shift, never a false statement, which is why the
+        "never hardcode a server count" rule (which governs copy and the real ticket grid) does
+        not reach it.
+      - **`PanelsSkeleton` reserves the VERIFIED shape deliberately**, before `useControls` knows
+        which mode it is in: right for every returning verified player, close enough for `pending`
+        (whose `PendingHero` renders its own dark hero), wrong only for `unlinked` — a first-run
+        state an account passes through once.
+      - **Reserving space must not become stating a fact.** The skeletons carry no gamertag, no
+        tally, no per-server state and no obituary count; `aria-busy`/`role="status"` mark the
+        wait, and the error render drops both (a failure is not a load in progress).
+      - **RTL cannot prove any of this** — it has no layout. The suites pin the structure (box
+        count, absence of fabricated facts); the numbers come from the browser.
 
 ## Hamburger nav + sticky masthead + one width
 

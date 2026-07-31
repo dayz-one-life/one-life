@@ -72,6 +72,16 @@ describe("<Morgue />", () => {
     expect(screen.getByText(/couldn.t load/i)).toBeInTheDocument();
   });
 
+  // ⚠️ The loading render is row-SHAPED, not one line: a single "Opening the file…" line stood in
+  // for a list that resolves to hundreds of pixels, and everything below it moved when the fetch
+  // landed. The rows are decorative (`aria-hidden`), so the announcement has to survive separately.
+  it("reserves row-shaped space while loading, and still announces the wait", () => {
+    render(<Morgue entries={[]} total={0} viewer="owner" state="loading" playerSlug="m" now={NOW} />);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText(/opening the file/i)).toBeInTheDocument();
+    expect(document.querySelectorAll('[aria-hidden="true"].border-b')).toHaveLength(2);
+  });
+
   it("shows no count it cannot vouch for while the fetch is unresolved", () => {
     render(<Morgue entries={[]} total={0} viewer="owner" state="loading" playerSlug="m" now={NOW} />);
     expect(screen.queryByText(/obituaries filed/i)).not.toBeInTheDocument();

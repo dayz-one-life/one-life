@@ -30,7 +30,7 @@ vi.mock("./use-controls", () => ({
 vi.mock("./buy-tokens", () => ({ BuyTokensButton: () => null }));
 vi.mock("./checkout-return", () => ({ CheckoutReturn: () => null }));
 
-const { VerifiedHome } = await import("./verified-home");
+const { VerifiedHome, FALLBACK_TICKET_SLOTS } = await import("./verified-home");
 
 const page = {
   gamertag: "Manicdote",
@@ -95,6 +95,55 @@ describe("<VerifiedHome />", () => {
     expect(screen.getByRole("region", { name: "Join the servers" })).toBeInTheDocument();
     expect(screen.getByTestId("browser-replica")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /how to connect/i })).not.toBeInTheDocument();
+  });
+
+  /**
+   * ⚠️ RTL cannot measure a layout shift — it has no layout. What it CAN pin is the structure the
+   * reservation is made of: that the in-flight stage is a grid of ticket-shaped boxes rather than
+   * one line of text, that the box count follows the fleet, and that holding space open never
+   * turns into stating a fact. The 0.67→"good" CLS claim itself is a browser measurement and is
+   * recorded as such in the changelog, not proven here.
+   */
+  describe("the in-flight stage reserves the resolved stage's geometry", () => {
+    beforeEach(() => {
+      playerQuery.data = undefined;
+      playerQuery.isError = false;
+      playerQuery.isLoading = true;
+    });
+
+    it("holds open one ticket-shaped box per server, not a single line of copy", () => {
+      render(<VerifiedHome gamertag="Manicdote" ticketSlots={3} />);
+      const boxes = document.querySelectorAll("li.min-h-\\[210px\\]");
+      expect(boxes).toHaveLength(3);
+      // The same minimum the real ticket uses — the two must not drift apart.
+      expect(screen.getByText(/reading your file/i)).toBeInTheDocument();
+    });
+
+    it("follows the fleet when it is known, and falls back to a floor when it is not", () => {
+      const { rerender } = render(<VerifiedHome gamertag="Manicdote" ticketSlots={4} />);
+      expect(document.querySelectorAll("li.min-h-\\[210px\\]")).toHaveLength(4);
+      rerender(<VerifiedHome gamertag="Manicdote" />);
+      expect(document.querySelectorAll("li.min-h-\\[210px\\]")).toHaveLength(FALLBACK_TICKET_SLOTS);
+    });
+
+    it("states nothing while it waits — no gamertag, no tally, no per-server state", () => {
+      render(<VerifiedHome gamertag="Manicdote" ticketSlots={3} />);
+      expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+      expect(screen.queryByText(/alive|banned|clear|servers/i)).not.toBeInTheDocument();
+    });
+
+    it("is a busy state while loading and a plain message once it has failed", () => {
+      const { rerender } = render(<VerifiedHome gamertag="Manicdote" ticketSlots={3} />);
+      expect(screen.getAllByRole("status").some((n) => n.getAttribute("aria-busy") === "true")).toBe(true);
+      playerQuery.isError = true;
+      playerQuery.isLoading = false;
+      rerender(<VerifiedHome gamertag="Manicdote" ticketSlots={3} />);
+      // A failure is not a load in progress: the boxes stay (nothing below them may jump) but
+      // nothing announces an ongoing fetch.
+      expect(document.querySelectorAll("li.min-h-\\[210px\\]")).toHaveLength(3);
+      expect(screen.getByText(/couldn.t load your standing/i)).toBeInTheDocument();
+      expect(document.querySelector('section[aria-busy="true"]')).toBeNull();
+    });
   });
 
   it("never renders an authoritative empty morgue while the fetch is in flight", () => {

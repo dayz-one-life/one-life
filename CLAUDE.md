@@ -195,6 +195,13 @@ two signed-in accounts, and none is closed by the test suite:
   server was running); the controls slab at 390px after the share-row removal; and encounter rows
   on a real life with hits (yellow dot, copy, attacker links). Use CDP
   `Emulation.setDeviceMetricsOverride`.
+- The home CLS fix, end to end. The *before* number (**CLS 0.672**, one 0.669 shift at 1283ms)
+  and the reservation's accuracy (568px reserved vs a 583px resolved stage) were both measured on
+  production at 1348px, but the *after* number needs a signed-in verified session on the deployed
+  build — a local dev run can't get one without Discord OAuth. Also unmeasured: the same
+  reservation at 390px and 320px, where the ticket grid stacks and the stage is several times
+  taller. Use CDP `Emulation.setDeviceMetricsOverride` and read `layout-shift` entries via
+  `PerformanceObserver`.
 - The controls slab's two halves actually squaring up at ≥1024 — the only width where they share
   a grid row — in BOTH states: idle, and for the few seconds after clicking "Copy link" while the
   confirmation note is on screen. RTL can only pin the in-flow child count of the note column,
