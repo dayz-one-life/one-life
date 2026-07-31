@@ -17,6 +17,12 @@ const schema = z.object({
   // NOTIFIER_* convention: `.default()` only fires on `undefined`, so a blank/mis-cased value
   // must not throw at module scope.
   AVATAR_TEST_FETCH_ALLOW_LOOPBACK: z.string().optional(),
+  // Token store (Stripe). All-or-nothing: the store is ON only when all three are set;
+  // a partial set is treated as OFF and warned about in main.ts. Unset-means-OFF, per
+  // the workers' convention — there is no default key and no test fallback.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_TOKEN_PRICE_ID: z.string().optional(),
 });
 export type Config = {
   databaseUrl: string;
@@ -25,6 +31,7 @@ export type Config = {
   corsOrigins: string[];
   vapidPublicKey: string;
   avatarTestFetchAllowLoopback: boolean;
+  stripe: { secretKey: string; webhookSecret: string; priceId: string } | null;
 };
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const p = schema.parse(env);
@@ -35,5 +42,9 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     corsOrigins: p.AUTH_TRUSTED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean),
     vapidPublicKey: p.VAPID_PUBLIC_KEY,
     avatarTestFetchAllowLoopback: p.AVATAR_TEST_FETCH_ALLOW_LOOPBACK === "true",
+    stripe:
+      p.STRIPE_SECRET_KEY && p.STRIPE_WEBHOOK_SECRET && p.STRIPE_TOKEN_PRICE_ID
+        ? { secretKey: p.STRIPE_SECRET_KEY, webhookSecret: p.STRIPE_WEBHOOK_SECRET, priceId: p.STRIPE_TOKEN_PRICE_ID }
+        : null,
   };
 }
