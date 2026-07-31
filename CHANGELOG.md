@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Every published obituary is now announced to Discord (via a channel webhook) and to the
+  Facebook Page: headline, lede, and a link that unfurls with the obituary's share card. The
+  new `crier` worker posts each obituary exactly once per channel, ships dry-run by default,
+  and does nothing until `CRIER_SINCE` is set.
+
 ## [0.70.0] - 2026-07-31
 
 ### Added
