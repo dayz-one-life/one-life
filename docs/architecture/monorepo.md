@@ -44,5 +44,14 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` — `VAPID_PUBLIC_KEY` is also read by the **api** unit, which
   serves it publicly at `GET /push/vapid-key`. **Single-instance, at-least-once delivery** — the
   push pass reads unpushed rows without a row lock.
-  Needs a `onelife-notifier` systemd unit; deploy runbook in `deploy/README.md`).
+  Needs a `onelife-notifier` systemd unit; deploy runbook in `deploy/README.md`),
+  `crier` (obituary-syndication worker; posts every published obituary to Discord (channel
+  webhook) and Facebook (Page), exactly once per (obituary, channel), tracked in the durable
+  `syndications` table. Gated by a forward-only **`CRIER_SINCE`** cutoff (unset = OFF) plus
+  **`CRIER_DRY_RUN`** (defaults `true`); each channel is enabled independently by the presence
+  of its credentials — `CRIER_DISCORD_WEBHOOK_URL` for Discord, both `CRIER_FB_PAGE_ID` and
+  `CRIER_FB_PAGE_ACCESS_TOKEN` for Facebook (see `docs/crier-facebook-setup.md`). Also reads
+  `CRIER_INTERVAL_SECONDS` / `CRIER_BATCH_CAP` / `CRIER_MAX_ATTEMPTS` and, like every worker,
+  `DATABASE_URL` + `SITE_URL`. Needs a `onelife-crier` systemd unit; deploy runbook in
+  `apps/crier/README.md`).
 
