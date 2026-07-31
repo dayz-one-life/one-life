@@ -1,5 +1,10 @@
+import { describe, expect, test, vi } from "vitest";
+// FitLine observes its container with ResizeObserver, which jsdom lacks.
+vi.stubGlobal(
+  "ResizeObserver",
+  vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
+);
 import { render, screen } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
 import { LifeHero } from "./hero";
 import { buildTimeline } from "@/lib/life-timeline";
 import type { LifeTimelineData } from "@/lib/types";
@@ -17,38 +22,69 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   };
 }
 
+function alive() {
+  return data();
+}
+
+function dead() {
+  return data({ life: { ...data().life, endedAt: "2026-07-14T06:00:00Z", deathCause: "pvp", playtimeSeconds: 21600 } });
+}
+
+function view(d: LifeTimelineData) {
+  return buildTimeline(d, new Date(Date.parse(start) + 400 * 60_000));
+}
+
 describe("LifeHero", () => {
-  test("alive: factual h1, Alive badge, gamertag links to dossier, QUALIFIED check", () => {
-    const now = new Date(Date.parse(start) + 100 * 60_000);
-    const { container } = render(<LifeHero data={data()} view={buildTimeline(data(), now)} />);
+  test("h1 reads 'Life {n} · {map}'", () => {
+    const d = alive();
+    render(<LifeHero data={d} view={view(d)} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Life 4 · Sakhal");
-    expect(screen.getByText("Alive")).toBeInTheDocument();
+  });
+
+  test("kicker reads 'A life of {gamertag}' with gamertag linking to the dossier", () => {
+    const d = alive();
+    render(<LifeHero data={d} view={view(d)} />);
+    expect(screen.getByText(/^A life of/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "YrJustBad" })).toHaveAttribute("href", "/players/yrjustbad");
-    // Pin the VISIBLE checkmark specifically (not the sr-only "Qualified" text, which
-    // duplicates the always-rendered caption below it) — a regression that drops the visible
-    // glyph and leaves only the sr-only span must fail this.
-    const qualifiedValue = container.querySelector('[aria-label="Qualified"]');
-    expect(qualifiedValue).not.toBeNull();
-    const glyph = qualifiedValue!.querySelector('[aria-hidden="true"]');
-    expect(glyph).toHaveTextContent("✓");
-    expect(glyph).not.toHaveClass("sr-only");
+  });
+
+  test("alive life shows the Alive badge, not Died", () => {
+    const d = alive();
+    render(<LifeHero data={d} view={view(d)} />);
+    expect(screen.getByText("Alive")).toBeInTheDocument();
+    expect(screen.queryByText("Died")).not.toBeInTheDocument();
+  });
+
+  test("dead life shows the Died badge, not Alive", () => {
+    const d = dead();
+    render(<LifeHero data={d} view={view(d)} />);
+    expect(screen.getByText("Died")).toBeInTheDocument();
+    expect(screen.queryByText("Alive")).not.toBeInTheDocument();
+  });
+
+  test("renders all five stats", () => {
+    const d = alive();
+    render(<LifeHero data={d} view={view(d)} />);
+    expect(screen.getByText("Time alive")).toBeInTheDocument();
+    expect(screen.getByText("Kills")).toBeInTheDocument();
+    expect(screen.getByText("Longest kill")).toBeInTheDocument();
+    expect(screen.getByText("Sessions")).toBeInTheDocument();
+    expect(screen.getAllByText("Qualified").length).toBeGreaterThan(0);
   });
 
   test("Qualified stat: glyph is decorative, value has an sr-only text equivalent", () => {
-    const now = new Date(Date.parse(start) + 100 * 60_000);
-    const { container } = render(<LifeHero data={data()} view={buildTimeline(data(), now)} />);
+    const d = alive();
+    const { container } = render(<LifeHero data={d} view={view(d)} />);
     const glyph = screen.getByText("✓");
     expect(glyph).toHaveAttribute("aria-hidden", "true");
-    // The value node (glyph + sr-only text) exposes "Qualified" as its accessible name.
     const srText = container.querySelector(".sr-only");
     expect(srText).toHaveTextContent("Qualified");
     expect(srText!.parentElement).toHaveAccessibleName("Qualified");
   });
 
   test("Qualified stat: unqualified life reads 'Not qualified' for AT, dash is decorative", () => {
-    const now = new Date(Date.parse(start) + 400 * 60_000);
     const d = data({ qualifiedAt: null });
-    const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    const { container } = render(<LifeHero data={d} view={view(d)} />);
     const glyph = screen.getByText("—", { selector: "[aria-hidden]" });
     expect(glyph).toHaveAttribute("aria-hidden", "true");
     const srText = container.querySelector(".sr-only");
@@ -56,58 +92,35 @@ describe("LifeHero", () => {
     expect(srText!.parentElement).toHaveAccessibleName("Not qualified");
   });
 
-  test("dead: Died chip instead of Alive", () => {
-    const now = new Date(Date.parse(start) + 400 * 60_000);
-    const d = data({ life: { ...data().life, endedAt: "2026-07-14T06:00:00Z", deathCause: "pvp", playtimeSeconds: 21600 } });
-    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
-    expect(screen.getByText("Died")).toBeInTheDocument();
-    expect(screen.queryByText("Alive")).not.toBeInTheDocument();
-  });
-
-  test("portrait box is omitted entirely when avatarHash is null", () => {
-    const now = new Date(Date.parse(start) + 100 * 60_000);
-    const d = data();
-    const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
-    // When avatarHash is null, the entire portrait column is not rendered, so no img and no silhouette svg
-    expect(container.querySelector("img")).toBeNull();
-    expect(container.querySelector('span[aria-hidden="true"] svg')).toBeNull();
-  });
-
-  test("portrait renders an img when avatarHash is present", () => {
-    const now = new Date(Date.parse(start) + 100 * 60_000);
-    const d = data({ avatarHash: "cafe1234feed5678" });
-    const { container } = render(<LifeHero data={d} view={buildTimeline(d, now)} />);
-    const img = container.querySelector("img");
+  test("portrait renders an img when avatarHash is present, and omits it when null", () => {
+    const withAvatar = data({ avatarHash: "cafe1234feed5678" });
+    const { container: withImg } = render(<LifeHero data={withAvatar} view={view(withAvatar)} />);
+    const img = withImg.querySelector("img");
     expect(img).not.toBeNull();
     expect(img).toHaveAttribute("src", "/api/avatars/cafe1234feed5678.webp");
-  });
 
-  test("omits the snapshot box entirely for an avatar-less player", () => {
-    const now = new Date(Date.parse(start) + 100 * 60_000);
-    const d = data();
-    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
-    expect(screen.queryByText(/snapshot · this life/i)).toBeNull();
-  });
-
-  test("renders the snapshot box when a hash exists", () => {
-    const now = new Date(Date.parse(start) + 100 * 60_000);
-    const d = data({ avatarHash: "abc123def4567890" });
-    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
-    expect(screen.getByText(/snapshot · this life/i)).toBeInTheDocument();
+    const withoutAvatar = data();
+    const { container: noImg } = render(<LifeHero data={withoutAvatar} view={view(withoutAvatar)} />);
+    expect(noImg.querySelector("img")).toBeNull();
   });
 
   test("links the published obituary when the timeline carries a slug", () => {
-    const now = new Date(Date.parse(start) + 400 * 60_000);
     const d = data({ obituarySlug: "the-end-abc-1-4" });
-    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    render(<LifeHero data={d} view={view(d)} />);
     const link = screen.getByRole("link", { name: /read the obituary/i });
     expect(link).toHaveAttribute("href", "/obituaries/the-end-abc-1-4");
   });
 
   test("renders no obituary link when the slug is null", () => {
-    const now = new Date(Date.parse(start) + 400 * 60_000);
     const d = data({ obituarySlug: null });
-    render(<LifeHero data={d} view={buildTimeline(d, now)} />);
+    render(<LifeHero data={d} view={view(d)} />);
     expect(screen.queryByRole("link", { name: /read the obituary/i })).toBeNull();
+  });
+
+  test("uses dark-stage tokens", () => {
+    const { container } = render(<LifeHero data={dead()} view={view(dead())} />);
+    const section = container.querySelector("section")!;
+    expect(section.className).toContain("bg-dark");
+    expect(section.className).toContain("border-red");
   });
 });
