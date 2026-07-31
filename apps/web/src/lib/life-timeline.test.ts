@@ -72,8 +72,11 @@ describe("buildTimeline", () => {
     const longest = v.events.filter((e) => e.kind === "kill" && e.longestKill);
     expect(longest).toHaveLength(1);
     expect(longest[0] && "victimGamertag" in longest[0] ? longest[0].victimGamertag : "").toBe("Twhizzle4life"); // 25m > 5m
-    // Kill at 430 minutes = 7h 10m, should have timeLabel "7h 10m in"
-    expect(longest[0] && "timeLabel" in longest[0] ? longest[0].timeLabel : "").toBe("7h 10m in");
+    // Kill at wall-clock +430m, but only 3h 40m of it was PLAYED: session 1 (2h) + session 2
+    // (1h 40m). The 3h 20m logged off does not count, and session 3 is open with NO heartbeat
+    // (`lastSeenAt: null`), so it accrues nothing — the same floor `liveTimeAlive` applies.
+    expect(longest[0] && "timeLabel" in longest[0] ? longest[0].timeLabel : "").toBe("3h 40m in");
+    expect(v.hero.timeAliveSeconds).toBe(13_200); // and the hero agrees, to the second
   });
 
   test("hero stats: kills, longest, sessions, qualified true", () => {
@@ -111,8 +114,64 @@ describe("buildTimeline", () => {
     const v = buildTimeline(data({ qualifiedAt: { at: at(120), by: "kill" } }), now);
     const q = v.events.find((e) => e.kind === "qualified");
     expect(q && "line" in q ? q.line : "").toMatch(/first blood/i);
-    // Qualified at 120 minutes (2h 0m) should have timeLabel "2h 00m in"
+    // Qualified at +120m, which lands at the very end of session 1 — 2h played either way.
     expect(q && "timeLabel" in q ? q.timeLabel : "").toBe("2h 00m in");
+  });
+
+  /**
+   * ⚠️ Offsets are PLAYED time, not wall-clock time since `startedAt`. A life spanning two weeks
+   * of real time but three hours of play used to label its events "463h 04m in" while the hero
+   * read "TIME ALIVE 3h 35m" — two different clocks on one axis, which read as broken data. Every
+   * offset here counts only time inside a session, so the terminal row equals the hero stat.
+   */
+  describe("offsets are played time, not wall clock", () => {
+    test("an event in the gap between sessions counts only the sessions that closed before it", () => {
+      const now = new Date(Date.parse(start) + 500 * 60_000);
+      // +150m is wall-clock 2h 30m in, but sits in the logged-off gap after session 1 (0–120):
+      // only session 1's 2h has been played.
+      const v = buildTimeline(data({ qualifiedAt: { at: at(150), by: "kill" } }), now);
+      const q = v.events.find((e) => e.kind === "qualified");
+      expect(q && "timeLabel" in q ? q.timeLabel : "").toBe("2h 00m in");
+    });
+
+    test("an event inside a session is pro-rated from that session's connect", () => {
+      const now = new Date(Date.parse(start) + 500 * 60_000);
+      // +250m sits 50m into session 2 (200–300): 2h from session 1 plus 50m = 2h 50m.
+      const v = buildTimeline(data({ qualifiedAt: { at: at(250), by: "kill" } }), now);
+      const q = v.events.find((e) => e.kind === "qualified");
+      expect(q && "timeLabel" in q ? q.timeLabel : "").toBe("2h 50m in");
+    });
+
+    test("the death row's offset equals the hero's time alive", () => {
+      const now = new Date(Date.parse(start) + 500 * 60_000);
+      const v = buildTimeline(
+        data({
+          kills: [],
+          life: { ...data().life, endedAt: at(430), playtimeSeconds: 15_000 },
+        }),
+        now,
+      );
+      const death = v.events.find((e) => e.kind === "death");
+      expect(death && "timeLabel" in death ? death.timeLabel : "").toBe("4h 10m in");
+      expect(v.hero.timeAliveSeconds).toBe(15_000);
+    });
+
+    test("an open session accrues only to lastSeenAt, matching liveTimeAlive", () => {
+      const now = new Date(Date.parse(start) + 540 * 60_000);
+      const v = buildTimeline(
+        data({
+          sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
+          kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(480) }],
+          lastSeenAt: at(300),
+        }),
+        now,
+      );
+      const kill = v.events.find((e) => e.kind === "kill");
+      // The kill is at +8h of wall clock, but the heartbeat stopped at +5h — the offset is capped
+      // there rather than climbing to request-time `now`, exactly as the hero stat is.
+      expect(kill && "timeLabel" in kill ? kill.timeLabel : "").toBe("5h 00m in");
+      expect(v.hero.timeAliveSeconds).toBe(5 * 3600);
+    });
   });
 
   test("caps live time-alive at lastSeenAt for a crashed/ghosted session — not request-time now", () => {

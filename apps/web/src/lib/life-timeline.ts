@@ -19,8 +19,8 @@ export interface LifeTimelineView {
   hero: { timeAliveSeconds: number; kills: number; longestKillMeters: number | null; sessions: number; qualified: boolean };
 }
 
-function elapsedLabel(at: Date, startedAt: Date): string {
-  const sec = Math.max(0, Math.floor((at.getTime() - startedAt.getTime()) / 1000));
+function elapsedLabel(seconds: number): string {
+  const sec = Math.max(0, seconds);
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   // `46:06` read as minutes:seconds. The h/m units make the format self-describing —
@@ -53,6 +53,37 @@ function liveTimeAlive(sessions: Session[], lastSeenAt: Date | null): number {
     if (s.disconnectedAt) return acc + (s.durationSeconds ?? Math.max(0, Math.floor((Date.parse(s.disconnectedAt) - conn) / 1000)));
     const upToMs = lastSeenAt ? lastSeenAt.getTime() : conn;
     return acc + Math.max(0, Math.floor((upToMs - conn) / 1000));
+  }, 0);
+}
+
+/**
+ * Seconds of PLAYED time accumulated by the instant `at` — the same clock `liveTimeAlive` and
+ * `life.playtimeSeconds` count in, evaluated at an arbitrary point rather than only at the end.
+ *
+ * ⚠️ This is what every timeline offset is measured in, and it is NOT wall-clock time since
+ * `life.startedAt`. A life that spans two weeks of real time but three hours of play used to
+ * label its events "463h 04m in" directly beneath a hero reading "TIME ALIVE 3h 35m": both
+ * numbers were true, but the page presented two different clocks on one axis and read as broken
+ * data. Time spent logged off is not time spent alive on the record, so it is not counted here.
+ *
+ * Session accounting mirrors `liveTimeAlive` EXACTLY so the two can never disagree — a closed
+ * session that ended before `at` contributes its STORED `durationSeconds` (not its wall-clock
+ * span, which can differ), and an open session accrues only to `lastSeenAt ?? connectedAt`, so a
+ * crashed/ghosted player's offsets stop at their last heartbeat instead of climbing to
+ * request-time `now`. Only the session containing `at` is pro-rated.
+ */
+function playedSecondsAt(at: Date, sessions: Session[], lastSeenAt: Date | null): number {
+  const t = at.getTime();
+  return sessions.reduce((acc, s) => {
+    const conn = connMs(s);
+    if (t <= conn) return acc; // the session hadn't begun yet
+    const cap = s.disconnectedAt ? Date.parse(s.disconnectedAt) : lastSeenAt ? lastSeenAt.getTime() : conn;
+    if (t >= cap) {
+      return acc + (s.disconnectedAt
+        ? s.durationSeconds ?? Math.max(0, Math.floor((cap - conn) / 1000))
+        : Math.max(0, Math.floor((cap - conn) / 1000)));
+    }
+    return acc + Math.max(0, Math.floor((t - conn) / 1000));
   }, 0);
 }
 
@@ -114,12 +145,12 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   const startedAt = new Date(data.life.startedAt);
   const endedAt = data.life.endedAt ? new Date(data.life.endedAt) : null;
   const alive = endedAt === null;
-  const label = (at: Date) => `${elapsedLabel(at, startedAt)} in`;
 
   const killObjs = data.kills.map((k: PlayerKill) => ({ ...k, at: new Date(k.occurredAt) }));
   const longest = longestOf(killObjs);
   const lastSeenAt = data.lastSeenAt ? new Date(data.lastSeenAt) : null;
   const timeAlive = alive ? liveTimeAlive(data.sessions, lastSeenAt) : data.life.playtimeSeconds;
+  const label = (at: Date) => `${elapsedLabel(playedSecondsAt(at, data.sessions, lastSeenAt))} in`;
 
   const events: TimelineEvent[] = [];
 
@@ -174,7 +205,12 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
     // lastSeenAt; claiming a live counter would be dishonest (spec: live-data-honesty §3).
     events.push({ kind: "now", at: now, marker: "blue", timeLabel: "NOW", title: "Still drawing breath", line: formatDuration(timeAlive) });
   } else {
-    events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: label(endedAt), cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life), verdict: data.verdict ?? null });
+    // ⚠️ The terminal row is labelled from `timeAlive` — the life's STORED `playtimeSeconds` —
+    // not from `playedSecondsAt(endedAt)`. The two agree to the minute in ordinary data, but the
+    // stored total is what the hero band, the survivor board and the obituary all print, and the
+    // last row of a life's timeline is precisely where a one-minute disagreement would be read as
+    // a bug. The hero wins.
+    events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: `${elapsedLabel(timeAlive)} in`, cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life), verdict: data.verdict ?? null });
   }
 
   // Newest-first

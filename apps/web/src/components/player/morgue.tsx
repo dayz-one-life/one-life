@@ -57,13 +57,24 @@ export function Morgue({
         )}
       </div>
 
+      {/* ⚠️ Row-shaped, not a single line. The one-line "Opening the file…" stub reserved ~90px
+       *  for a list that resolves to hundreds, so everything below it — on the home page, the
+       *  footer — was laid out against the stub and then pushed down. Two rows is deliberately
+       *  short of a typical morgue: over-reserving makes the EMPTY and one-row cases shift
+       *  upward instead, and this far down the page a residual shift is usually below the fold
+       *  (where it costs no CLS) in a way an above-the-fold over-reservation is not. */}
       {state === "loading" && (
-        <p
-          role="status"
-          className="border-b border-hairline py-8 font-mono text-[11px] uppercase tracking-[.06em] text-ink-muted motion-safe:animate-pulse"
-        >
-          Opening the file…
-        </p>
+        <div role="status" aria-busy="true">
+          <p className="sr-only">Opening the file…</p>
+          {[0, 1].map((i) => (
+            <div key={i} aria-hidden className="border-b border-hairline py-6">
+              <div className="h-3 w-40 bg-bone motion-safe:animate-pulse" />
+              <div className="mt-1.5 h-8 w-full max-w-xl bg-bone motion-safe:animate-pulse" />
+              <div className="mt-2 h-12 w-full max-w-2xl bg-bone motion-safe:animate-pulse" />
+              <div className="mt-3.5 h-11 w-full bg-bone motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </div>
       )}
 
       {state === "failed" && (

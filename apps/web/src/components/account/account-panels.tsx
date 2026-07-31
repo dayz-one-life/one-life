@@ -3,16 +3,28 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useControls } from "@/components/account/use-controls";
-import { VerifiedHome } from "@/components/account/verified-home";
+import { VerifiedHome, FALLBACK_TICKET_SLOTS } from "@/components/account/verified-home";
+import { StageSkeleton } from "@/components/player/ticket-stage";
 import { VerificationAnnouncer } from "@/components/account/verification-announcer";
 
+/**
+ * The FIRST paint of the signed-in home — it runs while the session and gamertag-link queries
+ * resolve, before this component even knows which of the three modes it is in.
+ *
+ * ⚠️ It reserves the VERIFIED shape on purpose, and that is a deliberate bet, not an oversight.
+ * Three flat bars (~250px) used to stand in for a surface that resolves to a 580px stage over a
+ * 230px slab over a morgue; the document was laid out against the bars and then rearranged,
+ * which is where most of the home's 0.669 CLS came from. Reserving the verified shape is right
+ * for every returning verified player (nearly every signed-in load), close enough for `pending`
+ * — whose `PendingHero` renders its own dark hero at a similar height — and wrong only for
+ * `unlinked`, which is a first-run state a given account passes through once.
+ *
+ * The stage reservation is `StageSkeleton`'s so the two can't drift; the slab below it is
+ * `ControlsSlab`'s own resolved height, which it holds by itself.
+ */
 function PanelsSkeleton() {
   return (
-    <div aria-busy="true" className="flex flex-col gap-4">
-      <div aria-hidden className="h-10 bg-bone motion-safe:animate-pulse" />
-      <div aria-hidden className="h-40 bg-bone motion-safe:animate-pulse" />
-      <div aria-hidden className="h-24 bg-bone motion-safe:animate-pulse" />
-    </div>
+    <StageSkeleton slots={FALLBACK_TICKET_SLOTS} message="Reading your file…" />
   );
 }
 
@@ -63,7 +75,7 @@ export function AccountPanels({ signInFallback = false }: {
     // ⚠️ The verified home is now the ticket stage + controls slab + morgue (verified-home
     // redesign spec §2–§4). StandingGroups / TokensPanel / the past-lives grid are gone from
     // here; the stage's tickets own per-server standing and the slab owns tokens + invites.
-    body = <VerifiedHome gamertag={c.status.link.gamertag} />;
+    body = <VerifiedHome gamertag={c.status.link.gamertag} ticketSlots={c.servers.length || undefined} />;
   }
 
   return (
@@ -74,7 +86,10 @@ export function AccountPanels({ signInFallback = false }: {
         // ⚠️ The VERIFIED body is full-bleed — the stage, slab and morgue each state their own
         // `px-6 md:px-10`, and a padded wrapper here is what made them read narrower than the
         // stage. Only the stale-cookie/skeleton bodies still need the wrapper's padding.
-        body != null && c.status.kind !== "verified" && "gap-4 px-6 py-8 md:px-10",
+        // ⚠️ `loading` joins `verified` in the full-bleed branch: its skeleton is now the
+        // stage's own chrome, which states its own padding, and a padded wrapper around it both
+        // double-pads the reservation and makes it miss the geometry it exists to reserve.
+        body != null && c.status.kind !== "verified" && c.status.kind !== "loading" && "gap-4 px-6 py-8 md:px-10",
       )}
     >
       {/* ⚠️ Unconditional sibling of `body`, never inside a branch: it must outlive the

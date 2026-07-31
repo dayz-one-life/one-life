@@ -2,10 +2,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { getPlayerPage } from "@/lib/api";
 import { playerSlug } from "@/lib/slug";
-import { TicketStage } from "@/components/player/ticket-stage";
+import { TicketStage, StageSkeleton } from "@/components/player/ticket-stage";
 import { Morgue } from "@/components/player/morgue";
 import { JoinServers } from "@/components/front-page/join-servers";
 import { ControlsSlab } from "./controls-slab";
+
+/**
+ * How many ticket boxes the loading stage holds open when the fleet list has NOT resolved yet.
+ * ⚠️ Not a statement about the fleet — see `StageSkeleton`'s note. It is the size of an empty
+ * box, chosen because it is the fleet's size today; a fourth server makes the reservation one
+ * box short for the first paint of a cold cache and nothing else.
+ */
+export const FALLBACK_TICKET_SLOTS = 3;
 
 /**
  * The verified player's home: the same stage the public dossier renders, plus the controls the
@@ -22,7 +30,13 @@ import { ControlsSlab } from "./controls-slab";
  * which is exactly the drift the universal beat exists to prevent. This is now the only connect
  * block in the app; there is no second one to fall back to.
  */
-export function VerifiedHome({ gamertag }: { gamertag: string }) {
+export function VerifiedHome({ gamertag, ticketSlots }: {
+  gamertag: string;
+  /** How many ticket-shaped boxes the loading stage holds open. Passed down from the already-
+   *  running `servers` query so the reservation matches the real fleet whenever that has
+   *  resolved; `StageSkeleton` supplies its own floor when it has not. */
+  ticketSlots?: number;
+}) {
   const slug = playerSlug(gamertag);
   const player = useQuery({
     queryKey: ["player-page", gamertag],
@@ -41,14 +55,16 @@ export function VerifiedHome({ gamertag }: { gamertag: string }) {
       {page ? (
         <TicketStage page={page} viewer="owner" now={now} />
       ) : (
-        <section
-          {...(player.isError ? {} : { role: "status" })}
-          className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16"
-        >
-          <p className="font-mono text-xs uppercase tracking-[.28em] text-cream-dim">
-            {player.isError ? "Couldn't load your standing just now." : "Reading your file…"}
-          </p>
-        </section>
+        // ⚠️ This placeholder used to be the section chrome around a single line of text — about
+        // 150px where the resolved stage is 580px and, on a phone, three times that. The whole
+        // page below it (slab, morgue, footer) was laid out against that stub and then shoved
+        // down when the fetch landed: one 0.669 layout shift, measured on production, against a
+        // 0.1 "good" budget. It reserves the real geometry now.
+        <StageSkeleton
+          slots={ticketSlots ?? FALLBACK_TICKET_SLOTS}
+          live={!player.isError}
+          message={player.isError ? "Couldn't load your standing just now." : "Reading your file…"}
+        />
       )}
 
       <ControlsSlab />

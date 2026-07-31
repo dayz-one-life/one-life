@@ -251,3 +251,53 @@ export function TicketStage({
     </section>
   );
 }
+
+/**
+ * Layout reservation for the stage while the player page is in flight — the ONLY thing standing
+ * between the first paint and a 0.67 CLS on the signed-in home.
+ *
+ * ⚠️ THIS IS A SKELETON, NOT A STAGE. It states no fact: no gamertag, no tally, no per-server
+ * state. `slots` is a number of empty boxes to hold open, and being wrong by one costs a small
+ * shift — never a claim about the fleet. That is why it may carry a fallback count while the
+ * fleet list is still loading, and why the "never hardcode a server count" rule (which governs
+ * COPY and the real ticket grid) is not in play here.
+ *
+ * ⚠️ Its geometry must track `TicketStage`'s: the same section padding, the same `cols` formula,
+ * the same `min-h-[210px]` cards. A card grid — rather than one fixed `min-h` — is what makes the
+ * reservation hold at EVERY width, including the mobile column where three stacked tickets are
+ * three times as tall as the desktop row. Change one and change the other.
+ */
+export function StageSkeleton({ slots, message, live = true }: {
+  slots: number;
+  message: string;
+  /** False for the error render: a failure is not a busy state, and `role="status"` on a message
+   *  that will never resolve announces a load that is not happening. */
+  live?: boolean;
+}) {
+  const boxes = Math.max(1, slots);
+  const cols = boxes >= 4 ? "sm:grid-cols-2 lg:grid-cols-4" : boxes === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2";
+  return (
+    <section
+      {...(live ? { role: "status", "aria-busy": true } : {})}
+      className="border-b-[6px] border-red bg-dark px-6 py-12 text-paper md:px-10 md:py-16"
+    >
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-5 sm:flex-nowrap">
+        <div aria-hidden className="h-[132px] w-[132px] flex-none rounded-full bg-dark-well motion-safe:animate-pulse" />
+        <div className="min-w-0 flex-1 space-y-3">
+          <p className="font-mono text-xs uppercase tracking-[.28em] text-cream-dim">{message}</p>
+          <div aria-hidden className="h-12 w-3/4 max-w-lg bg-dark-well motion-safe:animate-pulse" />
+          <div aria-hidden className="h-3 w-56 max-w-full bg-dark-well motion-safe:animate-pulse" />
+        </div>
+      </div>
+      {/* The tally strip + blurb band. Measured against the resolved stage on production at
+       *  1348px: this reservation comes to 568px where the real stage is 583px — 2.6% short,
+       *  against the 433px shortfall the one-line stub left. */}
+      <div aria-hidden className="mt-7 h-8 w-full max-w-2xl bg-dark-well motion-safe:animate-pulse" />
+      <ul aria-hidden className={cn("mt-8 grid grid-cols-1 gap-4", cols)}>
+        {Array.from({ length: boxes }, (_, i) => (
+          <li key={i} className="min-h-[210px] border-2 border-dark-line bg-dark-well motion-safe:animate-pulse" />
+        ))}
+      </ul>
+    </section>
+  );
+}

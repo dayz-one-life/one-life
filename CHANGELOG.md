@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The signed-in home no longer jumps as it loads. The first paint stood in for the page with
+  three flat bars, so the ticket stage, the controls, the morgue and the footer all landed in
+  different places a second later — measured on production at CLS 0.672, against the 0.1 that
+  counts as good. The placeholders now hold open the space their content will occupy: the
+  stage's is a grid of ticket-shaped boxes that reserves 568px where the resolved stage is
+  583px, and the morgue's is obituary-shaped rows rather than a single line of text. Nothing
+  the placeholders show is a claim — no gamertag, no tally, no counts — and the wait is still
+  announced to screen readers.
+- A life's timeline no longer contradicts its own headline. Event offsets counted wall-clock
+  time since the life began, so a life spanning two weeks of real time but three hours of play
+  labelled its events "463h 04m in" directly beneath "TIME ALIVE 3h 35m". They count played
+  time now — time spent logged off isn't time spent alive on the record — and the final row of
+  a life reads exactly the time alive the hero, the survivors board and the obituary print.
+
 ## [0.72.3] - 2026-07-31
 
 ### Fixed
