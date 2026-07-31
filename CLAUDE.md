@@ -195,3 +195,9 @@ two signed-in accounts, and none is closed by the test suite:
   server was running); the controls slab at 390px after the share-row removal; and encounter rows
   on a real life with hits (yellow dot, copy, attacker links). Use CDP
   `Emulation.setDeviceMetricsOverride`.
+- The controls slab's two halves actually squaring up at ≥1024 — the only width where they share
+  a grid row — in BOTH states: idle, and for the few seconds after clicking "Copy link" while the
+  confirmation note is on screen. RTL can only pin the in-flow child count of the note column,
+  never the resulting heights, so the v0.72.3 fix is shipped on that proxy plus the CSS argument
+  that an `sr-only` node is `position:absolute` and therefore neither a flex item nor gap-bearing.
+  Needs a signed-in verified session.

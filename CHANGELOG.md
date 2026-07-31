@@ -9,10 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The "Your tokens" and "Invite a survivor" panels now sit at the same vertical rhythm. The
-  invite panel was permanently reserving a line for its "Link copied" confirmation even
-  before you copied anything, which made it taller than the tokens panel and left a band of
-  stray white space above the send field. The confirmation now appears only once there is
-  something to confirm, and is still announced to screen readers.
+  invite panel was holding a line open for its "Link copied" confirmation before you had
+  copied anything, which left a band of stray white space above the send field next door.
+  The confirmation now appears only when there is something to confirm and clears itself a
+  few seconds later, and is still announced to screen readers.
 
 ## [0.72.2] - 2026-07-31
 
