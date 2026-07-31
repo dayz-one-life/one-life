@@ -44,6 +44,11 @@ export function monthYear(iso: string): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
+export function monthDayYear(iso: string): string {
+  const d = new Date(iso);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+}
+
 export function relativeDate(iso: string, now: Date): string {
   const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000);
   if (days <= 0) return "today";
