@@ -331,7 +331,7 @@ export const tokenTransactions = pgTable("token_transactions", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   delta: integer("delta").notNull(),        // +1 grant | -1 redeem/transfer_out | +1 transfer_in
-  kind: text("kind").notNull(),             // verification|monthly|referral|redeem|transfer_in|transfer_out
+  kind: text("kind").notNull(),             // verification|monthly|referral|redeem|transfer_in|transfer_out|purchase
   idempotencyKey: text("idempotency_key").notNull(),
   relatedBanId: bigint("related_ban_id", { mode: "number" }),
   counterpartyUserId: text("counterparty_user_id").references(() => user.id),

@@ -7,4 +7,5 @@ export { transfer } from "./transfer.js";
 export { setReferrer } from "./referrer.js";
 export { claimReferrer } from "./claim-referrer.js";
 export { countVerifiedReferees } from "./referral-count.js";
+export { fulfillPurchase } from "./purchase.js";
 export { TokenError } from "./internal.js";
