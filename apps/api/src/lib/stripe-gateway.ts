@@ -34,8 +34,14 @@ export function createStripeGateway(cfg: { secretKey: string; webhookSecret: str
       let s: Stripe.Checkout.Session;
       try {
         s = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["line_items"] });
-      } catch {
-        return null; // bogus/expired id — Stripe throws resource_missing
+      } catch (err) {
+        // Only return null for genuinely missing sessions (Stripe 404 resource_missing).
+        // Network failures, auth errors, rate limits, etc. must propagate so the delivery is retried.
+        const stripeErr = err as Stripe.errors.StripeError;
+        if (stripeErr.code === "resource_missing" && stripeErr.statusCode === 404) {
+          return null;
+        }
+        throw err;
       }
       return {
         paid: s.payment_status === "paid",
