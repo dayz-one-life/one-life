@@ -115,14 +115,28 @@ describe("<TicketStage />", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
-  // ⚠️ Timeline links are for LIVE tickets — alive and banned. An idle ticket says "No life", and
-  // a card denying there is a life while linking to one contradicts itself. The fixture is
-  // alive + banned + idle, so exactly two links.
-  it("links out from alive and banned tickets, never from an idle one", () => {
+  // ⚠️ Timeline links are for a currently-RUNNING life only — alive, and alive alone. A banned
+  // ticket's life is not running anymore (it ended in the ban), and an idle ticket says "No
+  // life" — a card naming no running life while linking to one contradicts itself. The fixture
+  // is alive + banned + idle, so exactly one link, and only from the alive ticket.
+  it("links out from an alive ticket only, never from a banned or idle one", () => {
     render(<TicketStage page={page} viewer="public" now={NOW} />);
-    expect(screen.getAllByRole("link", { name: /timeline/i })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: /timeline/i })).toHaveLength(1);
+    const chernarus = screen.getByRole("listitem", { name: /chernarus/i }); // the alive ticket
+    expect(within(chernarus).getByRole("link", { name: /timeline/i })).toBeInTheDocument();
+    const livonia = screen.getByRole("listitem", { name: /livonia/i }); // the banned ticket
+    expect(within(livonia).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
     const namalsk = screen.getByRole("listitem", { name: /namalsk/i }); // the idle ticket
     expect(within(namalsk).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
+  });
+
+  // The same must hold for the owner viewer — the ban card still names its life in the
+  // sub-line, it just no longer links to it. Past lives stay reachable from the morgue.
+  it("withholds the Timeline link from a banned ticket for the owner too", () => {
+    render(<TicketStage page={page} viewer="owner" now={NOW} />);
+    const livonia = screen.getByRole("listitem", { name: /livonia/i });
+    expect(within(livonia).queryByRole("link", { name: /timeline/i })).not.toBeInTheDocument();
+    expect(within(livonia).getByText(/life 11/i)).toBeInTheDocument();
   });
 
   // An idle ticket WITH a history still refuses to link, and still reports the death that

@@ -162,9 +162,9 @@ export function TicketStage({
 
       <ul role="list" className={cn("mt-8 grid grid-cols-1 gap-4", cols)}>
         {tickets.map((r) => {
-          // See the ⚠️ on the Timeline link below: alive and banned only, and only when the
-          // ticket actually names a life to point at.
-          const linkable = r.life != null && r.state !== "idle";
+          // See the ⚠️ on the Timeline link below: alive only, and only when the ticket
+          // actually names a life to point at.
+          const linkable = r.life != null && r.state === "alive";
           return (
           <li
             key={r.slug}
@@ -213,7 +213,11 @@ export function TicketStage({
              *  links refer to what the card is about. Past lives are reachable from the morgue.
              *
              *  Spend stays owner-only and banned-only: the ticket is the one place that knows
-             *  WHICH ban a token would lift. */}
+             *  WHICH ban a token would lift.
+             *
+             *  (Steve, 2026-07-30, v0.69): banned dropped too — only a card about a
+             *  currently-RUNNING life links to a live record; the ban card still names its life
+             *  in the sub-line, and past lives are reachable from the morgue. */}
             {(linkable || (owner && r.state === "banned" && r.ban)) && (
               <div className="mt-3.5 flex flex-col gap-2">
                 {owner && r.state === "banned" && r.ban && (
