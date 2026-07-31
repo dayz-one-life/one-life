@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The buy-tokens button now sits on the same row as the send field (label shortened to
+  "Buy"; the price moved into the button's tooltip/accessible name), so the tokens half
+  keeps the same vertical rhythm as the invite half.
+
 ## [0.72.0] - 2026-07-31
 
 ### Added

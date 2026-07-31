@@ -175,11 +175,19 @@ export function ControlsSlab() {
             sentence="One token lifts one ban, the moment you spend it."
             control={
               <div className="flex flex-col gap-3">
-                <SendField own={gamertag} />
+                {/* BUY rides the send row so this half stays ONE control row, matching the
+                 *  invite half's share row — the halves' mt-auto bottoms only align when both
+                 *  controls have the same height. Store OFF renders the row as just SendField.
+                 *  Below sm everything stacks, same as SendField's own internal breakpoint. */}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="min-w-0 flex-1">
+                    <SendField own={gamertag} />
+                  </div>
+                  <BuyTokensButton className="min-h-[48px] flex-none" />
+                </div>
                 <Suspense fallback={null}>
                   <CheckoutReturn />
                 </Suspense>
-                <BuyTokensButton className="self-start" />
               </div>
             }
             hint={SEND_HINT}
