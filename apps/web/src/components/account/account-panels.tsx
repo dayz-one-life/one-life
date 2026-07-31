@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 import { useControls } from "@/components/account/use-controls";
 import { VerifiedHome, FALLBACK_TICKET_SLOTS } from "@/components/account/verified-home";
 import { StageSkeleton } from "@/components/player/ticket-stage";
@@ -81,16 +80,14 @@ export function AccountPanels({ signInFallback = false }: {
   return (
     <section
       aria-label="Your account"
-      className={cn(
-        "flex flex-col",
-        // ⚠️ The VERIFIED body is full-bleed — the stage, slab and morgue each state their own
-        // `px-6 md:px-10`, and a padded wrapper here is what made them read narrower than the
-        // stage. Only the stale-cookie/skeleton bodies still need the wrapper's padding.
-        // ⚠️ `loading` joins `verified` in the full-bleed branch: its skeleton is now the
-        // stage's own chrome, which states its own padding, and a padded wrapper around it both
-        // double-pads the reservation and makes it miss the geometry it exists to reserve.
-        body != null && c.status.kind !== "verified" && c.status.kind !== "loading" && "gap-4 px-6 py-8 md:px-10",
-      )}
+      // ⚠️ NO padding here, in any state. Every body this wrapper can hold is now full-bleed and
+      // states its own `px-6 md:px-10`: the verified stage/slab/morgue always did — a padded
+      // wrapper is what once made them read narrower than the stage — and the loading body is now
+      // the stage's own chrome, where an outer pad would both double-pad the reservation and make
+      // it miss the geometry it exists to reserve. `unlinked`/`pending` render nothing at all, and
+      // the stale-cookie sign-in falls back above with its own padding, so the conditional that
+      // used to live here had no reachable branch left.
+      className="flex flex-col"
     >
       {/* ⚠️ Unconditional sibling of `body`, never inside a branch: it must outlive the
        *  pending -> verified panel swap to announce the change (SR-structure spec). */}
