@@ -511,3 +511,64 @@ describe("getPlayerPage: avatarHash", () => {
     }
   });
 });
+
+// ── every active server gets a ticket (v0.69) ─────────────────────────────────────────────────
+// Before this change, `getPlayerPage` `continue`d past any active server the player had no
+// lives/ban/open-life on, so the dossier only ever showed servers they'd touched. Now every
+// ACTIVE server gets a standing card — a never-played one renders as an idle card with nothing
+// to link to. The existence guard must still 404 unknown gamertags: a page cannot come into
+// being purely from never-played idle cards.
+//
+// NOTE ON ISOLATION: `chern`/`sakh`/`idle` (this file's outer `beforeAll`) stay active for the
+// whole file, so a fresh player here picks up idle cards for THOSE servers too, on top of the
+// two seeded below. The brief's sketch asserts `standing` has length 2; that assumption doesn't
+// hold against this file's shared fixture universe, so the assertions here are scoped to the
+// specific server ids under test rather than the total standing length.
+describe("getPlayerPage: every active server gets a ticket (v0.69)", () => {
+  const svcNeverA = Math.floor(Math.random() * 1e8) + 71e7;
+  const svcNeverB = Math.floor(Math.random() * 1e8) + 72e7;
+  let neverServerA: number; let neverServerB: number;
+  const gamertagSasha = `Sasha${svcNeverA}`;
+
+  beforeAll(async () => {
+    const [a] = await db.insert(servers).values({ nitradoServiceId: svcNeverA, name: "pp-neverA", map: "chernarusplus", slug: `neverA-${svcNeverA}`, active: true }).returning();
+    const [b] = await db.insert(servers).values({ nitradoServiceId: svcNeverB, name: "pp-neverB", map: "sakhal", slug: `neverB-${svcNeverB}`, active: true }).returning();
+    neverServerA = a!.id; neverServerB = b!.id;
+    // Sasha has one ended life on server A only; server B she has never touched at all.
+    const [pl] = await db.insert(players).values({ gamertag: gamertagSasha, firstSeenAt: hoursAgo(20), lastSeenAt: now }).returning();
+    await db.insert(lives).values({ serverId: neverServerA, playerId: pl!.id, lifeNumber: 1, startedAt: hoursAgo(20), endedAt: hoursAgo(10), playtimeSeconds: 600, deathCause: "pvp" });
+  });
+  afterAll(async () => {
+    await db.delete(lives).where(eq(lives.serverId, neverServerA));
+    await db.delete(players).where(eq(players.gamertag, gamertagSasha));
+    await db.delete(servers).where(inArray(servers.id, [neverServerA, neverServerB]));
+  });
+
+  it("emits a never-played idle card for an active server the player has no history on", async () => {
+    const page = (await getPlayerPage(db, gamertagSasha, now, { page: 1 }))!;
+    expect(page).not.toBeNull();
+    const a = page.standing.find((s) => s.serverId === neverServerA)!;
+    expect(a.state).toBe("idle");
+    expect(a.lastLifeNumber).toBe(1);
+    const b = page.standing.find((s) => s.serverId === neverServerB)!;
+    expect(b).toMatchObject({ state: "idle", lastLifeNumber: null, lastEndedAt: null, alive: null, ban: null });
+  });
+
+  it("still returns null for a gamertag with no history anywhere", async () => {
+    expect(await getPlayerPage(db, "NeverSeenAnywhere", now, { page: 1 })).toBeNull();
+  });
+
+  it("returns null for a KNOWN player with zero history on any active server (anyHistory guard)", async () => {
+    // The subtle case: unlike "NeverSeenAnywhere" above (which 404s before the standing loop even
+    // runs, via resolveGamertagBySlug finding no `players` row), this player DOES exist, so the
+    // guard must be proven at the `standing`/`anyHistory` level — every active server's card is a
+    // never-played idle (`lastLifeNumber == null`), and that alone must not make the page exist.
+    const gamertagGhostly = `Ghostly${svcNeverA}`;
+    const [pl] = await db.insert(players).values({ gamertag: gamertagGhostly, firstSeenAt: hoursAgo(5), lastSeenAt: now }).returning();
+    try {
+      expect(await getPlayerPage(db, gamertagGhostly, now, { page: 1 })).toBeNull();
+    } finally {
+      await db.delete(players).where(eq(players.id, pl!.id));
+    }
+  });
+});
