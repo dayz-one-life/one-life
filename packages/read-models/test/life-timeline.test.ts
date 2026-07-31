@@ -34,10 +34,17 @@ beforeAll(async () => {
   await db.insert(kills).values({
     serverId, killerGamertag: `LtHero-${svc}`, killerPlayerId: pid, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(120),
   });
-  await db.insert(hitEvents).values({
-    serverId, victimGamertag: `LtHero-${svc}`, victimPlayerId: pid, attackerType: "player", attackerGamertag: "SomeKiller",
-    victimHp: 30, occurredAt: new Date(mins(360).getTime() - 20_000),
-  });
+  await db.insert(hitEvents).values([
+    // An infected hit well clear of death — kept distinct from the pvp hit below so the
+    // existing `ordeals.pvp.encounters === 1` assertion is untouched. Used to assert
+    // `encounters` is populated for a dead life: the pvp hit right before death, below, falls
+    // inside RECENT_HIT_WINDOW_S and is suppressed by encountersForLife's death-adjacent rule,
+    // same as the dossier's recentHits window — so this is the one encounter that survives.
+    { serverId, victimGamertag: `LtHero-${svc}`, victimPlayerId: pid, attackerType: "infected", attackerLabel: "Infected",
+      victimHp: 60, occurredAt: mins(50) },
+    { serverId, victimGamertag: `LtHero-${svc}`, victimPlayerId: pid, attackerType: "player", attackerGamertag: "SomeKiller",
+      victimHp: 30, occurredAt: new Date(mins(360).getTime() - 20_000) },
+  ]);
 
   // An OPEN life (no endedAt), started after the dead life ended — the dossier must not be
   // fetched for it, so verdict/ordeals/hpLow must all come back null.
@@ -96,6 +103,7 @@ describe("getLifeTimeline", () => {
     expect(t!.verdict).toMatchObject({ cause: "pvp", confidence: "high" });
     expect(t!.ordeals!.pvp.encounters).toBe(1);
     expect(t!.hpLow).toBe(30);
+    expect(t!.encounters.length).toBeGreaterThan(0);
   });
 
   it("does not fetch a dossier for an open life — verdict, ordeals, and hpLow are all null", async () => {
@@ -105,6 +113,8 @@ describe("getLifeTimeline", () => {
     expect(t!.verdict).toBeNull();
     expect(t!.ordeals).toBeNull();
     expect(t!.hpLow).toBeNull();
+    // `encounters` is fetched for open lives too, unlike the dossier — always present.
+    expect(t!.encounters).not.toBeNull();
   });
 
   describe("avatarHash", () => {

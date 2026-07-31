@@ -1,7 +1,7 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { Database } from "@onelife/db";
 import { lives, sessions, hitEvents, buildEvents, players, unconsciousEvents } from "@onelife/db";
-import { classifyDeath, RECENT_HIT_WINDOW_S, type DeathVerdict } from "@onelife/domain";
+import { classifyDeath, classifyEntityLabel, RECENT_HIT_WINDOW_S, type DeathVerdict } from "@onelife/domain";
 
 // Damage arrives as individual ticks; consecutive same-category hits within this gap are ONE
 // encounter (a single fire, a single zombie scrap), so the story counts run-ins, not blows.
@@ -134,4 +134,83 @@ export function dossierVerdict(d: LifeDossier): DeathVerdictSummary {
     d.recentUnconscious,
   );
   return { cause, confidence, conditions };
+}
+
+/** One per-encounter span for the timeline (v0.69 spec §7) — distinct from `OrdealSummary`,
+ *  which only rolls a category up into counts. */
+export interface LifeEncounter {
+  category: "wolf" | "bear" | "animal" | "infected" | "player" | "fire" | "environment";
+  attackerGamertag: string | null; // set only for category "player"
+  startedAt: Date;
+  durationSeconds: number; // last tick − first tick, whole seconds
+  hits: number;
+  hpLow: number | null; // min victimHp across the encounter's ticks; null if all null
+}
+
+const isFireLabel = (label: string | null) => (label ?? "").toLowerCase().includes("fire");
+
+function encounterKey(h: { attackerType: string; attackerGamertag: string | null; attackerLabel: string | null }): string {
+  if (isFireLabel(h.attackerLabel)) return "fire";
+  if (h.attackerType === "infected") return "infected";
+  if (h.attackerType === "player") return `player:${(h.attackerGamertag ?? "").toLowerCase()}`;
+  const animal = classifyEntityLabel(h.attackerLabel);
+  return animal ?? "environment";
+}
+
+/**
+ * Per-encounter spans for the timeline (v0.69 spec §7). Same 120s gap rule as the ordeal
+ * summaries; PvP groups per attacker; fire is checked before category (a fire tick is
+ * attackerType "environment" but its own story).
+ *
+ * ⚠️ Window end for an OPEN life is `lastSeenAt ?? now` — `endedAt ?? startedAt` (the dossier's
+ * rule) would give an open life a zero-width window and silently hide every fight.
+ *
+ * ⚠️ An encounter whose last tick lands within RECENT_HIT_WINDOW_S of the death is suppressed —
+ * the death row already tells that story, and printing it twice reads as two fights.
+ */
+export async function encountersForLife(db: Database, gamertag: string, life: DossierLife, lastSeenAt: Date | null): Promise<LifeEncounter[]> {
+  const windowEnd = life.endedAt ?? lastSeenAt ?? new Date();
+  const p = (await db.select({ id: players.id }).from(players).where(eq(players.gamertag, gamertag)))[0];
+  if (!p) return [];
+  const ticks = await db.select({
+    attackerType: hitEvents.attackerType, attackerGamertag: hitEvents.attackerGamertag,
+    attackerLabel: hitEvents.attackerLabel, victimHp: hitEvents.victimHp, occurredAt: hitEvents.occurredAt,
+  }).from(hitEvents).where(and(
+    eq(hitEvents.serverId, life.serverId), eq(hitEvents.victimPlayerId, p.id),
+    gte(hitEvents.occurredAt, life.startedAt), lte(hitEvents.occurredAt, windowEnd),
+  ));
+  const byKey = new Map<string, typeof ticks>();
+  for (const t of ticks) {
+    const k = encounterKey(t);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k)!.push(t);
+  }
+  const out: LifeEncounter[] = [];
+  for (const [key, group] of byKey) {
+    const sorted = [...group].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+    let span: typeof sorted = [];
+    const flush = () => {
+      if (span.length === 0) return;
+      const last = span[span.length - 1]!.occurredAt;
+      // death-adjacent suppression
+      if (life.endedAt && (life.endedAt.getTime() - last.getTime()) / 1000 <= RECENT_HIT_WINDOW_S) { span = []; return; }
+      const hps = span.map((t) => t.victimHp).filter((n): n is number => n != null);
+      const category = key.startsWith("player:") ? "player" : (key as LifeEncounter["category"]);
+      out.push({
+        category,
+        attackerGamertag: category === "player" ? span[0]!.attackerGamertag : null,
+        startedAt: span[0]!.occurredAt,
+        durationSeconds: Math.round((last.getTime() - span[0]!.occurredAt.getTime()) / 1000),
+        hits: span.length,
+        hpLow: hps.length ? Math.min(...hps) : null,
+      });
+      span = [];
+    };
+    for (const t of sorted) {
+      if (span.length && (t.occurredAt.getTime() - span[span.length - 1]!.occurredAt.getTime()) / 1000 > ENCOUNTER_GAP_S) flush();
+      span.push(t);
+    }
+    flush();
+  }
+  return out.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
 }
