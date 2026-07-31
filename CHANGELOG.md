@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Obituaries now unfurl with a share image on Discord and X: a 1200×630 card carrying the
+  tabloid headline, the gamertag and date of death, and the rap sheet (time survived, kills,
+  longest kill, cause). Obituary pages also stamp the death instant as the article's
+  published time.
+
 ## [0.69.1] - 2026-07-30
 
 ### Fixed
