@@ -30,11 +30,11 @@ import { ReferralClaim } from "@/components/account/referral-claim";
  * ⚠️ THE HOME PAGE IS ONE COLUMN, at every width. The `xl` glance sidebar and its `HomeShell`
  * wrapper are gone: the verified home is the ticket stage, the controls slab and the morgue,
  * full-bleed and edge to edge, and a 380px rail beside them fought that. Nothing was lost that
- * was reachable only there — friends now render for everyone in `AccountPanels` (they were
- * `xl:hidden` purely because the sidebar duplicated them), and the board and notification
- * glances already had `/survivors`, `/notifications` and the masthead bell. Removing it also
- * deleted three per-request server fetches — `getServers`, the board resolution and
- * `getSurvivors` existed ONLY to fill that rail.
+ * was reachable only there — the board and notification glances already had `/survivors`,
+ * `/notifications` and the masthead bell (the sidebar's friends glance has no replacement to
+ * point at: the friends feature itself was removed whole, later in the same update round).
+ * Removing it also deleted three per-request server fetches — `getServers`, the board resolution
+ * and `getSurvivors` existed ONLY to fill that rail.
  *
  * Both remaining promises are kicked off before their awaits so they run concurrently;
  * settleFeed never rejects, so un-awaited promises cannot produce unhandled rejections.
