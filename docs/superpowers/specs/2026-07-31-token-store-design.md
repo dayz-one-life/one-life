@@ -118,6 +118,7 @@ the payments equivalent of the workers' dry-run default.
   `client_reference_id` mismatch.
 - **Unpaid/expired session confirmed:** no grant; respond with granted 0 and
   payment state so the web can keep showing "processing" or drop the flag.
+- **Transient Stripe errors on session retrieval:** propagate (webhook 500s → Stripe retries) rather than reading as missing session; only `resource_missing` errors return null.
 - **User unverified at fulfillment time** (verified at checkout, link revoked
   mid-payment): still fulfill — money was taken, tokens are userId-scoped and
   spendable once re-verified. Eligibility is a checkout-time gate only.

@@ -26,7 +26,7 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   ten invariants are all load-bearing).
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
   `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
-  `verifier` (emote-verification loop), `api` (Fastify REST + auth), `web` (Next.js frontend),
+  `verifier` (emote-verification loop), `api` (Fastify REST + auth; token-store checkout routes require `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_TOKEN_PRICE_ID` — all unset-means-OFF, and the API warns at boot if any of the three is set but the others are not), `web` (Next.js frontend; displays token price from `NEXT_PUBLIC_TOKEN_PRICE_LABEL`, unset-means-OFF),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00
   — best-effort per server; **no dry-run, live on deploy**; needs `NITRADO_TOKEN` + a `onelife-rebooter`
