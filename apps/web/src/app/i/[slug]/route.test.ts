@@ -21,6 +21,22 @@ describe("GET /i/[slug]", () => {
     expect(html).toContain("http-equiv=\"refresh\"");
   });
 
+  it("emits SITE_URL-based OG URLs even when the request arrives via an internal origin", async () => {
+    // In prod the Next server sits behind Cloudflare + a reverse proxy, so req.url's host is
+    // the internal listener (localhost:3010), not the public domain. The unfurler is told to
+    // fetch og:image from whatever host we emit here — an internal one is unreachable and the
+    // preview silently renders without an image (shipped bug, 2026-07-30). The public origin
+    // must come from SITE_URL, never the request.
+    const res = await GET(new Request("https://localhost:3010/i/vixxen-84"), {
+      params: Promise.resolve({ slug: "vixxen-84" }),
+    });
+    const html = await res.text();
+    expect(html).toContain('property="og:url" content="https://dayzonelife.com/i/vixxen-84"');
+    expect(html).toContain('property="og:image" content="https://dayzonelife.com/i/vixxen-84/card"');
+    expect(html).toContain('name="twitter:image" content="https://dayzonelife.com/i/vixxen-84/card"');
+    expect(html).not.toContain("localhost:3010");
+  });
+
   it("escapes HTML in the slug", async () => {
     // A slug carrying HTML-significant characters is never storable (isStorableSlug only
     // accepts [a-z0-9-]), so it never reaches the personalized `name`/esc() path — it must

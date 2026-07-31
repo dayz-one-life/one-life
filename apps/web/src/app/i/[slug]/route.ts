@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { REFERRAL_COOKIE, REFERRAL_COOKIE_MAX_AGE, isStorableSlug } from "@/lib/referral-cookie";
+import { absoluteUrl } from "@/lib/seo";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -17,11 +18,13 @@ const esc = (s: string) =>
 export async function GET(req: Request, ctx: { params: Promise<{ slug: string }> }) {
   const { slug } = await ctx.params;
   const storable = isStorableSlug(slug);
-  const origin = new URL(req.url).origin;
   const name = storable ? esc(slug.toUpperCase()) : null;
   const title = name ? `${name} dares you to survive DayZ One Life` : "Someone dares you to survive DayZ One Life";
   const desc = "One life. One death. One 24-hour ban. Earn your way back or stay in the dirt.";
-  const self = `${origin}/i/${encodeURIComponent(slug)}`;
+  // ⚠️ SITE_URL, never `new URL(req.url).origin`: behind the prod reverse proxy the request's
+  // host is the internal listener (localhost:3010), and an unfurler told to fetch og:image
+  // from that host silently renders the preview with no image.
+  const self = absoluteUrl(`/i/${encodeURIComponent(slug)}`);
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
 <meta name="robots" content="noindex">
 <meta property="og:site_name" content="DayZ One Life">

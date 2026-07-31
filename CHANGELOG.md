@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Invite links (`/i/{gamertag}`) shared to Discord or X now unfurl with the invite card image.
+  The page was telling unfurlers to fetch the image from the server's internal address
+  (`localhost:3010`) instead of the public site, so previews rendered with title and text but
+  no picture; the OG image and URL tags are now always built on the public site address.
+
 ## [0.69.0] - 2026-07-30
 
 ### Removed
