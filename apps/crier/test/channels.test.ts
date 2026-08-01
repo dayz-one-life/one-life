@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { buildDiscordPayload, postToDiscord } from "../src/channels/discord.js";
 import { buildFacebookParams, postToFacebook } from "../src/channels/facebook.js";
-import { buildXText } from "../src/channels/x.js";
+import { buildXText, buildAuthHeader, postToX, type XCredentials } from "../src/channels/x.js";
+import { RateLimitError } from "../src/rate-limit.js";
 
 const post = {
   headline: "RonaldRaygun552's Seventh Sakhal File Closes",
@@ -98,5 +99,64 @@ describe("x post body", () => {
     const text = buildXText(huge);
     expect(text).toBe(`${"h".repeat(252)}…\n\n${url}`);
     expect(weighted(text)).toBeLessThanOrEqual(280);
+  });
+});
+
+describe("x channel", () => {
+  // Distinctive multi-character values on purpose: the secrets are asserted ABSENT from the
+  // header, and a two-letter sentinel like "cs" could appear by chance inside a base64
+  // signature and make the test flaky.
+  const creds: XCredentials = {
+    apiKey: "consumer-key", apiSecret: "SECRET-consumer",
+    accessToken: "access-token", accessSecret: "SECRET-access",
+  };
+
+  it("builds an OAuth 1.0a header carrying the public params and never the secrets", () => {
+    const header = buildAuthHeader(creds, "nonce123", 1_754_000_000);
+    expect(header).toMatch(/^OAuth /);
+    expect(header).toContain('oauth_consumer_key="consumer-key"');
+    expect(header).toContain('oauth_nonce="nonce123"');
+    expect(header).toContain('oauth_signature_method="HMAC-SHA1"');
+    expect(header).toContain('oauth_timestamp="1754000000"');
+    expect(header).toContain('oauth_token="access-token"');
+    expect(header).toContain('oauth_version="1.0"');
+    expect(header).toMatch(/oauth_signature="[^"]+"/);
+    // The two secrets are signing keys — they must never be transmitted.
+    expect(header).not.toContain("SECRET-consumer");
+    expect(header).not.toContain("SECRET-access");
+  });
+
+  it("signs deterministically, and a different nonce yields a different signature", () => {
+    const a = buildAuthHeader(creds, "nonce123", 1_754_000_000);
+    expect(buildAuthHeader(creds, "nonce123", 1_754_000_000)).toBe(a);
+    expect(buildAuthHeader(creds, "nonce999", 1_754_000_000)).not.toBe(a);
+    expect(buildAuthHeader(creds, "nonce123", 1_754_000_001)).not.toBe(a);
+  });
+
+  it("POSTs JSON to /2/tweets with the fitted text and the signature in the header", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response('{"data":{"id":"1"}}', { status: 201 }));
+    await postToX(fetchFn, creds, post, "nonce123", 1_754_000_000);
+    const [calledUrl, init] = fetchFn.mock.calls[0]!;
+    expect(calledUrl).toBe("https://api.x.com/2/tweets");
+    expect(init.method).toBe("POST");
+    expect(init.headers["content-type"]).toBe("application/json");
+    expect(init.headers.authorization).toBe(buildAuthHeader(creds, "nonce123", 1_754_000_000));
+    expect(JSON.parse(init.body)).toEqual({ text: buildXText(post) });
+    // Credentials must never reach the query string, where proxies log them.
+    expect(String(calledUrl)).not.toContain("consumer-key");
+    expect(String(calledUrl)).not.toContain("?");
+  });
+
+  it("throws RateLimitError — not a plain Error — on a 429", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response("Too Many Requests", { status: 429 }));
+    await expect(postToX(fetchFn, creds, post, "n", 1)).rejects.toBeInstanceOf(RateLimitError);
+  });
+
+  it("throws a plain Error with status and body text on any other non-2xx", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(new Response('{"title":"Unauthorized"}', { status: 401 }));
+    const err = await postToX(fetchFn, creds, post, "n", 1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(RateLimitError);
+    expect((err as Error).message).toMatch(/401.*Unauthorized/s);
   });
 });
