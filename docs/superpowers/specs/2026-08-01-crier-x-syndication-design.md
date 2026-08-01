@@ -120,7 +120,7 @@ highest-risk line in the change and gets its own test.
 
 ```
 catch (err) {
-  if (err instanceof RateLimitError) { log.warn(…); break; }   // no recordFailure
+  if (err instanceof RateLimitError) { rateLimited.add(t.channel); log.warn(…); continue; }
   … existing recordFailure path
 }
 ```
@@ -130,8 +130,17 @@ one of the 5 attempts — that budget stays reserved for real errors like a revo
 this, ~5 rate-limited ticks would permanently poison every affected row and require the
 README's manual revive.
 
-`break`, not `continue`: once X is throttling, the rest of the batch is doomed too. The next
-tick resumes in 60s, so a backfill self-paces to whatever X allows and finishes on its own.
+**Revised during implementation: per-channel pause, not a whole-tick `break`.** The original
+design ended the entire tick on the first 429, on the theory that once X is throttling the rest
+of the batch is doomed too. Review caught that this starves the *other* channels: because a
+rate-limited row's attempts are deliberately never burned, it stays at the head of every future
+batch for as long as X stays 429'd — which can be weeks against a monthly cap — and a `break` on
+that first target in sorted order would silently halt Discord and Facebook syndication as well.
+The shipped behavior instead tracks 429'd channels in a per-tick `Set`: hitting one adds its
+channel to the set and `continue`s, so later targets on *other* channels in the same tick still
+post; only that channel is skipped for the remainder of the tick. The next tick resumes and
+retries it, so a backfill still self-paces to whatever X allows — it just no longer takes
+Discord and Facebook down with it.
 
 This matters because `CRIER_BATCH_CAP` is 10 rows per 60s tick — roughly 150 posts per 15
 minutes against a ceiling of 100. Steady-state obituary volume is nowhere near this; a backfill
@@ -163,8 +172,9 @@ unnecessary given the decision to backfill.
 `test/tick.test.ts`:
 
 - An `x` target posts to X and **not** to Facebook (the `else if` trap).
-- A `RateLimitError` ends the tick, `recordFailure` is never called, and later targets in the
-  batch are left untouched for the next tick.
+- A `RateLimitError` pauses only that channel for the rest of the tick, `recordFailure` is
+  never called, and later targets on *other* channels in the same tick still post; the paused
+  channel's later targets are left untouched for the next tick.
 - A non-429 X failure still records a failure and still posts the other channels
   (the existing independent-channels invariant).
 
@@ -185,7 +195,8 @@ before setting `CRIER_DRY_RUN=false`, because the backfill fires the whole catal
 1. Create the app, load credits, mint the four keys.
 2. Set the four vars, restart crier with dry-run still on.
 3. Count the `would post` lines for channel `x`; price the backfill.
-4. Set `CRIER_DRY_RUN=false`, restart, watch for 429 warnings draining over successive ticks.
+4. Set `CRIER_DRY_RUN=false`, restart, watch for 429 warnings — X pauses, Discord and Facebook
+   keep posting, and the backfill drains over successive ticks.
 
 ## Out of scope
 

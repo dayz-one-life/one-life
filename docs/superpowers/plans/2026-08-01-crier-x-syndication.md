@@ -630,6 +630,15 @@ And extend the `catch`, as its first statement:
       }
 ```
 
+**Revised during implementation: per-channel pause, not a whole-tick `break`.** Review caught
+that ending the whole tick on a 429 starves the *other* channels — since a rate-limited row's
+attempts are deliberately never burned, it sits at the head of every future batch for as long as
+X stays 429'd (weeks, on a monthly cap), and `break`ing on that row would silently halt Discord
+and Facebook too. The shipped code instead tracks 429'd channels in a per-tick `Set<string>`:
+hitting one adds its channel to the set and `continue`s (not `break`s), so later targets on other
+channels in the same tick keep posting; only the throttled channel is skipped for the rest of
+the tick. See `apps/crier/src/tick.ts` for the actual implementation.
+
 - [ ] **Step 4: Modify `src/main.ts`**
 
 Add the import:
@@ -726,9 +735,13 @@ is intended for a fresh timeline — but price it first:
 1. Set the four vars, restart with dry-run still on.
 2. Count the `would post` lines for channel `x`. Multiply by $0.20. That is the backfill bill.
 3. Set `CRIER_DRY_RUN=false`, restart.
-4. Watch for `rate limited — ending tick` warnings. These are expected and harmless during a
-   backfill: X allows 100 posts per 15 minutes and crier runs faster than that, so it throttles
-   itself and drains over successive ticks without consuming any row's attempt budget.
+4. Watch for `rate limited — pausing this channel` warnings. These are expected and harmless
+   during a backfill: X allows 100 posts per 15 minutes and crier runs faster than that, so X
+   pauses for the rest of each tick while Discord and Facebook keep posting, and the X backfill
+   drains over successive ticks without consuming any row's attempt budget.
+
+   *(Note: as actually shipped — see `docs/crier-x-setup.md` and `apps/crier/README.md` for the
+   corrected wording; this plan step predates the per-channel-pause revision above.)*
 
 ## If posting fails
 
@@ -759,10 +772,15 @@ Add to Operations:
 
 ```markdown
 - The revive query takes the channel name: `UPDATE syndications SET attempts = 0 WHERE channel = 'x' AND posted_at IS NULL;`
-- A `rate limited — ending tick` warning is not an error. X allows 100 posts per 15 minutes;
-  crier ends the tick without recording an attempt and resumes 60s later, so a backfill paces
-  itself. Rows are never poisoned by throttling.
+- A `rate limited — pausing this channel` warning is not an error. X allows 100 posts per 15
+  minutes; crier pauses only that channel for the rest of the tick — Discord and Facebook keep
+  posting — without recording an attempt, and resumes it on the next tick 60s later, so a
+  backfill paces itself. Rows are never poisoned by throttling.
 ```
+
+*(As with the Rollout step above, this Task 5 text predates the per-channel-pause revision noted
+in Task 4; see the actual `docs/crier-x-setup.md` and `apps/crier/README.md` for the corrected
+wording.)*
 
 - [ ] **Step 3: Add the changelog entry**
 

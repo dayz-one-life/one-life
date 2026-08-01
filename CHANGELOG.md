@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Obituaries now post to X as well as Discord and Facebook. Each one goes out once, trimmed to
+  fit X's 280 characters at a word boundary, with the obituary card unfurling underneath. The
+  channel stays switched off until all four X credentials are set — see `docs/crier-x-setup.md`,
+  which also covers what it costs, since X charges $0.20 for every post that carries a link.
+
 ## [0.72.5] - 2026-07-31
 
 ### Fixed
