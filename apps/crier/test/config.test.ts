@@ -40,4 +40,20 @@ describe("crier config", () => {
     expect(c.maxAttempts).toBe(5);
     expect(c.siteUrl).toBe("https://dayzonelife.com");
   });
+
+  it("enables x only when all four credentials are present", () => {
+    const all = {
+      CRIER_X_API_KEY: "ck", CRIER_X_API_SECRET: "cs",
+      CRIER_X_ACCESS_TOKEN: "at", CRIER_X_ACCESS_SECRET: "as",
+    };
+    expect(loadConfig({ ...base }).x).toBeNull();
+    expect(loadConfig({ ...base, ...all }).x).toEqual({
+      apiKey: "ck", apiSecret: "cs", accessToken: "at", accessSecret: "as",
+    });
+    // Every single omission must leave the channel off — half a credential set never half-posts.
+    for (const k of Object.keys(all)) {
+      const partial = { ...all, [k]: undefined };
+      expect(loadConfig({ ...base, ...partial }).x, `missing ${k}`).toBeNull();
+    }
+  });
 });

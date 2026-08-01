@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { XCredentials } from "./channels/x.js";
 
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -11,6 +12,10 @@ const schema = z.object({
   CRIER_DISCORD_WEBHOOK_URL: z.string().optional(),
   CRIER_FB_PAGE_ID: z.string().optional(),
   CRIER_FB_PAGE_ACCESS_TOKEN: z.string().optional(),
+  CRIER_X_API_KEY: z.string().optional(),
+  CRIER_X_API_SECRET: z.string().optional(),
+  CRIER_X_ACCESS_TOKEN: z.string().optional(),
+  CRIER_X_ACCESS_SECRET: z.string().optional(),
   LOG_LEVEL: z.string().default("info"),
 });
 
@@ -19,6 +24,7 @@ export type Config = {
   since: Date | null; dryRun: boolean; batchCap: number; maxAttempts: number;
   discordWebhookUrl: string | null;
   fbPageId: string | null; fbPageAccessToken: string | null;
+  x: XCredentials | null;
   logLevel: string;
 };
 
@@ -34,6 +40,14 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   const p = schema.parse(env);
   // Facebook needs BOTH creds; half a credential set stays disabled rather than half-posting.
   const fbEnabled = Boolean(p.CRIER_FB_PAGE_ID && p.CRIER_FB_PAGE_ACCESS_TOKEN);
+  // X needs ALL FOUR credentials; anything less stays disabled rather than half-posting.
+  const x: XCredentials | null =
+    p.CRIER_X_API_KEY && p.CRIER_X_API_SECRET && p.CRIER_X_ACCESS_TOKEN && p.CRIER_X_ACCESS_SECRET
+      ? {
+          apiKey: p.CRIER_X_API_KEY, apiSecret: p.CRIER_X_API_SECRET,
+          accessToken: p.CRIER_X_ACCESS_TOKEN, accessSecret: p.CRIER_X_ACCESS_SECRET,
+        }
+      : null;
   return {
     databaseUrl: p.DATABASE_URL,
     siteUrl: p.SITE_URL,
@@ -47,6 +61,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     discordWebhookUrl: p.CRIER_DISCORD_WEBHOOK_URL || null,
     fbPageId: fbEnabled ? p.CRIER_FB_PAGE_ID! : null,
     fbPageAccessToken: fbEnabled ? p.CRIER_FB_PAGE_ACCESS_TOKEN! : null,
+    x,
     logLevel: p.LOG_LEVEL,
   };
 }

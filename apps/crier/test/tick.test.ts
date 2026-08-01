@@ -7,6 +7,7 @@ const cfg = (over: Partial<Config> = {}): Config => ({
   since: new Date("2026-07-31T00:00:00Z"), dryRun: false, batchCap: 10, maxAttempts: 5,
   discordWebhookUrl: "https://discord.test/hook",
   fbPageId: "990", fbPageAccessToken: "tok",
+  x: null,
   logLevel: "silent", ...over,
 });
 
