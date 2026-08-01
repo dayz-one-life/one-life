@@ -208,3 +208,12 @@ two signed-in accounts, and none is closed by the test suite:
   never the resulting heights, so the v0.72.3 fix is shipped on that proxy plus the CSS argument
   that an `sr-only` node is `position:absolute` and therefore neither a flex item nor gap-bearing.
   Needs a signed-in verified session.
+- The crier's X channel, end to end. The OAuth 1.0a signature is pinned in the suite against a
+  vector derived independently from RFC 5849 (and cross-checked against X's own published worked
+  example), so the *algorithm* is proven — but no test can prove X **accepts** it, and a 401 on
+  the first live attempt is the expected failure mode if anything about the app or its keys is
+  wrong (see `docs/crier-x-setup.md` troubleshooting). Also unproven: that the obituary URL
+  unfurls its OG card on X, and that a word-boundary-trimmed lede reads well at the cut. Needs
+  the four `CRIER_X_*` vars, a credit balance, and one real post — **every X post costs $0.20**
+  because it carries a link, and the first live run replays the whole back catalogue, so price
+  it with the SQL count in the setup doc's Rollout before setting `CRIER_DRY_RUN=false`.
