@@ -121,7 +121,7 @@ describe("crierTick", () => {
     expect(d.store.recordFailure).toHaveBeenCalledWith(db, "a", "mastodon", expect.stringContaining("mastodon"));
   });
 
-  it("a 429 ends the tick WITHOUT burning an attempt, leaving later targets for the next tick", async () => {
+  it("a 429 pauses only that channel for the rest of the tick, without burning an attempt, and lets other channels keep posting", async () => {
     const d = deps();
     d.fetchFn = vi.fn(async (url: RequestInfo | URL) =>
       String(url).includes("api.x.com")
@@ -131,15 +131,35 @@ describe("crierTick", () => {
     d.store.findSyndicationTargets = vi.fn()
       .mockResolvedValue([target("a", "x"), target("b", "x"), target("c", "discord")]);
     const r = await crierTick(db, d);
-    // The rate-limited row is neither posted nor failed — its attempts are untouched, so a
-    // backfill self-paces instead of poisoning every row it touches.
-    expect(r.posted).toBe(0);
+    // The first x row 429s: neither posted nor failed, and its attempts are untouched. The
+    // second x row is skipped outright — no fetch call — because x is now paused for the rest
+    // of this tick. Discord is a different channel and still posts normally.
+    expect(r.posted).toBe(1);
+    expect(r.failed).toBe(0);
+    expect(r.skipped).toBe(1);
+    expect(d.store.recordFailure).not.toHaveBeenCalled();
+    expect(d.store.recordSuccess).toHaveBeenCalledWith(db, "c", "discord", d.now);
+    // Exactly two fetch calls: the first x row's 429, and discord's post. The second x row
+    // never reaches fetchFn at all.
+    expect((d.fetchFn as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    expect(d.log.warn).toHaveBeenCalled();
+  });
+
+  it("counts and records a success placed before the rate-limited target, keeping counters truthful", async () => {
+    const d = deps();
+    d.fetchFn = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).includes("api.x.com")
+        ? new Response("Too Many Requests", { status: 429 })
+        : new Response(null, { status: 204 }),
+    ) as unknown as typeof fetch;
+    d.store.findSyndicationTargets = vi.fn()
+      .mockResolvedValue([target("a", "discord"), target("b", "x"), target("c", "discord")]);
+    const r = await crierTick(db, d);
+    expect(r.posted).toBe(2);
     expect(r.failed).toBe(0);
     expect(d.store.recordFailure).not.toHaveBeenCalled();
-    expect(d.store.recordSuccess).not.toHaveBeenCalled();
-    // break, not continue: the rest of the batch is doomed too, so nothing else is attempted.
-    expect((d.fetchFn as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
-    expect(d.log.warn).toHaveBeenCalled();
+    expect(d.store.recordSuccess).toHaveBeenCalledWith(db, "a", "discord", d.now);
+    expect(d.store.recordSuccess).toHaveBeenCalledWith(db, "c", "discord", d.now);
   });
 
   it("still records a failure for a non-429 x error, and still posts the other channel", async () => {

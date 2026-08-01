@@ -51,7 +51,15 @@ export async function crierTick(db: Database, deps: CrierDeps): Promise<CrierRes
   });
 
   let posted = 0, failed = 0, skipped = 0, live = 0;
+  // Channels that 429'd earlier in THIS tick. Per-channel, not whole-tick: a persistent 429 on
+  // one channel must not starve the other two, since findSyndicationTargets' stable per-channel
+  // merge would otherwise keep that channel's untouched row at the head of every future batch.
+  const rateLimited = new Set<string>();
   for (const t of targets) {
+    if (rateLimited.has(t.channel)) {
+      skipped++;
+      continue;
+    }
     const post: ObituaryPost = { headline: t.headline, lede: t.lede, url: obituaryUrl(cfg.siteUrl, t.slug) };
     if (cfg.dryRun) {
       skipped++;
@@ -74,11 +82,17 @@ export async function crierTick(db: Database, deps: CrierDeps): Promise<CrierRes
       posted++;
       deps.log.info({ slug: t.slug, channel: t.channel }, "posted");
     } catch (err) {
-      // Throttling, not failure: do NOT record an attempt, and stop the tick — the rest of the
-      // batch would be rate-limited too. The next tick resumes, so a backfill self-paces.
+      // Throttling, not failure: do NOT record an attempt, and pause only THIS channel for the
+      // rest of the tick — the other channels are unaffected and keep posting. A whole-tick
+      // `break` was tried first and reverted: since a rate-limited row's attempts are never
+      // burned, that row stays at the head of every future batch for as long as the channel
+      // stays 429'd (weeks, on a monthly cap), and a `break` on the first target in sorted
+      // order would silently halt Discord and Facebook syndication too. The next tick still
+      // resumes, so the channel itself still self-paces.
       if (err instanceof RateLimitError) {
-        deps.log.warn({ slug: t.slug, channel: t.channel }, "rate limited — ending tick, attempts untouched");
-        break;
+        rateLimited.add(t.channel);
+        deps.log.warn({ slug: t.slug, channel: t.channel }, "rate limited — pausing this channel for the tick, attempts untouched");
+        continue;
       }
       failed++;
       const msg = err instanceof Error ? err.message : String(err);
