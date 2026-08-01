@@ -91,7 +91,9 @@ describe("Hero", () => {
     const clone = container.querySelector("[data-fitline-clone]");
     expect(clone).not.toBeNull();
     expect(clone!.className).not.toContain("text-[clamp");
-    const line = clone!.nextElementSibling as HTMLElement;
+    // The clone sits inside its overflow-clipping wrapper (see fit-line.tsx), so the visible
+    // line is the WRAPPER's sibling.
+    const line = clone!.parentElement!.nextElementSibling as HTMLElement;
     expect(line).not.toBeNull();
     expect(line.className).toContain("text-[clamp(2.5rem,9vw,10rem)]");
   });
