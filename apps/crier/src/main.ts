@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import pino from "pino";
 import { getDb } from "@onelife/db";
 import { loadConfig } from "./config.js";
@@ -14,12 +15,12 @@ async function loop(): Promise<void> {
   log.info({ interval: cfg.intervalSeconds, dryRun: cfg.dryRun, since: cfg.since?.toISOString() ?? null }, "crier starting");
   if (cfg.dryRun) log.warn("CRIER_DRY_RUN is true — nothing will be posted");
   if (!cfg.since) log.warn(process.env.CRIER_SINCE ? "CRIER_SINCE is set but unparseable — syndication is OFF" : "CRIER_SINCE is unset — syndication is OFF");
-  if (!cfg.discordWebhookUrl && !cfg.fbPageId) log.warn("no channel credentials configured — nothing to post to");
+  if (!cfg.discordWebhookUrl && !cfg.fbPageId && !cfg.x) log.warn("no channel credentials configured — nothing to post to");
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      const r = await crierTick(db, { cfg, fetchFn: fetch, now: new Date(), log, store, sleep });
+      const r = await crierTick(db, { cfg, fetchFn: fetch, now: new Date(), log, store, sleep, nonce: () => randomBytes(16).toString("hex") });
       if (r.posted || r.failed || r.skipped) log.info(r, "crier tick");
     } catch (err) {
       log.error({ err }, "crier tick failed");

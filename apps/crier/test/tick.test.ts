@@ -1,13 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { crierTick, type CrierDeps } from "../src/tick.js";
 import type { Config } from "../src/config.js";
+import { RateLimitError } from "../src/rate-limit.js";
 
 const cfg = (over: Partial<Config> = {}): Config => ({
   databaseUrl: "x", siteUrl: "https://dayzonelife.com", intervalSeconds: 60,
   since: new Date("2026-07-31T00:00:00Z"), dryRun: false, batchCap: 10, maxAttempts: 5,
   discordWebhookUrl: "https://discord.test/hook",
   fbPageId: "990", fbPageAccessToken: "tok",
-  x: null,
+  x: { apiKey: "ck", apiSecret: "cs", accessToken: "at", accessSecret: "as" },
   logLevel: "silent", ...over,
 });
 
@@ -25,6 +26,7 @@ function deps(over: Partial<CrierDeps> = {}): CrierDeps {
       recordFailure: vi.fn().mockResolvedValue(undefined),
     },
     sleep: vi.fn().mockResolvedValue(undefined),
+    nonce: () => "nonce123",
     ...over,
   };
 }
@@ -40,7 +42,7 @@ describe("crierTick", () => {
   });
 
   it("does nothing when no channel is configured", async () => {
-    const d = deps({ cfg: cfg({ discordWebhookUrl: null, fbPageId: null, fbPageAccessToken: null }) });
+    const d = deps({ cfg: cfg({ discordWebhookUrl: null, fbPageId: null, fbPageAccessToken: null, x: null }) });
     await crierTick(db, d);
     expect(d.store.findSyndicationTargets).not.toHaveBeenCalled();
   });
@@ -92,10 +94,74 @@ describe("crierTick", () => {
   });
 
   it("passes the enabled channel list, cap, attempts and since through to the store", async () => {
-    const d = deps({ cfg: cfg({ fbPageId: null, fbPageAccessToken: null }) });
+    const d = deps({ cfg: cfg({ fbPageId: null, fbPageAccessToken: null, x: null }) });
     await crierTick(db, d);
     expect(d.store.findSyndicationTargets).toHaveBeenCalledWith(db, {
       channels: ["discord"], since: cfg().since, maxAttempts: 5, limit: 10,
+    });
+  });
+
+  it("routes an x target to the X API and NOT to facebook", async () => {
+    const d = deps();
+    d.store.findSyndicationTargets = vi.fn().mockResolvedValue([target("a", "x")]);
+    const r = await crierTick(db, d);
+    expect(r.posted).toBe(1);
+    const urls = (d.fetchFn as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    expect(urls).toEqual(["https://api.x.com/2/tweets"]);
+    expect(urls.join()).not.toContain("facebook");
+    expect(d.store.recordSuccess).toHaveBeenCalledWith(db, "a", "x", d.now);
+  });
+
+  it("records a failure for an unrecognized channel rather than posting it somewhere", async () => {
+    const d = deps();
+    d.store.findSyndicationTargets = vi.fn().mockResolvedValue([target("a", "mastodon")]);
+    const r = await crierTick(db, d);
+    expect(r.failed).toBe(1);
+    expect(d.fetchFn).not.toHaveBeenCalled();
+    expect(d.store.recordFailure).toHaveBeenCalledWith(db, "a", "mastodon", expect.stringContaining("mastodon"));
+  });
+
+  it("a 429 ends the tick WITHOUT burning an attempt, leaving later targets for the next tick", async () => {
+    const d = deps();
+    d.fetchFn = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).includes("api.x.com")
+        ? new Response("Too Many Requests", { status: 429 })
+        : new Response(null, { status: 204 }),
+    ) as unknown as typeof fetch;
+    d.store.findSyndicationTargets = vi.fn()
+      .mockResolvedValue([target("a", "x"), target("b", "x"), target("c", "discord")]);
+    const r = await crierTick(db, d);
+    // The rate-limited row is neither posted nor failed — its attempts are untouched, so a
+    // backfill self-paces instead of poisoning every row it touches.
+    expect(r.posted).toBe(0);
+    expect(r.failed).toBe(0);
+    expect(d.store.recordFailure).not.toHaveBeenCalled();
+    expect(d.store.recordSuccess).not.toHaveBeenCalled();
+    // break, not continue: the rest of the batch is doomed too, so nothing else is attempted.
+    expect((d.fetchFn as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+    expect(d.log.warn).toHaveBeenCalled();
+  });
+
+  it("still records a failure for a non-429 x error, and still posts the other channel", async () => {
+    const d = deps();
+    d.fetchFn = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).includes("api.x.com")
+        ? new Response("Unauthorized", { status: 401 })
+        : new Response(null, { status: 204 }),
+    ) as unknown as typeof fetch;
+    d.store.findSyndicationTargets = vi.fn().mockResolvedValue([target("a", "x"), target("a", "discord")]);
+    const r = await crierTick(db, d);
+    expect(r.failed).toBe(1);
+    expect(r.posted).toBe(1);
+    expect(d.store.recordFailure).toHaveBeenCalledWith(db, "a", "x", expect.stringContaining("401"));
+    expect(d.store.recordSuccess).toHaveBeenCalledWith(db, "a", "discord", d.now);
+  });
+
+  it("includes x in the channel list when its credentials are present", async () => {
+    const d = deps();
+    await crierTick(db, d);
+    expect(d.store.findSyndicationTargets).toHaveBeenCalledWith(db, {
+      channels: ["discord", "facebook", "x"], since: cfg().since, maxAttempts: 5, limit: 10,
     });
   });
 });
