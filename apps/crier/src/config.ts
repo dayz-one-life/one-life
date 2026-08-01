@@ -41,6 +41,12 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   // Facebook needs BOTH creds; half a credential set stays disabled rather than half-posting.
   const fbEnabled = Boolean(p.CRIER_FB_PAGE_ID && p.CRIER_FB_PAGE_ACCESS_TOKEN);
   // X needs ALL FOUR credentials; anything less stays disabled rather than half-posting.
+  // `XCredentials` is nested (one object) rather than four correlated nullable `Config` fields
+  // like Facebook's pair — deliberately, so the all-or-nothing invariant is carried by the TYPE
+  // (x: XCredentials | null — either every field is a string, or the whole thing is null) instead
+  // of by convention across four independent optionals that a future edit could drift apart.
+  // Do not "tidy" this flat to match the Facebook shape; that would be reintroducing the bug this
+  // shape exists to prevent.
   const x: XCredentials | null =
     p.CRIER_X_API_KEY && p.CRIER_X_API_SECRET && p.CRIER_X_ACCESS_TOKEN && p.CRIER_X_ACCESS_SECRET
       ? {

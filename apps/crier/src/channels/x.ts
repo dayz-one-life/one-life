@@ -54,7 +54,7 @@ const enc = (s: string): string =>
  *  ⚠️ The request body is JSON and there is no query string, so ONLY the oauth_* params are
  *  signed. Including the body here (as a form-encoded request would) yields a 401. */
 export function buildAuthHeader(
-  creds: XCredentials, nonce: string, timestamp: number, url: string = TWEETS_URL,
+  creds: XCredentials, nonce: string, timestamp: number,
 ): string {
   const params: Record<string, string> = {
     oauth_consumer_key: creds.apiKey,
@@ -66,7 +66,7 @@ export function buildAuthHeader(
   };
   const pairs = (o: Record<string, string>): string[] =>
     Object.keys(o).sort().map((k) => `${enc(k)}=${enc(o[k]!)}`);
-  const base = ["POST", enc(url), enc(pairs(params).join("&"))].join("&");
+  const base = ["POST", enc(TWEETS_URL), enc(pairs(params).join("&"))].join("&");
   const key = `${enc(creds.apiSecret)}&${enc(creds.accessSecret)}`;
   const signature = createHmac("sha1", key).update(base).digest("base64");
   const signed: Record<string, string> = { ...params, oauth_signature: signature };

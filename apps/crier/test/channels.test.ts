@@ -126,6 +126,23 @@ describe("x channel", () => {
     expect(header).not.toContain("SECRET-access");
   });
 
+  it("produces the exact signature for these inputs, derived independently from RFC 5849", () => {
+    // ⚠️ This value was NOT obtained by running buildAuthHeader and pasting its output — that
+    // would pin whatever the code does, bug included, and a dropped "&" in the signing key or an
+    // encodeURIComponent-for-RFC-3986 swap would silently keep passing forever (every other
+    // assertion in this file is self-referential: existence, determinism, and inequality under a
+    // changed nonce, none of which pin a VALUE). Instead this was computed by a from-scratch
+    // Python implementation of OAuth 1.0a signing (hmac/hashlib + urllib.parse.quote), verified
+    // first against Twitter's own published worked example
+    // (https://developer.x.com/en/docs/authentication/oauth-1-0a/creating-a-signature, expected
+    // signature "hCtSmYh+iHYCEqBWrE7C7hYmtUk=") before being pointed at this test's fixture
+    // (creds above, nonce "nonce123", timestamp 1_754_000_000). A signing regression that changes
+    // the VALUE — not just breaks well-formedness — will only be caught here.
+    const header = buildAuthHeader(creds, "nonce123", 1_754_000_000);
+    // "=" is percent-encoded to "%3D" inside the quoted header value.
+    expect(header).toContain('oauth_signature="7qENkaP64HOjGEY6w0KPvl5v0MU%3D"');
+  });
+
   it("signs deterministically, and a different nonce yields a different signature", () => {
     const a = buildAuthHeader(creds, "nonce123", 1_754_000_000);
     expect(buildAuthHeader(creds, "nonce123", 1_754_000_000)).toBe(a);

@@ -1,7 +1,7 @@
 # Crier X (Twitter) syndication — design
 
 **Date:** 2026-08-01
-**Status:** approved, not yet implemented
+**Status:** Implemented on `feature/crier-x-syndication`.
 **Builds on:** `2026-07-31-crier-obituary-syndication-design.md`
 
 Adds X as a third crier channel alongside Discord and Facebook. Every published obituary is
@@ -189,12 +189,29 @@ unnecessary given the decision to backfill.
 ## Rollout
 
 `CRIER_DRY_RUN` defaults ON and prints one `would post` line per row, so **the first live-run
-bill is knowable in advance**: count the `channel: "x"` lines and multiply by $0.20. Do that
-before setting `CRIER_DRY_RUN=false`, because the backfill fires the whole catalogue at once.
+bill is knowable in advance** — but not by counting log lines. In dry-run, `crierTick`
+increments `skipped`, logs, and `continue`s without ever calling `recordSuccess`, and
+`findSyndicationTargets` caps every batch at `CRIER_BATCH_CAP` (default 10). A dry-run tick
+therefore logs the same 10 oldest rows every 60 seconds forever — counting `would post` lines
+undercounts the bill without bound (a 500-obituary catalogue would price at $2 instead of $100).
+Price it with a database query instead:
+
+```sql
+SELECT count(*) FROM articles a
+ WHERE a.kind = 'obituary' AND a.status = 'published' AND a.death_at > '<CRIER_SINCE>'
+   AND NOT EXISTS (SELECT 1 FROM syndications s
+                    WHERE s.slug = a.slug AND s.channel = 'x' AND s.posted_at IS NOT NULL);
+```
+
+Multiply the count by $0.20. Do that before setting `CRIER_DRY_RUN=false`, because the backfill
+fires the whole catalogue at once.
 
 1. Create the app, load credits, mint the four keys.
 2. Set the four vars, restart crier with dry-run still on.
-3. Count the `would post` lines for channel `x`; price the backfill.
+3. Run the query above to price the backfill. Also watch a tick of dry-run output as a smoke
+   check — confirm the lines say `channel: "x"` and the post body reads correctly — but do NOT
+   count them to price the backfill; the batch cap means you will see the same 10 rows every
+   tick.
 4. Set `CRIER_DRY_RUN=false`, restart, watch for 429 warnings — X pauses, Discord and Facebook
    keep posting, and the backfill drains over successive ticks.
 

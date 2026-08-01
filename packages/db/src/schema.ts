@@ -510,7 +510,7 @@ export const locationShares = pgTable("location_shares", {
 export const syndications = pgTable("syndications", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   slug: text("slug").notNull(),
-  channel: text("channel").notNull(),                 // 'discord' | 'facebook'
+  channel: text("channel").notNull(),                 // 'discord' | 'facebook' | 'x'
   postedAt: timestamp("posted_at", { withTimezone: true }),
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
