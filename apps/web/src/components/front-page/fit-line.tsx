@@ -57,15 +57,31 @@ export function FitLine({ finalText, className = "", lineClassName = "", childre
 
   return (
     <div ref={containerRef} className={className}>
-      {/* Measuring clone: same type styles via inherit, fixed BASE_PX, invisible, out of flow. */}
-      <span
-        ref={cloneRef}
-        data-fitline-clone
-        aria-hidden="true"
-        className="pointer-events-none invisible absolute whitespace-nowrap"
-        style={{ fontSize: BASE_PX }}
-      >
-        {finalText}
+      {/* Measuring clone: same type styles via inherit, fixed BASE_PX, invisible, out of flow.
+       *
+       * ⚠️ THE CLIPPING WRAPPER IS LOAD-BEARING — do not "simplify" it away. The clone is
+       * `whitespace-nowrap` at a fixed 50px, so its box is far wider than a phone (452px of it
+       * against a 320px screen), and `visibility: hidden` does NOT remove an element from the
+       * document's SCROLLABLE OVERFLOW: hidden or not, the box still extends the scroll area.
+       * Unclipped, it let the ENTIRE SITE scroll sideways on every phone —
+       * `documentElement.scrollWidth` measured 453 against a 390px viewport on production, and
+       * the narrower the screen the worse it got, because the clone's width never changes.
+       *
+       * A zero-size `overflow-hidden` wrapper stops that overflow propagating to the document
+       * without touching the measurement: clipping an ancestor never changes a descendant's own
+       * box, so `clone.scrollWidth` reads exactly what it read before (verified in a real
+       * browser: 428px and 372px, identical either way). The wrapper is itself absolute so it
+       * costs the visible line no space. */}
+      <span aria-hidden="true" className="pointer-events-none absolute h-0 w-0 overflow-hidden">
+        <span
+          ref={cloneRef}
+          data-fitline-clone
+          aria-hidden="true"
+          className="invisible absolute whitespace-nowrap"
+          style={{ fontSize: BASE_PX }}
+        >
+          {finalText}
+        </span>
       </span>
       <div
         className={`whitespace-nowrap ${lineClassName}`}

@@ -663,6 +663,17 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   two-line no-trailing-periods headline ("DEATHS TO DATE" / "STILL STANDING") rendered via
   `FitLine` (hidden-clone measurement to the final string, jsdom-safe against a 0-width
   container) so it fills the container at any width, with the claim button in the hero itself.
+  **⚠️ `FitLine`'s measuring clone MUST stay inside its zero-size `overflow-hidden` wrapper.**
+  The clone is `absolute` + `whitespace-nowrap` at a fixed 50px, so its box is far wider than a
+  phone, and **`visibility: hidden` does NOT remove an element from the document's scrollable
+  overflow** — the box still extends the scroll area. Unclipped it made the WHOLE SITE scroll
+  sideways on every phone: `documentElement.scrollWidth` measured 453 against a 390px viewport
+  and 452 against 320px (the clone's width never changes, so the narrower the screen the worse
+  it got), and the home page was the only surface affected because it is the only one that
+  renders a `FitLine`. Clipping costs nothing: an ancestor's `overflow` never changes a
+  descendant's own box, so `clone.scrollWidth` — the whole point of the clone — is unaffected
+  (verified in a real browser at 428px/372px, identical either way). Isolated in a minimal page:
+  the hidden span alone gives `scrollWidth` 411 at a 390px viewport, the wrapped one gives 390.
   The cold home is a five-beat pitch, and since the home-consistency pass (2026-07-29, entry
   below) the order is **`Hero` → `Rules` (the three rules of the game) → `JoinServers` (the
   universal yellow slab — see that entry — which replaced `ConnectSection`, now RETIRED with the

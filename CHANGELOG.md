@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The site no longer scrolls sideways on a phone. The home page's headline sizes itself by
+  measuring a hidden copy of the finished text, and that copy — deliberately far wider than a
+  phone screen — was still counted as part of the page, so every phone could drag the whole
+  site to the right. It is clipped now. The narrower the screen the worse it had been: 63px of
+  slack on a 390px screen, 132px on a 320px one.
+
 ## [0.72.4] - 2026-07-31
 
 ### Fixed
