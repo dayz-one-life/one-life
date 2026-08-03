@@ -3,11 +3,22 @@ import Link from "next/link";
 import { LegalDoc } from "@/components/legal/legal-doc";
 import { TERMS_SECTIONS } from "@/content/legal/terms";
 import { EFFECTIVE_DATE } from "@/content/legal/effective-date";
+import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
+
+const TERMS_DESCRIPTION =
+  "The rules for the One Life website and the One Life servers — accounts, gamertags, unban tokens, the record, and what gets you banned.";
 
 export const metadata: Metadata = {
   title: "Terms & Conditions",
-  description:
-    "The rules for the One Life website and the One Life servers — accounts, gamertags, unban tokens, the record, and what gets you banned.",
+  description: TERMS_DESCRIPTION,
+  alternates: { canonical: absoluteUrl("/terms") },
+  openGraph: {
+    ...OG_DEFAULTS,
+    title: "Terms & Conditions",
+    description: TERMS_DESCRIPTION,
+    url: absoluteUrl("/terms"),
+    type: "website",
+  },
 };
 
 export default function TermsPage() {
