@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-08-03
+
 ### Added
 
 - OpenGraph metadata and branded share cards on every page — site-wide default card, life/survivors/obituaries
