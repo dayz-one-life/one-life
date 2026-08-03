@@ -19,13 +19,13 @@ function parseLifeNumber(raw: string): number | null {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, map, n } = await params;
   const num = parseLifeNumber(n);
-  if (num === null) return { title: "Life — One Life" };
+  if (num === null) return { title: { absolute: "Life — One Life" } };
   const data = await getPlayerLife(slug, map, num).catch(() => null);
-  if (!data) return { title: "Life — One Life" };
+  if (!data) return { title: { absolute: "Life — One Life" } };
   const label = mapLabel(data.map);
   const title = `Life ${data.life.lifeNumber} · ${label} — ${data.gamertag} — One Life`;
   return {
-    title,
+    title: { absolute: title },
     description: `The record of ${data.gamertag}'s life ${data.life.lifeNumber} on ${label} — every session, kill, and the death that ended it.`,
     alternates: { canonical: absoluteUrl(`/players/${slug}/${map}/lives/${num}`) },
   };
