@@ -6,7 +6,7 @@ import { LifeHero } from "@/components/life/hero";
 import { Timeline } from "@/components/life/timeline";
 import { LocationPanel } from "@/components/life/location-panel";
 import { mapLabel } from "@/components/player/format";
-import { absoluteUrl } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
 
 type Params = { slug: string; map: string; n: string };
 type Props = { params: Promise<Params> };
@@ -24,10 +24,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!data) return { title: { absolute: "Life — One Life" } };
   const label = mapLabel(data.map);
   const title = `Life ${data.life.lifeNumber} · ${label} — ${data.gamertag} — One Life`;
+  const description = `The record of ${data.gamertag}'s life ${data.life.lifeNumber} on ${label} — every session, kill, and the death that ended it.`;
+  const canonical = absoluteUrl(`/players/${slug}/${map}/lives/${num}`);
   return {
     title: { absolute: title },
-    description: `The record of ${data.gamertag}'s life ${data.life.lifeNumber} on ${label} — every session, kill, and the death that ended it.`,
-    alternates: { canonical: absoluteUrl(`/players/${slug}/${map}/lives/${num}`) },
+    description,
+    alternates: { canonical },
+    openGraph: { ...OG_DEFAULTS, title, description, url: canonical, type: "profile" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
