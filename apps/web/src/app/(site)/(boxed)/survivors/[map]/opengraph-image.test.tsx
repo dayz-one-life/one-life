@@ -30,4 +30,15 @@ describe("survivors board opengraph-image", () => {
     const res = await OgImage({ params: Promise.resolve({ map: "chernarus" }) });
     expect(res.headers.get("content-type")).toContain("image/png");
   });
+
+  // ⚠️ `map` is attacker-controlled URL text. Regression for a shipped bug: the fallback path
+  // used to run titleCase(map) into the headline even when getSurvivors returned null, so
+  // /survivors/rigged-by-admins/opengraph-image rendered an official-looking "Top Rigged By
+  // Admins survivors" card. The fallback must render a neutral static PNG with no map echo.
+  it("still renders a PNG for an attacker-chosen map slug when the board cannot be fetched", async () => {
+    vi.mocked(getSurvivors).mockResolvedValue(null as never);
+    const res = await OgImage({ params: Promise.resolve({ map: "rigged-by-admins" }) });
+    expect(res.headers.get("content-type")).toContain("image/png");
+    expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
+  });
 });
