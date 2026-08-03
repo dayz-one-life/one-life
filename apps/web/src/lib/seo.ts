@@ -3,6 +3,16 @@ import type { PlayerAggregate } from "./types";
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://dayzonelife.com").replace(/\/$/, "");
 export const absoluteUrl = (path: string) => `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
+export const SITE_DESCRIPTION =
+  "One Life is a hardcore permadeath DayZ community — one life per server, a 24-hour ban when it ends, and a record that stands forever.";
+
+/**
+ * ⚠️ Spread into EVERY page-level `openGraph` block. Next.js replaces — does not deep-merge —
+ * nested metadata objects, so a page that defines `openGraph` at all wipes the root layout's
+ * `siteName`/`locale` and must restate them.
+ */
+export const OG_DEFAULTS = { siteName: "One Life", locale: "en_US" } as const;
+
 /**
  * Serialize a JSON-LD object for embedding in a `<script type="application/ld+json">` tag.
  * `JSON.stringify` alone does NOT escape `<`, so a value containing `</script>` (e.g. an

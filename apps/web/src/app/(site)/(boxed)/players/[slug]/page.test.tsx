@@ -22,7 +22,7 @@ vi.mock("@/components/player/player-profile", () => ({
   PlayerProfile: () => null,
 }));
 
-const { default: PlayerPageRoute } = await import("./page");
+const { default: PlayerPageRoute, generateMetadata } = await import("./page");
 
 const p = (slug: string) => Promise.resolve({ slug });
 const q = () => Promise.resolve({});
@@ -65,5 +65,22 @@ describe("GET /players/[slug]", () => {
     await expect(PlayerPageRoute({ params: p("old-name"), searchParams: q() })).rejects.toMatchObject({
       digest: expect.stringContaining(";308;"),
     });
+  });
+});
+
+describe("GET /players/[slug] metadata", () => {
+  // Regression pin: the page hand-appends " — One Life" to its title, so the root layout's
+  // `%s · One Life` template would double the suffix unless the title is wrapped in
+  // `{ absolute: ... }`. A revert to a plain string would go green on every other assertion.
+  it("wraps the happy-path title in `absolute`", async () => {
+    const md = await generateMetadata({ params: p("manicdote"), searchParams: q() });
+    expect(md.title).toEqual({ absolute: "Manicdote — One Life DayZ survivor" });
+  });
+
+  it("wraps the not-found title in `absolute` and marks it noindex", async () => {
+    getPlayerPage.mockResolvedValue(null);
+    const md = await generateMetadata({ params: p("nobody"), searchParams: q() });
+    expect(md.title).toEqual({ absolute: "Survivor not found — One Life" });
+    expect(md.robots).toEqual({ index: false });
   });
 });

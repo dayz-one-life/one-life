@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteUrl, ldScript, articleLd } from "./seo";
+import { absoluteUrl, ldScript, articleLd, OG_DEFAULTS, SITE_DESCRIPTION } from "./seo";
 
 describe("seo helpers", () => {
   it("builds absolute urls", () => {
@@ -43,5 +43,14 @@ describe("articleLd", () => {
   it("has no image key when no image is passed", () => {
     const ld = articleLd(article, "https://x/y") as Record<string, unknown>;
     expect(ld).not.toHaveProperty("image");
+  });
+});
+
+describe("OG defaults", () => {
+  it("carries siteName and locale for page-level openGraph spreads", () => {
+    expect(OG_DEFAULTS).toEqual({ siteName: "One Life", locale: "en_US" });
+  });
+  it("single-sources the site description", () => {
+    expect(SITE_DESCRIPTION).toContain("permadeath");
   });
 });

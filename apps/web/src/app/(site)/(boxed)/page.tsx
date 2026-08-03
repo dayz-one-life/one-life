@@ -12,6 +12,16 @@ import { PendingHero } from "@/components/front-page/pending-hero";
 import { AccountPanels } from "@/components/account/account-panels";
 import { ClaimModal } from "@/components/account/claim-modal";
 import { ReferralClaim } from "@/components/account/referral-claim";
+import type { Metadata } from "next";
+import { absoluteUrl, OG_DEFAULTS, SITE_DESCRIPTION } from "@/lib/seo";
+
+const HOME_TITLE = "One Life — hardcore permadeath DayZ";
+export const metadata: Metadata = {
+  title: { absolute: HOME_TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: absoluteUrl("/") },
+  openGraph: { ...OG_DEFAULTS, title: HOME_TITLE, description: SITE_DESCRIPTION, url: absoluteUrl("/"), type: "website" },
+};
 
 /**
  * The home page (cold-home-relaunch spec). ⚠️ THE PITCH IS FOR COLD VISITORS ONLY: signed-in

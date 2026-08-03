@@ -208,3 +208,7 @@ two signed-in accounts, and none is closed by the test suite:
   never the resulting heights, so the v0.72.3 fix is shipped on that proxy plus the CSS argument
   that an `sr-only` node is `position:absolute` and therefore neither a flex item nor gap-bearing.
   Needs a signed-in verified session.
+- The OpenGraph pass's browser-only claims: each new card eyeballed at its real URL on the
+  deployed build (`/opengraph-image`, a life page's, a survivors board's, `/obituaries/`'s),
+  a fresh Discord/X unfurl of home + a life + a board + the obituaries index, and the two
+  migrated cards (obituary, player) confirmed pixel-equivalent after the CardShell refactor.

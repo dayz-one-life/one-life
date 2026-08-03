@@ -4,7 +4,7 @@ import { Kicker } from "@/components/tabloid/kicker";
 import { ObituaryCard } from "@/components/obituaries/obituary-card";
 import { ObituariesPagination } from "@/components/obituaries/obituaries-pagination";
 import { obituariesHref } from "@/lib/obituary-format";
-import { absoluteUrl } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
 import { parsePage } from "@/lib/board-params";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -18,8 +18,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website" },
-    twitter: { card: "summary", title, description },
+    openGraph: { ...OG_DEFAULTS, title, description, url: canonical, type: "website" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 

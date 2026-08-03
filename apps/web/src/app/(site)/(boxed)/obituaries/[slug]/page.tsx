@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getObituary, getObituariesFeed, getPlayerLife } from "@/lib/api";
 import { buildTimeline, type LifeTimelineView } from "@/lib/life-timeline";
 import { ObituaryArticleView } from "@/components/obituaries/obituary-article";
-import { articleLd, absoluteUrl, ldScript } from "@/lib/seo";
+import { articleLd, absoluteUrl, ldScript, OG_DEFAULTS } from "@/lib/seo";
 import { obituaryHref } from "@/lib/obituary-format";
 import { playerSlug } from "@/lib/slug";
 
@@ -12,13 +12,13 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const a = await getObituary(slug).catch(() => null);
-  if (!a) return { title: "Obituary — One Life" };
+  if (!a) return { title: { absolute: "Obituary — One Life" } };
   const title = `${a.headline} — ${a.gamertag} — One Life`;
   return {
-    title,
+    title: { absolute: title },
     description: a.lede,
     alternates: { canonical: absoluteUrl(obituaryHref(slug)) },
-    openGraph: { title, description: a.lede, url: absoluteUrl(obituaryHref(slug)), type: "article", publishedTime: a.deathAt },
+    openGraph: { ...OG_DEFAULTS, title, description: a.lede, url: absoluteUrl(obituaryHref(slug)), type: "article", publishedTime: a.deathAt },
     twitter: { card: "summary_large_image", title, description: a.lede },
   };
 }

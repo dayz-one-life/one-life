@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect, redirect, RedirectType } from "next/navigation";
 import { getPlayerPage } from "@/lib/api";
-import { absoluteUrl } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
 import { playerSlug } from "@/lib/slug";
 import { playerPageHref, shouldRedirectSlug } from "@/lib/player-page-href";
 import { ownVerifiedSlug } from "@/lib/own-slug";
@@ -19,15 +19,15 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { slug } = await params;
   const pageNum = parsePage((await searchParams).page);
   const page = await getPlayerPage(slug, pageNum).catch(() => null);
-  if (!page) return { title: "Survivor not found — One Life" };
+  if (!page) return { title: { absolute: "Survivor not found — One Life" }, robots: { index: false } };
   const desc = `${page.totals.kills} kills · ${page.totals.lives} lives · longest life ${formatDuration(page.totals.longestLifeSeconds)}.`;
   const canonicalBase = absoluteUrl(`/players/${playerSlug(page.gamertag)}`);
   const url = page.pastLivesPage > 1 ? `${canonicalBase}?page=${page.pastLivesPage}` : canonicalBase;
   return {
-    title: `${page.gamertag} — One Life DayZ survivor`,
+    title: { absolute: `${page.gamertag} — One Life DayZ survivor` },
     description: desc,
     alternates: { canonical: url },
-    openGraph: { title: page.gamertag, description: desc, url, type: "profile" },
+    openGraph: { ...OG_DEFAULTS, title: page.gamertag, description: desc, url, type: "profile" },
     twitter: { card: "summary_large_image", title: page.gamertag, description: desc },
   };
 }

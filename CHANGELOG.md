@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- OpenGraph metadata and branded share cards on every page — site-wide default card, life/survivors/obituaries
+  cards, canonical URLs, and a fix for doubled "One Life" title suffixes.
+
 ## [0.72.5] - 2026-07-31
 
 ### Fixed

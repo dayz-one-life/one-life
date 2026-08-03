@@ -6,11 +6,22 @@ import { mapLabel } from "@/components/player/format";
 import { serverTagline, formatOrList, countWord } from "@/lib/server-blurbs";
 import { Kicker } from "@/components/tabloid/kicker";
 import { SignInCta } from "@/components/front-page/signin-cta";
+import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
+
+const ABOUT_DESCRIPTION =
+  "How One Life works — one life per server, a 24-hour ban when it ends, and a record that stands forever.";
 
 export const metadata: Metadata = {
   title: "About",
-  description:
-    "How One Life works — one life per server, a 24-hour ban when it ends, and a record that stands forever.",
+  description: ABOUT_DESCRIPTION,
+  alternates: { canonical: absoluteUrl("/about") },
+  openGraph: {
+    ...OG_DEFAULTS,
+    title: "About",
+    description: ABOUT_DESCRIPTION,
+    url: absoluteUrl("/about"),
+    type: "website",
+  },
 };
 
 const STEPS = (maps: string) => [
