@@ -21,6 +21,8 @@ describe("buildSurvivorMetadata", () => {
     expect(m.alternates?.canonical).toBe("/survivors/chernarus");
     expect(m.openGraph?.title).toBeDefined();
     expect(m.twitter?.title).toBeDefined();
+    expect(m.twitter).toMatchObject({ card: "summary_large_image" });
+    expect(m.openGraph).toMatchObject({ siteName: "One Life" });
     // single page -> no prev, no next
     expect(m.other?.prev).toBeUndefined();
     expect(m.other?.next).toBeUndefined();

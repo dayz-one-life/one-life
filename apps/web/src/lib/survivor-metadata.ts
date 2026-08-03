@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { boardHref } from "@/components/survivors/links";
+import { OG_DEFAULTS } from "./seo";
 
 /** Title-cases a map slug: "chernarus" -> "Chernarus". */
 function mapLabel(slug: string): string {
@@ -48,8 +49,8 @@ export function buildSurvivorMetadata(args: SurvivorMetadataArgs): Metadata {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, type: "website" },
-    twitter: { card: "summary", title, description },
+    openGraph: { ...OG_DEFAULTS, title, description, url: canonical, type: "website" },
+    twitter: { card: "summary_large_image", title, description },
     ...(Object.keys(other).length > 0 ? { other } : {}),
   };
 }
