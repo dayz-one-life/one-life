@@ -2,12 +2,14 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import { QueryProvider } from "@/components/query-provider";
 import { display, mono } from "./fonts";
-import { SITE_URL } from "@/lib/seo";
+import { SITE_URL, SITE_DESCRIPTION, OG_DEFAULTS } from "@/lib/seo";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "One Life", template: "%s · One Life" },
-  description: "One Life is a hardcore permadeath DayZ community — one life per server, a 24-hour ban when it ends, and a record that stands forever.",
+  description: SITE_DESCRIPTION,
+  openGraph: { ...OG_DEFAULTS, type: "website" },
+  twitter: { card: "summary_large_image" },
   manifest: "/manifest.json",
 };
 
