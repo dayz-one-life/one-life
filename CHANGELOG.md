@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The share card now leads with the body count. Post a One Life link anywhere and it shows
+  "Deaths to date: 155 / Still standing: 149" — the same ledger the home page opens with —
+  over the format in three facts: one life per server, a 24-hour ban when it ends, Xbox.
+  It previously claimed "0 second chances", which was never true: an unban token buys you
+  back in early. When the count can't be read the card falls back to "One life. One death.
+  The record stands." rather than showing a zero.
+
 ### Fixed
 
 - Sharing the site's front door now shows a picture. The home page, About, Terms and Privacy
