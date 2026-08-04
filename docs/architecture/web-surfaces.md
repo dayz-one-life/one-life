@@ -980,3 +980,42 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   the old account popover and the retired hamburger's full-screen menu before it.
   **Nothing here is verified in a real browser** — see the outstanding-work entry in `CLAUDE.md`
   added alongside this one; it must not be trimmed at PR time.
+
+## Social links in the footer
+
+`components/social-links.tsx` holds the four community accounts — Facebook page, Discord
+**community invite**, subreddit, X — as an exported `SOCIAL_LINKS` array plus the `SocialLinks`
+icon row the footer renders above its existing text row. Spec:
+`docs/superpowers/specs/2026-08-04-social-links-design.md`.
+
+- **⚠️ The Discord URL here is the COMMUNITY SERVER INVITE, not the OAuth login.**
+  `components/discord-redirect.tsx` is a sign-in provider and has nothing to do with this list.
+  The two look alike and must never be unified.
+- **⚠️ Each anchor's accessible name comes ENTIRELY from its `aria-label`.** The only child is an
+  `aria-hidden` `<svg>`, so dropping the label leaves four links with no name at all. Every
+  assertion in `footer.test.tsx` looks them up by name, not by href, precisely so that regresses
+  loudly.
+- **⚠️ The row goes ABOVE the text row, never below.** The footer's
+  `pb-[calc(18px+env(safe-area-inset-bottom))]` belongs to the last in-flow element in the
+  document; anything appended after the colophon sits under the phone's home indicator.
+- `currentColor`, never brand colours — four saturated logos on `bg-dark` read as an ad strip and
+  fight the paper/red palette. `h-11 w-11` is the same 44px tap-target floor as `nav-menu.tsx`'s
+  ☰ button; the 20px glyph inside is cosmetic, the box is not. Glyph paths are Simple Icons v13
+  verbatim; restyle the row, never the paths.
+- **`SOCIAL_LINKS` is the single source of these URLs.** `organizationLd(sameAs)` in `lib/seo.ts`
+  builds the site-wide `Organization` JSON-LD node and the **root** layout (not
+  `(site)/layout.tsx` — this covers `/maps` and `/i/*` too) passes it
+  `SOCIAL_LINKS.map(s => s.href)`. **⚠️ The accounts are a PARAMETER, not an import**: `lib/seo.ts`
+  is pulled into `sitemap.ts`, `robots.ts` and every page's metadata block, none of which should
+  drag a React component into their graph. An empty list emits no `sameAs` key rather than `[]`.
+  `logo` points at `public/icon-512.png`, not the app-router `icon.png` convention, whose served
+  URL is build-hashed. `app/layout.test.tsx` pins the wiring by comparing the emitted `sameAs`
+  against `SOCIAL_LINKS` itself, so a fifth account cannot reach the footer while skipping the
+  JSON-LD; it uses `renderToStaticMarkup` because the layout *is* the `<html>` and RTL mounts
+  into a `<div>`.
+- **Browser-verified** in headless Chrome via CDP `Emulation.setDeviceMetricsOverride` at 320,
+  390 and 1348: one row at every width, all four targets measured 44×44,
+  `scrollWidth === clientWidth` at 320, glyphs legible on `bg-dark`. The Organization node was
+  confirmed in the served HTML of `/` and `/terms`, and `/icon-512.png` returns 200. `/about`
+  timed out in dev and was never fetched — the node is structural, from the root layout, but that
+  one route is unconfirmed.

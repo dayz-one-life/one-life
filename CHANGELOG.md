@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The footer now links to One Life on Facebook, Discord, Reddit and X. The site previously
+  pointed nowhere off-site, so anyone who wanted to follow the project or join the community
+  server had no way to find it from the site itself.
+- Search engines are now told that those four accounts and this site are the same One Life,
+  rather than being left to guess. Previously the site published nothing at all about who runs
+  it.
+
 ## [0.74.1] - 2026-08-04
 
 ### Fixed

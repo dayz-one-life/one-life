@@ -46,3 +46,42 @@ it("lets the link row wrap rather than overflow a narrow column", () => {
   const nav = screen.getByRole("navigation", { name: /site information/i });
   expect(nav.className).toContain("flex-wrap");
 });
+
+// The four community links. Every assertion below is by ACCESSIBLE NAME, not by href or by
+// position: the anchors' only child is an aria-hidden <svg>, so without the aria-label each one
+// has no accessible name at all and a screen reader announces four unnamed links. Looking them
+// up by name is what makes that regression fail here instead of shipping.
+const SOCIAL: ReadonlyArray<[string, string]> = [
+  ["Facebook", "https://www.facebook.com/profile.php?id=61591632406315"],
+  ["Discord", "https://discord.gg/gdCdgmjhRe"],
+  ["Reddit", "https://www.reddit.com/r/dayzonelife/"],
+  ["X", "https://x.com/onelifexbox"],
+];
+
+it.each(SOCIAL)("links to %s off-site", (name, href) => {
+  render(<Footer />);
+  const link = screen.getByRole("link", { name });
+  expect(link).toHaveAttribute("href", href);
+  // Both halves matter: target opens the tab, rel keeps the opened page from reaching back
+  // through window.opener.
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link.getAttribute("rel")).toContain("noopener");
+});
+
+it("hides the brand glyphs from assistive tech", () => {
+  const { container } = render(<Footer />);
+  const svgs = container.querySelectorAll("svg");
+  expect(svgs).toHaveLength(SOCIAL.length);
+  for (const svg of svgs) expect(svg).toHaveAttribute("aria-hidden");
+});
+
+// The social row is a second <nav>. Its links must not make the existing four ambiguous —
+// getByRole throws on multiple matches, so the tests above already prove it, but this pins the
+// two rows as distinguishable landmarks rather than one merged blob.
+it("keeps the social row a separate landmark from the site information row", () => {
+  render(<Footer />);
+  const nav = screen.getByRole("navigation", { name: /social media/i });
+  expect(nav).not.toContainElement(screen.getByRole("link", { name: "About" }));
+  // Same reason as the site-information row: a fifth link one day must wrap, not overflow.
+  expect(nav.className).toContain("flex-wrap");
+});
