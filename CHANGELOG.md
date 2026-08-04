@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Obituaries shared to Facebook, Discord or X no longer turn up as a blank grey box. Every
+  scrape used to re-render the page and the card from scratch, so nothing could be cached and
+  each one arrived cold: the crawler occasionally gave up waiting and published the post with
+  the picture missing, permanently. Obituary pages and their share cards are now served from
+  cache, so an unfurl is served in full instead of being built on demand.
+- A share card generated while the site couldn't reach its own data no longer sticks. Those
+  fallback cards were being cached for a year, so a single unlucky moment could leave an
+  obituary looking broken to everyone who saw it, with no way to correct it. They now expire
+  after a minute and heal themselves on the next share.
+
 ## [0.74.0] - 2026-08-04
 
 ### Changed

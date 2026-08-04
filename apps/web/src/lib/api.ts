@@ -190,6 +190,16 @@ async function getOrNull<T>(path: string): Promise<T | null> {
   }
 }
 
+/** `getOrNull`'s 404-to-null contract over the cookie-free, cacheable fetch. */
+async function getOrNullCached<T>(path: string, revalidateSeconds: number): Promise<T | null> {
+  try {
+    return await apiGetCached<T>(path, revalidateSeconds);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+}
+
 export const getPlayerPage = (slug: string, page?: number) =>
   getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}${page && page > 1 ? `?page=${page}` : ""}`);
 
@@ -219,9 +229,36 @@ export const getObituary = (slug: string) =>
  *  signed-in, since the unverified pitch needs them too). `apiGetCached` keeps that free: no
  *  cookie forwarding, shared 60s fetch cache. Do NOT point authenticated surfaces at these. */
 const HOME_FEED_REVALIDATE_SECONDS = 60;
+/** ⚠️ Stays on the SIGNAL-BOUND `apiGetCached`: this feeds `/opengraph-image` and
+ *  `/obituaries/opengraph-image`, both segment-less and therefore PRERENDERED by `next build`
+ *  against an API that isn't serving. Without the bound the build hangs and fails. */
 export const getSiteStatsCached = () => apiGetCached<SiteStats>("/api/stats", HOME_FEED_REVALIDATE_SECONDS);
 export const getObituariesFeedCached = (page: number) =>
   apiGetCached<ObituariesFeed>(`/api/obituaries?page=${page}`, HOME_FEED_REVALIDATE_SECONDS);
+
+/**
+ * ⚠️ The obituary PAGE and its colocated `opengraph-image` must read through these, not through
+ * `getObituary`/`getPlayerLife`. `apiGet` awaits `cookies()`, which opts the whole route out of
+ * static rendering, and Next then emits `cache-control: private, no-cache, no-store` — so a CDN
+ * cannot serve it and EVERY social-crawler scrape becomes a cold origin render (API fetch, font
+ * load, PNG encode). Facebook's scraper has a short timeout and its fleet was intermittently
+ * getting 418/timeout back, which publishes the post with a blank card; the manual Sharing
+ * Debugger scrape succeeded at the same moment, which is what made this look intermittent rather
+ * than structural. An obituary is immutable once filed, so serving crawlers from the edge costs
+ * nothing. Both endpoints are public (`/api/obituaries/*`, `/api/players/*`) — the owner-gated
+ * life track is `getLifeTrack` on `/api/me/*` and this page never touches it.
+ * Do NOT point authenticated surfaces at these: no cookie is forwarded, and the response IS
+ * shared across requests, so anything session-shaped would leak between viewers.
+ * `revalidate` is kept in sync BY HAND with the two route files that set their own window.
+ */
+export const OBITUARY_REVALIDATE_SECONDS = 300;
+export const getObituaryCached = (slug: string) =>
+  getOrNullCached<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`, OBITUARY_REVALIDATE_SECONDS);
+export const getPlayerLifeCached = (slug: string, map: string, n: number) =>
+  getOrNullCached<LifeTimelineData>(
+    `/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`,
+    OBITUARY_REVALIDATE_SECONDS,
+  );
 
 /** Sitemap-only. Shares `revalidate` with `sitemap.ts` (kept in sync by hand — both currently
  *  3600) so the fetch cache and the route's own ISR window agree. */
