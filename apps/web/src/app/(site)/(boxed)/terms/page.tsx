@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LegalDoc } from "@/components/legal/legal-doc";
 import { TERMS_SECTIONS } from "@/content/legal/terms";
 import { EFFECTIVE_DATE } from "@/content/legal/effective-date";
-import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS, SITE_CARD_IMAGES } from "@/lib/seo";
 
 const TERMS_DESCRIPTION =
   "The rules for the One Life website and the One Life servers — accounts, gamertags, unban tokens, the record, and what gets you banned.";
@@ -18,7 +18,11 @@ export const metadata: Metadata = {
     description: TERMS_DESCRIPTION,
     url: absoluteUrl("/terms"),
     type: "website",
+    // ⚠️ This page has no colocated `opengraph-image.tsx`, so declaring `openGraph` at all drops
+    // the root card — see SITE_CARD_IMAGES.
+    images: SITE_CARD_IMAGES,
   },
+  twitter: { card: "summary_large_image", images: SITE_CARD_IMAGES },
 };
 
 export default function TermsPage() {

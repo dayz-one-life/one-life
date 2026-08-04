@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Sharing the site's front door now shows a picture. The home page, About, Terms and Privacy
+  were all posting to Discord and X as bare text links — they each set their own share text,
+  which quietly discarded the site's share card. All four carry the card again.
+
 ## [0.73.0] - 2026-08-03
 
 ### Added

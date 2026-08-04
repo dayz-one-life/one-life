@@ -14,6 +14,28 @@ export const SITE_DESCRIPTION =
 export const OG_DEFAULTS = { siteName: "One Life", locale: "en_US" } as const;
 
 /**
+ * The site-wide share card rendered by `app/opengraph-image.tsx`, restated as explicit metadata.
+ *
+ * ⚠️ Next.js attaches a file-convention `opengraph-image` ONLY to routes that do not declare
+ * their own `openGraph` block — declaring one replaces the whole object, images included, and
+ * the file image is never merged back in. So a page with an `openGraph` block and no colocated
+ * `opengraph-image.tsx` unfurls with NO card at all. That shipped in v0.73.0: home, `/about`,
+ * `/terms` and `/privacy` were all imageless in production while every content page had a card.
+ * Those pages must name this explicitly, in `twitter` as well as `openGraph` (the root layout
+ * declares `twitter: { card: "summary_large_image" }` and nothing else, so twitter images do not
+ * come along for free either).
+ *
+ * ⚠️ Do NOT fold this into `OG_DEFAULTS`. Every page spreads those defaults — including the
+ * obituary, player, life and survivors-board pages, which render their OWN colocated card — and
+ * an explicit `images` key overrides the file convention, replacing each bespoke card with this
+ * generic one. `alt` is kept in step with the `alt` export in `app/opengraph-image.tsx` by hand;
+ * importing it here would drag `next/og` into every page's metadata module.
+ */
+export const SITE_CARD_IMAGES = [
+  { url: absoluteUrl("/opengraph-image"), width: 1200, height: 630, alt: "One Life — hardcore permadeath DayZ" },
+];
+
+/**
  * Serialize a JSON-LD object for embedding in a `<script type="application/ld+json">` tag.
  * `JSON.stringify` alone does NOT escape `<`, so a value containing `</script>` (e.g. an
  * player-supplied gamertag) could break out of the script element. Escaping `<`, `>`,

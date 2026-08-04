@@ -6,7 +6,7 @@ import { mapLabel } from "@/components/player/format";
 import { serverTagline, formatOrList, countWord } from "@/lib/server-blurbs";
 import { Kicker } from "@/components/tabloid/kicker";
 import { SignInCta } from "@/components/front-page/signin-cta";
-import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS, SITE_CARD_IMAGES } from "@/lib/seo";
 
 const ABOUT_DESCRIPTION =
   "How One Life works — one life per server, a 24-hour ban when it ends, and a record that stands forever.";
@@ -21,7 +21,11 @@ export const metadata: Metadata = {
     description: ABOUT_DESCRIPTION,
     url: absoluteUrl("/about"),
     type: "website",
+    // ⚠️ This page has no colocated `opengraph-image.tsx`, so declaring `openGraph` at all drops
+    // the root card — see SITE_CARD_IMAGES.
+    images: SITE_CARD_IMAGES,
   },
+  twitter: { card: "summary_large_image", images: SITE_CARD_IMAGES },
 };
 
 const STEPS = (maps: string) => [
