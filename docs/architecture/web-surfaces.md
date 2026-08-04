@@ -332,6 +332,27 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   cookie-forwarding version.
   **`lives.life_number` IS the URL segment here** — this generates the URL the router itself
   resolves by number.
+
+- **⚠️ `export const revalidate` is a NO-OP on a `[slug]` route without `generateStaticParams`.**
+  This is the single most counter-intuitive rule in the caching story and it fails silently.
+  Without a `generateStaticParams` export — *even one returning `[]`* — Next classifies a dynamic
+  segment as fully dynamic and serves
+  `cache-control: private, no-cache, no-store, max-age=0, must-revalidate`, which no CDN may
+  store; `revalidate` is simply ignored. Declaring it marks the route static-capable, so unknown
+  slugs are generated on demand and then cached (`s-maxage=N, stale-while-revalidate`). Confirmed
+  by measurement, not by reading: `next build` reports `ƒ (Dynamic)` vs `● (SSG)`, and
+  `next start` shows the header flip plus `x-nextjs-cache: MISS` then `HIT`. **None of this is
+  observable in dev**, which re-renders every request.
+  `/obituaries/[slug]` and its `opengraph-image` carry it (returning `[]` — prerendering real
+  slugs would fetch the API during `next build`, the same hang `sitemap.ts` documents above).
+  This mattered in production: uncached, every social scrape paid a cold origin render — API
+  round-trip, font load, PNG encode — and Facebook's crawler intermittently timed out and
+  published posts with a blank card.
+  **⚠️ Relatedly, an `opengraph-image` is served `public, immutable, max-age=31536000`.** For a
+  real obituary that is right — the death already happened. For the *failure-path* card it is a
+  trap: one scrape landing during an API outage freezes the generic fallback at the CDN, and in
+  Facebook's cache, for a year, and re-scraping cannot heal it. The obituary card therefore
+  overrides `cache-control` to 60s **on the failure path only**, pinned by a test.
   The home entry uses `SITE_URL` directly, not `absoluteUrl("")`, which would emit a trailing slash.
   AI crawlers are deliberately **not** blocked — the paper wants citations.
 - **Cross-linking, PR-1** ✅: links between players and lives that need no schema change.
