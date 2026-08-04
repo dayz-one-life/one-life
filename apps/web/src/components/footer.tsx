@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SocialLinks } from "./social-links";
 
 /** About, Obituaries, Terms and Privacy. About and Obituaries are also in the nav menu; these
  *  are the reading routes at the bottom of a page. Terms and Privacy are footer-only by design:
@@ -20,6 +21,10 @@ export function Footer() {
     // the fixed TabBar's 4rem too (verified in a browser: with the gutter on the column the bar
     // sat directly over this About link); the bar is deleted, the reasoning is not.
     <footer className="bg-dark px-10 pt-[18px] pb-[calc(18px+env(safe-area-inset-bottom))] text-center font-mono text-xs uppercase tracking-[.08em] text-paper">
+      {/* Above the text row, and never below it: the bottom safe-area inset above belongs to the
+          LAST in-flow element, so anything appended after the colophon would sit under the home
+          indicator. */}
+      <SocialLinks />
       {/* ⚠️ flex-wrap, not a single line: four links overflow a 320px column. The separators are
           aria-hidden so a screen reader hears four links, not "About middot Obituaries". */}
       <nav aria-label="Site information" className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
