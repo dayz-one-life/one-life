@@ -13,14 +13,25 @@ import { AccountPanels } from "@/components/account/account-panels";
 import { ClaimModal } from "@/components/account/claim-modal";
 import { ReferralClaim } from "@/components/account/referral-claim";
 import type { Metadata } from "next";
-import { absoluteUrl, OG_DEFAULTS, SITE_DESCRIPTION } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS, SITE_CARD_IMAGES, SITE_DESCRIPTION } from "@/lib/seo";
 
 const HOME_TITLE = "One Life — hardcore permadeath DayZ";
 export const metadata: Metadata = {
   title: { absolute: HOME_TITLE },
   description: SITE_DESCRIPTION,
   alternates: { canonical: absoluteUrl("/") },
-  openGraph: { ...OG_DEFAULTS, title: HOME_TITLE, description: SITE_DESCRIPTION, url: absoluteUrl("/"), type: "website" },
+  // ⚠️ `images` is NOT optional here. This page has no colocated `opengraph-image.tsx`, and
+  // declaring `openGraph` at all drops the root card that would otherwise be attached — which
+  // left the site's most-shared URL unfurling imageless in v0.73.0. See SITE_CARD_IMAGES.
+  openGraph: {
+    ...OG_DEFAULTS,
+    title: HOME_TITLE,
+    description: SITE_DESCRIPTION,
+    url: absoluteUrl("/"),
+    type: "website",
+    images: SITE_CARD_IMAGES,
+  },
+  twitter: { card: "summary_large_image", images: SITE_CARD_IMAGES },
 };
 
 /**
