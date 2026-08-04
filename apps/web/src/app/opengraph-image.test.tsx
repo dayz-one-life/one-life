@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import OgImage, { size, contentType, alt, homeCardState, FORMAT_STATS } from "./opengraph-image";
+import OgImage, { size, contentType, alt, dynamic, homeCardState, FORMAT_STATS } from "./opengraph-image";
 
 vi.mock("@/lib/api", () => ({ getSiteStatsCached: vi.fn() }));
 import { getSiteStatsCached } from "@/lib/api";
@@ -9,6 +9,20 @@ describe("root opengraph-image", () => {
     expect(size).toEqual({ width: 1200, height: 630 });
     expect(contentType).toBe("image/png");
     expect(typeof alt).toBe("string");
+  });
+
+  /**
+   * ⚠️ Load-bearing, and NOT a stylistic preference. Without this the route has no dynamic
+   * segment, so `next build` prerenders it — and the build does not run alongside a serving API
+   * (the same trap `sitemap.ts` documents). The fetch fails, `homeCardState` correctly falls back,
+   * and the EVERGREEN card is baked into `.next/server/app/opengraph-image.body`, served with
+   * `cache-control: public, immutable, max-age=31536000`. ISR replaces the bake eventually, so the
+   * damage is a window after each deploy — but that window is exactly when links get posted, and
+   * the immutable header lets a crawler hold the wrong card long after. Invisible in dev, which
+   * renders every request. Verified by building both ways and reading the artifact.
+   */
+  it("renders per request, so the build cannot bake a stale card", () => {
+    expect(dynamic).toBe("force-dynamic");
   });
 
   it("renders a PNG from the live ledger", async () => {

@@ -9,6 +9,28 @@ export const contentType = "image/png";
 export const alt = "One Life — hardcore permadeath DayZ";
 
 /**
+ * ⚠️ Do NOT remove this to "let the card cache". This route has no dynamic segment, so without it
+ * `next build` PRERENDERS the card — and the build does not run alongside a serving API (the same
+ * trap `sitemap.ts` documents for the sitemap). The stats fetch then fails at build time and the
+ * evergreen fallback below is baked into `.next/server/app/opengraph-image.body` — verified by
+ * building both ways and reading the artifact.
+ *
+ * ISR does eventually replace that bake (the sibling obituaries card, still static, serves a live
+ * count in production), so the exposure is a WINDOW after each deploy rather than a permanent
+ * failure. But the baked response ships `cache-control: public, immutable, max-age=31536000`, so
+ * any crawler or CDN that reads the card inside that window can hold the wrong bytes for a very
+ * long time — on the site's most-shared surface, immediately after every deploy, which is exactly
+ * when links get posted.
+ *
+ * This is invisible in development — `next dev` renders every request, so the ledger looks perfect
+ * locally either way.
+ *
+ * Per-request rendering is affordable here: this URL is fetched by unfurl crawlers, not users, and
+ * `getSiteStatsCached`'s own 60s fetch cache bounds the API load regardless of request rate.
+ */
+export const dynamic = "force-dynamic";
+
+/**
  * The bottom band: static format facts, never data. They answer what a cold DayZ player actually
  * needs — what the format is, and what platform it runs on — and being static they cannot go
  * stale or contradict the site.
