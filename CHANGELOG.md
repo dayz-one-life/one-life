@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-08-04
+
 ### Added
 
 - The footer now links to One Life on Facebook, Discord, Reddit and X. The site previously
