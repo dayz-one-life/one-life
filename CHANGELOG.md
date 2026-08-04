@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-08-04
+
 ### Changed
 
 - The share card now leads with the body count. Post a One Life link anywhere and it shows
