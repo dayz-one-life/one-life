@@ -14,10 +14,11 @@ an invite to the community server.
 
 Four links, in the footer, sitewide. That is the whole change.
 
-Explicitly **not** in scope, each considered and declined for now:
+Plus — **added to scope after the initial design was approved** — `sameAs` on the site's JSON-LD,
+so the four accounts are tied to this domain for search engines. See "JSON-LD" below.
 
-- `sameAs` on the site's JSON-LD (`apps/web/src/lib/seo.ts`). Real SEO value, but it is a
-  metadata change with its own verification story; keep it separable.
+Explicitly **not** in scope, each considered and declined:
+
 - A block on `/about` or on home. The footer is where people look, and the home page's job is
   conversion, not outbound links.
 - A "Community" section in the `☰` nav panel. That panel is nav + account; a third section earns
@@ -74,6 +75,26 @@ The icon row also gets `flex-wrap`, for the same reason the text row has it. Fou
 176px and fits a 320px column with room to spare, so it should never actually wrap; the wrap is
 there because a fifth link one day would silently overflow otherwise.
 
+### JSON-LD — `lib/seo.ts` + `app/layout.tsx`
+
+`organizationLd(sameAs)` returns the site-wide `Organization` node. The root layout emits it in a
+`<script type="application/ld+json">`, passing `SOCIAL_LINKS.map(s => s.href)`.
+
+Three decisions worth the words:
+
+- **The accounts are a parameter, not an import.** `lib/seo.ts` is pulled in by `sitemap.ts`,
+  `robots.ts` and every page's metadata block; importing `social-links.tsx` there would drag a
+  React component into all of them. The layout composes the two instead.
+- **Root layout, not `(site)/layout.tsx`** — so `/maps` and `/i/*` carry it too. It sits
+  *alongside* the per-page `ProfilePage` / `NewsArticle` / `ItemList` nodes, never instead of
+  them: those describe the page, this describes who publishes it.
+- **An empty account list emits no `sameAs` key at all**, rather than `sameAs: []`. The list is
+  the node's entire reason to exist.
+- **`logo` points at `/icon-512.png` in `public/`**, not the app-router `icon.png` convention —
+  that one is served at a build-hashed URL, so a hardcoded path for it would rot.
+
+`ldScript` does the serializing, as it must for every JSON-LD sink in this repo.
+
 ## Rendering
 
 ```
@@ -95,6 +116,12 @@ Extend `apps/web/src/components/footer.test.tsx`:
   glyph text;
 - the existing four text links still resolve — the new `<nav>` must not make
   `getByRole("link", { name: "About" })` ambiguous.
+
+`apps/web/src/lib/seo.test.ts` covers `organizationLd` as a pure function. `app/layout.test.tsx`
+is the wiring test and the one that matters: it asserts the emitted node's `sameAs` equals
+`SOCIAL_LINKS.map(s => s.href)`, so a fifth account cannot land in the footer row while silently
+skipping the JSON-LD. It renders via `renderToStaticMarkup`, not RTL — the layout *is* the
+`<html>` element, and RTL mounts into a `<div>`.
 
 **What the tests cannot prove**, and must therefore not be claimed as verified: that the row does
 not wrap at 320px, that the 44px targets are actually 44px as painted, and that the glyphs are

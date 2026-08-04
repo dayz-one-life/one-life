@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { absoluteUrl, ldScript, articleLd, OG_DEFAULTS, SITE_CARD_IMAGES, SITE_DESCRIPTION } from "./seo";
+import {
+  absoluteUrl,
+  ldScript,
+  articleLd,
+  organizationLd,
+  OG_DEFAULTS,
+  SITE_CARD_IMAGES,
+  SITE_DESCRIPTION,
+} from "./seo";
 
 describe("seo helpers", () => {
   it("builds absolute urls", () => {
@@ -71,5 +79,37 @@ describe("site card", () => {
   // is set from an env var. A card that 404s for the crawler is the same as no card.
   it("is an absolute url", () => {
     expect(SITE_CARD_IMAGES[0]?.url).toMatch(/^https?:\/\//);
+  });
+});
+
+describe("organizationLd", () => {
+  const sameAs = ["https://discord.gg/x", "https://x.com/y"];
+
+  it("emits an Organization carrying the accounts as sameAs", () => {
+    const ld = organizationLd(sameAs) as Record<string, unknown>;
+    expect(ld["@type"]).toBe("Organization");
+    expect(ld.name).toBe("One Life");
+    expect(ld.sameAs).toEqual(sameAs);
+  });
+
+  // sameAs is the whole point of the node: it is what ties these off-site accounts back to this
+  // domain. An Organization without it is an empty gesture, so an empty list must not silently
+  // produce one.
+  it("omits sameAs entirely rather than emitting an empty array", () => {
+    expect(organizationLd([])).not.toHaveProperty("sameAs");
+  });
+
+  // Same reason as the share card: a relative logo resolves against metadataBase, which comes
+  // from an env var, and a crawler that 404s on it just drops the logo.
+  it("uses absolute urls for the site and the logo", () => {
+    const ld = organizationLd(sameAs) as Record<string, unknown>;
+    expect(ld.url).toMatch(/^https?:\/\//);
+    expect(ld.logo).toMatch(/^https?:\/\//);
+  });
+
+  it("escapes </script> when rendered through ldScript", () => {
+    const out = ldScript(organizationLd(["https://x/</script><script>alert(1)</script>"]));
+    expect(out).not.toContain("</script>");
+    expect(out).not.toContain("<");
   });
 });

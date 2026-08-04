@@ -46,6 +46,34 @@ export function ldScript(obj: unknown): string {
   return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
+/**
+ * The site-wide Organization node, emitted once from the root layout. Its reason to exist is
+ * `sameAs`: the list of off-site accounts that belong to this domain, which is how a search
+ * engine knows the Facebook page / Discord / subreddit / X account and this site are one entity.
+ *
+ * ⚠️ The accounts arrive as a PARAMETER rather than being imported here. They live in
+ * `components/social-links.tsx` alongside the footer row that renders them — one list, one home —
+ * and that module exports a component. `lib/seo.ts` is imported by `sitemap.ts`, `robots.ts` and
+ * every page's metadata block, none of which should drag a React component into their graph.
+ * The root layout composes the two; keep it that way.
+ *
+ * An empty list yields no `sameAs` key at all rather than `sameAs: []` — a node whose whole
+ * purpose is that list should not claim to exist with the list empty.
+ */
+export function organizationLd(sameAs: readonly string[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "One Life",
+    url: SITE_URL,
+    description: SITE_DESCRIPTION,
+    // Absolute, and a `public/` file rather than the app-router `icon.png` convention — that one
+    // is served at a build-hashed URL, so hardcoding a path for it would rot on the next build.
+    logo: absoluteUrl("/icon-512.png"),
+    ...(sameAs.length > 0 ? { sameAs: [...sameAs] } : {}),
+  };
+}
+
 export function profileLd(agg: Pick<PlayerAggregate, "gamertag">, url: string) {
   return {
     "@context": "https://schema.org", "@type": "ProfilePage",
