@@ -14,13 +14,16 @@ async function loop(): Promise<void> {
   log.info({ interval: cfg.intervalSeconds, dryRun: cfg.dryRun, since: cfg.since?.toISOString() ?? null }, "crier starting");
   if (cfg.dryRun) log.warn("CRIER_DRY_RUN is true — nothing will be posted");
   if (!cfg.since) log.warn(process.env.CRIER_SINCE ? "CRIER_SINCE is set but unparseable — syndication is OFF" : "CRIER_SINCE is unset — syndication is OFF");
-  if (!cfg.discordWebhookUrl && !cfg.fbPageId) log.warn("no channel credentials configured — nothing to post to");
+  if (!cfg.discordWebhookUrl && !cfg.fbPageId && !cfg.reddit) log.warn("no channel credentials configured — nothing to post to");
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const r = await crierTick(db, { cfg, fetchFn: fetch, now: new Date(), log, store, sleep });
-      if (r.posted || r.failed || r.skipped) log.info(r, "crier tick");
+      // `deferred` included deliberately: a Reddit rate cap holding rows back is the one state
+      // that produces no post, no error and no `last_error` row, so silence in the log would be
+      // indistinguishable from having nothing to do.
+      if (r.posted || r.failed || r.skipped || r.deferred) log.info(r, "crier tick");
     } catch (err) {
       log.error({ err }, "crier tick failed");
     }

@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Obituaries can now be posted to Reddit automatically, the same way they already go to Discord
+  and Facebook. Each one arrives on the subreddit as a link post, so it carries the share card
+  and the click lands on the obituary itself. The channel paces itself — one post every ten
+  minutes by default — because Reddit is far less forgiving than the other two about a run of
+  links to the same site in quick succession. Off until its credentials are set.
+
 ## [0.75.0] - 2026-08-04
 
 ### Added

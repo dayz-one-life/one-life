@@ -46,12 +46,32 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   push pass reads unpushed rows without a row lock.
   Needs a `onelife-notifier` systemd unit; deploy runbook in `deploy/README.md`),
   `crier` (obituary-syndication worker; posts every published obituary to Discord (channel
-  webhook) and Facebook (Page), exactly once per (obituary, channel), tracked in the durable
+  webhook), Facebook (Page) and Reddit (link post to a subreddit), exactly once per
+  (obituary, channel), tracked in the durable
   `syndications` table. Gated by a forward-only **`CRIER_SINCE`** cutoff (unset = OFF) plus
   **`CRIER_DRY_RUN`** (defaults `true`); each channel is enabled independently by the presence
   of its credentials — `CRIER_DISCORD_WEBHOOK_URL` for Discord, both `CRIER_FB_PAGE_ID` and
-  `CRIER_FB_PAGE_ACCESS_TOKEN` for Facebook (see `docs/crier-facebook-setup.md`). Also reads
+  `CRIER_FB_PAGE_ACCESS_TOKEN` for Facebook (see `docs/crier-facebook-setup.md`), and all four
+  of `CRIER_REDDIT_CLIENT_ID` / `_CLIENT_SECRET` / `_REFRESH_TOKEN` / `_SUBREDDIT` for Reddit
+  (see `docs/crier-reddit-setup.md`). Also reads
   `CRIER_INTERVAL_SECONDS` / `CRIER_BATCH_CAP` / `CRIER_MAX_ATTEMPTS` and, like every worker,
   `DATABASE_URL` + `SITE_URL`. Needs a `onelife-crier` systemd unit; deploy runbook in
-  `apps/crier/README.md`).
+  `apps/crier/README.md`.
+  Three ⚠️ invariants specific to the Reddit channel, each documented at its site and worth
+  knowing before touching `apps/crier`:
+  1. **Reddit signals most failures as HTTP 200 with the error inside the JSON body**
+     (`RATELIMIT`, `SUBREDDIT_NOEXIST`, flair validation, a shadowban). Trusting `res.ok` — which
+     is what the Discord and Facebook channels correctly do — would stamp `posted_at` for a post
+     that never happened, and `findSyndicationTargets` excludes a posted row forever: no retry, no
+     error, no post. `postToReddit` parses `json.errors`.
+  2. **A `CRIER_REDDIT_MIN_INTERVAL_SECONDS` deferral is neither a success nor a failure and must
+     not touch the row.** Recording it as a failure burns an attempt, and at
+     `CRIER_MAX_ATTEMPTS=5` five ticks of ordinary rate limiting would poison every queued row
+     permanently. The window is read from `syndications` (`lastPostedAt`), not memory, so it
+     survives restarts.
+  3. **The channel dispatch in `tick.ts` is a map, not `if discord … else facebook`.** The
+     original binary form would silently route any third channel to Facebook.
+  The Reddit credential is a refresh token obtained via `authorization_code` with
+  `duration=permanent` — the password grant is unusable with 2FA — and unlike the Facebook page
+  token it does not expire, so there is no rotation runbook for it).
 

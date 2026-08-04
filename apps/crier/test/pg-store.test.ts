@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { articles, syndications } from "@onelife/db";
 import { inArray } from "drizzle-orm";
-import { findSyndicationTargets, recordSuccess, recordFailure } from "../src/pg-store.js";
+import { findSyndicationTargets, recordSuccess, recordFailure, lastPostedAt } from "../src/pg-store.js";
 
 const { db, sql } = getTestDb();
 const t0 = new Date("2026-07-31T00:00:00Z");
@@ -81,5 +81,26 @@ describe("ledger transitions", () => {
     await recordSuccess(db, s, "discord", hrs(3));
     [row] = await db.select().from(syndications).where(inArray(syndications.slug, [s]));
     expect(row!.postedAt).toEqual(hrs(3));
+  });
+});
+
+// Backs the Reddit rate cap. Scoped to THIS test run's slugs is impossible — the query is a
+// per-channel MAX over the whole table — so the assertions use a channel name no other test
+// touches, which is also how the real thing behaves: one window per channel, site-wide.
+describe("lastPostedAt", () => {
+  it("returns null for a channel that has never posted", async () => {
+    expect(await lastPostedAt(db, `never-${run}`)).toBeNull();
+  });
+
+  it("returns the most recent posted_at, ignoring rows that only have failures", async () => {
+    const chan = `ratecap-${run}`;
+    const a = await seedObit("cap-a");
+    const b = await seedObit("cap-b");
+    const c = await seedObit("cap-c");
+    await recordSuccess(db, a, chan, hrs(2));
+    await recordSuccess(db, b, chan, hrs(5));
+    // A pure failure row has posted_at NULL and must not be mistaken for the latest post.
+    await recordFailure(db, c, chan, "boom");
+    expect(await lastPostedAt(db, chan)).toEqual(hrs(5));
   });
 });
