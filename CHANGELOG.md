@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   back in early. When the count can't be read the card falls back to "One life. One death.
   The record stands." rather than showing a zero.
 
+### Fixed
+
+- Sharing the site's front door now shows a picture. The home page, About, Terms and Privacy
+  were all posting to Discord and X as bare text links — they each set their own share text,
+  which quietly discarded the site's share card. All four carry the card again.
+
 ## [0.73.0] - 2026-08-03
 
 ### Added

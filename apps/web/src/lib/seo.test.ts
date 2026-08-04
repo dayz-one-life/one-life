@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { absoluteUrl, ldScript, articleLd, OG_DEFAULTS, SITE_DESCRIPTION } from "./seo";
+import { absoluteUrl, ldScript, articleLd, OG_DEFAULTS, SITE_CARD_IMAGES, SITE_DESCRIPTION } from "./seo";
 
 describe("seo helpers", () => {
   it("builds absolute urls", () => {
@@ -50,7 +50,26 @@ describe("OG defaults", () => {
   it("carries siteName and locale for page-level openGraph spreads", () => {
     expect(OG_DEFAULTS).toEqual({ siteName: "One Life", locale: "en_US" });
   });
+  // ⚠️ Deliberately NOT part of OG_DEFAULTS: every page spreads those defaults, including the
+  // ones that render their own colocated card, and an `images` key there would override the
+  // file-convention image with the generic site card.
+  it("keeps the site card out of the blanket defaults", () => {
+    expect(OG_DEFAULTS).not.toHaveProperty("images");
+  });
   it("single-sources the site description", () => {
     expect(SITE_DESCRIPTION).toContain("permadeath");
+  });
+});
+
+describe("site card", () => {
+  it("points at the root card route with the dimensions unfurlers read", () => {
+    expect(SITE_CARD_IMAGES).toEqual([
+      { url: absoluteUrl("/opengraph-image"), width: 1200, height: 630, alt: "One Life — hardcore permadeath DayZ" },
+    ]);
+  });
+  // Absolute, not "/opengraph-image": relative image URLs resolve against `metadataBase`, which
+  // is set from an env var. A card that 404s for the crawler is the same as no card.
+  it("is an absolute url", () => {
+    expect(SITE_CARD_IMAGES[0]?.url).toMatch(/^https?:\/\//);
   });
 });

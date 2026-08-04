@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LegalDoc } from "@/components/legal/legal-doc";
 import { PRIVACY_SECTIONS } from "@/content/legal/privacy";
 import { EFFECTIVE_DATE } from "@/content/legal/effective-date";
-import { absoluteUrl, OG_DEFAULTS } from "@/lib/seo";
+import { absoluteUrl, OG_DEFAULTS, SITE_CARD_IMAGES } from "@/lib/seo";
 
 const PRIVACY_DESCRIPTION =
   "What One Life collects about you, who else sees it, how long it is kept, and how to have it deleted. No ads, no analytics, nothing sold.";
@@ -18,7 +18,11 @@ export const metadata: Metadata = {
     description: PRIVACY_DESCRIPTION,
     url: absoluteUrl("/privacy"),
     type: "website",
+    // ⚠️ This page has no colocated `opengraph-image.tsx`, so declaring `openGraph` at all drops
+    // the root card — see SITE_CARD_IMAGES.
+    images: SITE_CARD_IMAGES,
   },
+  twitter: { card: "summary_large_image", images: SITE_CARD_IMAGES },
 };
 
 export default function PrivacyPage() {
