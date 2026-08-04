@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { articles, syndications, type Database } from "@onelife/db";
 import { sql as dsql } from "drizzle-orm";
 
@@ -56,6 +56,21 @@ export async function findSyndicationTargets(
     .sort((a, b) => a.deathAt.getTime() - b.deathAt.getTime())
     .slice(0, opts.limit)
     .map(({ slug, headline, lede, channel }) => ({ slug, headline, lede, channel }));
+}
+
+/** Most recent successful post on a channel, or null if it has never posted.
+ *
+ *  Backs the Reddit rate cap. Read from the ledger rather than held in memory deliberately: it
+ *  survives a worker restart and holds across the fleet, where an in-process timestamp would
+ *  reset to "never" on every deploy and let a burst straight through. */
+export async function lastPostedAt(db: Database, channel: string): Promise<Date | null> {
+  const rows = await db
+    .select({ postedAt: syndications.postedAt })
+    .from(syndications)
+    .where(and(eq(syndications.channel, channel), isNotNull(syndications.postedAt)))
+    .orderBy(desc(syndications.postedAt))
+    .limit(1);
+  return rows[0]?.postedAt ?? null;
 }
 
 export async function recordSuccess(db: Database, slug: string, channel: string, now: Date): Promise<void> {
