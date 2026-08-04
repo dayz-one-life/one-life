@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.1] - 2026-08-04
+
 ### Fixed
 
 - Obituaries shared to Facebook, Discord or X no longer turn up as a blank grey box. Every
