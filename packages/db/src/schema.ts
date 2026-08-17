@@ -1,6 +1,6 @@
 import {
   pgTable, bigserial, integer, text, timestamp, boolean, jsonb,
-  bigint, uniqueIndex, index, doublePrecision, customType,
+  bigint, uniqueIndex, index, doublePrecision, customType, primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -357,6 +357,63 @@ export const avatars = pgTable("avatars", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 }, (t) => ({
   byHash: index("avatars_hash_idx").on(t.hash).where(sql`hash is not null`),
+}));
+
+// ── UGC moderation (App Store guideline 1.2). Avatars are the only user-authored content:
+// players/lives are projected from telemetry, obituaries are generated, and a gamertag is an
+// Xbox identity proven by in-game emote verification. ──
+
+/**
+ * A report against another user's avatar.
+ *
+ * `subjectHash` is SNAPSHOTTED at report time: the subject can swap their avatar the instant
+ * they are reported, and the report must still name what was actually seen.
+ */
+export const avatarReports = pgTable("avatar_reports", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  // ⚠️ Both FKs cascade. A non-cascading reference to user.id makes deleteAccount raise 23503
+  // for anyone who has ever reported or been reported.
+  reporterUserId: text("reporter_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  subjectUserId: text("subject_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  subjectHash: text("subject_hash").notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqReporterSubject: uniqueIndex("avatar_reports_reporter_subject_uniq").on(t.reporterUserId, t.subjectUserId),
+  byHash: index("avatar_reports_hash_idx").on(t.subjectHash),
+  // Supports the rolling 24h cap count.
+  byReporterCreated: index("avatar_reports_reporter_created_idx").on(t.reporterUserId, t.createdAt),
+}));
+
+/**
+ * Banned avatar bytes, keyed by content hash.
+ *
+ * ⚠️ Keyed by HASH, not by user. `getAvatarByHash` matches on hash across ALL users, so
+ * tombstoning one user's row does not stop the bytes serving if another user holds the same
+ * image — which is exactly the coordinated-abuse case. One row here stops it for everyone.
+ *
+ * ⚠️ NO foreign key to `user`. A ban must survive the uploader deleting their account,
+ * otherwise account deletion becomes a way to un-ban your own image.
+ */
+export const blockedAvatarHashes = pgTable("blocked_avatar_hashes", {
+  hash: text("hash").primaryKey(),
+  state: text("state").notNull().default("auto"),   // 'auto' (report-triggered) | 'confirmed' (moderator)
+  blockedAt: timestamp("blocked_at", { withTimezone: true }).notNull().defaultNow(),
+  // NULL means automatic. Deliberately NOT an FK: a moderator could later delete their account.
+  blockedByUserId: text("blocked_by_user_id"),
+});
+
+/**
+ * One user blocking another. VIEWER-SCOPED: this hides the blocked user's avatar from the
+ * blocker only, and severs location shares both ways. It must NEVER 404 the avatar globally —
+ * that would hand every user a unilateral takedown button.
+ */
+export const userBlocks = pgTable("user_blocks", {
+  blockerUserId: text("blocker_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  blockedUserId: text("blocked_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }),
 }));
 
 // ── Obituaries revival. Durable side-table — generated obituary content, trimmed to the

@@ -239,6 +239,13 @@
       "when": 1786180000000,
       "tag": "0033_syndications",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787009544674,
+      "tag": "0034_ugc_moderation",
+      "breakpoints": true
     }
   ]
 }
