@@ -15,8 +15,13 @@ const WEIRD_LINE = 'Player "X" (DEAD) (id=2 pos=<1.0, 2.0, 3.0>) killed by Barbe
 const PVP_LINE = 'Player "V" (DEAD) (id=3) killed by Player "K" (id=4) with M4A1 from 10 meters';
 const SUICIDE_LINE = 'Player "S" (DEAD) (id=5 pos=<1.0, 2.0, 3.0>) committed suicide';
 // DayZ omits the (DEAD) marker on ~12% of suicide lines. The old parser dropped those, so the
-// line was ingested as a position event ONLY — subIndex 0 taken, no death event anywhere.
+// line was ingested as a position event ONLY — no death event anywhere. Its companion is the
+// clauseless `died. Stats>` line DayZ writes for the same death, at the same second.
 const SUICIDE_NO_DEAD_LINE = 'Player "N" (id=6 pos=<1.0, 2.0, 3.0>) committed suicide';
+const COMPANION_DIED_LINE = 'Player "N" (DEAD) (id=6 pos=<1.0, 2.0, 3.0>) died. Stats> Water: 500 Energy: 400 Bleed sources: 1';
+// A dropped death with NO companion: nothing to patch, and inventing an event is what breaks the
+// fold — so it must be left alone and reported, never recovered.
+const ORPHAN_NO_DEAD_LINE = 'Player "O" (id=7 pos=<9.0, 9.0, 9.0>) committed suicide';
 
 async function seed(lineIndex: number, text: string, payload: Record<string, unknown>) {
   const occurredAt = new Date("2026-07-10T12:00:00Z");
@@ -38,6 +43,8 @@ let weirdRawLineId: number;
 let pvpRawLineId: number;
 let suicideRawLineId: number;
 let noDeadRawLineId: number;
+let companionRawLineId: number;
+let orphanRawLineId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "backfill-death-causes-test" }).returning();
@@ -50,6 +57,9 @@ beforeAll(async () => {
   pvpRawLineId = await seed(12, PVP_LINE, { victim: "V", cause: "pvp", killer: "K", weapon: "M4A1", distance: 10 });
   suicideRawLineId = await seed(13, SUICIDE_LINE, { victim: "S", cause: "suicide", killer: null, weapon: null, distance: null });
   noDeadRawLineId = await seedPositionOnly(14, SUICIDE_NO_DEAD_LINE, { gamertag: "N", x: 1, y: 2, z: 3 });
+  companionRawLineId = await seed(15, COMPANION_DIED_LINE,
+    { victim: "N", cause: "died", killer: null, weapon: null, distance: null, energy: 400, water: 500, bleedSources: 1 });
+  orphanRawLineId = await seedPositionOnly(16, ORPHAN_NO_DEAD_LINE, { gamertag: "O", x: 9, y: 9, z: 9 });
 });
 
 afterAll(async () => {
@@ -62,9 +72,10 @@ afterAll(async () => {
 
 describe("backfillDeathCauses", () => {
   it("upgrades environment->wolf, keeps unmapped entities as environment with a survey entry, never touches pvp", async () => {
-    const { patched, unmapped, recovered } = await backfillDeathCauses(db);
+    const { patched, unmapped, recovered, unpaired } = await backfillDeathCauses(db);
     expect(patched).toBe(2); // wolf upgrade + weird deathEntity add
-    expect(recovered).toBe(1); // the marker-less suicide line, which had no death event at all
+    expect(recovered).toBe(1); // the marker-less suicide, applied to its companion died event
+    expect(unpaired).toBe(1);  // the orphan: reported, never invented
 
     const wolf = (await db.select().from(events).where(eq(events.rawLineId, wolfRawLineId)))[0]!;
     expect((wolf.payload as any).cause).toBe("wolf");
@@ -84,27 +95,36 @@ describe("backfillDeathCauses", () => {
     expect((suicide.payload as any).deathEntity).toBeUndefined();
   });
 
-  it("recovers a death the old parser dropped, at a FREE subIndex", async () => {
-    const rows = await db.select().from(events).where(eq(events.rawLineId, noDeadRawLineId));
-    const death = rows.find((r) => r.type === "player.died")!;
-    expect(death).toBeDefined();
-    expect((death.payload as any).cause).toBe("suicide");
-    expect((death.payload as any).victim).toBe("N");
-    // ⚠️ NOT subIndex 0 — the position event already holds it, and events_idempotency_uniq is
-    // (server, file, line, sub). Reusing 0 would be swallowed by appendEvent's onConflictDoNothing
-    // and the recovery would silently no-op.
-    expect(death.subIndex).toBeGreaterThan(0);
-    expect(rows.some((r) => r.type === "player.position" && r.subIndex === 0)).toBe(true);
+  it("recovers a dropped death by patching its COMPANION died event, not by inserting one", async () => {
+    const companion = (await db.select().from(events).where(eq(events.rawLineId, companionRawLineId)))[0]!;
+    expect((companion.payload as any).cause).toBe("suicide");
+
+    // ⚠️⚠️ The recovery must NEVER append a new event. `events.id` is the fold order, so an event
+    // appended now for a historical line folds LAST — after every later event — and `onDied`
+    // checks `getOpenLife` FIRST. It would therefore end the player's CURRENT life and back-date
+    // it by however long ago the death was. In production 8 of the 12 recoverable lines belong to
+    // players with an open life right now. Patching the companion keeps the change inside the
+    // fold's existing order, where the event already sits at the right point in the stream.
+    const onDroppedLine = await db.select().from(events).where(eq(events.rawLineId, noDeadRawLineId));
+    expect(onDroppedLine.some((r) => r.type === "player.died")).toBe(false);
+    expect(onDroppedLine.every((r) => r.type === "player.position")).toBe(true);
   });
 
-  it("is idempotent — a second run patches nothing and inserts no duplicate death", async () => {
+  it("leaves a dropped death alone when it has no companion to patch", async () => {
+    const rows = await db.select().from(events).where(eq(events.rawLineId, orphanRawLineId));
+    expect(rows.some((r) => r.type === "player.died")).toBe(false);
+    expect(rows).toHaveLength(1); // the position event only — nothing invented
+  });
+
+  it("is idempotent — a second run patches nothing and creates no events", async () => {
+    const before = (await db.select().from(events).where(eq(events.serverId, serverId))).length;
     const second = await backfillDeathCauses(db);
     expect(second.patched).toBe(0);
     expect(second.recovered).toBe(0);
     expect(second.unmapped).toEqual({ BarbedWireKit: 1 }); // survey still reports, patching does not repeat
+    expect(second.unpaired).toBe(1);                       // survey still reports the orphan too
 
-    const deaths = await db.select().from(events)
-      .where(and(eq(events.rawLineId, noDeadRawLineId), eq(events.type, "player.died")));
-    expect(deaths).toHaveLength(1);
+    const after = (await db.select().from(events).where(eq(events.serverId, serverId))).length;
+    expect(after).toBe(before); // the backfill is patch-only; it must never grow the event log
   });
 });
