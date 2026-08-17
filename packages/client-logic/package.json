@@ -11,7 +11,8 @@
     "./life-href": "./src/life-href.ts",
     "./cause-format": "./src/cause-format.ts",
     "./format": "./src/format.ts",
-    "./player-format": "./src/player-format.ts"
+    "./player-format": "./src/player-format.ts",
+    "./slug": "./src/slug.ts"
   },
   "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
   "dependencies": {
