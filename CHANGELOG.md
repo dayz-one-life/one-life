@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Extracted the API endpoint catalog into `@onelife/api-client` and the framework-free display
+  helpers into `@onelife/client-logic`, so a second client can share them. `apps/web` keeps its
+  Next-specific transport and ISR-cached variants; no call sites changed.
+
 ## [0.75.2] - 2026-08-17
 
 ### Fixed

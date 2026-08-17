@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:3001";
 
 const nextConfig: NextConfig = {
+  // Workspace packages ship raw TS (main: src/index.ts) rather than built JS, so Next has to
+  // run them through its own compiler. Without this, `next build` fails to parse their types.
+  transpilePackages: ["@onelife/api-client", "@onelife/client-logic"],
   async rewrites() {
     // Backend mounts auth under /api/auth but read/me/gamertag routes at root.
     return [

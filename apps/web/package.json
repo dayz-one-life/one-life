@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@onelife/api-client": "workspace:*",
+    "@onelife/client-logic": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
     "better-auth": "^1.6.23",
     "clsx": "^2.1.1",

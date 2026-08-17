@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildTimeline } from "./life-timeline";
-import type { LifeTimelineData } from "./types";
+import type { LifeTimelineData } from "@onelife/api-client";
 
 const start = "2026-07-14T00:00:00Z";
 const at = (mins: number) => new Date(Date.parse(start) + mins * 60_000).toISOString();
