@@ -8,6 +8,14 @@ import type { StripeGateway } from "../lib/stripe-gateway.js";
 
 const confirmBody = z.object({ sessionId: z.string().min(1) });
 
+/** Postgres 23503 = foreign_key_violation. `token_transactions.user_id` FKs to `user`, and
+ *  account deletion is now reachable (this branch), so a buyer who deletes their account while
+ *  a checkout is in flight — or while Stripe is mid-retry — makes this insert fail this way. */
+function isMissingUserForeignKeyViolation(err: unknown): boolean {
+  const e = err as { code?: string };
+  return e?.code === "23503";
+}
+
 /**
  * Token store. Eligibility (verified link) is a CHECKOUT-TIME gate only — fulfillment never
  * re-checks, because by then Stripe has taken the money and the tokens are userId-scoped
@@ -62,7 +70,27 @@ export function registerStoreRoutes(
       if (sessionId) {
         const s = await gateway.retrieveSession(sessionId);
         if (s?.paid && s.clientReferenceId) {
-          await fulfillPurchase(db, { userId: s.clientReferenceId, sessionId, quantity: s.quantity });
+          try {
+            await fulfillPurchase(db, { userId: s.clientReferenceId, sessionId, quantity: s.quantity });
+          } catch (err) {
+            // The buyer deleted their account (this branch made that reachable) while this
+            // checkout was in flight, or while Stripe was mid-retry on an earlier delivery of
+            // this same event: `token_transactions.user_id` no longer resolves, and the insert
+            // in `grant()` raises 23503. There is no user left to credit and nothing we can do
+            // will change that on a retry, so respond 200 to make Stripe stop — a 500 here
+            // would just buy three days of identical retries for a purchase that can never be
+            // fulfilled. Logged loudly so an operator can reconcile by hand (e.g. refund) if
+            // this ever needs a human. Anything else — a real DB outage, a bug — still 500s so
+            // Stripe keeps retrying as designed.
+            if (isMissingUserForeignKeyViolation(err)) {
+              req.log.error(
+                { sessionId, userId: s.clientReferenceId, quantity: s.quantity, err },
+                "stripe webhook: buyer's account no longer exists, cannot fulfil purchase — acking to stop retries",
+              );
+              return { received: true };
+            }
+            throw err;
+          }
         } else {
           // A checkout event resolved to a session we cannot fulfill — either it's genuinely
           // unpaid (delayed payment method still pending) or missing a clientReferenceId

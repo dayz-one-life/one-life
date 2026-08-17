@@ -105,6 +105,7 @@ export const getGlobalBoard = api.getGlobalBoard;
 export const getKills = api.getKills;
 export const getBuilds = api.getBuilds;
 export const getMe = api.getMe;
+export const deleteAccount = api.deleteAccount;
 export const getGamertagLinks = api.getGamertagLinks;
 export const getGamertagLink = api.getGamertagLink;
 export const claimGamertag = api.claimGamertag;

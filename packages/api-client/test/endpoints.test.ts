@@ -66,4 +66,10 @@ describe("createApiClient", () => {
     await createApiClient(transport).getNotifications();
     expect(get).toHaveBeenCalledWith("/api/me/notifications?page=1");
   });
+
+  it("sends the account deletion confirmation as a DELETE body", async () => {
+    const { transport, send } = fakeTransport();
+    await createApiClient(transport).deleteAccount();
+    expect(send).toHaveBeenCalledWith("DELETE", "/api/me", { confirm: "DELETE" });
+  });
 });

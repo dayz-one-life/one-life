@@ -9,3 +9,4 @@ export { claimReferrer } from "./claim-referrer.js";
 export { countVerifiedReferees } from "./referral-count.js";
 export { fulfillPurchase } from "./purchase.js";
 export { TokenError } from "./internal.js";
+export { balanceOf, type Executor } from "./internal.js";

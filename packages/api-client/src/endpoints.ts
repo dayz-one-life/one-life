@@ -41,6 +41,13 @@ export function createApiClient(t: Transport) {
     getKills: (serverId: number) => t.get<Kill[]>(`/api/servers/${serverId}/kills`),
     getBuilds: (serverId: number) => t.get<Build[]>(`/api/servers/${serverId}/builds`),
     getMe: () => t.get<Me>("/api/me"),
+    /** Permanently deletes the signed-in account. The session dies with it, so this is the last
+     *  thing the connection returns. Player history (lives, deaths, obituaries) SURVIVES — it is
+     *  keyed by gamertag, not by user. The literal "DELETE" is what the server checks. */
+    deleteAccount: () =>
+      t.send<{ ok: true; tokensForfeited: number; gamertagLinksRemoved: number }>(
+        "DELETE", "/api/me", { confirm: "DELETE" },
+      ),
     getGamertagLinks: () => t.get<GamertagLink[]>("/api/me/gamertag-links"),
     getGamertagLink: (id: number) => t.get<GamertagLink>(`/api/me/gamertag-links/${id}`),
     claimGamertag: (gamertag: string) =>

@@ -8,6 +8,7 @@ import { registerPlayerRoutes } from "./routes/players.js";
 import { registerBoardRoutes } from "./routes/boards.js";
 import { registerAuthHandler } from "./auth-plugin.js";
 import { registerMeRoute } from "./routes/me.js";
+import { registerAccountRoutes } from "./routes/account.js";
 import { registerLastMapRoute } from "./routes/last-map.js";
 import { registerGamertagLinkRoutes } from "./routes/gamertag-links.js";
 import { registerTokenRoutes } from "./routes/tokens.js";
@@ -51,6 +52,7 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
     if (opts.authConfig) registerAuthMethodsRoute(app, opts.authConfig);
     registerAuthHandler(app, opts.auth);
     registerMeRoute(app, opts.auth);
+    registerAccountRoutes(app, db, opts.auth);
     registerGamertagLinkRoutes(app, db, opts.auth);
     registerTokenRoutes(app, db, opts.auth);
     registerStoreRoutes(app, db, opts.auth, opts.stripe, opts.corsOrigins[0] ?? "http://localhost:3000");
