@@ -1,0 +1,24 @@
+{
+  "name": "@onelife/client-logic",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./dayz-projection": "./src/dayz-projection.ts",
+    "./map-grid": "./src/map-grid.ts",
+    "./map-places": "./src/map-places.ts",
+    "./map-resolution": "./src/map-resolution.ts",
+    "./life-timeline": "./src/life-timeline.ts",
+    "./life-href": "./src/life-href.ts",
+    "./cause-format": "./src/cause-format.ts",
+    "./format": "./src/format.ts",
+    "./player-format": "./src/player-format.ts"
+  },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "dependencies": {
+    "@onelife/api-client": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
