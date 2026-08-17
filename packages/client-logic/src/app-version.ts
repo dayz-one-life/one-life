@@ -37,7 +37,7 @@ function parse(version: string): [number, number, number] | null {
 export function compareVersions(a: string, b: string): 1 | 0 | -1 {
   const pa = parse(a);
   const pb = parse(b);
-  if (!pa || !pb) throw new Error(`compareVersions: unparseable version (${a!}, ${b!})`);
+  if (!pa || !pb) throw new Error(`compareVersions: unparseable version (${a}, ${b})`);
   for (let i = 0; i < 3; i++) {
     // Numeric, not lexical: "1.10.0" is newer than "1.9.0" even though it sorts before it.
     const x = pa[i] ?? 0;
