@@ -391,16 +391,24 @@ notifications, and push subscriptions; the dossier survives with its lives,
 deaths, and obituaries intact, losing only the verified badge and avatar. No
 anonymization pass over historical rows is required.
 
-Two implementation details for the account-deletion plan:
+**THREE** foreign keys to `user.id` lack a cascade, and two of them are rows
+belonging to OTHER users — so account deletion is not self-contained:
 
-1. **`gamertagLinks.userId` has no `onDelete: "cascade"`**
-   (`packages/db/src/schema.ts:276`), unlike every other user-referencing table.
-   A user delete fails on an FK violation unless links are removed first. Delete
-   them **explicitly** in the deletion path rather than adding a cascade, so the
-   behaviour stays visible in code rather than hidden in schema.
-2. Every other user-referencing table (`avatars`, `notifications`,
-   `push_subscriptions`, token tables, referrers) already cascades, so those
-   need no explicit handling.
+| FK | Cascade | Whose row | Resolution |
+| --- | --- | --- | --- |
+| `gamertagLinks.userId` (`schema.ts:276`) | none | the leaver's | delete explicitly |
+| `tokenTransactions.counterpartyUserId` (`schema.ts:337`) | none, nullable | another user's ledger | `SET NULL` |
+| `referrals.referrerUserId` (`schema.ts:346`) | none, NOT NULL | another user's referral record | delete the row |
+
+Delete the gamertag links **explicitly** in the deletion path rather than adding
+a cascade, so the behaviour stays visible in code rather than hidden in schema.
+
+The remaining eight FKs (`session`, `account`, `avatars`, `notifications`,
+`push_subscriptions`, `location_shares` on both sides, `tokenTransactions.userId`,
+`referrals.userId`) do cascade and need no explicit handling.
+
+Sub-project 2a's spec, [`2026-08-17-account-deletion-design.md`](2026-08-17-account-deletion-design.md),
+carries the reasoning for each resolution and the transaction that applies them.
 
 ## Open questions
 
