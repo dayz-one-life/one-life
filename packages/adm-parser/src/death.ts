@@ -2,7 +2,14 @@ import { classifyEntityLabel } from "@onelife/domain";
 import type { DeathCause } from "./types.js";
 
 const KILL_RE = /Player "([^"]+)" \(DEAD\) \(id=([^\s)]+)[^)]*\) killed by Player "([^"]+)" \(id=([^\s)]+)[^)]*\)(.*)$/u;
-const DEATH_RE = /Player "([^"]+)" \(DEAD\) \(id=([^\s)]+)[^)]*\)(.*)$/u;
+// ⚠️ The `(DEAD)` marker is OPTIONAL. Like a fatal fall, a suicide is logged twice and
+// inconsistently: a `committed suicide` line plus a clauseless `died. Stats>` line — and DayZ
+// omits `(DEAD)` on the suicide line about 12% of the time (12 of 102 in production). Requiring
+// the marker dropped those lines entirely, so only the bare `died.` survived and the life read
+// "Unknown" — 10 of the 19 unknown lives in production. Nothing else in the corpus carries a
+// death verb without the marker (surveyed over every raw line), and DEATH_VERB_RE below is what
+// actually separates a death from a roster/position line — the marker never was.
+const DEATH_RE = /Player "([^"]+)" (?:\(DEAD\) )?\(id=([^\s)]+)[^)]*\)(.*)$/u;
 const WEAPON_RE = /with (.+?)(?: from ([\d.]+) meters)?\s*$/u;
 const STATS_RE = /Stats>\s*Water:\s*([\d.]+)\s*Energy:\s*([\d.]+)\s*Bleed sources:\s*(\d+)/u;
 const DEATH_VERB_RE = /\b(died|committed suicide|bled out|drowned|killed by)\b/u;

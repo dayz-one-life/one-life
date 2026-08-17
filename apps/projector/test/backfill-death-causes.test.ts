@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, admFiles, rawLines, events } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { appendEvent } from "@onelife/event-log";
 import { backfillDeathCauses } from "../src/backfill-death-causes.js";
 import { getTestDb } from "@onelife/test-support";
@@ -14,6 +14,9 @@ const WOLF_LINE = 'Player "W" (DEAD) (id=1 pos=<1.0, 2.0, 3.0>) killed by Animal
 const WEIRD_LINE = 'Player "X" (DEAD) (id=2 pos=<1.0, 2.0, 3.0>) killed by BarbedWireKit';
 const PVP_LINE = 'Player "V" (DEAD) (id=3) killed by Player "K" (id=4) with M4A1 from 10 meters';
 const SUICIDE_LINE = 'Player "S" (DEAD) (id=5 pos=<1.0, 2.0, 3.0>) committed suicide';
+// DayZ omits the (DEAD) marker on ~12% of suicide lines. The old parser dropped those, so the
+// line was ingested as a position event ONLY — subIndex 0 taken, no death event anywhere.
+const SUICIDE_NO_DEAD_LINE = 'Player "N" (id=6 pos=<1.0, 2.0, 3.0>) committed suicide';
 
 async function seed(lineIndex: number, text: string, payload: Record<string, unknown>) {
   const occurredAt = new Date("2026-07-10T12:00:00Z");
@@ -22,10 +25,19 @@ async function seed(lineIndex: number, text: string, payload: Record<string, unk
   return rl!.id;
 }
 
+/** Seeds a raw line the OLD parser did not read as a death: only its position event exists. */
+async function seedPositionOnly(lineIndex: number, text: string, payload: Record<string, unknown>) {
+  const occurredAt = new Date("2026-07-10T12:00:00Z");
+  const [rl] = await db.insert(rawLines).values({ serverId, admFileId, lineIndex, text, occurredAt }).returning();
+  await appendEvent(db, { serverId, admFileId, lineIndex, subIndex: 0, type: "player.position", occurredAt, payload, rawLineId: rl!.id });
+  return rl!.id;
+}
+
 let wolfRawLineId: number;
 let weirdRawLineId: number;
 let pvpRawLineId: number;
 let suicideRawLineId: number;
+let noDeadRawLineId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "backfill-death-causes-test" }).returning();
@@ -37,6 +49,7 @@ beforeAll(async () => {
   weirdRawLineId = await seed(11, WEIRD_LINE, { victim: "X", cause: "environment", killer: null, weapon: null, distance: null });
   pvpRawLineId = await seed(12, PVP_LINE, { victim: "V", cause: "pvp", killer: "K", weapon: "M4A1", distance: 10 });
   suicideRawLineId = await seed(13, SUICIDE_LINE, { victim: "S", cause: "suicide", killer: null, weapon: null, distance: null });
+  noDeadRawLineId = await seedPositionOnly(14, SUICIDE_NO_DEAD_LINE, { gamertag: "N", x: 1, y: 2, z: 3 });
 });
 
 afterAll(async () => {
@@ -49,8 +62,9 @@ afterAll(async () => {
 
 describe("backfillDeathCauses", () => {
   it("upgrades environment->wolf, keeps unmapped entities as environment with a survey entry, never touches pvp", async () => {
-    const { patched, unmapped } = await backfillDeathCauses(db);
+    const { patched, unmapped, recovered } = await backfillDeathCauses(db);
     expect(patched).toBe(2); // wolf upgrade + weird deathEntity add
+    expect(recovered).toBe(1); // the marker-less suicide line, which had no death event at all
 
     const wolf = (await db.select().from(events).where(eq(events.rawLineId, wolfRawLineId)))[0]!;
     expect((wolf.payload as any).cause).toBe("wolf");
@@ -70,9 +84,27 @@ describe("backfillDeathCauses", () => {
     expect((suicide.payload as any).deathEntity).toBeUndefined();
   });
 
-  it("is idempotent — a second run patches nothing", async () => {
+  it("recovers a death the old parser dropped, at a FREE subIndex", async () => {
+    const rows = await db.select().from(events).where(eq(events.rawLineId, noDeadRawLineId));
+    const death = rows.find((r) => r.type === "player.died")!;
+    expect(death).toBeDefined();
+    expect((death.payload as any).cause).toBe("suicide");
+    expect((death.payload as any).victim).toBe("N");
+    // ⚠️ NOT subIndex 0 — the position event already holds it, and events_idempotency_uniq is
+    // (server, file, line, sub). Reusing 0 would be swallowed by appendEvent's onConflictDoNothing
+    // and the recovery would silently no-op.
+    expect(death.subIndex).toBeGreaterThan(0);
+    expect(rows.some((r) => r.type === "player.position" && r.subIndex === 0)).toBe(true);
+  });
+
+  it("is idempotent — a second run patches nothing and inserts no duplicate death", async () => {
     const second = await backfillDeathCauses(db);
     expect(second.patched).toBe(0);
+    expect(second.recovered).toBe(0);
     expect(second.unmapped).toEqual({ BarbedWireKit: 1 }); // survey still reports, patching does not repeat
+
+    const deaths = await db.select().from(events)
+      .where(and(eq(events.rawLineId, noDeadRawLineId), eq(events.type, "player.died")));
+    expect(deaths).toHaveLength(1);
   });
 });
