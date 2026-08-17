@@ -72,4 +72,10 @@ describe("createApiClient", () => {
     await createApiClient(transport).deleteAccount();
     expect(send).toHaveBeenCalledWith("DELETE", "/api/me", { confirm: "DELETE" });
   });
+
+  it("asks for the version policy with no parameters", async () => {
+    const { transport, get } = fakeTransport();
+    await createApiClient(transport).getAppVersionPolicy();
+    expect(get).toHaveBeenCalledWith("/api/app-version");
+  });
 });

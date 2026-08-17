@@ -9,6 +9,7 @@ import type {
   LifeTrack,
   MapShare,
   TokenWalletData,
+  AppVersionPolicy,
 } from "./types";
 
 export function createApiClient(t: Transport) {
@@ -23,6 +24,12 @@ export function createApiClient(t: Transport) {
 
   return {
     getAuthMethods: () => t.get<AuthMethods>("/api/auth/providers"),
+    /**
+     * The mobile app's launch check. ⚠️ This response type can never change shape
+     * incompatibly: an app too old to understand it is precisely the app this endpoint
+     * exists to reach, and it cannot be fixed by an update it will never be told to make.
+     */
+    getAppVersionPolicy: () => t.get<AppVersionPolicy>("/api/app-version"),
     getServers: () => t.get<Server[]>("/api/servers"),
     /** Tier 2 of the map-resolution rule. Returns `{ slug: null }` (200) for a signed-out viewer —
      *  it is a hint, not a protected resource. Takes no subject; the session is the only input. */

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A minimum-supported-version gate for the coming mobile app. `GET /api/app-version` publishes a
+  per-platform floor set by `IOS_MIN_APP_VERSION` / `ANDROID_MIN_APP_VERSION`, and the app blocks
+  with "update required" below it. Unset — the default — means no floor and gates nobody. Nothing
+  on the website changes.
 - Account deletion. `/settings` gains a danger zone that permanently deletes your account via
   `DELETE /me`. Player history is deliberately kept — lives, deaths and obituaries belong to the
   gamertag, not the account — so a deleted user's dossier survives, unverified and avatar-less.
