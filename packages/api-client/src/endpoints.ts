@@ -149,4 +149,4 @@ export type ApiClient = ReturnType<typeof createApiClient>;
 // `SiteStats` and `SitemapData` have no endpoint here on purpose: their only callers are the web
 // app's ISR-cached variants (`getSiteStatsCached`, `getSitemapData`), which depend on Next's
 // `next: { revalidate }` fetch option and therefore stay in apps/web. Both types are still
-// exported from ./types.js for those callers.
+// exported from ./types for those callers.

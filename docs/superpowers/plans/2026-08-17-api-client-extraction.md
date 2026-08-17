@@ -10,6 +10,30 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-17-native-mobile-app-design.md` (§ Architecture — "New workspace members", "Shared pure logic", "Dependency rules")
 
+## Corrections applied during execution
+
+⚠️ **This plan's body is the historical record of what was planned, not what shipped.** Three
+corrections were ruled in during execution and are NOT reflected in the task text below. Read
+these first:
+
+1. **Internal relative imports are EXTENSIONLESS, not `.js`-suffixed.** The task text prescribes
+   `from "./error.js"` throughout. That is wrong for these packages: it resolves under `tsc` and
+   vitest (`moduleResolution: "Bundler"`) but webpack cannot resolve `.js` against `.ts` sources,
+   and it broke `next build`. Metro (React Native) would hit the same wall. The repo's
+   `.js`-specifier convention applies to packages consumed by node/tsx, such as `apps/notifier` —
+   not to these, which are bundler-consumed by design.
+2. **`rememberMap` did NOT move to `packages/client-logic`.** It writes `document.cookie`, which
+   does not exist in React Native, so it stays defined in `apps/web/src/lib/map-resolution.ts`.
+   That shim is therefore not the bare `export *` the task text shows: it re-exports the package's
+   four pure members and defines `rememberMap` locally.
+3. **`apps/web/src/lib/slug.ts` also moved into the package,** as its own subpath, and
+   `apps/web/src/components/player/format.ts` moved as `player-format.ts`. The task text's move
+   list omits both. `slug.ts` was promoted rather than having `playerSlug` duplicated into
+   `life-href.ts`, because duplicated URL-slug logic diverges silently — with no test or type
+   error to catch it.
+
+Also: the task text states `apps/web/src/lib/api.test.ts` holds 12 tests. It holds 10.
+
 ## Global Constraints
 
 - **Behaviour must not change.** This is a pure refactor. `apps/web/src/lib/api.test.ts` (117 lines, covers `apiGet`, `apiSend`, `toBackendPath`, `uploadAvatar`, `ApiError`) must pass **unmodified** at the end. It is the regression gate; do not edit it.
