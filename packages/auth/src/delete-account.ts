@@ -1,21 +1,11 @@
-import { eq } from "drizzle-orm";
-import { user, gamertagLinks, referrals, tokenTransactions } from "@onelife/db";
+import { eq, inArray } from "drizzle-orm";
+import { type DbOrTx, user, gamertagLinks, referrals, tokenTransactions, verificationChallenges } from "@onelife/db";
 import { balanceOf } from "@onelife/tokens";
 
 export type DeletionSummary = {
   /** Unspent tokens destroyed with the account. Reported so the caller can say so out loud. */
   tokensForfeited: number;
   gamertagLinksRemoved: number;
-};
-
-// Accepts a drizzle db OR a transaction executor — both expose the same query builders.
-// Typed loosely because Database and PgTransaction are distinct TS types; same reasoning
-// and same shape as packages/tokens/src/internal.ts's `Executor`.
-type Executor = {
-  transaction<T>(fn: (tx: Executor) => Promise<T>): Promise<T>;
-  select(...a: unknown[]): any;
-  delete(...a: unknown[]): any;
-  update(...a: unknown[]): any;
 };
 
 /**
@@ -32,9 +22,22 @@ type Executor = {
  * runs before the user deletion with no shared transaction, so a failure there leaves exactly
  * the partial state this design exists to prevent.
  */
-export async function deleteAccount(db: Executor, userId: string): Promise<DeletionSummary> {
+export async function deleteAccount(db: DbOrTx, userId: string): Promise<DeletionSummary> {
   return db.transaction(async (tx) => {
     const tokensForfeited = await balanceOf(tx, userId);
+
+    // 0. ⚠️ verification_challenges.gamertag_link_id is NOT NULL with NO ACTION, and nothing in
+    //    production ever deletes these rows (the verifier only stamps completed_at). Deleting a
+    //    user's gamertag links without clearing their challenges first raises 23503 for every
+    //    user who has ever started verification — i.e. every verified user.
+    const links = await tx
+      .select({ id: gamertagLinks.id })
+      .from(gamertagLinks)
+      .where(eq(gamertagLinks.userId, userId));
+    const linkIds = links.map((r) => r.id);
+    if (linkIds.length > 0) {
+      await tx.delete(verificationChallenges).where(inArray(verificationChallenges.gamertagLinkId, linkIds));
+    }
 
     // 1. The departing user's own links. Deleted EXPLICITLY rather than by adding a cascade to
     //    the schema, so the behaviour stays visible in code.

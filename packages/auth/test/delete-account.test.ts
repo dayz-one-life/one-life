@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   user, gamertagLinks, referrals, tokenTransactions,
   servers, players, lives, avatars, notifications, pushSubscriptions,
+  verificationChallenges,
 } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { deleteAccount } from "../src/delete-account.js";
@@ -13,6 +14,7 @@ const { db, sql } = getTestDb();
 // he holds a token Alice transferred him, and Alice referred him.
 let serverId: number;
 let playerId: number;
+let aliceLinkId: number;
 
 beforeAll(async () => {
   await db.insert(user).values([
@@ -39,7 +41,22 @@ beforeAll(async () => {
     deathCause: "shot",
   });
 
-  await db.insert(gamertagLinks).values({ userId: "da-alice", gamertag: "DaAlice", status: "verified" });
+  const [link] = await db
+    .insert(gamertagLinks)
+    .values({ userId: "da-alice", gamertag: "DaAlice", status: "verified" })
+    .returning({ id: gamertagLinks.id });
+  aliceLinkId = link!.id;
+
+  // Every verified user has started a verification challenge on their way to being verified —
+  // `verification_challenges.gamertag_link_id` is NOT NULL with NO ACTION, and nothing in
+  // production ever deletes these rows (the verifier only stamps completed_at).
+  await db.insert(verificationChallenges).values({
+    gamertagLinkId: aliceLinkId,
+    sequence: ["north", "east"],
+    issuedAt: new Date("2026-01-01T00:00:00Z"),
+    expiresAt: new Date("2026-01-01T00:10:00Z"),
+  });
+
   await db.insert(avatars).values({ userId: "da-alice", image: null, hash: null, source: null, updatedAt: new Date() });
   // `naturalKey` is NOT NULL and uniquely indexed — omitting it is a 23502, not a default.
   await db.insert(notifications).values({
@@ -102,6 +119,11 @@ describe("deleteAccount", () => {
     expect(await db.select().from(notifications).where(eq(notifications.userId, "da-alice"))).toHaveLength(0);
     expect(await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, "da-alice"))).toHaveLength(0);
     expect(await db.select().from(tokenTransactions).where(eq(tokenTransactions.userId, "da-alice"))).toHaveLength(0);
+  });
+
+  it("clears the verification challenge for the deleted link", async () => {
+    const rows = await db.select().from(verificationChallenges).where(eq(verificationChallenges.gamertagLinkId, aliceLinkId));
+    expect(rows).toHaveLength(0);
   });
 
   it("leaves the surviving user alone", async () => {
