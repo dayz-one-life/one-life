@@ -167,14 +167,20 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   printed "Unknown" and discarded the verdict. It now degrades to "Environment" rather than past it.
   This is the same trap as the `ENTITY_VERDICTS`/`ENTITY_MECHANISMS` mirror above — the classifier
   is right and the page still says Unknown.
-  **⚠️ `backfill-death-causes`' recovery arm appends at `max(subIndex)+1`, NOT at the index
-  `parseLine` would now give.** A line the old parser missed was ingested as a bare `position`
-  event holding subIndex 0; `subIndex` is the array position in `parseLine`'s output, so re-parsing
-  renumbers it and the recovered death would collide with that row on
-  `events_idempotency_uniq` — swallowed silently by `appendEvent`'s `onConflictDoNothing`. The
-  recovered event sorts LAST in the fold (order is `events.id`), by which point the life is closed,
-  so it lands on `onDied`'s already-closed branch and upgrades the stored cause through
-  `enrichLifeDeath` (matched on exact `endedAt` equality; both lines share a timestamp).
+  **⚠️⚠️ NEVER append an event to the log for a historical raw line — patch an existing one.**
+  `events.id` IS the fold order, so an event appended today for a July line folds **last**, after
+  every later event. `onDied` checks `getOpenLife` **before** its already-closed-life branch, so
+  such an event **ends the player's CURRENT life and back-dates it** to the historical death. This
+  was written, reviewed, shipped in v0.75.1 and caught only at the deploy step: 8 of the 12
+  recoverable lines belong to players holding an open life, and `bans` is durable and never
+  rebuilt, so the corruption would have outlived any projection rebuild. The reasoning that failed
+  was checking `enrichLifeDeath` (order-independent, keyed on exact `endedAt`) without checking the
+  branch **above** it, which is the one that actually runs — and a test that asserted the event was
+  *inserted* rather than folding it. **A backfill is patch-only; if it can grow the event log, it
+  is wrong.** `backfill-death-causes`' recovery arm therefore pairs a dropped death line with the
+  companion `player.died` event DayZ wrote for the same death (same server, same victim, ±3 s,
+  **exactly one match** or it is not a pairing) and upgrades that event's `cause`. A dropped line
+  with no companion is counted in `unpaired`, reported loudly, and **left alone**.
   **Deploy runbook:** normal deploy → on the host run `backfill-death-causes` → projection rebuild.
   The 8 no-signal deaths stay "Unknown" and are not recoverable from the ADM.
 ## Identity merge, content engine, obituaries
