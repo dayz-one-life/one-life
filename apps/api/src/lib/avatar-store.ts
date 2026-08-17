@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { avatars } from "@onelife/db";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { avatars, blockedAvatarHashes } from "@onelife/db";
+import { and, eq, isNotNull, notExists, sql } from "drizzle-orm";
 import { AVATAR_MAX_BYTES } from "./avatar-image.js";
 
 const AVATAR_FETCH_TIMEOUT_MS = 5000;
@@ -49,11 +49,65 @@ export async function tombstoneAvatar(db: Database, userId: string): Promise<voi
 
 /** Public hash-addressed lookup — never returns a tombstoned row's (null) image. */
 export async function getAvatarByHash(db: Database, hash: string): Promise<Buffer | null> {
+  // ⚠️ The ban check is what makes takedown global. Because this function matches on hash
+  // across all users, one banned-hash row stops the bytes serving for every user who holds
+  // them — which is the point: two accounts uploading the same abusive image is the case a
+  // per-user flag would leak.
   const [row] = await db
     .select({ image: avatars.image })
     .from(avatars)
-    .where(and(eq(avatars.hash, hash), isNotNull(avatars.image)));
+    .where(and(
+      eq(avatars.hash, hash),
+      isNotNull(avatars.image),
+      notExists(db.select({ one: sql`1` }).from(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, hash))),
+    ));
   return row?.image ?? null;
+}
+
+/**
+ * Ban avatar bytes by content hash. Idempotent, and NEVER downgrades a moderator-confirmed
+ * ban back to 'auto' — a later automatic report must not weaken a human decision.
+ */
+export async function banAvatarHash(
+  db: Database,
+  hash: string,
+  opts?: { state?: "auto" | "confirmed"; byUserId?: string },
+): Promise<void> {
+  await db
+    .insert(blockedAvatarHashes)
+    .values({ hash, state: opts?.state ?? "auto", blockedByUserId: opts?.byUserId ?? null })
+    .onConflictDoNothing({ target: blockedAvatarHashes.hash });
+}
+
+/** Lift a ban. The bytes serve again; nothing was destroyed. */
+export async function unbanAvatarHash(db: Database, hash: string): Promise<void> {
+  await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, hash));
+}
+
+/**
+ * The destructive half of takedown, and the only step a human performs. Keeps the ban and
+ * NULLs the bytes for EVERY row holding this hash, using the existing removal-tombstone
+ * meaning of `avatars.image` (image, hash and source all NULL).
+ */
+export async function confirmAvatarHashBan(db: Database, hash: string, byUserId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(blockedAvatarHashes)
+      .values({ hash, state: "confirmed", blockedByUserId: byUserId })
+      .onConflictDoUpdate({
+        target: blockedAvatarHashes.hash,
+        set: { state: "confirmed", blockedByUserId: byUserId },
+      });
+    await tx
+      .update(avatars)
+      .set({ image: null, hash: null, source: null, updatedAt: new Date() })
+      .where(eq(avatars.hash, hash));
+  });
+}
+
+export async function isAvatarHashBanned(db: Database, hash: string): Promise<boolean> {
+  const [row] = await db.select({ hash: blockedAvatarHashes.hash }).from(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, hash));
+  return Boolean(row);
 }
 
 export async function getAvatarState(db: Database, userId: string): Promise<"none" | "live" | "tombstone"> {
