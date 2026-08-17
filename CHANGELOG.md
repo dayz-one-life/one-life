@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Report an objectionable avatar, and block another user. A reported avatar is hidden
+  immediately pending review, and blocking someone hides their avatar from you and stops
+  location sharing between you both ways. Reporting requires a verified gamertag.
 - A minimum-supported-version gate for the coming mobile app. `GET /api/app-version` publishes a
   per-platform floor set by `IOS_MIN_APP_VERSION` / `ANDROID_MIN_APP_VERSION`, and the app blocks
   with "update required" below it. Unset — the default — means no floor and gates nobody. Nothing

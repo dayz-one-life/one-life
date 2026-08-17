@@ -217,3 +217,6 @@ two signed-in accounts, and none is closed by the test suite:
   signed-in session — delete → signed out on every device → the dossier still standing,
   unverified and avatar-less, with its lives and obituaries intact. Use CDP
   `Emulation.setDeviceMetricsOverride`.
+- UGC moderation's browser-only claims: the report and block dialogs at 320px, the moderation
+  queue's click-to-reveal at 320px, and the full round trip against real data — report an
+  avatar, confirm it vanishes site-wide, restore it, confirm it returns.
