@@ -1,6 +1,6 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, or, sql } from "drizzle-orm";
 import type { Database } from "@onelife/db";
-import { avatars, avatarReports, gamertagLinks } from "@onelife/db";
+import { avatars, avatarReports, gamertagLinks, userBlocks } from "@onelife/db";
 import { banAvatarHash } from "./avatar-store.js";
 
 /**
@@ -66,4 +66,54 @@ export async function reportAvatar(
   // duplicate ban row, and never downgrades a moderator-confirmed ban.
   await banAvatarHash(db, subject.hash);
   return { ok: true };
+}
+
+/**
+ * Block another user. ⚠️ VIEWER-SCOPED: this hides the blocked user's avatar from the blocker
+ * and severs location shares both ways. It must NEVER stop those bytes serving globally —
+ * that is what a hash ban is for, and confusing the two would hand every user a unilateral
+ * takedown button.
+ *
+ * Not symmetric and not notified: a block that notifies is a block that invites retaliation.
+ */
+export async function blockUser(
+  db: Database,
+  blockerUserId: string,
+  blockedUserId: string,
+): Promise<{ ok: true } | { error: "self" }> {
+  if (blockerUserId === blockedUserId) return { error: "self" };
+  await db
+    .insert(userBlocks)
+    .values({ blockerUserId, blockedUserId })
+    .onConflictDoNothing({ target: [userBlocks.blockerUserId, userBlocks.blockedUserId] });
+  return { ok: true };
+}
+
+export async function unblockUser(db: Database, blockerUserId: string, blockedUserId: string): Promise<void> {
+  await db
+    .delete(userBlocks)
+    .where(and(eq(userBlocks.blockerUserId, blockerUserId), eq(userBlocks.blockedUserId, blockedUserId)));
+}
+
+export async function listBlockedUserIds(db: Database, blockerUserId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: userBlocks.blockedUserId })
+    .from(userBlocks)
+    .where(eq(userBlocks.blockerUserId, blockerUserId));
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Does a block exist in EITHER direction? Location sharing uses this: a one-way block severs
+ * the connection both ways, so blocking someone also stops you seeing them.
+ */
+export async function isBlockedEitherWay(db: Database, a: string, b: string): Promise<boolean> {
+  const [row] = await db
+    .select({ blocker: userBlocks.blockerUserId })
+    .from(userBlocks)
+    .where(or(
+      and(eq(userBlocks.blockerUserId, a), eq(userBlocks.blockedUserId, b)),
+      and(eq(userBlocks.blockerUserId, b), eq(userBlocks.blockedUserId, a)),
+    ));
+  return Boolean(row);
 }
