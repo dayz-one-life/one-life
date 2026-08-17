@@ -1,3 +1,5 @@
+import { classifyEntityLabel } from "./entities.js";
+
 export interface DeathRawFacts {
   mechanism: string | null;      // lives.death_cause: pvp|suicide|bled_out|drowned|died|environment|unknown
   energy: number | null;
@@ -54,6 +56,27 @@ export const ENTITY_MECHANISMS: ReadonlySet<string> = new Set(ENTITY_MECHANISM_L
 export function causeFamily(cause: string): string {
   if (cause === "wolf" || cause === "bear" || cause === "animal") return "animal";
   return cause;
+}
+
+/**
+ * The cause a knockout-inflicting hit names. Mirrors the parser's entity dict in spirit, but reads
+ * HIT labels, which are display names (`Wolf`, `Infected`, `FallDamageHealth`) rather than the
+ * class names (`Animal_CanisLupus`) a death line carries — so the shared `classifyEntityLabel` is
+ * tried first and the display forms are matched exactly. Anything unrecognised degrades to
+ * `environmental`, the same fallback the parser uses for an unmapped death entity.
+ */
+function knockoutCause(hit: RecentHit): DeathVerdict["cause"] {
+  if (hit.attackerType === "player") return "pvp";
+  if (hit.attackerType === "infected") return "mauled";
+  const label = hit.attackerLabel ?? "";
+  if (label.startsWith("FallDamage")) return "fall";
+  const animal = classifyEntityLabel(label);
+  if (animal) return animal;
+  // ⚠️ Anchored, not prefixed: `BearTrap` is a trap, not a bear.
+  if (/^wolf$/iu.test(label)) return "wolf";
+  if (/^bear$/iu.test(label)) return "bear";
+  if (/^explosion$/iu.test(label)) return "explosion";
+  return "environmental";
 }
 
 /**
@@ -115,6 +138,39 @@ export function classifyDeath(
 
   if (starving) return { cause: "starvation", confidence: recent.length ? "low" : "high", conditions: baseConditions, basis };
   if (dehydrated) return { cause: "dehydration", confidence: recent.length ? "low" : "high", conditions: baseConditions, basis };
+
+  // A player knocked unconscious does not get up: he either picks "respawn" or logs out, and the
+  // SERVER kills the character — so the ADM writes a clauseless `died.` line naming nothing at
+  // all. The knockout is what actually ended the life, so the death belongs to whatever caused
+  // the knockout. Confirmed in production: every one of the 8 `choosing to respawn` lines follows
+  // an `is unconscious` line, each with hits behind it (infected ×5, another player ×2, a fall ×1).
+  //
+  // ⚠️ Only hits at or BEFORE the knockout count. Infected keep chewing on a body after it drops,
+  // and those later hits did not cause the knockout — attributing to them is how a fall death
+  // becomes a mauling. The LOWEST victim HP among the pre-knockout hits names the source, because
+  // that hit is the one that took them down; a stray scratch at 98 HP must never outvote the
+  // player hits that did the work (real case: Cee Lo GREEN 96, 2026-07-13).
+  //
+  // Sits BELOW starvation/dehydration deliberately — that ordering predates this rung and is
+  // pinned by its own test — and ABOVE the infected `mauled` rung below, which it subsumes for
+  // knockout cases while that rung keeps the bleeding/terminal-HP evidence paths it owns.
+  const lastKnockout = recentUnconsciousInWindow.reduce<RecentUnconscious | null>(
+    (a, b) => (a == null || b.secondsBeforeDeath < a.secondsBeforeDeath ? b : a), null);
+  if (lastKnockout) {
+    const preKnockout = recent.filter(
+      (h) => h.secondsBeforeDeath >= lastKnockout.secondsBeforeDeath && h.victimHp != null);
+    const downedBy = preKnockout.reduce<RecentHit | null>(
+      (a, b) => (a == null || b.victimHp! < a.victimHp! ? b : a), null);
+    if (downedBy) {
+      const cause = knockoutCause(downedBy);
+      const bleedingNow = facts.bleedSources != null && facts.bleedSources > 0;
+      return { cause, confidence: "high",
+        conditions: bleedingNow ? [...baseConditions, "bleeding"] : withHealthy(baseConditions),
+        basis: { ...basis, knockoutSecondsBeforeDeath: lastKnockout.secondsBeforeDeath,
+          downedByLabel: downedBy.attackerLabel, downedByType: downedBy.attackerType,
+          downedAtHp: downedBy.victimHp } };
+    }
+  }
 
   // Infected deaths systematically evade both proxies the old gate relied on: bleeding closes
   // before death, and shock never shows in HP. `hunted` is the gate; the three corroborations
