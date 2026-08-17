@@ -1,36 +1,20 @@
+import {
+  ApiError,
+  createApiClient,
+  parse,
+  toBackendPath,
+  type Transport,
+} from "@onelife/api-client";
 import type {
-  SiteStats,
-  Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
-  Me, GamertagLink, ClaimResult, PlayerPage,
-  GlobalRosterEntry, GlobalLeaderRow, AuthMethods, SurvivorsPage, LifeTimelineData,
-  ObituariesFeed, ObituaryArticle,
-  NotificationsFeed,
-  LifeTrack,
-  SitemapData,
-  MapShare,
-  TokenWalletData,
+  SiteStats, Server, LifeTimelineData, ObituariesFeed, ObituaryArticle, SitemapData,
 } from "./types";
 
-export class ApiError extends Error {
-  constructor(public status: number, public code: string, message?: string) {
-    super(message ?? `${status} ${code}`);
-    this.name = "ApiError";
-  }
-}
+// Re-exported so the ~53 modules importing these from "@/lib/api" keep working unchanged.
+export { ApiError, toBackendPath };
+export type { TokenTransaction, TokenWalletData } from "./types";
 
 const isServer = typeof window === "undefined";
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:3001";
-
-/**
- * Backend mounts Better Auth under /api/auth but read/me/gamertag routes at root.
- * The client goes through the Next rewrite (which does this mapping itself), so
- * this is only used to build the absolute server-side URL.
- */
-export function toBackendPath(p: string): string {
-  if (p === "/api/auth" || p.startsWith("/api/auth/")) return p;
-  if (p.startsWith("/api/")) return p.slice(4); // "/api/servers" -> "/servers"
-  return p;
-}
 
 /** Server-side: absolute URL to the API origin (rewrites don't apply to server fetch). */
 async function buildInit(base: RequestInit): Promise<{ url: (p: string) => string; init: RequestInit }> {
@@ -48,25 +32,6 @@ async function buildInit(base: RequestInit): Promise<{ url: (p: string) => strin
   // cache must never be the reason a stale/foreign response is served. `credentials:
   // "include"` alone doesn't disable caching.
   return { url: (p) => p, init: { ...base, credentials: "include", cache: "no-store" } };
-}
-
-async function parse<T>(res: Response): Promise<T> {
-  const text = await res.text();
-  let json: unknown = null;
-  if (text) {
-    try {
-      json = JSON.parse(text);
-    } catch {
-      if (!res.ok) throw new ApiError(res.status, "http_error", text.slice(0, 200));
-      throw new ApiError(res.status, "invalid_response", "Response was not valid JSON");
-    }
-  }
-  if (!res.ok) {
-    const code = (json && typeof json === "object" && "error" in json) ? String((json as { error: unknown }).error) : "http_error";
-    const message = (json && typeof json === "object" && "message" in json) ? String((json as { message: unknown }).message) : undefined;
-    throw new ApiError(res.status, code, message);
-  }
-  return json as T;
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
@@ -118,76 +83,63 @@ export async function apiSend<T>(method: "POST" | "DELETE" | "PATCH", path: stri
   return parse<T>(await fetch(url(path), init));
 }
 
-export const getAuthMethods = () => apiGet<AuthMethods>("/api/auth/providers");
-export const getServers = () => apiGet<Server[]>("/api/servers");
-/** Tier 2 of the map-resolution rule. Returns `{ slug: null }` (200) for a signed-out viewer —
- *  it is a hint, not a protected resource. Takes no subject; the session is the only input. */
-export const getLastPlayedMap = () => apiGet<{ slug: string | null }>("/api/me/last-map");
-export const getRoster = (serverId: number) => apiGet<RosterEntry[]>(`/api/servers/${serverId}/roster`);
-export const getProfile = (serverId: number, gamertag: string) =>
-  apiGet<Profile>(`/api/servers/${serverId}/players/${encodeURIComponent(gamertag)}`);
-export const getLives = (serverId: number, gamertag: string) =>
-  apiGet<Life[]>(`/api/servers/${serverId}/players/${encodeURIComponent(gamertag)}/lives`);
-export const getLifeDetail = (serverId: number, lifeId: number) =>
-  apiGet<LifeDetail>(`/api/servers/${serverId}/lives/${lifeId}`);
-export const getLeaderboard = (serverId: number, board: string) =>
-  apiGet<LeaderRow[]>(`/api/servers/${serverId}/leaderboards/${board}`);
-export const getGlobalRoster = () => apiGet<GlobalRosterEntry[]>(`/api/roster`);
-export const getGlobalBoard = (board: string) => apiGet<GlobalLeaderRow[]>(`/api/leaderboards/${board}`);
-export const getKills = (serverId: number) => apiGet<Kill[]>(`/api/servers/${serverId}/kills`);
-export const getBuilds = (serverId: number) => apiGet<Build[]>(`/api/servers/${serverId}/builds`);
-export const getMe = () => apiGet<Me>("/api/me");
-export const getGamertagLinks = () => apiGet<GamertagLink[]>("/api/me/gamertag-links");
-export const getGamertagLink = (id: number) => apiGet<GamertagLink>(`/api/me/gamertag-links/${id}`);
-export const claimGamertag = (gamertag: string) =>
-  apiSend<ClaimResult>("POST", "/api/me/gamertag-links", { gamertag });
-export const cancelGamertagLink = (id: number) =>
-  apiSend<{ status: string }>("DELETE", `/api/me/gamertag-links/${id}`);
-export const searchClaimableGamertags = (q: string) =>
-  apiGet<string[]>(`/api/players/search?q=${encodeURIComponent(q)}`);
-export const searchVerifiedGamertags = (q: string) =>
-  apiGet<string[]>(`/api/players/search/verified?q=${encodeURIComponent(q)}`);
+/** The web app's transport: cookie-forwarding server-side, `credentials: "include"` in the
+ *  browser. The mobile client supplies a bearer-token transport against the same interface. */
+const webTransport: Transport = { get: apiGet, send: apiSend };
 
-export const getTokens = () => apiGet<TokenWalletData>("/api/me/tokens");
-export const redeemToken = (banId?: number) =>
-  apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
-export const transferToken = (toGamertag: string) =>
-  apiSend<{ ok: true }>("POST", "/api/me/tokens/transfer", { toGamertag });
-export const createCheckout = () => apiSend<{ url: string }>("POST", "/api/me/tokens/checkout", {});
-export const confirmCheckout = (sessionId: string) =>
-  apiSend<{ granted: number; paid: boolean; balance: number }>("POST", "/api/me/tokens/checkout/confirm", {
-    sessionId,
-  });
+const api = createApiClient(webTransport);
 
-/** How many people the viewer referred who went on to verify. Takes no subject — session only. */
-export const getReferralCount = () => apiGet<{ joined: number }>("/api/me/referrals");
-/** Called server-side by the same-origin claim handler, which holds the httpOnly invite cookie. */
-export const postReferrerClaim = (referrerSlug: string) =>
-  apiSend<{ ok: true; claimed: boolean }>("POST", "/api/me/referrer/claim", { referrerSlug });
+// ── The shared catalog, re-exported one by one so every existing `import { getX } from
+//    "@/lib/api"` keeps resolving. Do not collapse this into `export const { ... } = api` —
+//    named re-exports are what keep the call sites and their types stable. ──
+export const getAuthMethods = api.getAuthMethods;
+export const getServers = api.getServers;
+export const getLastPlayedMap = api.getLastPlayedMap;
+export const getRoster = api.getRoster;
+export const getProfile = api.getProfile;
+export const getLives = api.getLives;
+export const getLifeDetail = api.getLifeDetail;
+export const getLeaderboard = api.getLeaderboard;
+export const getGlobalRoster = api.getGlobalRoster;
+export const getGlobalBoard = api.getGlobalBoard;
+export const getKills = api.getKills;
+export const getBuilds = api.getBuilds;
+export const getMe = api.getMe;
+export const getGamertagLinks = api.getGamertagLinks;
+export const getGamertagLink = api.getGamertagLink;
+export const claimGamertag = api.claimGamertag;
+export const cancelGamertagLink = api.cancelGamertagLink;
+export const searchClaimableGamertags = api.searchClaimableGamertags;
+export const searchVerifiedGamertags = api.searchVerifiedGamertags;
+export const getTokens = api.getTokens;
+export const redeemToken = api.redeemToken;
+export const transferToken = api.transferToken;
+export const createCheckout = api.createCheckout;
+export const confirmCheckout = api.confirmCheckout;
+export const getReferralCount = api.getReferralCount;
+export const postReferrerClaim = api.postReferrerClaim;
+export const getNotifications = api.getNotifications;
+export const markNotificationsRead = api.markNotificationsRead;
+export const getVapidKey = api.getVapidKey;
+export const subscribePush = api.subscribePush;
+export const unsubscribePush = api.unsubscribePush;
+export const getPushStatus = api.getPushStatus;
+export const getPlayerPage = api.getPlayerPage;
+export const getPlayerLife = api.getPlayerLife;
+export const getLifeTrack = api.getLifeTrack;
+export const getSurvivors = api.getSurvivors;
+export const getObituariesFeed = api.getObituariesFeed;
+export const getObituary = api.getObituary;
+export const shareLocationWith = api.shareLocationWith;
+export const stopSharingWith = api.stopSharingWith;
+export const stopSharingAll = api.stopSharingAll;
+export const getMapShare = api.getMapShare;
+export const getAvatar = api.getAvatar;
+export const syncAvatar = api.syncAvatar;
+export const removeAvatar = api.removeAvatar;
 
-export const getNotifications = (page = 1) =>
-  apiGet<NotificationsFeed>(`/api/me/notifications?page=${page}`);
-export const markNotificationsRead = (ids: number[]) =>
-  apiSend<{ ok: true }>("POST", "/api/me/notifications/read", { ids });
-export const getVapidKey = () => apiGet<{ publicKey: string }>("/api/push/vapid-key");
-export const subscribePush = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
-  apiSend<{ ok: true }>("POST", "/api/me/push-subscriptions", sub);
-export const unsubscribePush = (endpoint: string) =>
-  apiSend<{ ok: true }>("DELETE", "/api/me/push-subscriptions", { endpoint });
-/** The server's view of this endpoint for the *session user*. The browser's PushSubscription
- *  survives sign-out, account switches and the notifier retiring the row, so it alone cannot
- *  tell the toggle whether push will actually arrive. */
-export const getPushStatus = (endpoint: string) =>
-  apiGet<{ active: boolean }>(`/api/me/push-subscriptions?endpoint=${encodeURIComponent(endpoint)}`);
-
-async function getOrNull<T>(path: string): Promise<T | null> {
-  try {
-    return await apiGet<T>(path);
-  } catch (e) {
-    if (e instanceof ApiError && e.status === 404) return null;
-    throw e;
-  }
-}
+// ── Next-only variants below. These depend on `next: { revalidate }` and have no mobile
+//    equivalent, so they stay here rather than moving into @onelife/api-client. ──
 
 /** `getOrNull`'s 404-to-null contract over the cookie-free, cacheable fetch. */
 async function getOrNullCached<T>(path: string, revalidateSeconds: number): Promise<T | null> {
@@ -198,31 +150,6 @@ async function getOrNullCached<T>(path: string, revalidateSeconds: number): Prom
     throw e;
   }
 }
-
-export const getPlayerPage = (slug: string, page?: number) =>
-  getOrNull<PlayerPage>(`/api/players/${encodeURIComponent(slug)}${page && page > 1 ? `?page=${page}` : ""}`);
-
-export const getPlayerLife = (slug: string, map: string, n: number) =>
-  getOrNull<LifeTimelineData>(`/api/players/${encodeURIComponent(slug)}/${encodeURIComponent(map)}/lives/${n}`);
-
-/** Owner-only. Wraps `getOrNull`, so a 404 (life does not exist) resolves to null. A 403
- *  (signed-in but not the verified owner) is NOT translated here — it rethrows, matching
- *  every other `getOrNull` wrapper in this file. Prefer `useLifeTrack` (`./use-life-track`)
- *  as the entry point: its `queryFn` is what catches the 403 and turns it into null so the
- *  UI doesn't distinguish "not found" from "not yours" for a stranger. A caller importing
- *  this function directly must handle the 403 itself. */
-export const getLifeTrack = (mapSlug: string, n: number) =>
-  getOrNull<LifeTrack>(`/api/me/lives/${encodeURIComponent(mapSlug)}/${n}/track`);
-
-/** ⚠️ `slug` is REQUIRED — there is no combined board. A life is per-server, so a cross-server
- *  board would rank lives that were never in the same race. */
-export const getSurvivors = (p: { slug: string; page: number }) =>
-  apiGet<SurvivorsPage>(`/api/survivors/${encodeURIComponent(p.slug)}?page=${p.page}`);
-
-export const getObituariesFeed = (page: number) =>
-  apiGet<ObituariesFeed>(`/api/obituaries?page=${page}`);
-export const getObituary = (slug: string) =>
-  getOrNull<ObituaryArticle>(`/api/obituaries/${encodeURIComponent(slug)}`);
 
 /** Home's pitch feeds — public, cookie-independent, fetched on EVERY home render (cold AND
  *  signed-in, since the unverified pitch needs them too). `apiGetCached` keeps that free: no
@@ -267,38 +194,15 @@ export const getSitemapData = () => apiGetCached<SitemapData>("/api/sitemap", SI
  *  point the regular `getServers()` (used by authenticated RSC pages) at this. */
 export const getServersCached = () => apiGetCached<Server[]>("/api/servers", SITEMAP_REVALIDATE_SECONDS);
 
-/** ⚠️ These three name a GRANTEE, which does not breach the no-subject rule: that rule governs
- *  coordinate EGRESS (whose position you may READ). These say who may see YOUR position, and
- *  disclose nothing in their responses. */
-export const shareLocationWith = (mapSlug: string, gamertag: string) =>
-  apiSend<{ ok: true }>("POST", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares`, { gamertag });
-export const stopSharingWith = (mapSlug: string, gamertag: string) =>
-  apiSend<{ ok: true }>("DELETE", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares/${encodeURIComponent(gamertag)}`);
-export const stopSharingAll = (mapSlug: string) =>
-  apiSend<{ ok: true }>("DELETE", `/api/me/maps/${encodeURIComponent(mapSlug)}/shares`);
-
-export const getMapShare = (slug: string) =>
-  apiGet<MapShare>(`/api/me/maps/${encodeURIComponent(slug)}`);
-
-/** Session-gated, `no-store, private` — the viewer's own avatar hash, or null. Never derive an
- *  avatar from `useSession()`'s `user.image`: that's the raw provider URL, and public surfaces
- *  must not hotlink it.
- *
- *  ⚠️ The one exception is `AvatarPanel`'s "Use my Discord photo" preview
- *  (`components/account/avatar-panel.tsx`), and it is narrow enough not to reopen this rule: it
- *  renders `user.image` only to the signed-in owner, on the owner's own session-gated dialog,
- *  purely as a staged preview — the value is never persisted or forwarded anywhere (the actual
- *  photo comes from a server-side `syncAvatar()` fetch on Save, not from this URL) and never
- *  reaches an unauthenticated viewer. "Public surfaces must not hotlink it" is the rule this
- *  guards; a private owner-only preview of the owner's own value doesn't hotlink it to anyone. */
-export const getAvatar = () => apiGet<{ hash: string | null }>("/api/me/avatar");
-
 /**
  * Multipart upload — deliberately NOT routed through `apiSend`/`apiGet`: those always attach a
  * `content-type: application/json` header (when a body is present) and JSON-encode the body,
  * neither of which is right for a file. A raw `fetch` with a `FormData` body lets the browser
  * set its own `multipart/form-data; boundary=...` content-type; setting one by hand here would
  * omit the boundary and the server could never split the parts.
+ *
+ * Stays in apps/web rather than moving to @onelife/api-client: it takes a DOM `File`, which
+ * React Native does not have (RN's FormData takes `{ uri, name, type }` instead).
  */
 export async function uploadAvatar(file: File): Promise<{ hash: string }> {
   const body = new FormData();
@@ -306,10 +210,3 @@ export async function uploadAvatar(file: File): Promise<{ hash: string }> {
   const res = await fetch("/api/me/avatar", { method: "POST", body, credentials: "include", cache: "no-store" });
   return parse<{ hash: string }>(res);
 }
-
-/** Pulls the login provider's avatar image and stores it as the user's avatar. 409
- *  `no_provider_image` when the provider gave us nothing to pull. */
-export const syncAvatar = () => apiSend<{ hash: string }>("POST", "/api/me/avatar/sync");
-
-/** Bodyless DELETE: `apiSend` only sets content-type when a body is present. */
-export const removeAvatar = () => apiSend<{ ok: true }>("DELETE", "/api/me/avatar");
