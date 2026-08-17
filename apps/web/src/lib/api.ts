@@ -8,6 +8,7 @@ import type {
   LifeTrack,
   SitemapData,
   MapShare,
+  TokenWalletData,
 } from "./types";
 
 export class ApiError extends Error {
@@ -147,8 +148,6 @@ export const searchClaimableGamertags = (q: string) =>
 export const searchVerifiedGamertags = (q: string) =>
   apiGet<string[]>(`/api/players/search/verified?q=${encodeURIComponent(q)}`);
 
-export type TokenTransaction = { id: number; delta: number; kind: string; createdAt: string };
-export type TokenWalletData = { balance: number; transactions: TokenTransaction[] };
 export const getTokens = () => apiGet<TokenWalletData>("/api/me/tokens");
 export const redeemToken = (banId?: number) =>
   apiSend<{ lifted: { banId: number; gamertag: string } }>("POST", "/api/me/tokens/redeem", banId ? { banId } : {});
