@@ -69,3 +69,22 @@ describe("minimum app version", () => {
     expect(loadConfig({ ...base, ANDROID_MIN_APP_VERSION: "" }).minAppVersion.android).toBe("0.0.0");
   });
 });
+
+describe("moderator user ids", () => {
+  // ⚠️ Empty means NOBODY is a moderator and every moderation route 403s. Never fail open:
+  // the failure mode of a typo must be "moderation is unavailable", never "a stranger can
+  // delete avatars".
+  it("defaults to an empty list", () => {
+    expect(loadConfig(base).moderatorUserIds).toEqual([]);
+  });
+
+  it("splits and trims a comma-separated list", () => {
+    expect(loadConfig({ ...base, MODERATOR_USER_IDS: "abc, def ,ghi" }).moderatorUserIds)
+      .toEqual(["abc", "def", "ghi"]);
+  });
+
+  it("drops blank entries rather than admitting an empty id", () => {
+    expect(loadConfig({ ...base, MODERATOR_USER_IDS: "abc,,  ,def" }).moderatorUserIds)
+      .toEqual(["abc", "def"]);
+  });
+});

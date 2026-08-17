@@ -50,6 +50,7 @@ const app = buildApp(db, {
   auth, authConfig: authCfg, corsOrigins: cfg.corsOrigins,
   vapidPublicKey: cfg.vapidPublicKey,
   stripe,
+  moderatorUserIds: cfg.moderatorUserIds,
 }, cfg.minAppVersion);
 
 app.listen({ port: cfg.port, host: "0.0.0.0" })

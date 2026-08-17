@@ -29,6 +29,7 @@ import type { StripeGateway } from "./lib/stripe-gateway.js";
 import { registerAppVersionRoute, type MinAppVersion } from "./routes/app-version.js";
 import { registerReportRoutes } from "./routes/reports.js";
 import { registerBlockRoutes } from "./routes/blocks.js";
+import { registerModerationRoutes } from "./routes/moderation.js";
 
 // ⚠️ The gate's off value. Must stay in step with NO_VERSION_FLOOR in config.ts — see the
 // reasoning there. It is the fallback for callers that pass no floor at all (tests, and any
@@ -44,6 +45,7 @@ export interface AuthOptions {
   // allowlist so tests can exercise the sync/autopopulate paths against a local stub server.
   avatarAllowTestFetchLoopback?: boolean;
   stripe?: StripeGateway;
+  moderatorUserIds?: string[];
 }
 
 export function buildApp(db: Database, opts?: AuthOptions, minAppVersion?: MinAppVersion): FastifyInstance {
@@ -59,7 +61,7 @@ export function buildApp(db: Database, opts?: AuthOptions, minAppVersion?: MinAp
     app.register(fastifyMultipart, { limits: { fileSize: AVATAR_MAX_BYTES } });
     if (opts.authConfig) registerAuthMethodsRoute(app, opts.authConfig);
     registerAuthHandler(app, opts.auth);
-    registerMeRoute(app, opts.auth);
+    registerMeRoute(app, opts.auth, opts.moderatorUserIds ?? []);
     registerAccountRoutes(app, db, opts.auth);
     registerGamertagLinkRoutes(app, db, opts.auth);
     registerTokenRoutes(app, db, opts.auth);
@@ -71,6 +73,7 @@ export function buildApp(db: Database, opts?: AuthOptions, minAppVersion?: MinAp
     registerAvatarRoutes(app, db, opts.auth, { allowTestHosts: opts.avatarAllowTestFetchLoopback });
     registerReportRoutes(app, db, opts.auth);
     registerBlockRoutes(app, db, opts.auth);
+    registerModerationRoutes(app, db, opts.auth, opts.moderatorUserIds ?? []);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);
