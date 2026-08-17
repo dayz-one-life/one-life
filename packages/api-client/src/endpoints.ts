@@ -1,5 +1,5 @@
-import { ApiError } from "./error.js";
-import type { Transport } from "./transport.js";
+import { ApiError } from "./error";
+import type { Transport } from "./transport";
 import type {
   Server, RosterEntry, Profile, Life, LifeDetail, LeaderRow, Kill, Build,
   Me, GamertagLink, ClaimResult, PlayerPage,
@@ -9,7 +9,7 @@ import type {
   LifeTrack,
   MapShare,
   TokenWalletData,
-} from "./types.js";
+} from "./types";
 
 export function createApiClient(t: Transport) {
   async function getOrNull<T>(path: string): Promise<T | null> {

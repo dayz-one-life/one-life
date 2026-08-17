@@ -1,7 +1,7 @@
-export { ApiError } from "./error.js";
-export { parse } from "./parse.js";
-export { toBackendPath } from "./path.js";
-export { createApiClient } from "./endpoints.js";
-export type { ApiClient } from "./endpoints.js";
-export type { Transport, HttpSendMethod } from "./transport.js";
-export type * from "./types.js";
+export { ApiError } from "./error";
+export { parse } from "./parse";
+export { toBackendPath } from "./path";
+export { createApiClient } from "./endpoints";
+export type { ApiClient } from "./endpoints";
+export type { Transport, HttpSendMethod } from "./transport";
+export type * from "./types";

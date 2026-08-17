@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toBackendPath } from "../src/path.js";
+import { toBackendPath } from "../src/path";
 
 describe("toBackendPath", () => {
   it("strips the /api prefix from read/me/gamertag routes", () => {

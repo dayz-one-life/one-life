@@ -1,4 +1,4 @@
-import { ApiError } from "./error.js";
+import { ApiError } from "./error";
 
 export async function parse<T>(res: Response): Promise<T> {
   const text = await res.text();

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parse } from "../src/parse.js";
-import { ApiError } from "../src/error.js";
+import { parse } from "../src/parse";
+import { ApiError } from "../src/error";
 
 function res(body: string, init: { status?: number } = {}): Response {
   return new Response(body, { status: init.status ?? 200 });

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { createApiClient } from "../src/endpoints.js";
-import { ApiError } from "../src/error.js";
-import type { Transport } from "../src/transport.js";
+import { createApiClient } from "../src/endpoints";
+import { ApiError } from "../src/error";
+import type { Transport } from "../src/transport";
 
 function fakeTransport(overrides: Partial<Transport> = {}) {
   const get = vi.fn(async () => ({}) as never);
