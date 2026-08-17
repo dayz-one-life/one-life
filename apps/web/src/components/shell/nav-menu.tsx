@@ -156,6 +156,9 @@ export function NavMenu() {
                       Claim your gamertag →
                     </a>
                   )}
+                  <Link role="menuitem" href="/settings" onClick={close} className={itemClass}>
+                    Settings
+                  </Link>
                   <button
                     type="button"
                     role="menuitem"
