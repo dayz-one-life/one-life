@@ -1,7 +1,12 @@
 import { classifyEntityLabel } from "@onelife/domain";
 import type { DeathCause } from "./types.js";
 
-const KILL_RE = /Player "([^"]+)" \(DEAD\) \(id=([^\s)]+)[^)]*\) killed by Player "([^"]+)" \(id=([^\s)]+)[^)]*\)(.*)$/u;
+// ⚠️ Keep the optional `(DEAD)` here in step with DEATH_RE below. If this one demanded the marker
+// while DEATH_RE did not, a marker-less PvP kill would match only DEATH_RE and fall through to the
+// entity branch, which would capture the literal `Player` as the killing entity — an `environment`
+// death with no killer and no kills row, silently. No such line exists in the corpus today; the
+// symmetry is what keeps it from mattering if one ever appears.
+const KILL_RE = /Player "([^"]+)" (?:\(DEAD\) )?\(id=([^\s)]+)[^)]*\) killed by Player "([^"]+)" \(id=([^\s)]+)[^)]*\)(.*)$/u;
 // ⚠️ The `(DEAD)` marker is OPTIONAL. Like a fatal fall, a suicide is logged twice and
 // inconsistently: a `committed suicide` line plus a clauseless `died. Stats>` line — and DayZ
 // omits `(DEAD)` on the suicide line about 12% of the time (12 of 102 in production). Requiring

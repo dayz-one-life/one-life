@@ -54,6 +54,16 @@ describe("parseDeath — stats + precision", () => {
     expect(parseDeath(noDead)).toMatchObject({ victim: "Adrucx07", cause: "suicide" });
   });
 
+  // Guards the KILL_RE/DEATH_RE symmetry: if only DEATH_RE dropped the marker requirement, this
+  // line would fall through to the entity branch and capture the literal "Player" as the killer
+  // entity — an `environment` death with no killer and no kills row.
+  it("parses a PvP kill that omits the (DEAD) marker, rather than reading it as an entity", () => {
+    const noDead = `10:00:00 | Player "V" (id=V= pos=<1.0, 2.0, 3.0>) killed by Player "K" (id=K=) with M4A1 from 42 meters`;
+    expect(parseDeath(noDead)).toMatchObject({
+      victim: "V", cause: "pvp", killer: "K", weapon: "M4A1", distance: 42, deathEntity: null,
+    });
+  });
+
   it("still requires a death verb when (DEAD) is absent — a plain position line is not a death", () => {
     expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>)`)).toBeNull();
     expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>) is connected`)).toBeNull();
