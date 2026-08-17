@@ -308,3 +308,15 @@ export type MapServerDto = { slug: string; name: string; map: string };
 
 export type TokenTransaction = { id: number; delta: number; kind: string; createdAt: string };
 export type TokenWalletData = { balance: number; transactions: TokenTransaction[] };
+
+/**
+ * Per-platform minimum supported app version, from `GET /api/app-version`.
+ *
+ * Both platforms always present, because the stores diverge — a release can sit in App Store
+ * review while Android has shipped. `minimumVersion` is dotted numeric; `"0.0.0"` means no
+ * floor, which is also what the server falls back to for an unset or malformed value.
+ */
+export type AppVersionPolicy = {
+  ios: { minimumVersion: string };
+  android: { minimumVersion: string };
+};

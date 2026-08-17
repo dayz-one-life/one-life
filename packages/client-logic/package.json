@@ -12,7 +12,8 @@
     "./cause-format": "./src/cause-format.ts",
     "./format": "./src/format.ts",
     "./player-format": "./src/player-format.ts",
-    "./slug": "./src/slug.ts"
+    "./slug": "./src/slug.ts",
+    "./app-version": "./src/app-version.ts"
   },
   "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
   "dependencies": {

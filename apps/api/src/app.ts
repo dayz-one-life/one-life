@@ -26,6 +26,12 @@ import { registerAvatarRoutes, registerPublicAvatarRoutes } from "./routes/avata
 import { AVATAR_MAX_BYTES } from "./lib/avatar-image.js";
 import { registerStoreRoutes } from "./routes/store.js";
 import type { StripeGateway } from "./lib/stripe-gateway.js";
+import { registerAppVersionRoute, type MinAppVersion } from "./routes/app-version.js";
+
+// ⚠️ The gate's off value. Must stay in step with NO_VERSION_FLOOR in config.ts — see the
+// reasoning there. It is the fallback for callers that pass no floor at all (tests, and any
+// deployment that never sets the env vars), and it blocks nobody.
+const NO_VERSION_FLOOR: MinAppVersion = { ios: "0.0.0", android: "0.0.0" };
 
 export interface AuthOptions {
   auth: Auth;
@@ -38,7 +44,7 @@ export interface AuthOptions {
   stripe?: StripeGateway;
 }
 
-export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
+export function buildApp(db: Database, opts?: AuthOptions, minAppVersion?: MinAppVersion): FastifyInstance {
   const app = Fastify({ logger: false });
   app.setErrorHandler<FastifyError>((err, _req, reply) => {
     if ((err as any).statusCode === 400 || err.validation) return reply.code(400).send({ error: "bad_request", message: err.message });
@@ -75,5 +81,8 @@ export function buildApp(db: Database, opts?: AuthOptions): FastifyInstance {
   // routes above, not gated behind the `if (opts)` auth block; the session-gated /me/avatar
   // routes stay above, where an Auth instance is available.
   registerPublicAvatarRoutes(app, db);
+  // Public and unconditional, like the routes above: the mobile app asks whether it is allowed
+  // to run before it has a session, so this must answer on a deployment built without auth.
+  registerAppVersionRoute(app, minAppVersion ?? NO_VERSION_FLOOR);
   return app;
 }
