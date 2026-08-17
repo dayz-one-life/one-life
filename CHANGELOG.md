@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Account deletion. `/settings` gains a danger zone that permanently deletes your account via
+  `DELETE /me`. Player history is deliberately kept — lives, deaths and obituaries belong to the
+  gamertag, not the account — so a deleted user's dossier survives, unverified and avatar-less.
+
 ### Changed
 
 - Extracted the API endpoint catalog into `@onelife/api-client` and the framework-free display

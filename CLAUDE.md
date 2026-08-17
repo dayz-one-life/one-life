@@ -212,3 +212,8 @@ two signed-in accounts, and none is closed by the test suite:
   deployed build (`/opengraph-image`, a life page's, a survivors board's, `/obituaries/`'s),
   a fresh Discord/X unfurl of home + a life + a board + the obituaries index, and the two
   migrated cards (obituary, player) confirmed pixel-equivalent after the CardShell refactor.
+- Account deletion's browser-only claims, none of which RTL can prove: the confirmation dialog
+  at 320px and in PWA/standalone on a notched phone; and the full round trip against a real
+  signed-in session — delete → signed out on every device → the dossier still standing,
+  unverified and avatar-less, with its lives and obituaries intact. Use CDP
+  `Emulation.setDeviceMetricsOverride`.
