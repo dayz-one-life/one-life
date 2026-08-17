@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   helpers into `@onelife/client-logic`, so a second client can share them. `apps/web` keeps its
   Next-specific transport and ISR-cached variants; no call sites changed.
 
+## [0.75.2] - 2026-08-17
+
+### Fixed
+
+- The v0.75.1 repair tool could have destroyed a living player's current life. Rebuilding an
+  old, mis-read death added it to the end of the history rather than back where it belonged, so
+  the site would have read it as happening now and ended whatever life the player was on — dated
+  weeks in the past. Eight of the twelve deaths being repaired belong to players who are still
+  alive on that life, and a wrongly-ended life can trigger a ban. The tool now corrects the
+  existing record in place, and can no longer add anything to the history at all. Caught before
+  it was ever run; no live data was touched.
+
+## [0.75.1] - 2026-08-17
+
+### Fixed
+
+- Suicides no longer read as "Unknown". DayZ writes a suicide across two lines and leaves the
+  `(DEAD)` marker off the telling one about one time in eight; those lines were being dropped
+  entirely, leaving only a bare "died" that says nothing. Ten of the nineteen unexplained deaths
+  on the site were suicides the log had named all along.
+- A death after being knocked unconscious is now blamed on whatever knocked you out. A player who
+  goes down and then picks "respawn" — or logs out — is killed by the server, and that death line
+  names nothing at all, so these were landing as "Unknown". Only infected maulings were being
+  recognised; a fall or another player putting you down now counts too, judged on the hit that
+  actually took you down rather than whatever scratched you last.
+- A death identified as environmental no longer displays as "Unknown" when the log itself names
+  no cause. The verdict was being thrown away in favour of the empty line it was inferred from.
+
 ## [0.75.0] - 2026-08-04
 
 ### Added

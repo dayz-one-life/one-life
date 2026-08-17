@@ -59,4 +59,13 @@ describe("verdictPhrase", () => {
     expect(verdictPhrase(v("environmental"), "drowned")).toBe("Drowned");
     expect(verdictPhrase(v("unknown", "low"), "environment")).toBe("Environment");
   });
+
+  // ⚠️ An `environmental` verdict is no longer only reachable from a STATED mechanism. The
+  // knockout rung infers it from what downed a player who then respawned or logged out — and
+  // that death line names nothing, so the raw cause is a bare `died`. Deferring to it prints
+  // "Unknown" and silently discards a verdict that DID identify the death as environmental.
+  it("does not flatten an inferred environmental verdict to Unknown", () => {
+    expect(verdictPhrase(v("environmental"), "died")).toBe("Environment");
+    expect(verdictPhrase(v("environmental"), null)).toBe("Environment");
+  });
 });

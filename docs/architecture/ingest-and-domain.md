@@ -137,6 +137,52 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   unmapped-entity survey — feed it back into the dict) → projection rebuild
   (`./deploy/deploy.sh --rebuild`, or `pnpm --filter @onelife/projector run rebuild` directly on
   the host). Lives, priors and web surfaces update retroactively.
+- **Death-cause fidelity, stage 3 — the unnamed deaths** ✅. A survey of every ended life
+  (169) found **19 rendering "Unknown"**: 10 dropped suicides, 1 knockout, 8 with genuinely no
+  signal in the ADM. Two root causes, both the "logged twice and inconsistently" pattern the fall
+  rung already documents.
+  **⚠️ The `(DEAD)` marker is OPTIONAL — `DEATH_RE` must NOT require it.** DayZ writes a suicide
+  as a `committed suicide` line *plus* a clauseless `died. Stats>` line, and omits `(DEAD)` on the
+  former **12 times in 102** in production. Requiring it dropped those lines entirely, leaving only
+  the bare `died` → "Unknown". **`DEATH_VERB_RE` is what separates a death from a roster/position
+  line — the marker never was**; a survey of all 59,961 raw lines found the only marker-less lines
+  carrying a death verb are exactly those 12 suicides, so the loosened regex invents nothing.
+  Re-adding `\(DEAD\)` "for precision" silently re-breaks every suicide.
+  **⚠️ A knocked-out player's death belongs to whatever knocked him out.** He never gets up: he
+  picks "respawn" or logs out, and the SERVER kills the character, so the death line names nothing.
+  All 8 `choosing to respawn` lines in production follow an `is unconscious` line, each with hits
+  behind it (infected ×5, player ×2, fall ×1). `classifyDeath`'s **knockout rung** attributes the
+  death to the pre-knockout hit with the **lowest victim HP**. Two rules are load-bearing:
+  only hits **at or before** the knockout count (infected keep chewing on a body afterwards, and
+  crediting those turns a fall into a mauling), and lowest-HP wins so a stray 98 HP scratch cannot
+  outvote the hits that did the work (real case: Cee Lo GREEN 96, 2026-07-13 — 1 infected scratch
+  at 98.3 vs player hits to 43.6). It sits **below** starvation/dehydration (that ordering predates
+  it and is pinned by its own test) and **above** the infected `mauled` rung, which it subsumes for
+  knockout cases while keeping the bleeding/terminal-HP paths that rung owns. This generalises what
+  `mauled` already did — that rung was gated on `hunted`, so a fall or a player putting you down
+  was invisible.
+  **⚠️ `verdictPhrase` must not defer to the raw cause for an `environmental` verdict.** That
+  verdict used to be reachable only from a *stated* `drowned`/`environment` mechanism, where the
+  raw cause was specific; inferred from a knockout it sits on a line naming nothing, so deferring
+  printed "Unknown" and discarded the verdict. It now degrades to "Environment" rather than past it.
+  This is the same trap as the `ENTITY_VERDICTS`/`ENTITY_MECHANISMS` mirror above — the classifier
+  is right and the page still says Unknown.
+  **⚠️⚠️ NEVER append an event to the log for a historical raw line — patch an existing one.**
+  `events.id` IS the fold order, so an event appended today for a July line folds **last**, after
+  every later event. `onDied` checks `getOpenLife` **before** its already-closed-life branch, so
+  such an event **ends the player's CURRENT life and back-dates it** to the historical death. This
+  was written, reviewed, shipped in v0.75.1 and caught only at the deploy step: 8 of the 12
+  recoverable lines belong to players holding an open life, and `bans` is durable and never
+  rebuilt, so the corruption would have outlived any projection rebuild. The reasoning that failed
+  was checking `enrichLifeDeath` (order-independent, keyed on exact `endedAt`) without checking the
+  branch **above** it, which is the one that actually runs — and a test that asserted the event was
+  *inserted* rather than folding it. **A backfill is patch-only; if it can grow the event log, it
+  is wrong.** `backfill-death-causes`' recovery arm therefore pairs a dropped death line with the
+  companion `player.died` event DayZ wrote for the same death (same server, same victim, ±3 s,
+  **exactly one match** or it is not a pairing) and upgrades that event's `cause`. A dropped line
+  with no companion is counted in `unpaired`, reported loudly, and **left alone**.
+  **Deploy runbook:** normal deploy → on the host run `backfill-death-causes` → projection rebuild.
+  The 8 no-signal deaths stay "Unknown" and are not recoverable from the ADM.
 ## Identity merge, content engine, obituaries
 
 - **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;

@@ -272,6 +272,81 @@ describe("mauled inference (corroborated)", () => {
   });
 });
 
+// A knocked-out player who picks "respawn" — and one who combat-logs — is killed by the server,
+// so the ADM writes a clauseless `died.` line naming nothing. The knockout is what actually ended
+// them, so the death belongs to whatever caused it. Verified in production: all 8 `choosing to
+// respawn` lines follow an `is unconscious` line, every one with hits behind it.
+describe("knockout attribution", () => {
+  const base = { mechanism: "died", energy: 500, water: 500, bleedSources: 0, weapon: null };
+  const ko = (secondsBeforeDeath: number) => ({ secondsBeforeDeath, disconnecting: false });
+
+  // Life 29 (turdbazket), the real numbers: fell to 2.66 HP, knocked out, respawned 32s later.
+  // The fall never reached 0 HP, so the fatal-fall rung correctly misses it.
+  it("attributes a death to the fall that caused the knockout", () => {
+    const v = classifyDeath(
+      { ...base, energy: 144.683, water: 429.172 },
+      [{ attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 32, victimHp: 2.66301 }],
+      [ko(32)],
+    );
+    expect(v.cause).toBe("fall");
+  });
+
+  // Tomahawked11: downed by another player at 12.47 HP, then respawned.
+  it("attributes a death to the player who caused the knockout", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "player", attackerLabel: null, secondsBeforeDeath: 12, victimHp: 12.4754 },
+    ], [ko(9)]);
+    expect(v.cause).toBe("pvp");
+  });
+
+  // Cee Lo GREEN 96 (2026-07-13): one infected scratch at 98.34 alongside player hits that took
+  // him to 43.57. The lowest pre-knockout HP names the source — a scratch must not outvote it.
+  it("picks the hit that actually did the damage when sources are mixed", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "infected", attackerLabel: "Infected", secondsBeforeDeath: 40, victimHp: 98.3425 },
+      { attackerType: "player", attackerLabel: null, secondsBeforeDeath: 35, victimHp: 43.5708 },
+    ], [ko(30)]);
+    expect(v.cause).toBe("pvp");
+  });
+
+  it("still reads an infected knockout as mauled", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "infected", attackerLabel: "Infected", secondsBeforeDeath: 40, victimHp: 75.4231 },
+    ], [ko(35)]);
+    expect(v.cause).toBe("mauled");
+  });
+
+  // ⚠️ Only hits BEFORE the knockout are evidence for it. A hit landed on the body afterwards
+  // (infected keep chewing on an unconscious player) did not cause the knockout.
+  it("ignores hits landed after the knockout", () => {
+    const v = classifyDeath(base, [
+      { attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 60, victimHp: 30 },
+      { attackerType: "infected", attackerLabel: "Infected", secondsBeforeDeath: 5, victimHp: 3 },
+    ], [ko(50)]);
+    expect(v.cause).toBe("fall");
+  });
+
+  it("falls through when a knockout has no hits behind it", () => {
+    expect(classifyDeath(base, [], [ko(30)]).cause).toBe("unknown");
+  });
+
+  // Guards the deliberate ordering: starvation still outranks an inferred knockout cause.
+  it("keeps starvation above the knockout rung", () => {
+    const v = classifyDeath({ ...base, energy: 0 }, [
+      { attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 32, victimHp: 2.6 },
+    ], [ko(30)]);
+    expect(v.cause).toBe("starvation");
+  });
+
+  // A stated mechanism still wins outright — the knockout rung only runs for a bare `died`.
+  it("never overrides a stated mechanism", () => {
+    const v = classifyDeath({ ...base, mechanism: "suicide" }, [
+      { attackerType: "environment", attackerLabel: "FallDamageHealth", secondsBeforeDeath: 32, victimHp: 2.6 },
+    ], [ko(30)]);
+    expect(v.cause).toBe("suicide");
+  });
+});
+
 describe("causeFamily", () => {
   it("groups the animal kingdom, passes everything else through", () => {
     expect(causeFamily("wolf")).toBe("animal");

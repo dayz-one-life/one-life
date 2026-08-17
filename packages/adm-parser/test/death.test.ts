@@ -45,6 +45,33 @@ describe("parseDeath — stats + precision", () => {
     expect(d.energy).toBeNull();
   });
 
+  // ⚠️ DayZ writes `committed suicide` in TWO forms — with and without the `(DEAD)` marker —
+  // for the same death, and always alongside a clauseless `died. Stats>` line. Requiring
+  // `(DEAD)` dropped the marker-less form entirely (12 of 102 in production), leaving only the
+  // bare `died.` → "Unknown" on the site. Real lines, verbatim from the prod ADM logs.
+  it("parses a committed-suicide line that omits the (DEAD) marker", () => {
+    const noDead = `13:12:36 | Player "Adrucx07" (id=1ED188FDB5F49DCF77048652AE7A5640DD7B4C2C pos=<10345.4, 6143.6, 259.2>) committed suicide`;
+    expect(parseDeath(noDead)).toMatchObject({ victim: "Adrucx07", cause: "suicide" });
+  });
+
+  // Guards the KILL_RE/DEATH_RE symmetry: if only DEATH_RE dropped the marker requirement, this
+  // line would fall through to the entity branch and capture the literal "Player" as the killer
+  // entity — an `environment` death with no killer and no kills row.
+  it("parses a PvP kill that omits the (DEAD) marker, rather than reading it as an entity", () => {
+    const noDead = `10:00:00 | Player "V" (id=V= pos=<1.0, 2.0, 3.0>) killed by Player "K" (id=K=) with M4A1 from 42 meters`;
+    expect(parseDeath(noDead)).toMatchObject({
+      victim: "V", cause: "pvp", killer: "K", weapon: "M4A1", distance: 42, deathEntity: null,
+    });
+  });
+
+  it("still requires a death verb when (DEAD) is absent — a plain position line is not a death", () => {
+    expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>)`)).toBeNull();
+    expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>) is connected`)).toBeNull();
+    expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>) is unconscious`)).toBeNull();
+    expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>) is choosing to respawn`)).toBeNull();
+    expect(parseDeath(`14:20:11 | Player "A" (id=A= pos=<1.0, 2.0, 3.0>) performed EmoteSuicide with SteakKnife`)).toBeNull();
+  });
+
   it("PvP death is unaffected and carries null stats", () => {
     const pvp = `Player "A" (DEAD) (id=1) killed by Player "B" (id=2) with M4A1 from 42 meters`;
     const d = parseDeath(pvp)!;

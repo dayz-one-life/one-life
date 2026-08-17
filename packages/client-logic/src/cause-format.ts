@@ -39,7 +39,17 @@ export function verdictPhrase(verdict: DeathVerdictDto | null | undefined, cause
   if (verdict.cause === "pvp") return "Killed";
   const noun = VERDICT_NOUN[verdict.cause];
   // A verdict that names a mechanism outranks a raw cause that does not.
-  if (!noun) return causeLabel(ENTITY_VERDICTS.has(verdict.cause) ? verdict.cause : cause);
+  if (!noun) {
+    if (ENTITY_VERDICTS.has(verdict.cause)) return causeLabel(verdict.cause);
+    const raw = causeLabel(cause);
+    // ⚠️ `environmental` is reachable by INFERENCE (the knockout rung), not just from a stated
+    // `drowned`/`environment` mechanism — and an inferred one sits on a death line that names
+    // nothing, so the raw cause is a bare `died`. Deferring to it would print "Unknown" and throw
+    // the verdict away. Prefer the raw cause while it is specific; degrade to the verdict, never
+    // past it.
+    if (verdict.cause === "environmental" && raw === "Unknown") return "Environment";
+    return raw;
+  }
   if (verdict.cause === "suicide") {
     const conds = verdict.conditions.filter((c) => c !== "healthy");
     if (conds.length) return `Suicide (${conds.join(", ")})`;
