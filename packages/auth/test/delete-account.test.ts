@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   user, gamertagLinks, referrals, tokenTransactions,
   servers, players, lives, avatars, notifications, pushSubscriptions,
-  verificationChallenges,
+  verificationChallenges, locationShares,
 } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { deleteAccount } from "../src/delete-account.js";
@@ -77,6 +77,15 @@ beforeAll(async () => {
     { userId: "da-alice", delta: -1, kind: "transfer_out", counterpartyUserId: "da-bob", idempotencyKey: "da:out:alice" },
     { userId: "da-bob", delta: 1, kind: "transfer_in", counterpartyUserId: "da-alice", idempotencyKey: "da:in:bob" },
   ]);
+
+  // `location_shares` cascades from BOTH `granter_user_id` and `grantee_user_id` (spec calls
+  // this out as easy to miss). Seed a share in each direction for Alice so deleting her must
+  // drop both rows, not just the one where she happens to be the FK the deleter thought of
+  // first.
+  await db.insert(locationShares).values([
+    { granterUserId: "da-alice", granteeUserId: "da-bob", serverId, granterSessionConnectedAt: new Date("2026-01-01T00:00:00Z") },
+    { granterUserId: "da-bob", granteeUserId: "da-alice", serverId, granterSessionConnectedAt: new Date("2026-01-01T00:00:00Z") },
+  ]);
 });
 
 afterAll(async () => { await sql.end(); });
@@ -119,6 +128,16 @@ describe("deleteAccount", () => {
     expect(await db.select().from(notifications).where(eq(notifications.userId, "da-alice"))).toHaveLength(0);
     expect(await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, "da-alice"))).toHaveLength(0);
     expect(await db.select().from(tokenTransactions).where(eq(tokenTransactions.userId, "da-alice"))).toHaveLength(0);
+  });
+
+  // ⚠️ Fires on BOTH sides. A cascade wired only from `granter_user_id` (the "obvious" FK,
+  // since a share is granted BY someone) would leave the row where Alice is the GRANTEE
+  // dangling with no user behind it — this asserts both directions independently.
+  it("deletes location_shares in both directions (granter and grantee)", async () => {
+    const asGranter = await db.select().from(locationShares).where(eq(locationShares.granterUserId, "da-alice"));
+    const asGrantee = await db.select().from(locationShares).where(eq(locationShares.granteeUserId, "da-alice"));
+    expect(asGranter).toHaveLength(0);
+    expect(asGrantee).toHaveLength(0);
   });
 
   it("clears the verification challenge for the deleted link", async () => {

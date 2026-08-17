@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getTokens, deleteAccount } from "@/lib/api";
 import { signOutAndTeardownPush } from "@/lib/push";
+import { useModalBehavior } from "@/lib/use-modal-behavior";
 
 /** ⚠️ FOUR renders, not two. `loading` and `failed` must never collapse into `0` — telling
  *  someone "0 tokens will be forfeited" when the fetch merely failed, and they in fact hold
@@ -28,6 +29,12 @@ export function DeleteAccountDialog({ open, onClose }: { open: boolean; onClose:
     return () => { live = false; };
   }, [open]);
 
+  // Same shell as `AvatarDialog`/`ClaimModal`: focus moves into the panel on open and back to
+  // the opener on close, Escape closes, Tab is trapped, body scroll is locked. Called
+  // unconditionally (before the `!open` bail below) because it must run on every render for
+  // hooks-order safety; the hook itself no-ops while `open` is false.
+  const panelRef = useModalBehavior(open, onClose);
+
   if (!open) return null;
 
   // Confirm requires BOTH the exact word and a known balance: we will not let someone destroy
@@ -39,10 +46,15 @@ export function DeleteAccountDialog({ open, onClose }: { open: boolean; onClose:
     setError(null);
     try {
       await deleteAccount();
-      // The server rows are gone, but the BROWSER's PushSubscription survives — the same
-      // teardown sign-out uses is what clears it.
+      // This calls `teardownPush()` first, but by now the session died with the deleted user,
+      // so `DELETE /me/push-subscriptions` 401s and the browser's PushSubscription survives —
+      // `teardownPush` swallows that failure deliberately (see its own comment). Harmless: the
+      // matching server-side row went with the deletion cascade, and `teardownPush`'s
+      // per-endpoint design means the next person to subscribe from this browser reclaims it
+      // rather than inheriting this account's notifications. We don't reorder this ahead of
+      // `deleteAccount()` to do it "for real", because that would unsubscribe push on a
+      // deletion attempt that then fails, contradicting the "Nothing was changed" error below.
       await signOutAndTeardownPush();
-      window.location.assign("/");
     } catch {
       setError("We couldn't delete your account. Nothing was changed — please try again.");
       setBusy(false);
@@ -50,7 +62,14 @@ export function DeleteAccountDialog({ open, onClose }: { open: boolean; onClose:
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Delete account" className="mt-4 border border-red-deep p-4">
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Delete account"
+      tabIndex={-1}
+      className="mt-4 border border-red-deep p-4"
+    >
       <p className="font-mono text-[11.5px] uppercase leading-relaxed tracking-[.03em] text-ink">
         This cannot be undone. Your sign-in, gamertag link and avatar are removed, and you are
         signed out everywhere. Your lives, deaths and obituaries stay on the site.

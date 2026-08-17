@@ -157,6 +157,22 @@ describe("POST /stripe/webhook", () => {
     }
     expect(await getBalance(db, userId)).toBe(before + 1);
   });
+  // ⚠️ Guards the FK-violation → retry-storm fix: before account deletion existed, a
+  // `token_transactions.user_id` could never dangle. This branch made it reachable — a buyer
+  // can delete their account while a checkout is in flight or a webhook is mid-retry — so the
+  // insert in `grant()` now hits Postgres 23503. Stripe retries a non-2xx for ~3 days, so this
+  // MUST come back 200 (not 500) or a deleted buyer's stray webhook event retries forever.
+  it("acks 200 without fulfilling when the buyer's account no longer exists (23503, not a 500)", async () => {
+    const ghostUserId = `ghost-${run}`; // well-formed id, no row in `user`
+    sessions.set("cs_ghost", { paid: true, clientReferenceId: ghostUserId, quantity: 1 });
+    const payload = JSON.stringify({ type: "checkout.session.completed", sessionId: "cs_ghost" });
+    const r = await app.inject({
+      method: "POST", url: "/stripe/webhook", payload,
+      headers: { "content-type": "application/json", "stripe-signature": "good" },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ received: true });
+  });
   it("ignores non-checkout events", async () => {
     const r = await app.inject({
       method: "POST", url: "/stripe/webhook",

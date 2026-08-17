@@ -429,6 +429,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@onelife/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@onelife/client-logic':
+        specifier: workspace:*
+        version: link:../../packages/client-logic
       '@tanstack/react-query':
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
@@ -507,6 +513,15 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
 
+  packages/api-client:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+
   packages/auth:
     dependencies:
       '@onelife/db':
@@ -531,6 +546,19 @@ importers:
       postgres:
         specifier: ^3.4.4
         version: 3.4.9
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.13.3)(jsdom@29.1.1(@noble/hashes@2.2.0))
+
+  packages/client-logic:
+    dependencies:
+      '@onelife/api-client':
+        specifier: workspace:*
+        version: link:../api-client
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
