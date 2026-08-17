@@ -27,6 +27,7 @@ import { AVATAR_MAX_BYTES } from "./lib/avatar-image.js";
 import { registerStoreRoutes } from "./routes/store.js";
 import type { StripeGateway } from "./lib/stripe-gateway.js";
 import { registerAppVersionRoute, type MinAppVersion } from "./routes/app-version.js";
+import { registerReportRoutes } from "./routes/reports.js";
 
 // ⚠️ The gate's off value. Must stay in step with NO_VERSION_FLOOR in config.ts — see the
 // reasoning there. It is the fallback for callers that pass no floor at all (tests, and any
@@ -67,6 +68,7 @@ export function buildApp(db: Database, opts?: AuthOptions, minAppVersion?: MinAp
     registerMapShareRoutes(app, db, opts.auth);
     registerLastMapRoute(app, db, opts.auth);
     registerAvatarRoutes(app, db, opts.auth, { allowTestHosts: opts.avatarAllowTestFetchLoopback });
+    registerReportRoutes(app, db, opts.auth);
   }
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);

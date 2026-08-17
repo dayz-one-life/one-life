@@ -1,0 +1,130 @@
+import { describe, it, expect, afterAll, beforeEach } from "vitest";
+import { getTestDb } from "@onelife/test-support";
+import { avatars, avatarReports, blockedAvatarHashes, gamertagLinks, user } from "@onelife/db";
+import { reportAvatar } from "../src/lib/moderation.js";
+import { getAvatarByHash } from "../src/lib/avatar-store.js";
+
+const { db, sql } = getTestDb();
+const HASH = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
+const BYTES = Buffer.from([1, 2, 3, 4]);
+
+async function seedUser(id: string) {
+  await db.insert(user).values({
+    id, name: `user-${id}`, email: `${id}@example.test`, emailVerified: true,
+    createdAt: new Date(), updatedAt: new Date(),
+  });
+}
+async function seedVerified(id: string, gamertag: string) {
+  await db.insert(gamertagLinks).values({
+    userId: id, gamertag, status: "verified", verifiedAt: new Date(), createdAt: new Date(),
+  });
+}
+async function seedAvatar(userId: string, hash: string) {
+  await db.insert(avatars).values({ userId, image: BYTES, hash, source: "upload", updatedAt: new Date() });
+}
+
+beforeEach(async () => {
+  await db.delete(avatarReports);
+  await db.delete(blockedAvatarHashes);
+  await db.delete(avatars);
+  await db.delete(gamertagLinks);
+  await db.delete(user);
+});
+afterAll(async () => {
+  // ⚠️ This file shares one Postgres DB with every other test file in the package
+  // (vitest.config.ts sets fileParallelism: false, not per-file isolation), so leftover
+  // rows here break later files' `db.delete(user)` calls with an FK violation from
+  // gamertagLinks. Leave the DB as we found it, same as the other DB-backed test files.
+  await db.delete(avatarReports);
+  await db.delete(blockedAvatarHashes);
+  await db.delete(avatars);
+  await db.delete(gamertagLinks);
+  await db.delete(user);
+  await sql.end();
+});
+
+describe("reportAvatar", () => {
+  it("bans the subject's hash immediately on the first report", async () => {
+    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+    const res = await reportAvatar(db, "reporter", "subject", "hate");
+
+    expect(res).toEqual({ ok: true });
+    expect(await getAvatarByHash(db, HASH)).toBeNull();
+  });
+
+  // ⚠️ The abuse gate. Single-report auto-hide is only tolerable because reporting costs a
+  // verified Xbox identity (proven by in-game emote), not a throwaway signup.
+  it("rejects a reporter with no verified gamertag link", async () => {
+    await seedUser("reporter");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    expect(await reportAvatar(db, "reporter", "subject", "hate")).toEqual({ error: "not_verified" });
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+  });
+
+  it("rejects a reporter whose link is only pending", async () => {
+    await seedUser("reporter");
+    await db.insert(gamertagLinks).values({
+      userId: "reporter", gamertag: "Pending", status: "pending", createdAt: new Date(),
+    });
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    expect(await reportAvatar(db, "reporter", "subject", "hate")).toEqual({ error: "not_verified" });
+  });
+
+  // Nothing to snapshot means a report that can never be reviewed.
+  it("refuses to report a subject with no avatar", async () => {
+    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
+    await seedUser("subject");
+
+    expect(await reportAvatar(db, "reporter", "subject", "hate")).toEqual({ error: "no_avatar" });
+  });
+
+  it("refuses a second report from the same reporter against the same subject", async () => {
+    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "reporter", "subject", "hate");
+    expect(await reportAvatar(db, "reporter", "subject", "other")).toEqual({ error: "already_reported" });
+
+    const rows = await db.select().from(avatarReports);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("refuses to report yourself", async () => {
+    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
+    await seedAvatar("reporter", HASH);
+
+    expect(await reportAvatar(db, "reporter", "reporter", "hate")).toEqual({ error: "self" });
+  });
+
+  // A second reporter on an already-banned hash records their report but must not create a
+  // duplicate ban row — the moderator should see accumulated reports, not duplicate entries.
+  it("is idempotent against an already-banned hash", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("r2"); await seedVerified("r2", "TagTwo");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", "subject", "hate");
+    expect(await reportAvatar(db, "r2", "subject", "sexual")).toEqual({ ok: true });
+
+    expect(await db.select().from(avatarReports)).toHaveLength(2);
+    expect(await db.select().from(blockedAvatarHashes)).toHaveLength(1);
+  });
+
+  it("caps a reporter at 10 reports per rolling 24 hours", async () => {
+    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
+    for (let i = 0; i < 10; i++) {
+      await seedUser(`s${i}`);
+      await seedAvatar(`s${i}`, `hash-${i}`.padEnd(64, "0"));
+      expect(await reportAvatar(db, "reporter", `s${i}`, "other")).toEqual({ ok: true });
+    }
+    await seedUser("s10");
+    await seedAvatar("s10", "hash-10".padEnd(64, "0"));
+
+    expect(await reportAvatar(db, "reporter", "s10", "other")).toEqual({ error: "rate_limited" });
+  });
+});
