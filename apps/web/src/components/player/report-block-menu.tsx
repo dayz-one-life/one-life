@@ -11,7 +11,17 @@ import { BlockDialog } from "@/components/moderation/block-dialog";
  * Block the player. Never rendered on your own dossier — `ticket-stage.tsx` only mounts this
  * when `!owner`.
  */
-export function ReportBlockMenu({ gamertag, avatarHash }: { gamertag: string; avatarHash: string | null }) {
+export function ReportBlockMenu({
+  gamertag,
+  avatarHash,
+  verified,
+}: {
+  gamertag: string;
+  avatarHash: string | null;
+  /** ⚠️ The DOSSIER SUBJECT's claim status (`PlayerPage.verified`) — NOT the viewer's. Gates
+   *  Block; see the `canBlock` comment below. */
+  verified: boolean;
+}) {
   const status = useAccountStatus();
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<"report" | "block" | null>(null);
@@ -23,10 +33,20 @@ export function ReportBlockMenu({ gamertag, avatarHash }: { gamertag: string; av
   // renders.
   if (status.kind === "loading" || status.kind === "signedOut") return null;
 
-  // ⚠️ `reportAvatar` 403s server-side (`not_verified`) unless the reporter's gamertag link is
-  // VERIFIED — `blockPlayer` only requires being signed in. An unlinked/pending viewer therefore
-  // still gets Block, but never a Report item that would just fail.
+  // ⚠️ Two different "verified"s, and mixing them up is how this shipped broken:
+  //   • `status.kind === "verified"` — the VIEWER's own gamertag link. `reportAvatar` 403s
+  //     `not_verified` without it, so an unlinked/pending viewer never gets Report.
+  //   • `verified` (the prop) — whether anyone has claimed THIS DOSSIER's gamertag.
+  //     `blockByGamertag` resolves the target through `verifiedOwnerByGamertag` and 404s
+  //     `unknown_gamertag` when nobody has. Most players on the board are unclaimed, so an
+  //     ungated Block is an action that fails every single time — the same dead end the
+  //     signed-out guard above exists to avoid. The dossier already knows: `ticket-stage.tsx`
+  //     prints "unclaimed" from the same field two lines below where it mounts this.
   const canReport = status.kind === "verified" && !!avatarHash;
+  const canBlock = verified;
+
+  // Nothing to offer — render no "..." button rather than a button that opens an empty panel.
+  if (!canReport && !canBlock) return null;
 
   return (
     <>
@@ -52,8 +72,8 @@ export function ReportBlockMenu({ gamertag, avatarHash }: { gamertag: string; av
           className="border border-ink bg-paper p-1"
         >
           {/* Report names BYTES, so it only exists when there are bytes to report and the
-              reporter's own link is verified. Block names a person, who exists whether or not
-              they uploaded anything, and is offered to any signed-in viewer. */}
+              reporter's own link is verified. Block names an ACCOUNT, so it only exists when
+              some account actually holds this gamertag. */}
           {canReport && (
             <button
               type="button"
@@ -67,17 +87,19 @@ export function ReportBlockMenu({ gamertag, avatarHash }: { gamertag: string; av
               Report avatar
             </button>
           )}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setDialog("block");
-              setOpen(false);
-            }}
-            className="block w-full px-3 py-2 text-left font-mono text-xs uppercase"
-          >
-            Block player
-          </button>
+          {canBlock && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setDialog("block");
+                setOpen(false);
+              }}
+              className="block w-full px-3 py-2 text-left font-mono text-xs uppercase"
+            >
+              Block player
+            </button>
+          )}
         </div>
       )}
       {avatarHash && (
@@ -88,7 +110,9 @@ export function ReportBlockMenu({ gamertag, avatarHash }: { gamertag: string; av
           onClose={() => setDialog(null)}
         />
       )}
-      <BlockDialog open={dialog === "block"} gamertag={gamertag} onClose={() => setDialog(null)} />
+      {canBlock && (
+        <BlockDialog open={dialog === "block"} gamertag={gamertag} onClose={() => setDialog(null)} />
+      )}
     </>
   );
 }

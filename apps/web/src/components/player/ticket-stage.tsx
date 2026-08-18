@@ -126,7 +126,16 @@ export function TicketStage({
           editable={owner}
         />
         {/* Never on your own dossier: you cannot report or block yourself. */}
-        {!owner && <ReportBlockMenu gamertag={page.gamertag} avatarHash={page.avatarHash} />}
+        {!owner && (
+          <ReportBlockMenu
+            gamertag={page.gamertag}
+            avatarHash={page.avatarHash}
+            // Blocking resolves the gamertag to a verified owner server-side; on an unclaimed
+            // dossier there is nobody to block, and the menu withholds the action rather than
+            // offering one that always 404s. Same field the kicker below prints.
+            verified={page.verified}
+          />
+        )}
         <div className="min-w-0 flex-1">
           {/* ⚠️ The kicker READS `page.verified` — it was hardcoded "Survivor · verified", which
            *  told every visitor that a gamertag nobody has linked was a verified account. Most
