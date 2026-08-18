@@ -199,8 +199,8 @@ describe("deleteAccount interaction with UGC moderation", () => {
       { reporterUserId: "da-other", subjectUserId: "da-leaver", subjectHash: "hash-leaver".padEnd(64, "0"), reason: "other" },
     ]);
     await db.insert(userBlocks).values([
-      { blockerUserId: "da-leaver", blockedUserId: "da-other" },
-      { blockerUserId: "da-other", blockedUserId: "da-leaver" },
+      { blockerUserId: "da-leaver", blockedUserId: "da-other", blockedGamertag: "OtherGamertag" },
+      { blockerUserId: "da-other", blockedUserId: "da-leaver", blockedGamertag: "LeaverGamertag" },
     ]);
     await db.insert(blockedAvatarHashes).values({ hash: "hash-leaver".padEnd(64, "0") });
 

@@ -80,7 +80,9 @@ Three things bound it, and the first is the important one:
    performing an emote in-game on a real Xbox identity, so a reporter cannot be a
    throwaway signup. Single-report auto-hide is *only* tolerable because of this
    gate.
-2. Unique `(reporterUserId, subjectUserId)` — one report per reporter per subject.
+2. Unique `(reporterUserId, subjectHash)` — one report per reporter per set of
+   bytes. See "Takedown is by content hash, not by user": the report is keyed on
+   the hash the reporter actually saw, not on whichever account holds it.
 3. **A cap of 10 reports per reporter per rolling 24 hours**, counted from
    `avatar_reports.createdAt`; the 11th is a 429. The number is deliberately
    generous — it is a runaway-abuse backstop, not a usage limit, and a
@@ -134,6 +136,38 @@ already content-addressed.
 **Rejected: a `hidden` column on `avatars`.** It cannot express "these bytes are
 banned" when two users share them — exactly the case that leaks.
 
+### The client-facing API speaks public identifiers only
+
+**This is the design's second finding, and it forced a re-key of both reports and
+blocks after the first pass.** The player dossier deliberately publishes no user
+id — the public identity everywhere is the gamertag — and giving the report or
+block dialog a `userId` to send would mean putting one on the page for the client
+to read, which makes accounts enumerable. The original `subjectUserId`/`userId`
+shapes below were, in that sense, uncallable from any client that respects the
+dossier's own privacy boundary. That is why both were re-keyed onto identifiers
+the client already has:
+
+- **A report names the hash, not the subject.** `POST /me/reports/avatar` takes
+  `{ subjectHash, reason }`. This also matches "Takedown is by content hash, not
+  by user" above: what actually gets banned is the bytes, and several accounts can
+  hold identical bytes, so "the subject user" is ambiguous exactly when a report
+  needs to be unambiguous. `subjectUserId` still exists on `avatar_reports`, but
+  only as nullable moderator-context — resolved from whichever account currently
+  holds the hash, at write time, for the queue to show a name. It keys nothing;
+  the unique constraint and every ban check are on `subjectHash`.
+- **A block names the gamertag, not the user id.** `POST /me/blocks {gamertag}`,
+  `DELETE /me/blocks/:gamertag`, and `GET /me/blocks` returns
+  `{gamertag, createdAt}[]`. The `user_blocks` table still stores
+  `blockerUserId`/`blockedUserId` internally — enforcement is still a real FK
+  relationship — but nothing about that internal shape is exposed to the client.
+- **Keying reports on the hash deletes the swap-window attack entirely**, rather
+  than merely detecting it. The original design snapshotted `subjectHash` at
+  report time so a later swap couldn't be laundered through an old report; that
+  snapshot-and-compare logic, and the `hash_mismatch` rejection it implied, is now
+  unnecessary. A reporter can only ever name bytes they actually saw — there is no
+  `subjectUserId` in the request for a swapped hash to disagree with, so there is
+  nothing to detect.
+
 ### ⚠️ Cached copies are out of reach, and that is accepted
 
 Avatar responses set `cache-control: public, max-age=31536000, immutable`. Banning
@@ -176,15 +210,21 @@ one moderator.
 | --- | --- |
 | `id` | bigserial PK |
 | `reporterUserId` | → `user.id`, **ON DELETE CASCADE** |
-| `subjectUserId` | → `user.id`, **ON DELETE CASCADE** |
-| `subjectHash` | text, snapshotted at report time |
+| `subjectUserId` | → `user.id`, **ON DELETE CASCADE**, nullable — moderator context, not the key |
+| `subjectHash` | text, **the key** — the hash the reporter named |
 | `reason` | text, from a fixed list |
 | `createdAt` | timestamptz |
 
-Unique `(reporterUserId, subjectUserId)`.
+Unique `(reporterUserId, subjectHash)`.
 
-`subjectHash` is a snapshot because the subject can swap their avatar the instant
-they are reported; the report must still name what was actually seen.
+**`subjectHash` is the key, not a snapshot of something else.** See "The
+client-facing API speaks public identifiers only": the client never has a
+`subjectUserId` to send, only the hash it can see on the page, so the report is
+`{ subjectHash, reason }` from the wire up. `subjectUserId` is resolved
+server-side — from whichever account currently holds the hash, at write time —
+purely so the moderator queue can show a name; it carries no uniqueness and no
+ban logic, and it is NULL if no account holds the hash by the time the report is
+written.
 
 `reason` comes from a **fixed list, not free text**. A free-text field is itself a
 UGC surface — adding one to the moderation feature would be self-defeating.
@@ -209,12 +249,19 @@ made on.
 | Column | Notes |
 | --- | --- |
 | `hash` | text PK |
-| `state` | `auto` \| `confirmed` |
+| `state` | `auto` (report-triggered) \| `confirmed` (moderator takedown) \| `allowed` (moderator restore) |
 | `blockedAt` | timestamptz |
 | `blockedByUserId` | nullable — NULL means automatic |
 
 ⚠️ **No foreign key to `user`.** A ban must survive the uploader deleting their
 account; otherwise account deletion becomes a way to un-ban your own image.
+
+⚠️ **Restore writes `allowed`; it does not delete the row.** A second account
+holding the same bytes could otherwise re-report and silently re-hide an image a
+human already cleared. The ban predicate every reader shares —
+`avatarHashNotBanned` — excludes only `allowed`, so `auto` and `confirmed` both
+still block serving; `allowed` is a durable record that a human looked and said
+no, not an absence of a row.
 
 ### `user_blocks`
 
@@ -259,12 +306,12 @@ the repo's house rule, and the same shape as `DELETE /me`.
 
 | Route | Notes |
 | --- | --- |
-| `POST /me/reports/avatar` | `{ subjectUserId, reason }` → 201; snapshots hash, bans it |
-| `GET /me/blocks` | the caller's blocked users |
-| `POST /me/blocks` | `{ userId }` |
-| `DELETE /me/blocks/:userId` | |
+| `POST /me/reports/avatar` | `{ subjectHash, reason }` → 201; bans the named hash |
+| `GET /me/blocks` | the caller's blocked players, `{gamertag, createdAt}[]` |
+| `POST /me/blocks` | `{ gamertag }` |
+| `DELETE /me/blocks/:gamertag` | |
 | `GET /moderation/queue` | behind `requireModerator` |
-| `POST /moderation/hashes/:hash/restore` | deletes the ban row |
+| `POST /moderation/hashes/:hash/restore` | writes state `allowed`; does not delete the row |
 | `POST /moderation/hashes/:hash/confirm` | keeps the ban, NULLs `image` for every row with that hash |
 
 Paths are as registered in `apps/api`; the client calls them under `/api/…`
@@ -278,7 +325,8 @@ link. It is display-only; every moderation route re-checks server-side.
 
 **Restore is cheap and reversible; Confirm is destructive and only a human does
 it.** Auto-hide stops the bytes serving; confirmation destroys them via the
-existing tombstone.
+existing tombstone. "Reversible" here means the `allowed` row above, not a
+deletion — see `blocked_avatar_hashes`.
 
 ### Two failure modes designed for up front
 
@@ -320,6 +368,16 @@ Restore / Confirm.
 construction a list of things someone reported as objectionable; opening the page
 must not ambush the moderator with a wall of it. It costs one click and it is the
 difference between a tool that gets opened and one that gets avoided.
+
+⚠️ **`confirmed` entries stay in the queue response and render as already-removed,
+with no actions offered.** The server only excludes `allowed` rows (see
+`avatarHashNotBanned`), so a `confirmed` row — one whose bytes a moderator already
+destroyed — keeps appearing rather than vanishing from the list. Offering Show
+image / Restore / Confirm on it would mislead: Show image 404s, and Restore would
+report success while restoring nothing, because there are no bytes left to serve.
+The client renders these rows visibly muted, with none of the three actions
+available, so a moderator scanning the queue can tell at a glance which rows
+still need judgment and which are already settled.
 
 ### The four-render rule
 

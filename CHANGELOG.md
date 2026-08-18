@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Report an objectionable avatar or block a player, from any dossier. A reported avatar is
+  hidden straight away while it is reviewed; blocking hides someone's avatar from you and stops
+  location sharing between you both ways, without telling them. `/settings` lists who you have
+  blocked, and moderators get a review queue at `/moderation`.
 - Report an objectionable avatar, and block another user. A reported avatar is hidden
   immediately pending review, and blocking someone hides their avatar from you and stops
   location sharing between you both ways — including any sharing already in progress, which
