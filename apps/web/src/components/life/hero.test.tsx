@@ -104,6 +104,22 @@ describe("LifeHero", () => {
     expect(noImg.querySelector("img")).toBeNull();
   });
 
+  // ⚠️ The block dialog promises "Blocking hides their avatar from you". The life-timeline
+  // payload is viewer-independent (it is also served through a shared, cached fetch), so the
+  // hero is where the viewer's block is honoured — see the page's comment.
+  test("blocked viewer gets the initial disc instead of the face", () => {
+    const d = data({ avatarHash: "cafe1234feed5678" });
+    const { container } = render(<LifeHero data={d} view={view(d)} avatarBlocked />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("Y")).toBeInTheDocument();
+  });
+
+  test("avatarBlocked defaults to false, so an unblocked viewer still sees the face", () => {
+    const d = data({ avatarHash: "cafe1234feed5678" });
+    const { container } = render(<LifeHero data={d} view={view(d)} />);
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/avatars/cafe1234feed5678.webp");
+  });
+
   test("links the published obituary when the timeline carries a slug", () => {
     const d = data({ obituarySlug: "the-end-abc-1-4" });
     render(<LifeHero data={d} view={view(d)} />);
