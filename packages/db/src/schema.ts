@@ -445,6 +445,36 @@ export const userBlocks = pgTable("user_blocks", {
   pk: primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }),
 }));
 
+/**
+ * The BLOCK predicate — the viewer-scoped counterpart to `avatarHashNotBanned`. Pass the avatar
+ * owner's user-id column (or an SQL expression yielding one) plus the id of the viewer the query
+ * is being run FOR.
+ *
+ * ⚠️ The two predicates are NOT interchangeable, and confusing them is the failure mode this
+ * comment exists to prevent:
+ *   • `avatarHashNotBanned` is GLOBAL — a report/moderator decision about the BYTES, applied
+ *     identically to every viewer.
+ *   • this one is VIEWER-SCOPED — it hides the blocked user's avatar from the BLOCKER ONLY.
+ *     Applied without a viewer, or with a viewer derived from anything but the authenticated
+ *     caller, it would let any user hide any avatar from everyone: a unilateral takedown button.
+ *
+ * ⚠️ ONE direction, deliberately. The block dialog promises "blocking hides their avatar from
+ * you"; it does not promise to hide YOUR avatar from THEM. (Location sharing IS severed both
+ * ways — see `isBlockedEitherWay` — because a live location feed is a channel, not a page the
+ * other person chose to open.) Do not symmetrise this to match location sharing: that would let
+ * a harasser erase their victim's avatar from the victim's own view of the site.
+ *
+ * ⚠️ An `undefined` viewer matches EVERY row. A signed-out visitor holds no account and
+ * therefore blocks nobody, so the predicate must be a no-op rather than a filter. For the same
+ * reason it must never be reached from a response that is CACHED ACROSS VIEWERS — see the
+ * `getOrNullCached` docblock in apps/web/src/lib/api.ts; `getLifeTimeline` is fetched that way
+ * and deliberately takes no viewer.
+ */
+export function avatarOwnerNotBlockedBy(ownerExpr: SQL | AnyColumn, viewerUserId: string | undefined): SQL {
+  if (!viewerUserId) return sql`true`;
+  return sql`not exists (select 1 from user_blocks ub where ub.blocker_user_id = ${viewerUserId} and ub.blocked_user_id = ${ownerExpr})`;
+}
+
 // ── Obituaries revival. Durable side-table — generated obituary content, trimmed to the
 // obituary slice (no birth notices, no news, no image pipeline, no Discord notifier). Like
 // `bans`, it references ONLY `servers` and keys the life by the rebuild-stable natural tuple

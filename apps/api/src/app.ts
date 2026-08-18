@@ -78,9 +78,12 @@ export function buildApp(db: Database, opts?: AuthOptions, minAppVersion?: MinAp
   registerServerRoutes(app, db);
   registerPlayerRoutes(app, db);
   registerBoardRoutes(app, db);
-  registerPlayerAggregateRoutes(app, db);
+  // ⚠️ `opts?.auth` — these two are PUBLIC routes registered outside the auth block above, but
+  // both resolve the caller (when there is one) so a BLOCK can hide the blocked player's avatar
+  // from the blocker. Optional by design: without auth they behave exactly as before.
+  registerPlayerAggregateRoutes(app, db, opts?.auth);
   registerGlobalRoutes(app, db);
-  registerSurvivorsRoutes(app, db);
+  registerSurvivorsRoutes(app, db, opts?.auth);
   registerStatsRoutes(app, db);
   registerObituariesRoutes(app, db);
   registerSitemapRoutes(app, db);

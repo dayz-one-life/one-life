@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags, articles, blockedAvatarHashes } from "@onelife/db";
-import { eq, inArray } from "drizzle-orm";
+import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags, articles, blockedAvatarHashes, userBlocks } from "@onelife/db";
+import { and, eq, inArray } from "drizzle-orm";
 import { getPlayerPage } from "../src/player-page.js";
 
 const { db, sql } = getTestDb();
@@ -585,6 +585,89 @@ describe("getPlayerPage: every active server gets a ticket (v0.69)", () => {
       expect(await getPlayerPage(db, gamertagGhostly, now, { page: 1 })).toBeNull();
     } finally {
       await db.delete(players).where(eq(players.id, pl!.id));
+    }
+  });
+});
+
+// ── viewerUserId: blocks hide an avatar FROM THE BLOCKER ONLY ──────────────────────────────────
+// The block dialog promises "Blocking hides their avatar from you". This is that promise, and
+// the whole design rests on the third-party test below: a block is VIEWER-SCOPED, unlike a hash
+// ban, which is global. If a block also hid the avatar from strangers, every user would hold a
+// unilateral takedown button over every other user's face.
+describe("getPlayerPage: viewerUserId (blocks)", () => {
+  const svcBl = Math.floor(Math.random() * 1e8) + 71e7;
+  let blServer: number;
+  const subjectTag = `BlockSubject${svcBl}`;
+  const userSubject = `pp-bl-subject-${svcBl}`;
+  const userBlocker = `pp-bl-blocker-${svcBl}`;
+  const userStranger = `pp-bl-stranger-${svcBl}`;
+  const HASH = `blockhash${svcBl}`;
+
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svcBl, name: "pp-block", map: "chernarusplus", slug: `block-${svcBl}`, active: true }).returning();
+    blServer = s!.id;
+    const [p] = await db.insert(players).values({ gamertag: subjectTag, firstSeenAt: hoursAgo(10), lastSeenAt: now }).returning();
+    await db.insert(lives).values({ serverId: blServer, playerId: p!.id, lifeNumber: 1, startedAt: hoursAgo(10), endedAt: hoursAgo(9), playtimeSeconds: 600 });
+
+    for (const id of [userSubject, userBlocker, userStranger]) {
+      await db.insert(user).values({ id, name: id, email: `${id}@example.com` });
+    }
+    await db.insert(gamertagLinks).values({ userId: userSubject, gamertag: subjectTag, status: "verified", verifiedAt: now });
+    await db.insert(avatars).values({ userId: userSubject, image: Buffer.from("fake-avatar-bytes"), hash: HASH, source: "upload", updatedAt: now });
+
+    await db.insert(userBlocks).values({ blockerUserId: userBlocker, blockedUserId: userSubject, blockedGamertag: subjectTag });
+  });
+
+  afterAll(async () => {
+    await db.delete(userBlocks).where(inArray(userBlocks.blockerUserId, [userBlocker, userStranger, userSubject]));
+    await db.delete(lives).where(eq(lives.serverId, blServer));
+    await db.delete(avatars).where(inArray(avatars.userId, [userSubject, userBlocker, userStranger]));
+    await db.delete(gamertagLinks).where(inArray(gamertagLinks.userId, [userSubject, userBlocker, userStranger]));
+    await db.delete(user).where(inArray(user.id, [userSubject, userBlocker, userStranger]));
+    await db.delete(players).where(eq(players.gamertag, subjectTag));
+    await db.delete(servers).where(eq(servers.id, blServer));
+  });
+
+  it("hides the blocked player's avatar from the blocker", async () => {
+    const page = await getPlayerPage(db, subjectTag, now, { viewerUserId: userBlocker });
+    expect(page?.avatarHash).toBeNull();
+  });
+
+  // ⚠️ THE load-bearing assertion. Make `avatarOwnerNotBlockedBy` ignore its viewer (i.e. turn
+  // the block into a global ban) and this is the test that fails — nothing else in the suite
+  // distinguishes the two. Do not delete it.
+  it("still shows the avatar to an unrelated THIRD PARTY", async () => {
+    const page = await getPlayerPage(db, subjectTag, now, { viewerUserId: userStranger });
+    expect(page?.avatarHash).toBe(HASH);
+  });
+
+  it("still shows the avatar to a signed-out visitor (no viewer)", async () => {
+    expect((await getPlayerPage(db, subjectTag, now))?.avatarHash).toBe(HASH);
+    expect((await getPlayerPage(db, subjectTag, now, { viewerUserId: undefined }))?.avatarHash).toBe(HASH);
+  });
+
+  // A block is not a moderator decision, so undoing it is not a restore — the avatar simply
+  // comes back for the person who chose to stop hiding it.
+  it("restores the avatar for the blocker after an unblock", async () => {
+    await db.delete(userBlocks).where(and(
+      eq(userBlocks.blockerUserId, userBlocker), eq(userBlocks.blockedUserId, userSubject),
+    ));
+    try {
+      const page = await getPlayerPage(db, subjectTag, now, { viewerUserId: userBlocker });
+      expect(page?.avatarHash).toBe(HASH);
+    } finally {
+      await db.insert(userBlocks).values({ blockerUserId: userBlocker, blockedUserId: userSubject, blockedGamertag: subjectTag });
+    }
+  });
+
+  // The two predicates are independent: the block only ever SUBTRACTS from what a viewer sees,
+  // so a viewer who has blocked nobody is still subject to the global hash ban.
+  it("a hash ban still hides the avatar from a viewer who blocked nobody", async () => {
+    await db.insert(blockedAvatarHashes).values({ hash: HASH, state: "auto" });
+    try {
+      expect((await getPlayerPage(db, subjectTag, now, { viewerUserId: userStranger }))?.avatarHash).toBeNull();
+    } finally {
+      await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, HASH));
     }
   });
 });
