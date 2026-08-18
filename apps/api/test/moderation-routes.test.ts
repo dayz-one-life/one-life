@@ -134,6 +134,41 @@ describe("moderation routes", () => {
     expect(body.entries[0].reasons).toEqual(["hate"]);
   });
 
+  // ⚠️ The moderator must be able to SEE what they are judging. The ban is exactly what makes
+  // GET /avatars/:hash.webp 404, so without this route Restore/Confirm are decided blind.
+  it("serves the banned image to a moderator, bypassing the ban filter", async () => {
+    // The public byte path refuses these bytes precisely BECAUSE the hash is banned.
+    expect(await getAvatarByHash(db, HASH)).toBeNull();
+
+    const res = await app.inject({
+      method: "GET", url: `/moderation/hashes/${HASH}/image`, headers: authHeaders(moderatorCookie),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toBe("image/webp");
+    // Moderation data must never sit in a cache.
+    expect(String(res.headers["cache-control"])).toContain("no-store");
+    expect(Buffer.from(res.rawPayload).equals(BYTES)).toBe(true);
+  });
+
+  it("403s a signed-in non-moderator asking for the image", async () => {
+    const res = await app.inject({
+      method: "GET", url: `/moderation/hashes/${HASH}/image`, headers: authHeaders(ordinaryCookie),
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("401s a signed-out caller asking for the image", async () => {
+    const res = await app.inject({ method: "GET", url: `/moderation/hashes/${HASH}/image` });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("404s the image for a hash no row holds", async () => {
+    const res = await app.inject({
+      method: "GET", url: `/moderation/hashes/${"f".repeat(64)}/image`, headers: authHeaders(moderatorCookie),
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
   it("403s a non-moderator attempting to restore", async () => {
     const res = await app.inject({
       method: "POST", url: `/moderation/hashes/${HASH}/restore`, headers: authHeaders(ordinaryCookie),
@@ -148,6 +183,46 @@ describe("moderation routes", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+  });
+
+  // The queue is a list of things still awaiting a decision. A restored hash keeps a durable
+  // 'allowed' row so a later report cannot silently re-hide it — but it is not pending review.
+  it("omits a restored hash from the queue", async () => {
+    const res = await app.inject({ method: "GET", url: "/moderation/queue", headers: authHeaders(moderatorCookie) });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().entries.map((e: { hash: string }) => e.hash)).not.toContain(HASH);
+    // The row is still there — that is what makes the restore durable.
+    const [row] = await db.select().from(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, HASH));
+    expect(row?.state).toBe("allowed");
+    expect(row?.blockedByUserId).toBe(moderatorUserId);
+  });
+
+  // ⚠️ Confirm is the DESTRUCTIVE half — it NULLs the bytes for every row holding this hash.
+  // It needs the auth test at least as much as restore does.
+  it("403s a signed-in non-moderator attempting to confirm", async () => {
+    const res = await app.inject({
+      method: "POST", url: `/moderation/hashes/${HASH}/confirm`, headers: authHeaders(ordinaryCookie),
+    });
+    expect(res.statusCode).toBe(403);
+    const [row] = await db.select({ image: avatars.image }).from(avatars).where(eq(avatars.userId, subjectUserId));
+    expect(row?.image).not.toBeNull();
+  });
+
+  it("401s a signed-out caller attempting to confirm", async () => {
+    const res = await app.inject({ method: "POST", url: `/moderation/hashes/${HASH}/confirm` });
+    expect(res.statusCode).toBe(401);
+    const [row] = await db.select({ image: avatars.image }).from(avatars).where(eq(avatars.userId, subjectUserId));
+    expect(row?.image).not.toBeNull();
+  });
+
+  it("404s the image once a confirm has destroyed the bytes", async () => {
+    await app.inject({
+      method: "POST", url: `/moderation/hashes/${HASH}/confirm`, headers: authHeaders(moderatorCookie),
+    });
+    const res = await app.inject({
+      method: "GET", url: `/moderation/hashes/${HASH}/image`, headers: authHeaders(moderatorCookie),
+    });
+    expect(res.statusCode).toBe(404);
   });
 
   it("confirms a ban, destroying the bytes", async () => {

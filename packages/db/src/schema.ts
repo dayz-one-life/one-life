@@ -2,7 +2,7 @@ import {
   pgTable, bigserial, integer, text, timestamp, boolean, jsonb,
   bigint, uniqueIndex, index, doublePrecision, customType, primaryKey,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, type SQL, type AnyColumn } from "drizzle-orm";
 
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
@@ -397,11 +397,31 @@ export const avatarReports = pgTable("avatar_reports", {
  */
 export const blockedAvatarHashes = pgTable("blocked_avatar_hashes", {
   hash: text("hash").primaryKey(),
-  state: text("state").notNull().default("auto"),   // 'auto' (report-triggered) | 'confirmed' (moderator)
+  // 'auto' (report-triggered) | 'confirmed' (moderator takedown) | 'allowed' (moderator restore)
+  state: text("state").notNull().default("auto"),
   blockedAt: timestamp("blocked_at", { withTimezone: true }).notNull().defaultNow(),
   // NULL means automatic. Deliberately NOT an FK: a moderator could later delete their account.
   blockedByUserId: text("blocked_by_user_id"),
 });
+
+/**
+ * The takedown predicate, shared by EVERY reader that resolves avatar bytes or an avatar hash
+ * for display — `getAvatarByHash` and the three read-models. Pass the hash column (or an SQL
+ * expression yielding a hash) to compare against.
+ *
+ * ⚠️ `state <> 'allowed'` is load-bearing, not a tidy-up. A moderator RESTORE writes a durable
+ * `allowed` row instead of deleting, so that a second account cannot silently re-hide an image a
+ * human already cleared. A check that matched ANY row in this table would therefore make restore
+ * hide the avatar permanently — the exact inverse of what restore means.
+ */
+export function avatarHashNotBanned(hashExpr: SQL | AnyColumn): SQL {
+  return sql`not exists (select 1 from blocked_avatar_hashes bah where bah.hash = ${hashExpr} and bah.state <> 'allowed')`;
+}
+
+/** Rows a moderator still has to decide on: an `allowed` hash is not pending review. */
+export function isActiveBanState(stateExpr: SQL | AnyColumn): SQL {
+  return sql`${stateExpr} <> 'allowed'`;
+}
 
 /**
  * One user blocking another. VIEWER-SCOPED: this hides the blocked user's avatar from the

@@ -123,3 +123,52 @@ describe("location share grants — blocks sever sharing both ways", () => {
     expect(res.statusCode).toBeLessThan(300);
   });
 });
+
+/**
+ * ⚠️ The grant-time guard above only stops NEW shares. Blocking mid-harassment is worthless if
+ * the harasser keeps watching your dot for the rest of the session, so blockUser must revoke
+ * what already exists — in BOTH directions, matching isBlockedEitherWay.
+ */
+describe("blocking severs an EXISTING location share", () => {
+  async function existingShare(): Promise<number> {
+    await db.delete(userBlocks).where(inArray(userBlocks.blockerUserId, [granterUserId, granteeUserId]));
+    await db.delete(locationShares).where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
+    const res = await post({ gamertag: granteeGamertag });
+    expect(res.statusCode).toBeLessThan(300);
+    const rows = await db.select().from(locationShares)
+      .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
+    expect(rows).toHaveLength(1);
+    return rows.length;
+  }
+
+  it("revokes the share when the GRANTER blocks the grantee", async () => {
+    await existingShare();
+    await blockUser(db, granterUserId, granteeUserId);
+    const rows = await db.select().from(locationShares)
+      .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
+    expect(rows).toEqual([]);
+  });
+
+  it("revokes the share when the GRANTEE blocks the granter", async () => {
+    await existingShare();
+    await blockUser(db, granteeUserId, granterUserId);
+    const rows = await db.select().from(locationShares)
+      .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
+    expect(rows).toEqual([]);
+  });
+
+  it("leaves an unrelated share alone", async () => {
+    await existingShare();
+    // A block that involves neither party of this share must not touch it.
+    await db.insert(user).values({
+      id: `bystander${svc}`, name: "bystander", email: `bystander${svc}@example.test`,
+      emailVerified: true, createdAt: new Date(), updatedAt: new Date(),
+    });
+    await blockUser(db, granterUserId, `bystander${svc}`);
+    const rows = await db.select().from(locationShares)
+      .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
+    expect(rows).toHaveLength(1);
+    await db.delete(userBlocks).where(eq(userBlocks.blockedUserId, `bystander${svc}`));
+    await db.delete(user).where(eq(user.id, `bystander${svc}`));
+  });
+});

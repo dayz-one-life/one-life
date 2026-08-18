@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
-import { avatars, blockedAvatarHashes } from "@onelife/db";
-import { and, eq, isNotNull, notExists, sql } from "drizzle-orm";
+import { avatarHashNotBanned, avatars, blockedAvatarHashes } from "@onelife/db";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { AVATAR_MAX_BYTES } from "./avatar-image.js";
 
 const AVATAR_FETCH_TIMEOUT_MS = 5000;
@@ -53,20 +53,47 @@ export async function getAvatarByHash(db: Database, hash: string): Promise<Buffe
   // across all users, one banned-hash row stops the bytes serving for every user who holds
   // them — which is the point: two accounts uploading the same abusive image is the case a
   // per-user flag would leak.
+  //
+  // ⚠️ The predicate EXCLUDES 'allowed' rows (see avatarHashNotBanned). A restore writes an
+  // 'allowed' row rather than deleting, so a check that matched any row here would make restore
+  // hide the image forever.
   const [row] = await db
     .select({ image: avatars.image })
     .from(avatars)
     .where(and(
       eq(avatars.hash, hash),
       isNotNull(avatars.image),
-      notExists(db.select({ one: sql`1` }).from(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, hash))),
+      avatarHashNotBanned(avatars.hash),
     ));
+  return row?.image ?? null;
+}
+
+/**
+ * Moderation-only byte read: the SAME hash lookup as `getAvatarByHash` with the ban filter
+ * DELIBERATELY absent.
+ *
+ * ⚠️ This exists because the ban is precisely what makes the public route 404, so a moderator
+ * asked to Restore or Confirm would otherwise be deciding blind. It must only ever be reached
+ * from behind `requireModerator`, and it must never be used to widen the public path — that is
+ * why it is a separate function rather than a flag on `getAvatarByHash`.
+ *
+ * Returns null once a confirm has NULLed the bytes: nothing is left to show.
+ */
+export async function getAvatarBytesForModeration(db: Database, hash: string): Promise<Buffer | null> {
+  const [row] = await db
+    .select({ image: avatars.image })
+    .from(avatars)
+    .where(and(eq(avatars.hash, hash), isNotNull(avatars.image)));
   return row?.image ?? null;
 }
 
 /**
  * Ban avatar bytes by content hash. Idempotent, and NEVER downgrades a moderator-confirmed
  * ban back to 'auto' — a later automatic report must not weaken a human decision.
+ *
+ * ⚠️ onConflictDoNothing also means a moderator's `allowed` row (a restore) survives a later
+ * report. That is deliberate: without it, one more verified account could re-hide an image a
+ * human had already cleared, over and over.
  */
 export async function banAvatarHash(
   db: Database,
@@ -79,9 +106,23 @@ export async function banAvatarHash(
     .onConflictDoNothing({ target: blockedAvatarHashes.hash });
 }
 
-/** Lift a ban. The bytes serve again; nothing was destroyed. */
-export async function unbanAvatarHash(db: Database, hash: string): Promise<void> {
-  await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, hash));
+/**
+ * Lift a ban. The bytes serve again; nothing was destroyed.
+ *
+ * ⚠️ This writes a DURABLE `state: 'allowed'` row rather than DELETING. Deleting left no memory
+ * that a human had cleared the image, so any other verified user could report the same subject
+ * and re-hide it immediately — indefinitely, and invisibly, because the queue lists only
+ * currently-banned hashes. `banAvatarHash` uses onConflictDoNothing, so this row survives every
+ * later report; only a moderator's own confirm can overwrite it.
+ */
+export async function unbanAvatarHash(db: Database, hash: string, byUserId?: string): Promise<void> {
+  await db
+    .insert(blockedAvatarHashes)
+    .values({ hash, state: "allowed", blockedByUserId: byUserId ?? null })
+    .onConflictDoUpdate({
+      target: blockedAvatarHashes.hash,
+      set: { state: "allowed", blockedByUserId: byUserId ?? null, blockedAt: new Date() },
+    });
 }
 
 /**
@@ -103,11 +144,6 @@ export async function confirmAvatarHashBan(db: Database, hash: string, byUserId:
       .set({ image: null, hash: null, source: null, updatedAt: new Date() })
       .where(eq(avatars.hash, hash));
   });
-}
-
-export async function isAvatarHashBanned(db: Database, hash: string): Promise<boolean> {
-  const [row] = await db.select({ hash: blockedAvatarHashes.hash }).from(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, hash));
-  return Boolean(row);
 }
 
 export async function getAvatarState(db: Database, userId: string): Promise<"none" | "live" | "tombstone"> {
