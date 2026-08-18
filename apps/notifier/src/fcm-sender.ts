@@ -1,3 +1,4 @@
+import { GoogleAuth } from "google-auth-library";
 import type { Sender } from "./sender.js";
 
 const FCM_BASE = "https://fcm.googleapis.com/v1/projects";
@@ -46,4 +47,50 @@ export function buildFcmSender(opts: {
       return { ok: false, gone: false, error: String(err) };
     }
   };
+}
+
+type ErrorLog = { error: (obj: unknown, msg: string) => void };
+
+const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
+
+/** Build an FCM sender, or null if credentials are missing or unusable.
+ *
+ *  Mirrors buildSender's contract exactly, and for the same reason: main.ts builds senders at
+ *  MODULE SCOPE, so a throw here kills the process before the loop starts — taking notification
+ *  generation down along with push, and failing the deploy script's post-start
+ *  `systemctl is-active` check. Falling back to null keeps device push OFF and everything else
+ *  running. */
+export function buildFcmSenderFromConfig(
+  cfg: { projectId: string; serviceAccountJsonBase64: string },
+  log: ErrorLog,
+): Sender | null {
+  if (!cfg.projectId || !cfg.serviceAccountJsonBase64) return null;
+  try {
+    // Base64 because a service-account private key is a PEM full of newlines, which does not
+    // survive a .env file intact. Buffer.from never throws on junk input — JSON.parse is what
+    // catches a mangled value, which is exactly what we want it to do.
+    const credentials = JSON.parse(
+      Buffer.from(cfg.serviceAccountJsonBase64, "base64").toString("utf8"),
+    ) as { client_email?: string; private_key?: string };
+    if (!credentials.client_email || !credentials.private_key) {
+      throw new Error("service account JSON has no client_email/private_key");
+    }
+    const auth = new GoogleAuth({ credentials, scopes: [FCM_SCOPE] });
+    return buildFcmSender({
+      projectId: cfg.projectId,
+      // GoogleAuth caches the access token and refreshes it before expiry, so this is one
+      // network round trip per hour, not one per notification.
+      getAccessToken: async () => {
+        const token = await auth.getAccessToken();
+        if (!token) throw new Error("google-auth-library returned no access token");
+        return token;
+      },
+    });
+  } catch (err) {
+    log.error(
+      { err },
+      "invalid FCM configuration — device push is OFF (check FCM_PROJECT_ID and that FCM_SERVICE_ACCOUNT_JSON_BASE64 is the base64 of the whole service-account JSON); web push and generation continue",
+    );
+    return null;
+  }
 }

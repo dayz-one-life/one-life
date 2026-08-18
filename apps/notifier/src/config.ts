@@ -13,6 +13,8 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().default(""),
   VAPID_PRIVATE_KEY: z.string().default(""),
   VAPID_SUBJECT: z.string().default(""),
+  FCM_PROJECT_ID: z.string().default(""),
+  FCM_SERVICE_ACCOUNT_JSON_BASE64: z.string().default(""),
   LOG_LEVEL: z.string().default("info"),
 });
 
@@ -21,6 +23,7 @@ export type Config = {
   since: Date | null; dryRun: boolean; lookbackHours: number; siteUrl: string;
   pushEnabled: boolean; pushMaxPerTick: number; pushMaxAgeMinutes: number;
   vapidPublicKey: string; vapidPrivateKey: string; vapidSubject: string;
+  fcmProjectId: string; fcmServiceAccountJsonBase64: string;
 };
 
 /** An unset, empty, or unparseable NOTIFIER_SINCE means generation is OFF — never a
@@ -52,5 +55,9 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     vapidPublicKey: p.VAPID_PUBLIC_KEY,
     vapidPrivateKey: p.VAPID_PRIVATE_KEY,
     vapidSubject: p.VAPID_SUBJECT,
+    // Empty by default: device push stays OFF until a Firebase project exists. buildFcmSenderFromConfig
+    // is the real gate, exactly as buildSender is for VAPID.
+    fcmProjectId: p.FCM_PROJECT_ID,
+    fcmServiceAccountJsonBase64: p.FCM_SERVICE_ACCOUNT_JSON_BASE64,
   };
 }

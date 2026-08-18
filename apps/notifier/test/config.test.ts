@@ -60,4 +60,10 @@ describe("loadConfig", () => {
     expect(() => loadConfig(env)).not.toThrow();
     expect(loadConfig(env).pushEnabled).toBe(expected);
   });
+
+  it("defaults FCM credentials to empty, which means device push is OFF", () => {
+    const c = loadConfig(base);
+    expect(c.fcmProjectId).toBe("");
+    expect(c.fcmServiceAccountJsonBase64).toBe("");
+  });
 });

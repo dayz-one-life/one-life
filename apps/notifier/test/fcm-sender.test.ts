@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { buildFcmSender } from "../src/fcm-sender.js";
+import { buildFcmSender, buildFcmSenderFromConfig } from "../src/fcm-sender.js";
 import type { ActiveSubscription } from "../src/push-store.js";
 
 const device: ActiveSubscription = { kind: "device", id: 1, token: "tok", platform: "android" };
@@ -56,5 +56,32 @@ describe("buildFcmSender", () => {
     const r = await sender(f as never)(web, payload);
     expect(r).toMatchObject({ ok: false, gone: false });
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+const log = { error: () => {} };
+const CREDS = Buffer.from(JSON.stringify({
+  type: "service_account", project_id: "proj", client_email: "svc@proj.iam.gserviceaccount.com",
+  private_key: "-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----\n",
+})).toString("base64");
+
+describe("buildFcmSenderFromConfig", () => {
+  it("returns null when credentials are absent", () => {
+    expect(buildFcmSenderFromConfig({ projectId: "", serviceAccountJsonBase64: "" }, log)).toBeNull();
+    expect(buildFcmSenderFromConfig({ projectId: "proj", serviceAccountJsonBase64: "" }, log)).toBeNull();
+    expect(buildFcmSenderFromConfig({ projectId: "", serviceAccountJsonBase64: CREDS }, log)).toBeNull();
+  });
+
+  // Same lesson as buildSender: a throw here is at module scope in main.ts, which kills the
+  // process before the loop starts and takes notification GENERATION down with push.
+  it("returns null rather than throwing on unparseable credentials", () => {
+    expect(buildFcmSenderFromConfig(
+      { projectId: "proj", serviceAccountJsonBase64: "!!!not-base64!!!" }, log,
+    )).toBeNull();
+  });
+
+  it("returns a sender for well-formed credentials", () => {
+    expect(buildFcmSenderFromConfig({ projectId: "proj", serviceAccountJsonBase64: CREDS }, log))
+      .toBeTypeOf("function");
   });
 });

@@ -3,7 +3,8 @@ import { getDb } from "@onelife/db";
 import { loadConfig } from "./config.js";
 import { generateTick } from "./generate.js";
 import { pushTick } from "./push.js";
-import { buildSender } from "./sender.js";
+import { buildSender, dispatchingSender } from "./sender.js";
+import { buildFcmSenderFromConfig } from "./fcm-sender.js";
 import * as pushStore from "./push-store.js";
 import { gamertagVerifiedGenerator, tokensGenerator } from "./generators/account.js";
 import { banAppliedGenerator, banLiftedGenerator } from "./generators/bans.js";
@@ -22,17 +23,24 @@ const generators = [
   survivalMilestoneGenerator,
 ];
 
-// Missing OR invalid VAPID yields null (push OFF) rather than a module-scope throw — see buildSender.
-const send = buildSender(
+// Missing OR invalid credentials yield null (that transport OFF) rather than a module-scope
+// throw — see buildSender and buildFcmSenderFromConfig.
+const webSend = buildSender(
   { publicKey: cfg.vapidPublicKey, privateKey: cfg.vapidPrivateKey, subject: cfg.vapidSubject },
   log,
 );
+const deviceSend = buildFcmSenderFromConfig(
+  { projectId: cfg.fcmProjectId, serviceAccountJsonBase64: cfg.fcmServiceAccountJsonBase64 },
+  log,
+);
+const send = dispatchingSender(webSend, deviceSend);
 
 async function loop(): Promise<void> {
   log.info({ interval: cfg.intervalSeconds, dryRun: cfg.dryRun, since: cfg.since?.toISOString() ?? null }, "notifier starting");
   if (cfg.dryRun) log.warn("NOTIFIER_DRY_RUN is true — no notifications will be written");
   if (!cfg.since) log.warn("NOTIFIER_SINCE is unset — generation is OFF");
-  if (cfg.pushEnabled && !send) log.warn("VAPID keys are not configured — push is OFF");
+  if (cfg.pushEnabled && !webSend) log.warn("VAPID keys are not configured — web push is OFF");
+  if (cfg.pushEnabled && !deviceSend) log.warn("FCM credentials are not configured — device push is OFF");
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -51,8 +59,8 @@ async function loop(): Promise<void> {
     try {
       const r = await pushTick(db, {
         now: new Date(), maxPerTick: cfg.pushMaxPerTick, maxAgeMinutes: cfg.pushMaxAgeMinutes,
-        enabled: cfg.pushEnabled && send !== null, dryRun: cfg.dryRun, log,
-        store: pushStore, send: send ?? (async () => ({ ok: false, gone: false, error: "no vapid" })),
+        enabled: cfg.pushEnabled && (webSend !== null || deviceSend !== null), dryRun: cfg.dryRun, log,
+        store: pushStore, send,
       });
       if (r.sent || r.failed) log.info(r, "notifications pushed");
     } catch (err) {
