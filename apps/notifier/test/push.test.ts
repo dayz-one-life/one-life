@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { pushTick } from "../src/push.js";
 import type { ActiveSubscription, UnpushedNotification } from "../src/push-store.js";
+import type { Sender } from "../src/sender.js";
 
 const NOW = new Date("2026-07-19T12:00:00Z");
 const log = { info: () => {}, warn: () => {} };
@@ -110,5 +111,12 @@ describe("pushTick", () => {
     // Passing the whole subscription, not a loose id, is what lets the store target the right table.
     expect((store as never as { recordFailure: { mock: { calls: unknown[][] } } }).recordFailure.mock.calls[0]![1])
       .toMatchObject({ kind: "device", id: 10 });
+  });
+
+  it("hands the sender a payload object carrying the notification kind", async () => {
+    const store = makeStore();
+    const send: Sender = vi.fn(async () => ({ ok: true as const }));
+    await pushTick(db, { ...base, store, send });
+    expect(vi.mocked(send).mock.calls[0]![1]).toEqual({ title: "t", body: "b", href: "/h", kind: "k" });
   });
 });

@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import type { ActiveSubscription, UnpushedNotification } from "./push-store.js";
-import type { Sender } from "./sender.js";
+import type { PushPayload, Sender } from "./sender.js";
 import type { Log } from "./types.js";
 
 export type PushStore = {
@@ -58,7 +58,7 @@ export async function pushTick(db: Database, deps: PushDeps): Promise<PushResult
       continue;
     }
 
-    const payload = JSON.stringify({ title: row.title, body: row.body, href: row.href });
+    const payload: PushPayload = { title: row.title, body: row.body, href: row.href, kind: row.kind };
     let delivered = false;
 
     for (const sub of subs) {
