@@ -1,7 +1,14 @@
 import webpush from "web-push";
 import type { ActiveSubscription } from "./push-store.js";
 
-export type SendResult = { ok: true } | { ok: false; gone: boolean; error: string };
+/** `configured: false` marks a failure that says nothing about the endpoint itself — the
+ *  transport that would have carried it simply has no credentials. `pushTick` must not let this
+ *  count toward `MAX_FAILURES`: a transport we never configured is not evidence the endpoint is
+ *  dead, so it must never retire rows on the day the credentials finally land. Only
+ *  `dispatchingSender`'s two null branches set it. */
+export type SendResult =
+  | { ok: true }
+  | { ok: false; gone: boolean; error: string; configured?: false };
 
 /** `kind` rides along so Android can route the notification to a per-kind channel. Without it a
  *  user who wants to mute "someone built near you" has to mute "you died" too — and Android users
@@ -58,14 +65,20 @@ export function buildSender(
 /** Route a subscription to the transport that owns it.
  *
  *  A missing transport yields `gone: false` on purpose: `gone` deletes the row, so an
- *  unconfigured transport must look like a transient failure. The notification is then retried
- *  each tick until it ages past maxAgeMinutes and is stamped as skipped — bounded and
- *  self-draining, which is the correct behaviour while FCM credentials do not yet exist. */
+ *  unconfigured transport must look like a transient failure. It also carries `configured: false`
+ *  so `pushTick` can tell it apart from a real transient failure and skip `recordFailure` — the
+ *  notification is retried each tick until it ages past maxAgeMinutes and is stamped as skipped,
+ *  bounded and self-draining, without ever touching `failureCount`/`disabledAt`. That is the
+ *  correct behaviour while FCM credentials do not yet exist. */
 export function dispatchingSender(web: Sender | null, device: Sender | null): Sender {
   return async (sub, payload) => {
     if (sub.kind === "webpush") {
-      return web ? web(sub, payload) : { ok: false, gone: false, error: "web push not configured" };
+      return web
+        ? web(sub, payload)
+        : { ok: false, gone: false, error: "web push not configured", configured: false };
     }
-    return device ? device(sub, payload) : { ok: false, gone: false, error: "device push not configured" };
+    return device
+      ? device(sub, payload)
+      : { ok: false, gone: false, error: "device push not configured", configured: false };
   };
 }

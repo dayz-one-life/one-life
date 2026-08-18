@@ -3,6 +3,8 @@ import type { Sender } from "./sender.js";
 
 const FCM_BASE = "https://fcm.googleapis.com/v1/projects";
 
+type ErrorLog = { error: (obj: unknown, msg: string) => void };
+
 /** Send through FCM HTTP v1.
  *
  *  Chosen over Expo's push service specifically because FCM returns per-message errors
@@ -18,6 +20,9 @@ export function buildFcmSender(opts: {
   projectId: string;
   getAccessToken: () => Promise<string>;
   fetch?: typeof globalThis.fetch;
+  /** Optional so every existing call site and test keeps compiling unchanged. When given, a 400
+   *  is logged at error level — see the module comment above for why 400 is special. */
+  log?: ErrorLog;
 }): Sender {
   const doFetch = opts.fetch ?? globalThis.fetch;
   const url = `${FCM_BASE}/${opts.projectId}/messages:send`;
@@ -42,14 +47,18 @@ export function buildFcmSender(opts: {
       });
       if (res.ok) return { ok: true };
       const body = await res.text();
+      if (res.status === 400) {
+        opts.log?.error(
+          { status: res.status },
+          "FCM rejected our message shape — our v1 message body is probably wrong, not the device token",
+        );
+      }
       return { ok: false, gone: res.status === 404, error: `fcm ${res.status}: ${body.slice(0, 300)}` };
     } catch (err) {
       return { ok: false, gone: false, error: String(err) };
     }
   };
 }
-
-type ErrorLog = { error: (obj: unknown, msg: string) => void };
 
 const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
@@ -85,10 +94,15 @@ export function buildFcmSenderFromConfig(
         if (!token) throw new Error("google-auth-library returned no access token");
         return token;
       },
+      log,
     });
   } catch (err) {
+    // Node embeds a prefix of the offending input in a JSON.parse error message. If an operator
+    // base64s the private-key PEM alone instead of the whole JSON, logging `err` verbatim would
+    // put a fragment of a private key in the logs. The message string below already carries the
+    // actionable guidance, so only the error name is logged here.
     log.error(
-      { err },
+      { err: err instanceof Error ? err.name : "unknown" },
       "invalid FCM configuration — device push is OFF (check FCM_PROJECT_ID and that FCM_SERVICE_ACCOUNT_JSON_BASE64 is the base64 of the whole service-account JSON); web push and generation continue",
     );
     return null;

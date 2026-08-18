@@ -91,6 +91,9 @@ describe("push store", () => {
 
     const left = await activeSubscriptionsFor(db, "ps1");
     expect(left.map((s) => s.kind)).toEqual(["webpush"]);
+    // This leaves device_push_tokens_id_seq permanently restarted at a low value. Safe: every
+    // test in this file clears the table in beforeEach, so a future test inserting device rows
+    // in a beforeAll (not beforeEach) would be the first to notice — not a PK conflict here.
   });
 
   it("recordFailure disables a device token at the fifth failure", async () => {

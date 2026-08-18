@@ -57,6 +57,23 @@ describe("buildFcmSender", () => {
     expect(r).toMatchObject({ ok: false, gone: false });
     expect(f).not.toHaveBeenCalled();
   });
+
+  // 400 nearly always means WE broke the message shape, not that the device is bad — that is
+  // the one signal worth surfacing above ordinary retryable-failure noise (429s, 503s, ...).
+  it("logs at error level on a 400, since that almost always means our message shape is wrong", async () => {
+    const log = { error: vi.fn() };
+    const s = buildFcmSender({ projectId: "proj", getAccessToken: async () => "at", fetch: reply(400, "bad") as never, log });
+    await s(device, payload);
+    expect(log.error).toHaveBeenCalledOnce();
+    expect(log.error).toHaveBeenCalledWith({ status: 400 }, expect.stringContaining("message shape"));
+  });
+
+  it("does not log on a 503", async () => {
+    const log = { error: vi.fn() };
+    const s = buildFcmSender({ projectId: "proj", getAccessToken: async () => "at", fetch: reply(503, "down") as never, log });
+    await s(device, payload);
+    expect(log.error).not.toHaveBeenCalled();
+  });
 });
 
 const log = { error: () => {} };

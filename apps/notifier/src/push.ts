@@ -64,11 +64,16 @@ export async function pushTick(db: Database, deps: PushDeps): Promise<PushResult
     for (const sub of subs) {
       const res = await deps.send(sub, payload);
       if (res.ok) { delivered = true; continue; }
+      // An unconfigured transport says nothing about this endpoint's health, so it must not count
+      // toward MAX_FAILURES. The row stays unpushed and is retried each tick until it ages past
+      // maxAgeMinutes and is stamped as skipped — bounded, and it leaves no disabled rows behind
+      // to silently suppress delivery on the day the credentials finally land.
+      if (res.configured === false) { failed++; continue; }
       if (res.gone) {
         await deps.store.deleteSubscription(db, sub);
       } else {
         await deps.store.recordFailure(db, sub, deps.now);
-        deps.log.warn?.({ id: row.id, subscriptionId: sub.id, error: res.error }, "push failed (retries next tick)");
+        deps.log.warn?.({ id: row.id, subscriptionId: sub.id, kind: sub.kind, error: res.error }, "push failed (retries next tick)");
       }
       failed++;
     }

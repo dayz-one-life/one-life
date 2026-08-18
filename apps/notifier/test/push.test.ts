@@ -113,6 +113,18 @@ describe("pushTick", () => {
       .toMatchObject({ kind: "device", id: 10 });
   });
 
+  it("does not record a failure or mark pushed when the transport is unconfigured", async () => {
+    const store = makeStore();
+    const send = vi.fn(async () => (
+      { ok: false as const, gone: false, error: "device push not configured", configured: false as const }
+    ));
+    const r = await pushTick(db, { ...base, store, send });
+    expect(r.failed).toBe(1);
+    expect((store as never as { recordFailure: unknown }).recordFailure).not.toHaveBeenCalled();
+    expect((store as never as { deleteSubscription: unknown }).deleteSubscription).not.toHaveBeenCalled();
+    expect((store as never as { markPushed: unknown }).markPushed).not.toHaveBeenCalled();
+  });
+
   it("hands the sender a payload object carrying the notification kind", async () => {
     const store = makeStore();
     const send: Sender = vi.fn(async () => ({ ok: true as const }));
