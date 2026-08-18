@@ -51,4 +51,44 @@ describe("ReportDialog", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // ⚠️ THE BUG THIS GUARDS: `ReportBlockMenu` mounts this dialog ONCE and toggles it purely via
+  // `open` — it is never unmounted between uses. Reopening it after a successful report must not
+  // land straight on the "Reported" confirmation from the LAST submission: that would show
+  // "hidden straight away" copy before the user has submitted anything this time, which is
+  // exactly the lie this feature exists to prevent.
+  it("reopening after a successful report shows the form again, not the stale confirmation", async () => {
+    (reportAvatar as unknown as { mockResolvedValueOnce: (v: unknown) => void }).mockResolvedValueOnce({ ok: true });
+    const onClose = vi.fn();
+    const { rerender } = render(<ReportDialog open gamertag="Ripper" avatarHash="abc" onClose={onClose} />);
+    fireEvent.click(screen.getByLabelText(/hateful or harassing/i));
+    fireEvent.click(screen.getByRole("button", { name: /report avatar/i }));
+    await screen.findByText(/^reported$/i);
+
+    rerender(<ReportDialog open={false} gamertag="Ripper" avatarHash="abc" onClose={onClose} />);
+    rerender(<ReportDialog open gamertag="Ripper" avatarHash="abc" onClose={onClose} />);
+
+    expect(screen.queryByText(/^reported$/i)).toBeNull();
+    expect(screen.getByText(/report this avatar/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /report avatar/i })).toHaveProperty("disabled", true);
+  });
+
+  // Same failure mode, the error-banner half: a stale error from the last attempt must not sit
+  // on screen before this attempt has even started.
+  it("reopening after a failed submit does not show the stale error banner", async () => {
+    (reportAvatar as unknown as { mockRejectedValueOnce: (e: Error) => void }).mockRejectedValueOnce(
+      new Error("nope"),
+    );
+    const onClose = vi.fn();
+    const { rerender } = render(<ReportDialog open gamertag="Ripper" avatarHash="abc" onClose={onClose} />);
+    fireEvent.click(screen.getByLabelText(/hateful or harassing/i));
+    fireEvent.click(screen.getByRole("button", { name: /report avatar/i }));
+    await screen.findByText(/couldn't|could not/i);
+
+    rerender(<ReportDialog open={false} gamertag="Ripper" avatarHash="abc" onClose={onClose} />);
+    rerender(<ReportDialog open gamertag="Ripper" avatarHash="abc" onClose={onClose} />);
+
+    expect(screen.queryByText(/couldn't|could not/i)).toBeNull();
+    expect(screen.getByRole("button", { name: /report avatar/i })).toHaveProperty("disabled", true);
+  });
 });

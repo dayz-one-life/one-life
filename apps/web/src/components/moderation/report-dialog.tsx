@@ -1,20 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { REPORT_REASONS, type ReportReason } from "@onelife/api-client";
 import { reportAvatar } from "@/lib/api";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 
 /** ⚠️ A FIXED list. A free-text reason box would itself be a UGC surface — putting one inside
- *  the moderation feature would be self-defeating. Values match `ReportReason` in
- *  `@onelife/api-client` exactly; the cast in `onSubmit` below relies on that. */
-const REASONS = [
-  { value: "sexual", label: "Sexual or nudity" },
-  { value: "violent", label: "Violent or graphic" },
-  { value: "hate", label: "Hateful or harassing" },
-  { value: "illegal", label: "Illegal content" },
-  { value: "impersonation", label: "Impersonation" },
-  { value: "other", label: "Something else" },
-] as const;
+ *  the moderation feature would be self-defeating. Labels are keyed off `REPORT_REASONS` (the
+ *  server's actual enum, re-exported as a value from `@onelife/api-client`) rather than
+ *  hand-duplicated, so a change to the enum is a type error here, not a silent runtime
+ *  mismatch. */
+const LABELS: Record<ReportReason, string> = {
+  sexual: "Sexual or nudity",
+  violent: "Violent or graphic",
+  hate: "Hateful or harassing",
+  illegal: "Illegal content",
+  impersonation: "Impersonation",
+  other: "Something else",
+};
+const REASONS = REPORT_REASONS.map((value) => ({ value, label: LABELS[value] }));
 
 export function ReportDialog({
   open,
@@ -27,7 +31,7 @@ export function ReportDialog({
   avatarHash: string;
   onClose: () => void;
 }) {
-  const [reason, setReason] = useState<string | null>(null);
+  const [reason, setReason] = useState<ReportReason | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -38,6 +42,18 @@ export function ReportDialog({
   // no-ops while `open` is false.
   const panelRef = useModalBehavior(open, onClose);
 
+  // ⚠️ This dialog is mounted once (by `ReportBlockMenu`) and toggled purely via `open` — it is
+  // never unmounted between uses. Without this, a second open would reopen straight onto a
+  // stale "Reported" screen or a stale error banner from the PREVIOUS submission, before the
+  // user has done anything this time. That is exactly the lie this whole feature exists to
+  // prevent: a confirmation shown before a real submit.
+  useEffect(() => {
+    if (!open) return;
+    setReason(null);
+    setError(null);
+    setDone(false);
+  }, [open]);
+
   if (!open) return null;
 
   async function onSubmit() {
@@ -45,7 +61,7 @@ export function ReportDialog({
     setBusy(true);
     setError(null);
     try {
-      await reportAvatar(avatarHash, reason as (typeof REASONS)[number]["value"]);
+      await reportAvatar(avatarHash, reason);
       setDone(true);
     } catch {
       // ⚠️ Never fall through to a success message. The avatar is still up, and telling the

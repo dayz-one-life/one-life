@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { blockPlayer } from "@/lib/api";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 
@@ -21,6 +21,16 @@ export function BlockDialog({
   // back to the opener on close, Escape closes, Tab is trapped, body scroll is locked. Called
   // unconditionally (before the `!open` bail below) for hooks-order safety.
   const panelRef = useModalBehavior(open, onClose);
+
+  // ⚠️ This dialog is mounted once (by `ReportBlockMenu`) and toggled purely via `open` — it is
+  // never unmounted between uses. Without this, a second open would reopen straight onto a
+  // stale "Blocked" screen or a stale error banner from the PREVIOUS submission, before the
+  // user has done anything this time.
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setDone(false);
+  }, [open]);
 
   if (!open) return null;
 
@@ -77,7 +87,12 @@ export function BlockDialog({
               >
                 Block player
               </button>
-              <button type="button" onClick={onClose} className="border border-ink px-4 py-2 font-mono text-xs uppercase">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="border border-ink px-4 py-2 font-mono text-xs uppercase disabled:opacity-40"
+              >
                 Cancel
               </button>
             </>

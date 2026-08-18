@@ -58,4 +58,39 @@ describe("BlockDialog", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // ⚠️ THE BUG THIS GUARDS: `ReportBlockMenu` mounts this dialog ONCE and toggles it purely via
+  // `open` — it is never unmounted between uses. Reopening after a successful block must not
+  // land straight on "Blocked" from the LAST confirm; that would show the block-happened copy
+  // before this attempt has done anything.
+  it("reopening after a successful block shows the confirm screen again, not the stale success", async () => {
+    (blockPlayer as unknown as { mockResolvedValueOnce: (v: unknown) => void }).mockResolvedValueOnce({ ok: true });
+    const onClose = vi.fn();
+    const { rerender } = render(<BlockDialog open gamertag="Ripper" onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /^block player$/i }));
+    await screen.findByText(/^blocked$/i);
+
+    rerender(<BlockDialog open={false} gamertag="Ripper" onClose={onClose} />);
+    rerender(<BlockDialog open gamertag="Ripper" onClose={onClose} />);
+
+    expect(screen.queryByText(/^blocked$/i)).toBeNull();
+    expect(screen.getByRole("button", { name: /^block player$/i })).toBeTruthy();
+  });
+
+  // Same failure mode, the error-banner half.
+  it("reopening after a failed block does not show the stale error banner", async () => {
+    (blockPlayer as unknown as { mockRejectedValueOnce: (e: Error) => void }).mockRejectedValueOnce(
+      new Error("nope"),
+    );
+    const onClose = vi.fn();
+    const { rerender } = render(<BlockDialog open gamertag="Ripper" onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /^block player$/i }));
+    await screen.findByText(/couldn't|could not/i);
+
+    rerender(<BlockDialog open={false} gamertag="Ripper" onClose={onClose} />);
+    rerender(<BlockDialog open gamertag="Ripper" onClose={onClose} />);
+
+    expect(screen.queryByText(/couldn't|could not/i)).toBeNull();
+    expect(screen.getByRole("button", { name: /^block player$/i })).toBeTruthy();
+  });
 });
