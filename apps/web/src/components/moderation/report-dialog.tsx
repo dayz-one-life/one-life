@@ -165,7 +165,14 @@ export function ReportDialog({
               >
                 Report avatar
               </button>
-              <button type="button" onClick={onClose} className="border border-ink px-4 py-2 font-mono text-xs uppercase">
+              {/* Disabled while in flight, matching `BlockDialog` — dismissing a dialog whose
+                  request is still going to land leaves the user with no idea what happened. */}
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="border border-ink px-4 py-2 font-mono text-xs uppercase disabled:opacity-40"
+              >
                 Cancel
               </button>
             </div>

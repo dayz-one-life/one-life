@@ -140,4 +140,18 @@ describe("ReportDialog", () => {
     expect(alert.textContent).toMatch(/try again/i);
   });
 
+  // Consistency with BlockDialog, which already does this: a Cancel that stays live during an
+  // in-flight submit lets the user dismiss a dialog whose request is still going to land.
+  it("disables Cancel while a submit is in flight", async () => {
+    let release: () => void = () => {};
+    (reportAvatar as unknown as { mockImplementationOnce: (f: () => Promise<unknown>) => void })
+      .mockImplementationOnce(() => new Promise((r) => { release = () => r({ ok: true }); }));
+    render(<ReportDialog open gamertag="Ripper" avatarHash="abc" onClose={() => {}} />);
+    fireEvent.click(screen.getByLabelText(/hateful or harassing/i));
+    fireEvent.click(screen.getByRole("button", { name: /report avatar/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /cancel/i })).toHaveProperty("disabled", true));
+    release();
+    await screen.findByText(/^reported$/i);
+  });
 });
