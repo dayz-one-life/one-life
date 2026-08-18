@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useAccountStatus } from "@/lib/use-account-status";
+import { BlockedUsers } from "@/components/account/blocked-users";
 import { DangerZone } from "@/components/account/danger-zone";
 
 /**
@@ -27,5 +28,10 @@ export function SettingsBody() {
     );
   }
 
-  return <DangerZone />;
+  return (
+    <>
+      <BlockedUsers />
+      <DangerZone />
+    </>
+  );
 }

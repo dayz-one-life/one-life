@@ -6,6 +6,14 @@ vi.mock("@/lib/use-account-status", () => ({
   useAccountStatus: () => useAccountStatus(),
 }));
 
+// BlockedUsers fetches on mount whenever SettingsBody renders the signed-in branch — mock the
+// module so the verified-branch tests don't hit the real network client or leave the fetch
+// promise unresolved across test boundaries.
+vi.mock("@/lib/api", () => ({
+  getBlocks: vi.fn(async () => ({ blocks: [] })),
+  unblockPlayer: vi.fn(async () => ({ ok: true })),
+}));
+
 import { SettingsBody } from "./settings-body";
 
 describe("SettingsBody", () => {
@@ -26,10 +34,12 @@ describe("SettingsBody", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders the Danger zone once verified", () => {
+  it("renders the Danger zone once verified", async () => {
     useAccountStatus.mockReturnValue({ kind: "verified", link: { gamertag: "Steve" } });
     render(<SettingsBody />);
     expect(screen.getByText(/danger zone/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /delete account/i })).toBeInTheDocument();
+    // Let BlockedUsers' fetch-on-mount settle so its state update happens inside `act`.
+    expect(await screen.findByText(/haven't blocked anyone/i)).toBeInTheDocument();
   });
 });
