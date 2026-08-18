@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ApiError } from "@onelife/api-client";
 import { ReportDialog } from "./report-dialog";
 
 vi.mock("@/lib/api", () => ({ reportAvatar: vi.fn(async () => ({ ok: true })) }));
@@ -91,4 +92,52 @@ describe("ReportDialog", () => {
     expect(screen.queryByText(/couldn't|could not/i)).toBeNull();
     expect(screen.getByRole("button", { name: /report avatar/i })).toHaveProperty("disabled", true);
   });
+
+  // ⚠️ THE BUG THESE GUARD: the catch was bare, so all six server outcomes collapsed into
+  // "please try again". Retrying is never the right advice for a rate limit, and the generic
+  // copy ("The avatar is unchanged") is flatly FALSE for `already_reported` — the avatar was
+  // hidden, by this same reporter's earlier report. `ApiError` carries the code; use it.
+  async function submitFailingWith(e: unknown) {
+    (reportAvatar as unknown as { mockRejectedValueOnce: (e: unknown) => void }).mockRejectedValueOnce(e);
+    render(<ReportDialog open gamertag="Ripper" avatarHash="abc" onClose={() => {}} />);
+    fireEvent.click(screen.getByLabelText(/hateful or harassing/i));
+    fireEvent.click(screen.getByRole("button", { name: /report avatar/i }));
+    return screen.findByRole("alert");
+  }
+
+  it("tells a repeat reporter their earlier report already hid it, not that nothing changed", async () => {
+    const alert = await submitFailingWith(new ApiError(409, "already_reported"));
+    expect(alert.textContent).toMatch(/already reported/i);
+    // Must NOT repeat the old lie that the avatar is unchanged.
+    expect(alert.textContent).not.toMatch(/unchanged/i);
+    expect(alert.textContent).not.toMatch(/try again/i);
+  });
+
+  it("says a moderator already allowed the image, and does not invite a retry", async () => {
+    const alert = await submitFailingWith(new ApiError(409, "already_reviewed"));
+    expect(alert.textContent).toMatch(/moderator/i);
+    expect(alert.textContent).not.toMatch(/try again/i);
+  });
+
+  it("does not tell a rate-limited reporter to try again now", async () => {
+    const alert = await submitFailingWith(new ApiError(429, "rate_limited"));
+    expect(alert.textContent).toMatch(/24 hours|tomorrow|limit/i);
+    expect(alert.textContent).not.toMatch(/try again\.|please try again/i);
+  });
+
+  it("explains that reporting needs a verified gamertag", async () => {
+    const alert = await submitFailingWith(new ApiError(403, "not_verified"));
+    expect(alert.textContent).toMatch(/verified gamertag/i);
+  });
+
+  it("falls back to the generic retry message for an unrecognised failure", async () => {
+    const alert = await submitFailingWith(new Error("network down"));
+    expect(alert.textContent).toMatch(/try again/i);
+  });
+
+  it("keeps the generic fallback for an ApiError with an unknown code", async () => {
+    const alert = await submitFailingWith(new ApiError(500, "internal"));
+    expect(alert.textContent).toMatch(/try again/i);
+  });
+
 });

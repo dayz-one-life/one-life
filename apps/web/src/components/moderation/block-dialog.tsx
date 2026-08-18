@@ -1,8 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ApiError } from "@onelife/api-client";
 import { blockPlayer } from "@/lib/api";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
+
+/**
+ * ⚠️ ONE MESSAGE PER SERVER OUTCOME, all of them true. A bare `catch` used to answer both with
+ * "please try again", which for an unclaimed gamertag is advice that can never work: there is
+ * no account behind it to block, today or ever.
+ */
+const ERRORS: Record<string, string> = {
+  // 404. `blockByGamertag` resolves through `verifiedOwnerByGamertag`. `ReportBlockMenu` gates
+  // Block on the dossier's `verified` flag so this should be unreachable from the dossier —
+  // but a gamertag can be unlinked between page render and confirm, so it stays handled.
+  unknown_gamertag: "Nobody has claimed this gamertag, so there is no account to block. Nothing was changed.",
+  // 400.
+  self: "That is your own account — you cannot block yourself. Nothing was changed.",
+};
+
+const FALLBACK = "We couldn't block that player. Nothing was changed — please try again.";
+
+function messageFor(e: unknown): string {
+  return (e instanceof ApiError && ERRORS[e.code]) || FALLBACK;
+}
 
 export function BlockDialog({
   open,
@@ -40,8 +61,8 @@ export function BlockDialog({
     try {
       await blockPlayer(gamertag);
       setDone(true);
-    } catch {
-      setError("We couldn't block that player. Nothing was changed — please try again.");
+    } catch (e) {
+      setError(messageFor(e));
     } finally {
       setBusy(false);
     }

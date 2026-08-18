@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { ApiError } from "@onelife/api-client";
 import { BlockDialog } from "./block-dialog";
 
 vi.mock("@/lib/api", () => ({ blockPlayer: vi.fn(async () => ({ ok: true })) }));
@@ -92,5 +93,32 @@ describe("BlockDialog", () => {
 
     expect(screen.queryByText(/couldn't|could not/i)).toBeNull();
     expect(screen.getByRole("button", { name: /^block player$/i })).toBeTruthy();
+  });
+
+  // ⚠️ THE BUG THESE GUARD: the catch was bare, so both server outcomes collapsed into
+  // "please try again". Retrying an unclaimed gamertag will never work — there is no account
+  // behind it to block, and telling someone to retry hides that from them.
+  async function submitFailingWith(e: unknown) {
+    (blockPlayer as unknown as { mockRejectedValueOnce: (e: unknown) => void }).mockRejectedValueOnce(e);
+    render(<BlockDialog open gamertag="Ripper" onClose={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^block player$/i }));
+    return screen.findByRole("alert");
+  }
+
+  it("says there is no account behind an unclaimed gamertag, rather than inviting a retry", async () => {
+    const alert = await submitFailingWith(new ApiError(404, "unknown_gamertag"));
+    expect(alert.textContent).toMatch(/nobody has (claimed|verified)|no account/i);
+    expect(alert.textContent).not.toMatch(/try again/i);
+  });
+
+  it("says plainly that you cannot block yourself", async () => {
+    const alert = await submitFailingWith(new ApiError(400, "self"));
+    expect(alert.textContent).toMatch(/yourself/i);
+    expect(alert.textContent).not.toMatch(/try again/i);
+  });
+
+  it("falls back to the generic retry message for an unrecognised failure", async () => {
+    const alert = await submitFailingWith(new Error("network down"));
+    expect(alert.textContent).toMatch(/try again/i);
   });
 });

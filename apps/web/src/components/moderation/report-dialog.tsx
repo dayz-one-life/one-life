@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { REPORT_REASONS, type ReportReason } from "@onelife/api-client";
+import { ApiError, REPORT_REASONS, type ReportReason } from "@onelife/api-client";
 import { reportAvatar } from "@/lib/api";
 import { useModalBehavior } from "@/lib/use-modal-behavior";
 
@@ -19,6 +19,39 @@ const LABELS: Record<ReportReason, string> = {
   other: "Something else",
 };
 const REASONS = REPORT_REASONS.map((value) => ({ value, label: LABELS[value] }));
+
+/**
+ * ⚠️ ONE MESSAGE PER SERVER OUTCOME, and every one of them has to be TRUE — that constraint is
+ * the whole point of this feature. A bare `catch` used to render "we couldn't submit that
+ * report, the avatar is unchanged" for all six, which is a lie for `already_reported` (the
+ * avatar WAS hidden, by this reporter's own earlier report) and useless advice for
+ * `rate_limited` (retrying is exactly what will not work). `ApiError` carries `code`; the
+ * transport already throws it.
+ */
+const ERRORS: Record<string, string> = {
+  // 403. There is nothing to retry until the gamertag link is verified.
+  not_verified: "Reporting needs a verified gamertag. Verify yours in settings, then report.",
+  // 404. Nobody holds these bytes any more, so there is nothing left to hide.
+  unknown_hash: "That avatar is no longer here — it was changed or removed. Nothing to report.",
+  // 400.
+  self: "That is your own avatar. Remove it from your settings instead.",
+  // 409. The ban row exists in `auto` or `confirmed` state, so it really is still hidden —
+  // `allowed` would have come back as already_reviewed instead.
+  already_reported: "You already reported this avatar. It has been hidden since, and a moderator will decide.",
+  // 409. A moderator looked at these bytes and allowed them. That decision is durable — this
+  // report would not hide anything, and no moderator would ever see it.
+  already_reviewed: "A moderator has already reviewed this avatar and allowed it. It will not be hidden again.",
+  // 429. The cap is a rolling 24 hours, not a calendar day.
+  rate_limited: "You have reported the maximum number of avatars in the last 24 hours. Try again later.",
+};
+
+/** ⚠️ Never falls through to a success message. The avatar is still up, and telling the
+ *  reporter otherwise means nobody reports it again. */
+const FALLBACK = "We couldn't submit that report. The avatar is unchanged — please try again.";
+
+function messageFor(e: unknown): string {
+  return (e instanceof ApiError && ERRORS[e.code]) || FALLBACK;
+}
 
 export function ReportDialog({
   open,
@@ -63,10 +96,8 @@ export function ReportDialog({
     try {
       await reportAvatar(avatarHash, reason);
       setDone(true);
-    } catch {
-      // ⚠️ Never fall through to a success message. The avatar is still up, and telling the
-      // reporter otherwise means nobody reports it again.
-      setError("We couldn't submit that report. The avatar is unchanged — please try again.");
+    } catch (e) {
+      setError(messageFor(e));
     } finally {
       setBusy(false);
     }
