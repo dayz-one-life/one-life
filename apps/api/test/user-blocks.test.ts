@@ -110,10 +110,13 @@ describe("blocking by gamertag", () => {
     expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
   });
 
-  it("matches case-insensitively, like every other gamertag lookup here", async () => {
+  it("matches case-insensitively, like every other gamertag lookup here, and snapshots the canonical casing", async () => {
     await seedUser("alice");
     await seedUser("bob"); await seedVerified("bob", "BobTag");
     expect(await blockByGamertag(db, "alice", "bobtag")).toEqual({ ok: true });
+    // ⚠️ Must store the canonical casing on record, not whatever the caller typed — every other
+    // surface (dossier, profile) displays "BobTag", so a stray "bobtag" here matches nothing.
+    expect(await listBlocks(db, "alice")).toEqual([{ gamertag: "BobTag", createdAt: expect.any(String) }]);
   });
 
   it("refuses a gamertag nobody has verified", async () => {

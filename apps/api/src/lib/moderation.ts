@@ -2,7 +2,7 @@ import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@onelife/db";
 import { avatars, avatarReports, gamertagLinks, locationShares, userBlocks } from "@onelife/db";
 import { banAvatarHash } from "./avatar-store.js";
-import { verifiedUserIdByGamertag } from "../routes/verified-gamertag.js";
+import { verifiedOwnerByGamertag } from "../routes/verified-gamertag.js";
 
 /**
  * ⚠️ A FIXED list, deliberately not free text. A free-text reason field would itself be a UGC
@@ -84,10 +84,16 @@ export async function blockUser(
 ): Promise<{ ok: true } | { error: "self" }> {
   if (blockerUserId === blockedUserId) return { error: "self" };
   await db.transaction(async (tx) => {
+    // Upsert, not insert-or-ignore: a re-block after the target renamed their gamertag should
+    // refresh the snapshot to the current name. createdAt is left untouched by the update — the
+    // original block time is the truthful one.
     await tx
       .insert(userBlocks)
       .values({ blockerUserId, blockedUserId, blockedGamertag })
-      .onConflictDoNothing({ target: [userBlocks.blockerUserId, userBlocks.blockedUserId] });
+      .onConflictDoUpdate({
+        target: [userBlocks.blockerUserId, userBlocks.blockedUserId],
+        set: { blockedGamertag },
+      });
 
     // ⚠️ Severing EXISTING shares is the whole point of blocking mid-harassment. The grant-time
     // guard in map-share.ts only stops NEW shares; without this, blocking someone who is already
@@ -124,10 +130,12 @@ export async function blockByGamertag(
   blockerUserId: string,
   gamertag: string,
 ): Promise<{ ok: true } | { error: "self" | "unknown_gamertag" }> {
-  const target = await verifiedUserIdByGamertag(db, gamertag);
+  const target = await verifiedOwnerByGamertag(db, gamertag);
   if (!target) return { error: "unknown_gamertag" };
-  if (target === blockerUserId) return { error: "self" };
-  await blockUser(db, blockerUserId, target, gamertag);
+  if (target.userId === blockerUserId) return { error: "self" };
+  // Snapshot the CANONICAL casing on record, not whatever the caller typed — matching is
+  // case-insensitive, but every other surface (dossier, profile) displays the canonical form.
+  await blockUser(db, blockerUserId, target.userId, target.gamertag);
   return { ok: true };
 }
 
