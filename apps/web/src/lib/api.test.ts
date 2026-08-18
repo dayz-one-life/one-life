@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { apiGet, apiSend, ApiError, getRoster, toBackendPath, uploadAvatar } from "./api";
+import { apiGet, apiSend, ApiError, getRoster, moderationImageSrc, toBackendPath, uploadAvatar } from "./api";
 
 const originalFetch = global.fetch;
 afterEach(() => {
@@ -113,5 +113,27 @@ describe("ApiError", () => {
     expect(e).toBeInstanceOf(Error);
     expect(e.status).toBe(409);
     expect(e.code).toBe("already_verified");
+  });
+});
+
+describe("moderationImageSrc", () => {
+  // ⚠️ THE BUG THIS GUARDS: this was built from `API_ORIGIN`, which is not `NEXT_PUBLIC_`-
+  // prefixed and is not listed in `next.config.ts`'s `env`. `ModerationBody` is a client
+  // component, so in the browser bundle the variable is `undefined` and the localhost fallback
+  // wins — a deployed moderator would get `http://localhost:3001/...` for the ONE image their
+  // whole Restore-vs-destroy decision rests on. A cross-origin <img> would also not carry the
+  // session cookie `requireModerator` needs. Relative, like `avatarSrc`, so the Next rewrite
+  // proxies it same-origin. Every other test in the repo mocks this function away, which is
+  // exactly why the bug survived.
+  it("is a relative same-origin path, never an absolute URL", () => {
+    const src = moderationImageSrc("abc123");
+    expect(src.startsWith("/api/")).toBe(true);
+    expect(src).not.toMatch(/^[a-z]+:/i);
+    expect(src).not.toMatch(/localhost|https?:\/\//);
+    expect(src).toContain("abc123");
+  });
+
+  it("encodes the hash", () => {
+    expect(moderationImageSrc("a/b")).toBe("/api/moderation/hashes/a%2Fb/image");
   });
 });

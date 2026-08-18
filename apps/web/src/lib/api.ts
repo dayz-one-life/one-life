@@ -146,9 +146,18 @@ export const getModerationQueue = api.getModerationQueue;
 export const restoreAvatarHash = api.restoreAvatarHash;
 export const confirmAvatarHash = api.confirmAvatarHash;
 
-/** Moderator-only avatar bytes. A plain URL, not a fetch — it is an <img> src. */
+/**
+ * Moderator-only avatar bytes. A plain URL, not a fetch — it is an <img> src.
+ *
+ * ⚠️ RELATIVE, like `avatarSrc` in `components/shared/avatar.tsx`. Two reasons, both fatal:
+ * `API_ORIGIN` is a server-only env var (no `NEXT_PUBLIC_` prefix, not in `next.config.ts`'s
+ * `env`), so in the browser bundle — and `ModerationBody` is a client component — it is
+ * `undefined` and the localhost fallback ships to production. And even with the right origin, a
+ * cross-origin <img> subresource carries no session cookie, so `requireModerator` would 401 it.
+ * The Next rewrite (`/api/:path*` → `${API_ORIGIN}/:path*`) proxies this same-origin instead.
+ */
 export const moderationImageSrc = (hash: string) =>
-  `${API_ORIGIN}${toBackendPath(`/api/moderation/hashes/${encodeURIComponent(hash)}/image`)}`;
+  `/api/moderation/hashes/${encodeURIComponent(hash)}/image`;
 
 // ── Next-only variants below. These depend on `next: { revalidate }` and have no mobile
 //    equivalent, so they stay here rather than moving into @onelife/api-client. ──
