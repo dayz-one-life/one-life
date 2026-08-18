@@ -9,6 +9,9 @@ export type Sender = (sub: ActiveSubscription, payload: string) => Promise<SendR
 export function webPushSender(vapid: { publicKey: string; privateKey: string; subject: string }): Sender {
   webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
   return async (sub, payload) => {
+    if (sub.kind !== "webpush") {
+      return { ok: false, gone: false, error: "webPushSender received a device subscription" };
+    }
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

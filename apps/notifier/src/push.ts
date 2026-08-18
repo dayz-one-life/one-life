@@ -7,8 +7,8 @@ export type PushStore = {
   findUnpushed(db: Database, opts: { limit: number }): Promise<UnpushedNotification[]>;
   activeSubscriptionsFor(db: Database, userId: string): Promise<ActiveSubscription[]>;
   markPushed(db: Database, id: number, now: Date): Promise<void>;
-  deleteSubscription(db: Database, id: number): Promise<void>;
-  recordFailure(db: Database, id: number, now: Date): Promise<void>;
+  deleteSubscription(db: Database, sub: ActiveSubscription): Promise<void>;
+  recordFailure(db: Database, sub: ActiveSubscription, now: Date): Promise<void>;
 };
 
 export type PushDeps = {
@@ -65,9 +65,9 @@ export async function pushTick(db: Database, deps: PushDeps): Promise<PushResult
       const res = await deps.send(sub, payload);
       if (res.ok) { delivered = true; continue; }
       if (res.gone) {
-        await deps.store.deleteSubscription(db, sub.id);
+        await deps.store.deleteSubscription(db, sub);
       } else {
-        await deps.store.recordFailure(db, sub.id, deps.now);
+        await deps.store.recordFailure(db, sub, deps.now);
         deps.log.warn?.({ id: row.id, subscriptionId: sub.id, error: res.error }, "push failed (retries next tick)");
       }
       failed++;
