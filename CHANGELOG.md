@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Groundwork for notifications on the phone. The notifier can now deliver to iOS and Android
+  devices through Firebase Cloud Messaging as well as to browsers, and a device can register its
+  push token with the API. Nothing changes for anyone yet: there is no app to register a token,
+  and device delivery stays off until Firebase credentials are configured on the host (see
+  `deploy/README.md`). Browser push is unaffected.
+
 ## [0.76.0] - 2026-08-18
 
 ### Added
