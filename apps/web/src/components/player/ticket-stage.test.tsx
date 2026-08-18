@@ -6,6 +6,10 @@ vi.stubGlobal(
   "ResizeObserver",
   vi.fn().mockImplementation(() => ({ observe: vi.fn(), disconnect: vi.fn(), unobserve: vi.fn() })),
 );
+// `ReportBlockMenu` (public viewer only) pulls in `useAccountStatus`, which needs a
+// `QueryClientProvider` this suite doesn't set up. None of these tests are about that menu —
+// see `report-block-menu.test.tsx` for its own coverage — so signed-out keeps it a no-op here.
+vi.mock("@/lib/use-account-status", () => ({ useAccountStatus: () => ({ kind: "signedOut" }) }));
 import { render, screen, within, cleanup } from "@testing-library/react";
 import { TicketStage } from "./ticket-stage";
 import type { PlayerPage, ServerStanding } from "@/lib/types";

@@ -5,6 +5,7 @@ import { playerSlug } from "@/lib/slug";
 import { lifeHrefBySlug } from "@/lib/life-href";
 import { verdictPhrase } from "@/lib/cause-format";
 import { FitLine } from "@/components/front-page/fit-line";
+import { ReportBlockMenu } from "./report-block-menu";
 import { StageAvatar } from "./stage-avatar";
 import { TicketSpend } from "./ticket-spend";
 import { formatDuration, banCountdown, mapLabel, relativeDate } from "./format";
@@ -124,6 +125,8 @@ export function TicketStage({
           fallbackInitial={page.gamertag.slice(0, 1)}
           editable={owner}
         />
+        {/* Never on your own dossier: you cannot report or block yourself. */}
+        {!owner && <ReportBlockMenu gamertag={page.gamertag} avatarHash={page.avatarHash} />}
         <div className="min-w-0 flex-1">
           {/* ⚠️ The kicker READS `page.verified` — it was hardcoded "Survivor · verified", which
            *  told every visitor that a gamertag nobody has linked was a verified account. Most
