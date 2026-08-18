@@ -12,8 +12,13 @@ const bodySchema = z.object({
   reason: z.enum(REPORT_REASONS),
 });
 
+// ⚠️ `already_reported` and `already_reviewed` deliberately SHARE 409 — they are both "this
+// request conflicts with a decision already on record". The client switches on the `code`, not
+// the status, because the two need different copy: one means your own earlier report already
+// hid it, the other means a moderator restored it and it will not be hidden again.
 const STATUS: Record<string, number> = {
-  not_verified: 403, unknown_hash: 404, already_reported: 409, rate_limited: 429, self: 400,
+  not_verified: 403, unknown_hash: 404, already_reported: 409, already_reviewed: 409,
+  rate_limited: 429, self: 400,
 };
 
 export function registerReportRoutes(app: FastifyInstance, db: Database, auth: Auth): void {

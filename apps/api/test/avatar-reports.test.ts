@@ -146,10 +146,30 @@ describe("reportAvatar", () => {
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
 
     // ...and a second verified account cannot immediately undo the human decision.
-    expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ ok: true });
+    // ⚠️ It must also not be TOLD it succeeded. The client renders "This avatar is hidden
+    // straight away" on ok:true, which would be a flat lie here — and the queue excludes
+    // `allowed` rows, so the report would be invisible to every moderator forever. A distinct
+    // outcome is the only honest answer.
+    expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ error: "already_reviewed" });
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
-    const [ban] = await db.select().from(blockedAvatarHashes);
-    expect(ban?.state).toBe("allowed");
+    const bans = await db.select().from(blockedAvatarHashes);
+    expect(bans).toHaveLength(1);
+    expect(bans[0]?.state).toBe("allowed");
+  });
+
+  // The same decision, from a reporter who has never touched this hash: `already_reviewed` is
+  // about the MODERATOR's restore, not about the reporter's own history (`already_reported`).
+  it("records no report at all against a restored hash", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("r2"); await seedVerified("r2", "TagTwo");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", HASH, "hate");
+    await unbanAvatarHash(db, HASH, "moderator-1");
+
+    expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ error: "already_reviewed" });
+    // Only r1's original report exists; r2's was refused rather than silently swallowed.
+    expect(await db.select().from(avatarReports)).toHaveLength(1);
   });
 
   // ⚠️ Finding 4. Split across two statements, a failed ban left an un-retryable report row

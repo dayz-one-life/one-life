@@ -1,6 +1,8 @@
 import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@onelife/db";
-import { avatars, avatarReports, gamertagLinks, locationShares, userBlocks } from "@onelife/db";
+import {
+  avatars, avatarReports, blockedAvatarHashes, gamertagLinks, locationShares, userBlocks,
+} from "@onelife/db";
 import { banAvatarHash } from "./avatar-store.js";
 import { verifiedOwnerByGamertag } from "../routes/verified-gamertag.js";
 
@@ -16,7 +18,18 @@ const REPORTS_PER_DAY = 10;
 
 export type ReportOutcome =
   | { ok: true }
-  | { error: "not_verified" | "unknown_hash" | "already_reported" | "rate_limited" | "self" };
+  | {
+      error:
+        | "not_verified"
+        | "unknown_hash"
+        | "already_reported"
+        // A MODERATOR already looked at these bytes and restored them. Distinct from
+        // `already_reported` (which is about the caller's own history) because the honest
+        // answer to the reporter is different: nobody will look at this again.
+        | "already_reviewed"
+        | "rate_limited"
+        | "self";
+    };
 
 /**
  * Record a report against IMAGE BYTES and ban them immediately.
@@ -42,9 +55,23 @@ export async function reportAvatar(
   const holders = await db
     .select({ userId: avatars.userId })
     .from(avatars)
-    .where(and(eq(avatars.hash, subjectHash), isNotNull(avatars.image)));
+    .where(and(eq(avatars.hash, subjectHash), isNotNull(avatars.image)))
+    // Deterministic: `holders[0]` becomes the recorded `subjectUserId` context below, and
+    // without an ORDER BY that is whatever order Postgres happened to return. Two identical
+    // reports would then name different subjects for the same bytes.
+    .orderBy(avatars.userId);
   if (holders.length === 0) return { error: "unknown_hash" };
   if (holders.some((h) => h.userId === reporterUserId)) return { error: "self" };
+
+  // ⚠️ A moderator's restore is DURABLE — `banAvatarHash` will `onConflictDoNothing` straight
+  // over an `allowed` row. Reporting anyway used to return ok:true, so the client rendered
+  // "This avatar is hidden straight away" when nothing had been hidden, and the queue (which
+  // excludes `allowed`) meant no moderator would ever see the new report either.
+  const [reviewed] = await db
+    .select({ state: blockedAvatarHashes.state })
+    .from(blockedAvatarHashes)
+    .where(and(eq(blockedAvatarHashes.hash, subjectHash), eq(blockedAvatarHashes.state, "allowed")));
+  if (reviewed) return { error: "already_reviewed" };
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const rows = await db

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { avatars, avatarReports, blockedAvatarHashes, gamertagLinks, user } from "@onelife/db";
 import { createAuth, type Mailer } from "@onelife/auth";
 import { buildApp } from "../src/app.js";
-import { getAvatarByHash } from "../src/lib/avatar-store.js";
+import { getAvatarByHash, unbanAvatarHash } from "../src/lib/avatar-store.js";
 import { getTestDb } from "@onelife/test-support";
 
 const { db, sql } = getTestDb();
@@ -90,6 +90,20 @@ describe("POST /me/reports/avatar", () => {
     const res = await report({ subjectHash: HASH, reason: "hate" });
     expect(res.statusCode).toBe(201);
     expect(await getAvatarByHash(db, HASH)).toBeNull();
+  });
+
+  // ⚠️ Runs AFTER the 201 above, so the hash is banned; restoring it puts the row in the
+  // durable `allowed` state. A further report must not answer 201 — the client renders "hidden
+  // straight away" on 201, and the queue excludes `allowed` rows, so a 201 here would be a
+  // false success on a report no moderator can ever see. 409 shares its status with
+  // `already_reported`; the CODE is what the client switches on.
+  it("409s already_reviewed once a moderator has restored the hash", async () => {
+    await unbanAvatarHash(db, HASH, "route-test-moderator");
+    const res = await report({ subjectHash: HASH, reason: "sexual" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({ error: "already_reviewed" });
+    // Still visible: the moderator's decision stood.
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
   });
 
   it("401s when signed out", async () => {
