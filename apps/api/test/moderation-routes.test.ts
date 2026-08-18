@@ -226,6 +226,10 @@ describe("moderation routes", () => {
   });
 
   it("confirms a ban, destroying the bytes", async () => {
+    // The previous test's confirm already NULLed these bytes — re-seed them so this
+    // test genuinely exercises confirm's destructive effect rather than finding an
+    // already-null row.
+    await db.update(avatars).set({ image: BYTES, hash: HASH }).where(eq(avatars.userId, subjectUserId));
     // Re-ban first since the previous test lifted it.
     await db.insert(blockedAvatarHashes).values({ hash: HASH, state: "auto" }).onConflictDoNothing();
     const res = await app.inject({

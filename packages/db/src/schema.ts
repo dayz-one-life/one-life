@@ -418,11 +418,6 @@ export function avatarHashNotBanned(hashExpr: SQL | AnyColumn): SQL {
   return sql`not exists (select 1 from blocked_avatar_hashes bah where bah.hash = ${hashExpr} and bah.state <> 'allowed')`;
 }
 
-/** Rows a moderator still has to decide on: an `allowed` hash is not pending review. */
-export function isActiveBanState(stateExpr: SQL | AnyColumn): SQL {
-  return sql`${stateExpr} <> 'allowed'`;
-}
-
 /**
  * One user blocking another. VIEWER-SCOPED: this hides the blocked user's avatar from the
  * blocker only, and severs location shares both ways. It must NEVER 404 the avatar globally —
