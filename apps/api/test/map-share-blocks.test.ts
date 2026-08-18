@@ -102,7 +102,7 @@ const post = (payload: Record<string, unknown>) =>
 
 describe("location share grants — blocks sever sharing both ways", () => {
   it("refuses a location share to someone the granter has blocked", async () => {
-    await blockUser(db, granterUserId, granteeUserId);
+    await blockUser(db, granterUserId, granteeUserId, granteeGamertag);
     const res = await post({ gamertag: granteeGamertag });
     expect(res.statusCode).toBe(403);
     expect(res.json()).toEqual({ error: "blocked" });
@@ -111,7 +111,7 @@ describe("location share grants — blocks sever sharing both ways", () => {
 
   // A one-way block severs the connection both ways: being blocked also stops you sharing.
   it("refuses a location share to someone who has blocked the granter", async () => {
-    await blockUser(db, granteeUserId, granterUserId);
+    await blockUser(db, granteeUserId, granterUserId, granterGamertag);
     const res = await post({ gamertag: granteeGamertag });
     expect(res.statusCode).toBe(403);
     expect(res.json()).toEqual({ error: "blocked" });
@@ -143,7 +143,7 @@ describe("blocking severs an EXISTING location share", () => {
 
   it("revokes the share when the GRANTER blocks the grantee", async () => {
     await existingShare();
-    await blockUser(db, granterUserId, granteeUserId);
+    await blockUser(db, granterUserId, granteeUserId, granteeGamertag);
     const rows = await db.select().from(locationShares)
       .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
     expect(rows).toEqual([]);
@@ -151,7 +151,7 @@ describe("blocking severs an EXISTING location share", () => {
 
   it("revokes the share when the GRANTEE blocks the granter", async () => {
     await existingShare();
-    await blockUser(db, granteeUserId, granterUserId);
+    await blockUser(db, granteeUserId, granterUserId, granterGamertag);
     const rows = await db.select().from(locationShares)
       .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
     expect(rows).toEqual([]);
@@ -164,7 +164,7 @@ describe("blocking severs an EXISTING location share", () => {
       id: `bystander${svc}`, name: "bystander", email: `bystander${svc}@example.test`,
       emailVerified: true, createdAt: new Date(), updatedAt: new Date(),
     });
-    await blockUser(db, granterUserId, `bystander${svc}`);
+    await blockUser(db, granterUserId, `bystander${svc}`, `Bystander${svc}`);
     const rows = await db.select().from(locationShares)
       .where(inArray(locationShares.granterUserId, [granterUserId, granteeUserId]));
     expect(rows).toHaveLength(1);

@@ -1,7 +1,16 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
-import { avatars, blockedAvatarHashes, user, userBlocks } from "@onelife/db";
-import { blockUser, unblockUser, listBlockedUserIds, isBlockedEitherWay } from "../src/lib/moderation.js";
+import { avatars, blockedAvatarHashes, gamertagLinks, user, userBlocks } from "@onelife/db";
+import {
+  blockUser,
+  unblockUser,
+  listBlockedUserIds,
+  isBlockedEitherWay,
+  blockByGamertag,
+  unblockByGamertag,
+  listBlocks,
+} from "../src/lib/moderation.js";
 import { getAvatarByHash } from "../src/lib/avatar-store.js";
 
 const { db, sql } = getTestDb();
@@ -14,16 +23,24 @@ async function seedUser(id: string) {
   });
 }
 
+async function seedVerified(userId: string, gamertag: string) {
+  await db.insert(gamertagLinks).values({
+    userId, gamertag, status: "verified", verifiedAt: new Date(), createdAt: new Date(),
+  });
+}
+
 beforeEach(async () => {
   await db.delete(userBlocks);
   await db.delete(blockedAvatarHashes);
   await db.delete(avatars);
+  await db.delete(gamertagLinks);
   await db.delete(user);
 });
 afterAll(async () => {
   await db.delete(userBlocks);
   await db.delete(blockedAvatarHashes);
   await db.delete(avatars);
+  await db.delete(gamertagLinks);
   await db.delete(user);
   await sql.end();
 });
@@ -31,25 +48,25 @@ afterAll(async () => {
 describe("user blocks", () => {
   it("records a block and lists it", async () => {
     await seedUser("alice"); await seedUser("bob");
-    expect(await blockUser(db, "alice", "bob")).toEqual({ ok: true });
+    expect(await blockUser(db, "alice", "bob", "BobTag")).toEqual({ ok: true });
     expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
   });
 
   it("is idempotent", async () => {
     await seedUser("alice"); await seedUser("bob");
-    await blockUser(db, "alice", "bob");
-    await blockUser(db, "alice", "bob");
+    await blockUser(db, "alice", "bob", "BobTag");
+    await blockUser(db, "alice", "bob", "BobTag");
     expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
   });
 
   it("refuses to block yourself", async () => {
     await seedUser("alice");
-    expect(await blockUser(db, "alice", "alice")).toEqual({ error: "self" });
+    expect(await blockUser(db, "alice", "alice", "AliceTag")).toEqual({ error: "self" });
   });
 
   it("unblocks", async () => {
     await seedUser("alice"); await seedUser("bob");
-    await blockUser(db, "alice", "bob");
+    await blockUser(db, "alice", "bob", "BobTag");
     await unblockUser(db, "alice", "bob");
     expect(await listBlockedUserIds(db, "alice")).toEqual([]);
   });
@@ -57,14 +74,14 @@ describe("user blocks", () => {
   // Location shares are severed in BOTH directions from a one-way block.
   it("reports a block in either direction", async () => {
     await seedUser("alice"); await seedUser("bob");
-    await blockUser(db, "alice", "bob");
+    await blockUser(db, "alice", "bob", "BobTag");
     expect(await isBlockedEitherWay(db, "alice", "bob")).toBe(true);
     expect(await isBlockedEitherWay(db, "bob", "alice")).toBe(true);
   });
 
   it("does not report unrelated users as blocked", async () => {
     await seedUser("alice"); await seedUser("bob"); await seedUser("carol");
-    await blockUser(db, "alice", "bob");
+    await blockUser(db, "alice", "bob", "BobTag");
     expect(await isBlockedEitherWay(db, "alice", "carol")).toBe(false);
   });
 
@@ -76,11 +93,59 @@ describe("user blocks", () => {
       userId: "bob", image: Buffer.from([9, 9]), hash: HASH, source: "upload", updatedAt: new Date(),
     });
 
-    await blockUser(db, "alice", "bob");
+    await blockUser(db, "alice", "bob", "BobTag");
 
     // The bytes still serve globally — only alice's rendering filters them out, which is a
     // display-layer concern, not a serving-layer one.
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
     expect(await db.select().from(blockedAvatarHashes)).toHaveLength(0);
+  });
+});
+
+describe("blocking by gamertag", () => {
+  it("resolves a verified gamertag to its owner and blocks them", async () => {
+    await seedUser("alice");
+    await seedUser("bob"); await seedVerified("bob", "BobTag");
+    expect(await blockByGamertag(db, "alice", "BobTag")).toEqual({ ok: true });
+    expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
+  });
+
+  it("matches case-insensitively, like every other gamertag lookup here", async () => {
+    await seedUser("alice");
+    await seedUser("bob"); await seedVerified("bob", "BobTag");
+    expect(await blockByGamertag(db, "alice", "bobtag")).toEqual({ ok: true });
+  });
+
+  it("refuses a gamertag nobody has verified", async () => {
+    await seedUser("alice");
+    expect(await blockByGamertag(db, "alice", "Ghost")).toEqual({ error: "unknown_gamertag" });
+  });
+
+  it("refuses your own gamertag", async () => {
+    await seedUser("alice"); await seedVerified("alice", "AliceTag");
+    expect(await blockByGamertag(db, "alice", "AliceTag")).toEqual({ error: "self" });
+  });
+
+  // ⚠️ The list must render, and must not leak internal ids.
+  it("lists blocks by gamertag, never by user id", async () => {
+    await seedUser("alice");
+    await seedUser("bob"); await seedVerified("bob", "BobTag");
+    await blockByGamertag(db, "alice", "BobTag");
+    const list = await listBlocks(db, "alice");
+    expect(list).toEqual([{ gamertag: "BobTag", createdAt: expect.any(String) }]);
+    expect(JSON.stringify(list)).not.toContain("bob");
+  });
+
+  // ⚠️ The case the snapshot exists for: without it this row would render as null and could
+  // never be removed, because unblock had nothing to address it by.
+  it("still labels and removes a block whose owner later unlinked", async () => {
+    await seedUser("alice");
+    await seedUser("bob"); await seedVerified("bob", "BobTag");
+    await blockByGamertag(db, "alice", "BobTag");
+    await db.delete(gamertagLinks).where(eq(gamertagLinks.userId, "bob"));
+
+    expect(await listBlocks(db, "alice")).toEqual([{ gamertag: "BobTag", createdAt: expect.any(String) }]);
+    await unblockByGamertag(db, "alice", "BobTag");
+    expect(await listBlocks(db, "alice")).toEqual([]);
   });
 });

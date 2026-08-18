@@ -428,6 +428,9 @@ export function avatarHashNotBanned(hashExpr: SQL | AnyColumn): SQL {
 export const userBlocks = pgTable("user_blocks", {
   blockerUserId: text("blocker_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   blockedUserId: text("blocked_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  // Snapshot of the blocked player's gamertag AT BLOCK TIME. Not a join to gamertag_links: if
+  // they later unlink, a join yields null and the row becomes both unlabelable and unremovable.
+  blockedGamertag: text("blocked_gamertag").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }),

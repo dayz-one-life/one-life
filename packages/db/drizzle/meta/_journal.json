@@ -253,6 +253,13 @@
       "when": 1787066114394,
       "tag": "0035_reports_by_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787066573692,
+      "tag": "0036_user_blocks_gamertag",
+      "breakpoints": true
     }
   ]
 }

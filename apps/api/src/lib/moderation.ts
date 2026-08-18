@@ -1,7 +1,8 @@
-import { and, eq, gte, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@onelife/db";
 import { avatars, avatarReports, gamertagLinks, locationShares, userBlocks } from "@onelife/db";
 import { banAvatarHash } from "./avatar-store.js";
+import { verifiedUserIdByGamertag } from "../routes/verified-gamertag.js";
 
 /**
  * ⚠️ A FIXED list, deliberately not free text. A free-text reason field would itself be a UGC
@@ -79,12 +80,13 @@ export async function blockUser(
   db: Database,
   blockerUserId: string,
   blockedUserId: string,
+  blockedGamertag: string,
 ): Promise<{ ok: true } | { error: "self" }> {
   if (blockerUserId === blockedUserId) return { error: "self" };
   await db.transaction(async (tx) => {
     await tx
       .insert(userBlocks)
-      .values({ blockerUserId, blockedUserId })
+      .values({ blockerUserId, blockedUserId, blockedGamertag })
       .onConflictDoNothing({ target: [userBlocks.blockerUserId, userBlocks.blockedUserId] });
 
     // ⚠️ Severing EXISTING shares is the whole point of blocking mid-harassment. The grant-time
@@ -111,6 +113,46 @@ export async function listBlockedUserIds(db: Database, blockerUserId: string): P
     .from(userBlocks)
     .where(eq(userBlocks.blockerUserId, blockerUserId));
   return rows.map((r) => r.id);
+}
+
+/**
+ * Block the verified owner of a gamertag. The client never sees user ids — the dossier
+ * publishes gamertags, so that is what a block names.
+ */
+export async function blockByGamertag(
+  db: Database,
+  blockerUserId: string,
+  gamertag: string,
+): Promise<{ ok: true } | { error: "self" | "unknown_gamertag" }> {
+  const target = await verifiedUserIdByGamertag(db, gamertag);
+  if (!target) return { error: "unknown_gamertag" };
+  if (target === blockerUserId) return { error: "self" };
+  await blockUser(db, blockerUserId, target, gamertag);
+  return { ok: true };
+}
+
+/**
+ * Remove a block by the gamertag it was recorded under. Deliberately does NOT re-resolve the
+ * gamertag to a user id: the blocked account may have unlinked since, and an unremovable block
+ * is worse than none.
+ */
+export async function unblockByGamertag(db: Database, blockerUserId: string, gamertag: string): Promise<void> {
+  await db.delete(userBlocks).where(and(
+    eq(userBlocks.blockerUserId, blockerUserId),
+    sql`lower(${userBlocks.blockedGamertag}) = lower(${gamertag})`,
+  ));
+}
+
+export async function listBlocks(
+  db: Database,
+  blockerUserId: string,
+): Promise<{ gamertag: string; createdAt: string }[]> {
+  const rows = await db
+    .select({ gamertag: userBlocks.blockedGamertag, createdAt: userBlocks.createdAt })
+    .from(userBlocks)
+    .where(eq(userBlocks.blockerUserId, blockerUserId))
+    .orderBy(desc(userBlocks.createdAt));
+  return rows.map((r) => ({ gamertag: r.gamertag, createdAt: r.createdAt.toISOString() }));
 }
 
 /**
