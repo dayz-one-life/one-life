@@ -15,9 +15,14 @@ type State =
 export function BlockedUsers() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [unblockError, setUnblockError] = useState(false);
+  // Rows currently mid-unblock. Tracked per gamertag so a second click on the SAME row while its
+  // request is still in flight is ignored (no duplicate request, no false "couldn't unblock" from
+  // the second call landing on an already-gone block) without disabling any other row.
+  const [pending, setPending] = useState<Set<string>>(new Set());
 
-  async function load() {
-    setState({ kind: "loading" });
+  // The actual fetch, shared by the initial load and post-unblock revalidation. Does NOT touch
+  // `loading` itself — callers decide whether a loading flash is appropriate.
+  async function fetchAndApply() {
     try {
       const { blocks } = await getBlocks();
       setState(blocks.length === 0 ? { kind: "empty" } : { kind: "loaded", blocks });
@@ -27,18 +32,31 @@ export function BlockedUsers() {
   }
 
   useEffect(() => {
-    void load();
+    // Initial mount: the `loading` render is one of the four states and is test-pinned, so this
+    // path (and only this path) flashes to it before fetching.
+    setState({ kind: "loading" });
+    void fetchAndApply();
   }, []);
 
   async function onUnblock(gamertag: string) {
+    if (pending.has(gamertag)) return;
+    setPending((prev) => new Set(prev).add(gamertag));
     setUnblockError(false);
     try {
       await unblockPlayer(gamertag);
-      await load();
+      // Revalidate in place — the list stays on screen while this resolves, it does not flash
+      // back to the `loading` render (that would wipe out every untouched row, not just this one).
+      await fetchAndApply();
     } catch {
       // Leave the row in place — an optimistic removal here would let a failed unblock look
       // like it worked. Surface the failure instead so the player isn't left guessing.
       setUnblockError(true);
+    } finally {
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.delete(gamertag);
+        return next;
+      });
     }
   }
 
@@ -75,8 +93,9 @@ export function BlockedUsers() {
               <span className="font-mono text-[11.5px] uppercase">{b.gamertag}</span>
               <button
                 type="button"
+                disabled={pending.has(b.gamertag)}
                 onClick={() => void onUnblock(b.gamertag)}
-                className="border border-ink px-3 py-1 font-mono text-xs uppercase"
+                className="border border-ink px-3 py-1 font-mono text-xs uppercase disabled:opacity-50"
               >
                 Unblock
               </button>

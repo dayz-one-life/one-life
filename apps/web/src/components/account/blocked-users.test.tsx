@@ -13,6 +13,7 @@ describe("BlockedUsers", () => {
   it("shows a loading affordance and no list while the fetch is in flight", () => {
     mockGet.mockResolvedValue(new Promise(() => {}));
     render(<BlockedUsers />);
+    expect(screen.getByText(/loading/i)).toBeTruthy();
     expect(screen.queryByRole("list")).toBeNull();
   });
 
@@ -60,5 +61,46 @@ describe("BlockedUsers", () => {
     fireEvent.click(screen.getByRole("button", { name: /unblock/i }));
     expect(await screen.findByText(/couldn't unblock|could not unblock/i)).toBeTruthy();
     expect(screen.getByText("Ripper")).toBeTruthy();
+  });
+
+  // A double-click before the first request resolves must not fire a second `unblockPlayer` call
+  // for the same row — the second would land on an already-removed block, fail, and show a FALSE
+  // "couldn't unblock" error for an unblock that actually succeeded.
+  it("ignores a second click on the same row while the first unblock is in flight", async () => {
+    mockGet.mockResolvedValue({ blocks: [{ gamertag: "Ripper", createdAt: "2026-08-18T00:00:00.000Z" }] });
+    render(<BlockedUsers />);
+    expect(await screen.findByText("Ripper")).toBeTruthy();
+
+    const button = screen.getByRole("button", { name: /unblock/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(unblockPlayer).toHaveBeenCalledTimes(1));
+    expect(unblockPlayer).toHaveBeenCalledWith("Ripper");
+    expect(screen.queryByText(/couldn't unblock|could not unblock/i)).toBeNull();
+  });
+
+  // A successful unblock revalidates the list, but must not flash the whole section back to the
+  // `loading` render — that would wipe out every untouched row, not just the one being unblocked.
+  it("does not show the loading affordance while revalidating after a successful unblock", async () => {
+    mockGet.mockResolvedValue({
+      blocks: [
+        { gamertag: "Ripper", createdAt: "2026-08-18T00:00:00.000Z" },
+        { gamertag: "Scout", createdAt: "2026-08-18T00:00:00.000Z" },
+      ],
+    });
+    render(<BlockedUsers />);
+    expect(await screen.findByText("Ripper")).toBeTruthy();
+    expect(await screen.findByText("Scout")).toBeTruthy();
+
+    const buttons = screen.getAllByRole("button", { name: /unblock/i });
+    fireEvent.click(buttons[0]!);
+
+    // The untouched row must stay visible throughout — if the component flashed to `loading`,
+    // "Scout" (and the loading text) would race this assertion instead of staying put.
+    expect(screen.queryByText(/^loading/i)).toBeNull();
+    expect(screen.getByText("Scout")).toBeTruthy();
+
+    await waitFor(() => expect(unblockPlayer).toHaveBeenCalledWith("Ripper"));
   });
 });
