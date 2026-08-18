@@ -5,7 +5,6 @@ import { avatars, blockedAvatarHashes, gamertagLinks, user, userBlocks } from "@
 import {
   blockUser,
   unblockUser,
-  listBlockedUserIds,
   isBlockedEitherWay,
   blockByGamertag,
   unblockByGamertag,
@@ -49,14 +48,14 @@ describe("user blocks", () => {
   it("records a block and lists it", async () => {
     await seedUser("alice"); await seedUser("bob");
     expect(await blockUser(db, "alice", "bob", "BobTag")).toEqual({ ok: true });
-    expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
+    expect(await listBlocks(db, "alice")).toEqual([{ gamertag: "BobTag", createdAt: expect.any(String) }]);
   });
 
   it("is idempotent", async () => {
     await seedUser("alice"); await seedUser("bob");
     await blockUser(db, "alice", "bob", "BobTag");
     await blockUser(db, "alice", "bob", "BobTag");
-    expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
+    expect(await listBlocks(db, "alice")).toHaveLength(1);
   });
 
   it("refuses to block yourself", async () => {
@@ -68,7 +67,7 @@ describe("user blocks", () => {
     await seedUser("alice"); await seedUser("bob");
     await blockUser(db, "alice", "bob", "BobTag");
     await unblockUser(db, "alice", "bob");
-    expect(await listBlockedUserIds(db, "alice")).toEqual([]);
+    expect(await listBlocks(db, "alice")).toEqual([]);
   });
 
   // Location shares are severed in BOTH directions from a one-way block.
@@ -107,7 +106,10 @@ describe("blocking by gamertag", () => {
     await seedUser("alice");
     await seedUser("bob"); await seedVerified("bob", "BobTag");
     expect(await blockByGamertag(db, "alice", "BobTag")).toEqual({ ok: true });
-    expect(await listBlockedUserIds(db, "alice")).toEqual(["bob"]);
+    // Resolved to bob's USER ID, not just recorded as a string: `isBlockedEitherWay` matches on
+    // `blocked_user_id`, so it only answers true if the gamertag was resolved to the right owner.
+    expect(await isBlockedEitherWay(db, "alice", "bob")).toBe(true);
+    expect(await listBlocks(db, "alice")).toEqual([{ gamertag: "BobTag", createdAt: expect.any(String) }]);
   });
 
   it("matches case-insensitively, like every other gamertag lookup here, and snapshots the canonical casing", async () => {
