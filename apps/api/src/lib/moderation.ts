@@ -65,14 +65,21 @@ export async function reportAvatar(
 
   // ⚠️ A moderator's restore is DURABLE — `banAvatarHash` will `onConflictDoNothing` straight
   // over an `allowed` row. Reporting anyway used to return ok:true, so the client rendered
-  // "This avatar is hidden straight away" when nothing had been hidden, and the queue (which
-  // excludes `allowed`) meant no moderator would ever see the new report either.
+  // "This avatar is hidden straight away" when nothing had been hidden.
+  //
+  // ⚠️ This does NOT short-circuit. It used to return here, writing nothing — which meant a
+  // wrongly-restored image accumulated no evidence at all: every subsequent report against it
+  // vanished silently, forever, leaving no queryable trace that anyone had objected and no path
+  // back to a human. The report is now RECORDED below (the honest `already_reviewed` answer is
+  // unchanged, and the hash is still not re-banned); only the data loss is fixed. Surfacing
+  // these rows in the moderator queue is a separate, deliberately-deferred follow-up.
   const [reviewed] = await db
     .select({ state: blockedAvatarHashes.state })
     .from(blockedAvatarHashes)
     .where(and(eq(blockedAvatarHashes.hash, subjectHash), eq(blockedAvatarHashes.state, "allowed")));
-  if (reviewed) return { error: "already_reviewed" };
 
+  // The daily cap applies to a restored hash too: it writes a row like any other report, so
+  // exempting it would be a free channel for filling the table.
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -89,7 +96,13 @@ export async function reportAvatar(
       .values({ reporterUserId, subjectUserId: holders[0]?.userId ?? null, subjectHash, reason })
       .onConflictDoNothing({ target: [avatarReports.reporterUserId, avatarReports.subjectHash] })
       .returning({ id: avatarReports.id });
+    // ⚠️ Checked BEFORE `reviewed`, and deliberately so: the unique (reporter, hash) index means
+    // this reporter's objection is already on record, so there is genuinely nothing new to
+    // record and `already_reported` is the more specific truth to tell them.
     if (inserted.length === 0) return { error: "already_reported" as const };
+    // Recorded, but NOT re-banned: a second account must not be able to silently undo a human's
+    // decision. The row is the signal; the ban is the action, and only the action is withheld.
+    if (reviewed) return { error: "already_reviewed" as const };
     await banAvatarHash(tx as unknown as Database, subjectHash);
     return { ok: true as const };
   });

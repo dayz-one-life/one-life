@@ -157,9 +157,12 @@ describe("reportAvatar", () => {
     expect(bans[0]?.state).toBe("allowed");
   });
 
-  // The same decision, from a reporter who has never touched this hash: `already_reviewed` is
-  // about the MODERATOR's restore, not about the reporter's own history (`already_reported`).
-  it("records no report at all against a restored hash", async () => {
+  // ⚠️ The report is still RECORDED, even though it changes nothing about the ban. Refusing to
+  // write the row meant a wrongly-restored image accumulated no evidence and had no path back to
+  // a human: every later report against it vanished silently, forever. The reporter is still
+  // told `already_reviewed` — that part was honest — but the signal now survives to be queried.
+  // (Surfacing these in the moderator queue is a separate, deliberately-deferred follow-up.)
+  it("still records the report against a restored hash, without re-banning it", async () => {
     await seedUser("r1"); await seedVerified("r1", "TagOne");
     await seedUser("r2"); await seedVerified("r2", "TagTwo");
     await seedUser("subject"); await seedAvatar("subject", HASH);
@@ -168,7 +171,31 @@ describe("reportAvatar", () => {
     await unbanAvatarHash(db, HASH, "moderator-1");
 
     expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ error: "already_reviewed" });
-    // Only r1's original report exists; r2's was refused rather than silently swallowed.
+
+    // r2's report is on record alongside r1's, attributed and queryable...
+    const reports = await db.select().from(avatarReports);
+    expect(reports).toHaveLength(2);
+    const r2Report = reports.find((r) => r.reporterUserId === "r2");
+    expect(r2Report).toMatchObject({ subjectHash: HASH, reason: "sexual", subjectUserId: "subject" });
+
+    // ...and the moderator's restore is untouched: the hash stays unbanned and the bytes serve.
+    const bans = await db.select().from(blockedAvatarHashes);
+    expect(bans).toHaveLength(1);
+    expect(bans[0]?.state).toBe("allowed");
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+  });
+
+  // The reporter's OWN history still wins over the moderator's restore: a reporter who already
+  // filed against these bytes gets `already_reported`, because the unique (reporter, hash) index
+  // means there is genuinely nothing new to record.
+  it("tells a REPEAT reporter already_reported, not already_reviewed", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", HASH, "hate");
+    await unbanAvatarHash(db, HASH, "moderator-1");
+
+    expect(await reportAvatar(db, "r1", HASH, "sexual")).toEqual({ error: "already_reported" });
     expect(await db.select().from(avatarReports)).toHaveLength(1);
   });
 
