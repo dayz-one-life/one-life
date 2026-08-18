@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { players, lives, servers, sessions, kills, gamertagLinks, avatars } from "@onelife/db";
+import { players, lives, servers, sessions, kills, gamertagLinks, avatars, avatarHashNotBanned } from "@onelife/db";
 import { and, eq, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 import { livePlaytime } from "./playtime.js";
 import { isLifeQualified } from "./qualified.js";
@@ -143,13 +143,15 @@ export async function getAliveSurvivors(
 
   // Batched — one query for the whole visible page, never per-row. Only a VERIFIED link with a
   // LIVE (non-tombstoned) avatar contributes a hash; dropping either clause would leak a pending
-  // claim's or a removed avatar's hash onto the board.
+  // claim's or a removed avatar's hash onto the board. The ban clause makes an auto-hidden avatar
+  // read as "no avatar" (silhouette fallback) instead of emitting a hash whose URL now 404s —
+  // a broken-image glyph on every board between report and confirm.
   const pageGamertags = [...new Set(pageCandidates.map((c) => c.gamertag.toLowerCase()))];
   const avatarRows = pageGamertags.length > 0
     ? await db
         .select({ gamertag: gamertagLinks.gamertag, hash: avatars.hash })
         .from(gamertagLinks)
-        .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image)))
+        .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image), avatarHashNotBanned(avatars.hash)))
         .where(and(
           eq(gamertagLinks.status, "verified"),
           inArray(sql`lower(${gamertagLinks.gamertag})`, pageGamertags),

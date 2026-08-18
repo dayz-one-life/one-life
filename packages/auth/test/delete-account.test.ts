@@ -4,6 +4,7 @@ import {
   user, gamertagLinks, referrals, tokenTransactions,
   servers, players, lives, avatars, notifications, pushSubscriptions,
   verificationChallenges, locationShares,
+  avatarReports, blockedAvatarHashes, userBlocks,
 } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
 import { deleteAccount } from "../src/delete-account.js";
@@ -174,5 +175,48 @@ describe("deleteAccount atomicity", () => {
     // The account and its link must both still be here.
     expect(await db.select().from(user).where(eq(user.id, "da-carol"))).toHaveLength(1);
     expect(await db.select().from(gamertagLinks).where(eq(gamertagLinks.userId, "da-carol"))).toHaveLength(1);
+  });
+});
+
+describe("deleteAccount interaction with UGC moderation", () => {
+  // ⚠️ THE GUARD FOR THE GLOBAL CONSTRAINT. Every new FK to user.id must cascade; a NOT NULL /
+  // NO ACTION reference makes this raise Postgres 23503 — exactly the bug 2a shipped via
+  // verification_challenges, found only by running deletion for real. `blocked_avatar_hashes`
+  // has no FK to user at all (by design — a ban must survive the uploader deleting their
+  // account), so it is cleaned up explicitly below rather than relying on cascade.
+  it("deletes an account that has reported, been reported, blocked and been blocked", async () => {
+    await db.insert(user).values([
+      { id: "da-leaver", name: "Leaver", email: "da-leaver@x.com" },
+      { id: "da-other", name: "Other", email: "da-other@x.com" },
+    ]);
+    await db.insert(avatars).values([
+      { userId: "da-leaver", image: null, hash: "hash-leaver".padEnd(64, "0"), source: "upload", updatedAt: new Date() },
+      { userId: "da-other", image: null, hash: "hash-other".padEnd(64, "0"), source: "upload", updatedAt: new Date() },
+    ]);
+
+    await db.insert(avatarReports).values([
+      { reporterUserId: "da-leaver", subjectUserId: "da-other", subjectHash: "hash-other".padEnd(64, "0"), reason: "hate" },
+      { reporterUserId: "da-other", subjectUserId: "da-leaver", subjectHash: "hash-leaver".padEnd(64, "0"), reason: "other" },
+    ]);
+    await db.insert(userBlocks).values([
+      { blockerUserId: "da-leaver", blockedUserId: "da-other" },
+      { blockerUserId: "da-other", blockedUserId: "da-leaver" },
+    ]);
+    await db.insert(blockedAvatarHashes).values({ hash: "hash-leaver".padEnd(64, "0") });
+
+    await expect(deleteAccount(db, "da-leaver")).resolves.toMatchObject({ tokensForfeited: 0 });
+
+    // Their reports and blocks go, in both directions.
+    expect(await db.select().from(avatarReports)).toHaveLength(0);
+    expect(await db.select().from(userBlocks)).toHaveLength(0);
+
+    // ⚠️ But the BAN survives. Otherwise deleting your account is a way to un-ban your own image.
+    expect(await db.select().from(blockedAvatarHashes)).toHaveLength(1);
+
+    // Cleanup: `blocked_avatar_hashes` carries no FK to `user`, so it is not swept by the
+    // truncate-cascade other DB test files rely on for a clean slate — remove it explicitly so
+    // it doesn't leak into another test file sharing this database.
+    await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, "hash-leaver".padEnd(64, "0")));
+    await db.delete(user).where(eq(user.id, "da-other"));
   });
 });

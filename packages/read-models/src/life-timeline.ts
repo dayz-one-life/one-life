@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { players, gamertagLinks, avatars, articles } from "@onelife/db";
+import { players, gamertagLinks, avatars, articles, avatarHashNotBanned } from "@onelife/db";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getLifeDetail } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
@@ -52,7 +52,7 @@ export async function getLifeTimeline(
     db
       .select({ hash: avatars.hash })
       .from(gamertagLinks)
-      .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image)))
+      .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image), avatarHashNotBanned(avatars.hash)))
       .where(and(
         eq(gamertagLinks.status, "verified"),
         eq(sql`lower(${gamertagLinks.gamertag})`, gamertag.toLowerCase()),

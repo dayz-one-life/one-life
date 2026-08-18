@@ -171,7 +171,26 @@ NEXT_PUBLIC_APP_URL=https://dayzonelife.com
 NEXT_PUBLIC_SITE_URL=https://dayzonelife.com
 DISCORD_CLIENT_ID=                          # fill BOTH to enable Discord login
 DISCORD_CLIENT_SECRET=
+MODERATOR_USER_IDS=                         # comma-separated user ids; see below
 ```
+
+### ⚠️ `MODERATOR_USER_IDS` must be set before the mobile app ships
+
+Reporting an avatar hides it **immediately**, pending review. Restoring it requires a
+moderator, and moderators come only from this variable — so while it is unset, a
+bad-faith report is a one-way door: the avatar is hidden and nothing in the product can
+bring it back.
+
+Unset denies everyone by design (a typo must mean "moderation unavailable", never "a
+stranger can delete avatars"), and blank entries are dropped so a trailing comma cannot
+admit an empty id. Find the id for an account with:
+
+```
+psql "$DATABASE_URL" -c 'select id, email from "user";'
+```
+
+The value is deliberately not recorded in this repo — it names a specific person's
+account, and publishing it just tells an attacker which session to go after.
 
 **Next.js has a second env file: `apps/web/.env.production`.** Next auto-loads it at
 BOTH `next build` and `next start`. It MUST contain `API_ORIGIN` and the

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags, articles } from "@onelife/db";
+import { servers, players, lives, sessions, kills, bans, gamertagLinks, user, avatars, playerGamertags, articles, blockedAvatarHashes } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getPlayerPage } from "../src/player-page.js";
 
@@ -480,6 +480,22 @@ describe("getPlayerPage: avatarHash", () => {
   it("a TOMBSTONED avatar (image NULL) contributes no hash", async () => {
     const page = await getPlayerPage(db, gamertagTombstone, now);
     expect(page?.avatarHash).toBeNull();
+  });
+
+  // ⚠️ The auto-hide window: reported, banned, but the avatars row is untouched. Emitting the
+  // hash here pointed the dossier at a URL the ban makes 404 — a broken image on every page
+  // between report and confirm. It must read as "no avatar" instead.
+  it("a BANNED hash contributes no hash, and a restore brings it back", async () => {
+    await db.insert(blockedAvatarHashes).values({ hash: "abc123", state: "auto" });
+    try {
+      expect((await getPlayerPage(db, gamertagWithAvatar, now))?.avatarHash).toBeNull();
+      // ⚠️ A restore writes state 'allowed' rather than deleting. If the ban check matched any
+      // row, restoring would hide the avatar forever — the inverse of what restore means.
+      await db.update(blockedAvatarHashes).set({ state: "allowed" }).where(eq(blockedAvatarHashes.hash, "abc123"));
+      expect((await getPlayerPage(db, gamertagWithAvatar, now))?.avatarHash).toBe("abc123");
+    } finally {
+      await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, "abc123"));
+    }
   });
 
   // Two DIFFERENT users can each hold a verified link matching `identityNames` (the page's

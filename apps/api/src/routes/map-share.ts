@@ -11,6 +11,7 @@ import {
 } from "@onelife/location-sharing";
 import { getSession } from "../auth-plugin.js";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
+import { isBlockedEitherWay } from "../lib/moderation.js";
 
 const params = z.object({ mapSlug: z.string().min(1) });
 const shareBody = z.object({ gamertag: z.string().min(1) });
@@ -152,6 +153,13 @@ export function registerMapShareRoutes(app: FastifyInstance, db: Database, auth:
     if (!granteeUserId) return reply.code(400).send({ error: "not_verified" });
     // Sharing with yourself is meaningless — your own dot is always on your own map.
     if (granteeUserId === session.user.id) return reply.code(400).send({ error: "self_share" });
+
+    // A block severs location sharing in BOTH directions — blocking someone also stops them
+    // sharing with you. Checked here at grant time rather than filtered at read time so the
+    // granter gets told, rather than silently creating a share that never resolves.
+    if (await isBlockedEitherWay(db, session.user.id, granteeUserId)) {
+      return reply.code(403).send({ error: "blocked" });
+    }
 
     const myPlayerId = await resolvePlayerId(db, viewerTag);
     if (myPlayerId === null) return reply.code(409).send({ error: "not_online" });

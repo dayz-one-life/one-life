@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars, articles, playerGamertags } from "@onelife/db";
+import { servers, players, lives, sessions, kills, hitEvents, user, gamertagLinks, avatars, articles, playerGamertags, blockedAvatarHashes } from "@onelife/db";
 import { inArray, eq } from "drizzle-orm";
 import { getLifeTimeline } from "../src/life-timeline.js";
 
@@ -184,6 +184,24 @@ describe("getLifeTimeline", () => {
       await link(`u-avpending-${svc}`, gt, "pending", "pendinghash");
       const t = await getLifeTimeline(db, serverId, gt, l.id);
       expect(t!.avatarHash).toBeNull();
+    });
+
+    // ⚠️ The auto-hide window (reported, banned, avatars row untouched) must read as "no avatar",
+    // not as a hash whose URL the ban makes 404 — otherwise the timeline shows a broken image.
+    it("returns null avatarHash when the hash is banned, and restores on 'allowed'", async () => {
+      const gt = `AvBanned-${svc}`;
+      const { l } = await makeLife(gt);
+      await link(`u-avbanned-${svc}`, gt, "verified", `bannedhash-${svc}`);
+      await db.insert(blockedAvatarHashes).values({ hash: `bannedhash-${svc}`, state: "auto" });
+      try {
+        expect((await getLifeTimeline(db, serverId, gt, l.id))!.avatarHash).toBeNull();
+        // A restore writes 'allowed' rather than deleting; matching any row would hide it forever.
+        await db.update(blockedAvatarHashes).set({ state: "allowed" })
+          .where(eq(blockedAvatarHashes.hash, `bannedhash-${svc}`));
+        expect((await getLifeTimeline(db, serverId, gt, l.id))!.avatarHash).toBe(`bannedhash-${svc}`);
+      } finally {
+        await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, `bannedhash-${svc}`));
+      }
     });
   });
 });

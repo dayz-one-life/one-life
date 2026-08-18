@@ -2,7 +2,14 @@ import postgres from "postgres";
 import { migrateDb } from "@onelife/db";
 import { assertTestDatabase, testDatabaseUrl } from "./guard.js";
 
-const APP_TABLES = [
+/**
+ * Truncated before every package's test run. A table belongs here unless some OTHER listed
+ * table's `on delete cascade` already reaches it.
+ *
+ * ⚠️ A table with NO foreign key at all can only be cleaned by appearing here — see the
+ * `blocked_avatar_hashes` entry and the test that guards this list.
+ */
+export const APP_TABLES = [
   "servers",
   "adm_files",
   "raw_lines",
@@ -28,6 +35,13 @@ const APP_TABLES = [
   "push_subscriptions",
   "articles",
   "avatars",
+  // ⚠️ Listed explicitly BECAUSE it has no foreign key (a ban must survive the uploader
+  // deleting their account), so nothing else's cascade reaches it. Without this line an
+  // interrupted run leaves a ban row behind that silently 404s an unrelated avatar test.
+  "blocked_avatar_hashes",
+  // Same class of hole, found by the same test: the syndication ledger deliberately joins
+  // `articles` by slug with NO FK, so nothing cascades into it either.
+  "syndications",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */

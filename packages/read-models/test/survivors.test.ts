@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, kills, user, gamertagLinks, avatars } from "@onelife/db";
+import { servers, players, lives, kills, user, gamertagLinks, avatars, blockedAvatarHashes } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getAliveSurvivors } from "../src/survivors.js";
 
@@ -285,6 +285,27 @@ describe("getAliveSurvivors", () => {
       await insertAvatarLink({ gamertag: "Pending", userId: "u-pending", status: "pending", hash: "pendinghash" });
       const res = await getAliveSurvivors(db, { page: 1 }, now);
       expect(res.rows.find((r) => r.gamertag === "Pending")!.avatarHash).toBeNull();
+    });
+
+    // ⚠️ Between report and confirm the bytes are banned but the row is untouched. Emitting the
+    // hash anyway rendered a broken-image glyph — the auto-hide window is the exact window this
+    // whole design is built around, so it must read as "no avatar" and fall back to the silhouette.
+    it("returns null avatarHash when the hash is banned (auto-hidden)", async () => {
+      await insertLife({ serverId: chern.id, gamertag: "Banned", endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+      await insertAvatarLink({ gamertag: "Banned", userId: "u-banned", status: "verified", hash: "bannedhash" });
+      await db.insert(blockedAvatarHashes).values({ hash: "bannedhash", state: "auto" });
+      try {
+        const res = await getAliveSurvivors(db, { page: 1 }, now);
+        expect(res.rows.find((r) => r.gamertag === "Banned")!.avatarHash).toBeNull();
+
+        // ⚠️ ...and a moderator RESTORE ('allowed') must bring it straight back. A ban check that
+        // matched any row here would make restore hide the avatar permanently.
+        await db.update(blockedAvatarHashes).set({ state: "allowed" }).where(eq(blockedAvatarHashes.hash, "bannedhash"));
+        const after = await getAliveSurvivors(db, { page: 1 }, now);
+        expect(after.rows.find((r) => r.gamertag === "Banned")!.avatarHash).toBe("bannedhash");
+      } finally {
+        await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, "bannedhash"));
+      }
     });
   });
 });

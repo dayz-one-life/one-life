@@ -29,6 +29,10 @@ const schema = z.object({
   // the Android build has already shipped.
   IOS_MIN_APP_VERSION: z.string().optional(),
   ANDROID_MIN_APP_VERSION: z.string().optional(),
+  // Comma-separated user ids allowed to review reported avatars. UNSET MEANS NOBODY, and every
+  // moderation route 403s — never fail open. Blank entries are dropped so a trailing comma
+  // cannot admit an empty id, which would match a caller with no session id.
+  MODERATOR_USER_IDS: z.string().default(""),
 });
 
 /**
@@ -69,6 +73,7 @@ export type Config = {
   avatarTestFetchAllowLoopback: boolean;
   stripe: { secretKey: string; webhookSecret: string; priceId: string } | null;
   minAppVersion: { ios: string; android: string };
+  moderatorUserIds: string[];
 };
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const p = schema.parse(env);
@@ -87,5 +92,6 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
       ios: versionFloor(p.IOS_MIN_APP_VERSION),
       android: versionFloor(p.ANDROID_MIN_APP_VERSION),
     },
+    moderatorUserIds: p.MODERATOR_USER_IDS.split(",").map((s) => s.trim()).filter(Boolean),
   };
 }

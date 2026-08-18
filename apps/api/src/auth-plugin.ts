@@ -33,3 +33,30 @@ export function registerAuthHandler(app: FastifyInstance, auth: Auth): void {
 export function getSession(auth: Auth, request: FastifyRequest) {
   return auth.api.getSession({ headers: fromNodeHeaders(request.headers) });
 }
+
+/**
+ * Resolve the caller only if they are a configured moderator.
+ *
+ * ⚠️ An empty `moderatorUserIds` denies everyone. Authority comes from an env var rather than a
+ * database role deliberately: there is no one to grant roles to and no UI to grant them with, so
+ * a role column would be a migration plus hand-written SQL for the same result — with a
+ * privilege-escalation path an env var does not have.
+ *
+ * ⚠️ 401 for signed-out, 403 for signed-in-but-not-a-moderator. Distinguishing them is
+ * deliberate: a signed-in user needs to know they are signed in and simply not permitted, and
+ * moderator membership is not a secret worth hiding behind a 404.
+ *
+ * Returns a discriminated result rather than writing to the reply, so each handler stays a
+ * plain `return reply.code(...).send(...)` — Fastify's contract is that a handler returns its
+ * payload, and a helper that half-writes the reply makes that ambiguous.
+ */
+export async function requireModerator(
+  auth: Auth,
+  request: FastifyRequest,
+  moderatorUserIds: string[],
+): Promise<{ ok: true; userId: string } | { ok: false; status: 401 | 403; error: string }> {
+  const session = await getSession(auth, request);
+  if (!session) return { ok: false, status: 401, error: "unauthorized" };
+  if (!moderatorUserIds.includes(session.user.id)) return { ok: false, status: 403, error: "forbidden" };
+  return { ok: true, userId: session.user.id };
+}
