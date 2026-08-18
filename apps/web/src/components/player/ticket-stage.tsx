@@ -133,7 +133,9 @@ export function TicketStage({
             // Blocking resolves the gamertag to a verified owner server-side; on an unclaimed
             // dossier there is nobody to block, and the menu withholds the action rather than
             // offering one that always 404s. Same field the kicker below prints.
-            verified={page.verified}
+            // ⚠️ `claimed`, not `verified`: the prop is about THIS DOSSIER's subject, not about
+            // the viewer's own link (which is what "verified" means everywhere else in the menu).
+            claimed={page.verified}
           />
         )}
         <div className="min-w-0 flex-1">

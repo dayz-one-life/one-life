@@ -14,13 +14,18 @@ import { BlockDialog } from "@/components/moderation/block-dialog";
 export function ReportBlockMenu({
   gamertag,
   avatarHash,
-  verified,
+  claimed,
 }: {
   gamertag: string;
   avatarHash: string | null;
-  /** ⚠️ The DOSSIER SUBJECT's claim status (`PlayerPage.verified`) — NOT the viewer's. Gates
-   *  Block; see the `canBlock` comment below. */
-  verified: boolean;
+  /** Does an account hold this dossier's gamertag? (`PlayerPage.verified`.) Gates Block; see
+   *  the `canBlock` comment below.
+   *
+   *  ⚠️ Named `claimed`, NOT `verified`, and the rename is the point: this prop is about the
+   *  DOSSIER SUBJECT, while `status.kind === "verified"` two lines down is about the VIEWER's
+   *  own gamertag link. Two different subjects; one word between them was a trap for the next
+   *  reader (and had already produced one shipped bug). */
+  claimed: boolean;
 }) {
   const status = useAccountStatus();
   const [open, setOpen] = useState(false);
@@ -33,17 +38,18 @@ export function ReportBlockMenu({
   // renders.
   if (status.kind === "loading" || status.kind === "signedOut") return null;
 
-  // ⚠️ Two different "verified"s, and mixing them up is how this shipped broken:
+  // ⚠️ Two different claims, and mixing them up is how this shipped broken. They used to share
+  // the word "verified"; the prop is now `claimed` precisely so they cannot be confused again:
   //   • `status.kind === "verified"` — the VIEWER's own gamertag link. `reportAvatar` 403s
   //     `not_verified` without it, so an unlinked/pending viewer never gets Report.
-  //   • `verified` (the prop) — whether anyone has claimed THIS DOSSIER's gamertag.
+  //   • `claimed` (the prop) — whether anyone has claimed THIS DOSSIER's gamertag.
   //     `blockByGamertag` resolves the target through `verifiedOwnerByGamertag` and 404s
   //     `unknown_gamertag` when nobody has. Most players on the board are unclaimed, so an
   //     ungated Block is an action that fails every single time — the same dead end the
   //     signed-out guard above exists to avoid. The dossier already knows: `ticket-stage.tsx`
   //     prints "unclaimed" from the same field two lines below where it mounts this.
   const canReport = status.kind === "verified" && !!avatarHash;
-  const canBlock = verified;
+  const canBlock = claimed;
 
   // Nothing to offer — render no "..." button rather than a button that opens an empty panel.
   if (!canReport && !canBlock) return null;
