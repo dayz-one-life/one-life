@@ -11,10 +11,8 @@ const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 3e8;
 const reporterEmail = `rptr${svc}@example.com`;
 const HASH = "dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444";
-const SWAPPED = "eeee5555eeee5555eeee5555eeee5555eeee5555eeee5555eeee5555eeee5555";
 const BYTES = Buffer.from([7, 7, 7, 7]);
 const subjectUserId = `rsubject${svc}`;
-const bystanderUserId = `rbystander${svc}`;
 
 let lastLink = "";
 const captureMailer: Mailer = { async send(msg) { lastLink = msg.url; } };
@@ -48,16 +46,11 @@ beforeAll(async () => {
     userId: r!.id, gamertag: `Rpt${svc}`, status: "verified", verifiedAt: new Date(),
   });
 
-  for (const id of [subjectUserId, bystanderUserId]) {
-    await db.insert(user).values({
-      id, name: id, email: `${id}@example.test`, emailVerified: true,
-      createdAt: new Date(), updatedAt: new Date(),
-    });
-  }
+  await db.insert(user).values({
+    id: subjectUserId, name: subjectUserId, email: `${subjectUserId}@example.test`, emailVerified: true,
+    createdAt: new Date(), updatedAt: new Date(),
+  });
   await db.insert(avatars).values({ userId: subjectUserId, image: BYTES, hash: HASH, source: "upload", updatedAt: new Date() });
-  // An innocent user who legitimately holds the same bytes the subject can swap to — two Discord
-  // accounts share default provider avatars, which is what makes this attack worth defending.
-  await db.insert(avatars).values({ userId: bystanderUserId, image: BYTES, hash: SWAPPED, source: "provider", updatedAt: new Date() });
 });
 
 afterAll(async () => {
@@ -67,7 +60,6 @@ afterAll(async () => {
   await db.delete(avatars);
   await db.delete(gamertagLinks);
   await db.delete(user).where(eq(user.id, subjectUserId));
-  await db.delete(user).where(eq(user.id, bystanderUserId));
   await sql`DELETE FROM "session" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${reporterEmail})`;
   await sql`DELETE FROM "account" WHERE user_id IN (SELECT id FROM "user" WHERE email = ${reporterEmail})`;
   await sql`DELETE FROM "verification" WHERE identifier LIKE ${"%" + svc + "%"}`;
@@ -82,34 +74,27 @@ const report = (payload: Record<string, unknown>) =>
   });
 
 describe("POST /me/reports/avatar", () => {
-  it("400s without the observed subjectHash", async () => {
-    const res = await report({ subjectUserId, reason: "hate" });
+  it("400s without a subjectHash", async () => {
+    const res = await report({ reason: "hate" });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({ error: "bad_request" });
   });
 
-  // ⚠️ The subject swapped to widely-shared bytes after the reporter looked at them. Banning the
-  // CURRENT hash would strip an innocent user's avatar on the strength of one report.
-  it("409s when the subject's avatar changed since the reporter saw it", async () => {
-    await db.update(avatars).set({ hash: SWAPPED }).where(eq(avatars.userId, subjectUserId));
-    const res = await report({ subjectUserId, subjectHash: HASH, reason: "hate" });
-    expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual({ error: "hash_mismatch" });
-    expect(await db.select().from(avatarReports)).toHaveLength(0);
-    // The bystander who legitimately holds those bytes still has their avatar.
-    expect(await getAvatarByHash(db, SWAPPED)).not.toBeNull();
-    await db.update(avatars).set({ hash: HASH }).where(eq(avatars.userId, subjectUserId));
+  it("404s when no live avatar holds the named hash", async () => {
+    const res = await report({ subjectHash: "nosuchhash".padEnd(64, "0"), reason: "hate" });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: "unknown_hash" });
   });
 
-  it("201s and auto-hides when the observed hash matches", async () => {
-    const res = await report({ subjectUserId, subjectHash: HASH, reason: "hate" });
+  it("201s and auto-hides when a live avatar holds the named hash", async () => {
+    const res = await report({ subjectHash: HASH, reason: "hate" });
     expect(res.statusCode).toBe(201);
     expect(await getAvatarByHash(db, HASH)).toBeNull();
   });
 
   it("401s when signed out", async () => {
     const res = await app.inject({
-      method: "POST", url: "/me/reports/avatar", payload: { subjectUserId, subjectHash: HASH, reason: "hate" },
+      method: "POST", url: "/me/reports/avatar", payload: { subjectHash: HASH, reason: "hate" },
       headers: { "content-type": "application/json" },
     });
     expect(res.statusCode).toBe(401);

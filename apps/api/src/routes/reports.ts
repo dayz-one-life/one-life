@@ -6,18 +6,14 @@ import { getSession } from "../auth-plugin.js";
 import { REPORT_REASONS, reportAvatar } from "../lib/moderation.js";
 
 const bodySchema = z.object({
-  subjectUserId: z.string().min(1),
-  // ⚠️ The hash the CALLER actually saw. Without it the server would ban whatever the subject
-  // happens to hold at report time, so a reported user could swap to widely-shared bytes and
-  // weaponise one report into a global ban that strips an avatar from innocent users.
+  // ⚠️ The bytes the caller actually saw. No owner id: the dossier does not publish user ids,
+  // and the ban is on the image regardless of who holds it.
   subjectHash: z.string().min(1),
   reason: z.enum(REPORT_REASONS),
 });
 
 const STATUS: Record<string, number> = {
-  not_verified: 403, no_avatar: 409, already_reported: 409, rate_limited: 429, self: 400,
-  // The subject's avatar changed between the caller seeing it and reporting it.
-  hash_mismatch: 409,
+  not_verified: 403, unknown_hash: 404, already_reported: 409, rate_limited: 429, self: 400,
 };
 
 export function registerReportRoutes(app: FastifyInstance, db: Database, auth: Auth): void {
@@ -30,7 +26,7 @@ export function registerReportRoutes(app: FastifyInstance, db: Database, auth: A
     const parsed = bodySchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
 
-    const result = await reportAvatar(db, session.user.id, parsed.data.subjectUserId, parsed.data.reason, parsed.data.subjectHash);
+    const result = await reportAvatar(db, session.user.id, parsed.data.subjectHash, parsed.data.reason);
     if ("error" in result) return reply.code(STATUS[result.error] ?? 400).send({ error: result.error });
     return reply.code(201).send({ ok: true });
   });

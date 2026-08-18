@@ -374,12 +374,14 @@ export const avatarReports = pgTable("avatar_reports", {
   // ⚠️ Both FKs cascade. A non-cascading reference to user.id makes deleteAccount raise 23503
   // for anyone who has ever reported or been reported.
   reporterUserId: text("reporter_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  subjectUserId: text("subject_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  // Resolved context for the moderator queue, not the key — several accounts can hold the same
+  // bytes, so "the subject user" is ambiguous exactly when it matters. See uniqReporterHash.
+  subjectUserId: text("subject_user_id").references(() => user.id, { onDelete: "cascade" }),
   subjectHash: text("subject_hash").notNull(),
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqReporterSubject: uniqueIndex("avatar_reports_reporter_subject_uniq").on(t.reporterUserId, t.subjectUserId),
+  uniqReporterHash: uniqueIndex("avatar_reports_reporter_hash_uniq").on(t.reporterUserId, t.subjectHash),
   byHash: index("avatar_reports_hash_idx").on(t.subjectHash),
   // Supports the rolling 24h cap count.
   byReporterCreated: index("avatar_reports_reporter_created_idx").on(t.reporterUserId, t.createdAt),
