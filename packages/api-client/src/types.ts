@@ -332,7 +332,7 @@ export type BlockedPlayer = { gamertag: string; createdAt: string };
 
 export type ModerationEntry = {
   hash: string;
-  state: string;
+  state: "auto" | "confirmed";
   blockedAt: string;
   reportCount: number;
   reasons: string[];

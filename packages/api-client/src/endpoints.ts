@@ -10,7 +10,9 @@ import type {
   MapShare,
   TokenWalletData,
   AppVersionPolicy,
-  BlockedPlayer, ModerationEntry, ReportReason,
+  BlockedPlayer,
+  ModerationEntry,
+  ReportReason,
 } from "./types";
 
 export function createApiClient(t: Transport) {
