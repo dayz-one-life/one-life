@@ -1,14 +1,14 @@
 import type { Database } from "@onelife/db";
 import type { ActiveSubscription, UnpushedNotification } from "./push-store.js";
-import type { Sender } from "./sender.js";
+import type { PushPayload, Sender } from "./sender.js";
 import type { Log } from "./types.js";
 
 export type PushStore = {
   findUnpushed(db: Database, opts: { limit: number }): Promise<UnpushedNotification[]>;
   activeSubscriptionsFor(db: Database, userId: string): Promise<ActiveSubscription[]>;
   markPushed(db: Database, id: number, now: Date): Promise<void>;
-  deleteSubscription(db: Database, id: number): Promise<void>;
-  recordFailure(db: Database, id: number, now: Date): Promise<void>;
+  deleteSubscription(db: Database, sub: ActiveSubscription): Promise<void>;
+  recordFailure(db: Database, sub: ActiveSubscription, now: Date): Promise<void>;
 };
 
 export type PushDeps = {
@@ -58,17 +58,22 @@ export async function pushTick(db: Database, deps: PushDeps): Promise<PushResult
       continue;
     }
 
-    const payload = JSON.stringify({ title: row.title, body: row.body, href: row.href });
+    const payload: PushPayload = { title: row.title, body: row.body, href: row.href, kind: row.kind };
     let delivered = false;
 
     for (const sub of subs) {
       const res = await deps.send(sub, payload);
       if (res.ok) { delivered = true; continue; }
+      // An unconfigured transport says nothing about this endpoint's health, so it must not count
+      // toward MAX_FAILURES. The row stays unpushed and is retried each tick until it ages past
+      // maxAgeMinutes and is stamped as skipped — bounded, and it leaves no disabled rows behind
+      // to silently suppress delivery on the day the credentials finally land.
+      if (res.configured === false) { failed++; continue; }
       if (res.gone) {
-        await deps.store.deleteSubscription(db, sub.id);
+        await deps.store.deleteSubscription(db, sub);
       } else {
-        await deps.store.recordFailure(db, sub.id, deps.now);
-        deps.log.warn?.({ id: row.id, subscriptionId: sub.id, error: res.error }, "push failed (retries next tick)");
+        await deps.store.recordFailure(db, sub, deps.now);
+        deps.log.warn?.({ id: row.id, subscriptionId: sub.id, kind: sub.kind, error: res.error }, "push failed (retries next tick)");
       }
       failed++;
     }

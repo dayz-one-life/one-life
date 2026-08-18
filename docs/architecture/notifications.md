@@ -71,3 +71,32 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
      sheet). After sign-out the DELETE is scoped to a dead session and matches zero rows, leaving a
      shared browser delivering the previous user's notifications. It never throws — a failed
      teardown must not trap anyone in a session.
+  8. **`gone` maps to HTTP 404 alone, in both transports.** FCM also returns 400
+     `INVALID_ARGUMENT` when our own v1 message shape is wrong and 403 `SENDER_ID_MISMATCH` when
+     `FCM_PROJECT_ID` is misconfigured; widening `gone` to cover either would let one bad deploy
+     silently delete every device token in the database, with reinstall as the only user recovery.
+     A genuinely dead token instead retires itself after `MAX_FAILURES` ticks, which costs five
+     requests and is always safe.
+  9. **`ActiveSubscription` dispatches on `kind`, never on a bare `id`.** `push_subscriptions` and
+     `device_push_tokens` are independent tables with independent bigserial sequences, so the same
+     `id` exists in both — a browser row and a device row can be numbered identically. Routing on
+     id alone would retire the wrong transport's row.
+
+## Native device push (FCM)
+
+Migration `0038` adds `device_push_tokens` (own bigserial `id`, `userId`, `token` unique, `platform`,
+`deviceId`, `failureCount`/`disabledAt` mirroring `push_subscriptions`) alongside the existing
+browser table; `apps/notifier/src/push-store.ts` unions both into a single `ActiveSubscription`
+tagged by `kind: "webpush" | "device"` so `pushTick` can fan out to either transport without caring
+which table a row came from (see invariant 9). Delivery goes through FCM's HTTP v1 API
+(`apps/notifier/src/fcm-sender.ts`, chosen over Expo's push service because FCM returns per-message
+errors synchronously, matching the existing `{ ok, gone }` contract with no separate receipts
+sweep) — gated by `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON_BASE64` (base64 of the whole
+service-account JSON; either missing leaves device push OFF, same fail-safe-null contract as
+`buildSender`). The mobile client registers/deregisters/checks its token through three endpoints on
+`apps/api/src/routes/notifications.ts`: `POST /me/device-tokens` (upserts on `token`, reassigning
+`userId` — a client that crashed or was reinstalled never ran its sign-out teardown, so the upsert
+must hand the token to whoever signs in next), `GET /me/device-tokens` (liveness check, scoped to
+the caller so another user's token reads as merely inactive rather than confirming it exists), and
+`DELETE /me/device-tokens`. There is no Firebase project yet, so as shipped `FCM_PROJECT_ID` is
+unset and device push is OFF; browser Web Push is unaffected.

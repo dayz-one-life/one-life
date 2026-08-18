@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { Database } from "@onelife/db";
 import type { Auth } from "@onelife/auth";
-import { notifications, pushSubscriptions } from "@onelife/db";
-import { and, desc, eq, inArray, isNull, sql as dsql } from "drizzle-orm";
+import { notifications, pushSubscriptions, devicePushTokens } from "@onelife/db";
+import { and, desc, eq, inArray, isNull, ne, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
 import { getSession } from "../auth-plugin.js";
 
@@ -28,6 +28,16 @@ const subscribeBody = z.object({
 });
 const unsubscribeBody = z.object({ endpoint: z.string().min(1) });
 const statusQuery = z.object({ endpoint: z.string().min(1) });
+
+// 4096 is far above FCM's ~200-char registration tokens; it exists so a hostile caller cannot
+// hand us an unbounded string, not as a format assertion.
+const deviceTokenBody = z.object({
+  token: z.string().min(1).max(4096),
+  platform: z.enum(["ios", "android"]),
+  deviceId: z.string().min(1).max(200),
+});
+const deviceTokenQuery = z.object({ token: z.string().min(1).max(4096) });
+const deviceTokenDeleteBody = z.object({ token: z.string().min(1).max(4096) });
 
 export function registerNotificationRoutes(
   app: FastifyInstance, db: Database, auth: Auth, vapidPublicKey: string,
@@ -148,6 +158,76 @@ export function registerNotificationRoutes(
     await db
       .delete(pushSubscriptions)
       .where(and(eq(pushSubscriptions.userId, session.user.id), eq(pushSubscriptions.endpoint, body.endpoint)));
+    return { ok: true };
+  });
+
+  // Upsert on `token`, then reap. The upsert deliberately REASSIGNS userId: the client is meant
+  // to unregister at sign-out, but a client that crashed, was force-quit, or was reinstalled never
+  // ran that code — and the failure mode is the next person to sign in on that device receiving
+  // the previous user's notifications. This is the half that cannot be skipped.
+  app.post("/me/device-tokens", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const parsed = deviceTokenBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
+    const { token, platform, deviceId } = parsed.data;
+    const now = new Date();
+    const userAgent = String(req.headers["user-agent"] ?? "").slice(0, 300);
+
+    await db
+      .insert(devicePushTokens)
+      .values({ userId: session.user.id, token, platform, deviceId, userAgent })
+      .onConflictDoUpdate({
+        target: devicePushTokens.token,
+        // Clearing failureCount/disabledAt revives a token the notifier had retired, matching
+        // what /me/push-subscriptions does for a browser endpoint.
+        set: {
+          userId: session.user.id, platform, deviceId, userAgent,
+          lastSeenAt: now, failureCount: 0, disabledAt: null,
+        },
+      });
+
+    // FCM rotates tokens, so the same install reappears under a new one. Reap AFTER the upsert,
+    // never before, or this deletes the row we just wrote.
+    await db.delete(devicePushTokens).where(and(
+      eq(devicePushTokens.userId, session.user.id),
+      eq(devicePushTokens.deviceId, deviceId),
+      ne(devicePushTokens.token, token),
+    ));
+    return { ok: true };
+  });
+
+  // Same honesty problem as its web sibling above: OS notification permission outlives everything
+  // the server knows. It survives sign-out, and it is untouched when the notifier retires the row
+  // after repeated failures — so a toggle reading only OS state says "on" in exactly the cases
+  // where nothing will arrive. The ownership predicate is in the WHERE clause, so another user's
+  // token reads as inactive rather than leaking that it exists.
+  app.get("/me/device-tokens", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const parsed = deviceTokenQuery.safeParse(req.query);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
+    const [row] = await db
+      .select({ id: devicePushTokens.id })
+      .from(devicePushTokens)
+      .where(and(
+        eq(devicePushTokens.userId, session.user.id),
+        eq(devicePushTokens.token, parsed.data.token),
+        isNull(devicePushTokens.disabledAt),
+      ))
+      .limit(1);
+    return { active: row !== undefined };
+  });
+
+  app.delete("/me/device-tokens", async (req, reply) => {
+    const session = await getSession(auth, req);
+    if (!session) return reply.code(401).send({ error: "unauthorized" });
+    const parsed = deviceTokenDeleteBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request" });
+    await db.delete(devicePushTokens).where(and(
+      eq(devicePushTokens.userId, session.user.id),
+      eq(devicePushTokens.token, parsed.data.token),
+    ));
     return { ok: true };
   });
 

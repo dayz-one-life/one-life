@@ -579,6 +579,32 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   byUser: index("push_subscriptions_user_idx").on(t.userId),
 }));
 
+// Native push, the device-side twin of `push_subscriptions`. Deliberately the same shape —
+// `failureCount` + `disabledAt` retirement included — so the notifier's retirement logic reads
+// identically for both transports.
+//
+// ⚠️ `token` is unique and the registration endpoint's upsert OVERWRITES `userId`. That is what
+// stops the next person to sign in on a device from receiving the previous user's notifications
+// when the client never got to run its sign-out unregistration (crash, force-quit, reinstall).
+export const devicePushTokens = pgTable("device_push_tokens", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  platform: text("platform").$type<"ios" | "android">().notNull(),
+  // Stable per-install id, which `token` is NOT — FCM rotates tokens. This is what lets a
+  // re-registration reap the device's previous, now-dead row instead of accumulating one per rotation.
+  deviceId: text("device_id").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  failureCount: integer("failure_count").notNull().default(0),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+}, (t) => ({
+  uniqToken: uniqueIndex("device_push_tokens_token_uniq").on(t.token),
+  byUser: index("device_push_tokens_user_idx").on(t.userId),
+  byUserDevice: index("device_push_tokens_user_device_idx").on(t.userId, t.deviceId),
+}));
+
 // ── Sub-project E: session-scoped location sharing. ────────────────────────────────────────
 // Replaces F2's standing consent model. A grant is handed to ONE person, during ONE game
 // session, and dies with that session — see the design spec, and the ⚠️ on

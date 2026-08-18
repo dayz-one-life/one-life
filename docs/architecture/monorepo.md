@@ -35,14 +35,17 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   kinds (gamertag verified, tokens received/granted, ban applied/lifted, life qualified, survival
   milestone) written to the `notifications` table, deduped by a **plain** unique `natural_key`
   index (its `onConflictDoNothing` takes no `targetWhere`) — and **push** —
-  delivers unread, recent rows as browser Web Push, retiring a subscription after repeated
-  delivery failures. Generation is gated by a forward-only **`NOTIFIER_SINCE`** cutoff (unset =
-  OFF, never a silent epoch default) plus **`NOTIFIER_DRY_RUN`** (defaults `true`); push has its own
-  independent **`NOTIFIER_PUSH_ENABLED`** kill switch, so generation and delivery can be staged on
-  separately. Needs `DATABASE_URL` + `SITE_URL` (the latter is required by the config schema but
-  **currently unused** — every notification `href` is a relative path), and (for push) `VAPID_PUBLIC_KEY`/
-  `VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` — `VAPID_PUBLIC_KEY` is also read by the **api** unit, which
-  serves it publicly at `GET /push/vapid-key`. **Single-instance, at-least-once delivery** — the
+  delivers unread, recent rows to two transports, browser Web Push and native device push (FCM),
+  retiring a subscription after repeated delivery failures. Generation is gated by a forward-only
+  **`NOTIFIER_SINCE`** cutoff (unset = OFF, never a silent epoch default) plus **`NOTIFIER_DRY_RUN`**
+  (defaults `true`); push has its own independent **`NOTIFIER_PUSH_ENABLED`** kill switch, so
+  generation and delivery can be staged on separately. Needs `DATABASE_URL` + `SITE_URL` (the
+  latter is required by the config schema but **currently unused** — every notification `href` is
+  a relative path), and (for web push) `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` —
+  `VAPID_PUBLIC_KEY` is also read by the **api** unit, which serves it publicly at
+  `GET /push/vapid-key` — and (for device push) `FCM_PROJECT_ID`/`FCM_SERVICE_ACCOUNT_JSON_BASE64`,
+  either missing leaving device push OFF without affecting web push or generation; there is no
+  Firebase project yet, so both ship unset. **Single-instance, at-least-once delivery** — the
   push pass reads unpushed rows without a row lock.
   Needs a `onelife-notifier` systemd unit; deploy runbook in `deploy/README.md`),
   `crier` (obituary-syndication worker; posts every published obituary to Discord (channel

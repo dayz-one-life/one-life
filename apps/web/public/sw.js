@@ -1,4 +1,4 @@
-// One Life push service worker. Payloads are JSON: { title, body, href }.
+// One Life push service worker. Payloads are JSON: { title, body, href, kind }.
 self.addEventListener("push", (event) => {
   if (!event.data) return;
   let payload;

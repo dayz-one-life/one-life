@@ -1,18 +1,33 @@
 import webpush from "web-push";
 import type { ActiveSubscription } from "./push-store.js";
 
-export type SendResult = { ok: true } | { ok: false; gone: boolean; error: string };
-export type Sender = (sub: ActiveSubscription, payload: string) => Promise<SendResult>;
+/** `configured: false` marks a failure that says nothing about the endpoint itself — the
+ *  transport that would have carried it simply has no credentials. `pushTick` must not let this
+ *  count toward `MAX_FAILURES`: a transport we never configured is not evidence the endpoint is
+ *  dead, so it must never retire rows on the day the credentials finally land. Only
+ *  `dispatchingSender`'s two null branches set it. */
+export type SendResult =
+  | { ok: true }
+  | { ok: false; gone: boolean; error: string; configured?: false };
+
+/** `kind` rides along so Android can route the notification to a per-kind channel. Without it a
+ *  user who wants to mute "someone built near you" has to mute "you died" too — and Android users
+ *  who cannot mute granularly turn everything off. */
+export type PushPayload = { title: string; body: string; href: string; kind: string };
+export type Sender = (sub: ActiveSubscription, payload: PushPayload) => Promise<SendResult>;
 
 /** Build a web-push sender. A 404/410 means the browser discarded the subscription —
  *  that endpoint is permanently dead and its row should be deleted, not retried. */
 export function webPushSender(vapid: { publicKey: string; privateKey: string; subject: string }): Sender {
   webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey);
   return async (sub, payload) => {
+    if (sub.kind !== "webpush") {
+      return { ok: false, gone: false, error: "webPushSender received a device subscription" };
+    }
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload,
+        JSON.stringify(payload),
       );
       return { ok: true };
     } catch (err) {
@@ -45,4 +60,25 @@ export function buildSender(
     );
     return null;
   }
+}
+
+/** Route a subscription to the transport that owns it.
+ *
+ *  A missing transport yields `gone: false` on purpose: `gone` deletes the row, so an
+ *  unconfigured transport must look like a transient failure. It also carries `configured: false`
+ *  so `pushTick` can tell it apart from a real transient failure and skip `recordFailure` — the
+ *  notification is retried each tick until it ages past maxAgeMinutes and is stamped as skipped,
+ *  bounded and self-draining, without ever touching `failureCount`/`disabledAt`. That is the
+ *  correct behaviour while FCM credentials do not yet exist. */
+export function dispatchingSender(web: Sender | null, device: Sender | null): Sender {
+  return async (sub, payload) => {
+    if (sub.kind === "webpush") {
+      return web
+        ? web(sub, payload)
+        : { ok: false, gone: false, error: "web push not configured", configured: false };
+    }
+    return device
+      ? device(sub, payload)
+      : { ok: false, gone: false, error: "device push not configured", configured: false };
+  };
 }

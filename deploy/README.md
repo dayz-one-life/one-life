@@ -100,6 +100,8 @@ NOTIFIER_PUSH_MAX_AGE_MINUTES=60            # don't push a notification older th
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_SUBJECT=                              # a mailto: address, e.g. mailto:ops@dayzonelife.com
+FCM_PROJECT_ID=                             # Firebase project id; UNSET = device push OFF
+FCM_SERVICE_ACCOUNT_JSON_BASE64=            # base64 of the whole service-account JSON
 LOG_LEVEL=info
 ```
 
@@ -114,6 +116,26 @@ Put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` into the shared
 unit** — the API serves it publicly at `GET /push/vapid-key` so the browser can call
 `pushManager.subscribe()`; the private key is notifier-only and must never reach the API or the
 web bundle.
+
+### Native device push (FCM)
+
+Device push is OFF until both variables above are set; web push and notification generation are
+unaffected by their absence. Setting it up is a one-time operator task:
+
+1. Create a Firebase project and enable Cloud Messaging.
+2. Create a service account with the **Firebase Cloud Messaging API Admin** role and download its
+   JSON key.
+3. `base64 -i service-account.json | tr -d '\n'` and put the result in
+   `FCM_SERVICE_ACCOUNT_JSON_BASE64`. Base64 because the key is a PEM full of newlines, which does
+   not survive a `.env` file intact.
+4. Set `FCM_PROJECT_ID` to the Firebase project id.
+5. **For iOS only:** upload an APNs authentication key (from an Apple Developer Program membership)
+   to Firebase under Project Settings → Cloud Messaging. FCM relays to APNs, so without this step
+   Android push works and iOS push does not.
+
+These credentials are notifier-only. They must never reach the API or the web bundle.
+
+Restart `onelife-notifier` after setting them.
 
 **Staged rollout (spec §8) — go live in four steps, not one:**
 

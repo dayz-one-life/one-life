@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { eq } from "drizzle-orm";
 import {
   user, gamertagLinks, referrals, tokenTransactions,
-  servers, players, lives, avatars, notifications, pushSubscriptions,
+  servers, players, lives, avatars, notifications, pushSubscriptions, devicePushTokens,
   verificationChallenges, locationShares,
   avatarReports, blockedAvatarHashes, userBlocks,
 } from "@onelife/db";
@@ -65,6 +65,9 @@ beforeAll(async () => {
   });
   await db.insert(pushSubscriptions).values({
     userId: "da-alice", endpoint: "https://push.example/da-alice", p256dh: "k", auth: "a",
+  });
+  await db.insert(devicePushTokens).values({
+    userId: "da-alice", token: "da-alice-token", platform: "ios", deviceId: "da-alice-device",
   });
 
   // Alice referred Bob: the row lives on BOB's id, pointing at Alice as referrer.
@@ -129,6 +132,11 @@ describe("deleteAccount", () => {
     expect(await db.select().from(notifications).where(eq(notifications.userId, "da-alice"))).toHaveLength(0);
     expect(await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, "da-alice"))).toHaveLength(0);
     expect(await db.select().from(tokenTransactions).where(eq(tokenTransactions.userId, "da-alice"))).toHaveLength(0);
+    // Cascade, not explicit deletion: deleteAccount never names this table, so this test is the
+    // only thing standing between a schema typo and a deleted user's phone still being pushed to.
+    expect(
+      await db.select().from(devicePushTokens).where(eq(devicePushTokens.userId, "da-alice")),
+    ).toHaveLength(0);
   });
 
   // ⚠️ Fires on BOTH sides. A cascade wired only from `granter_user_id` (the "obvious" FK,
