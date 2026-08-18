@@ -16,8 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including any sharing already in progress, which ends the moment you block — and the blocked
   player is never told. `/settings` lists who you have blocked, and moderators get a review
   queue at `/moderation`. Once a moderator clears an image it stays cleared: a later report
-  cannot hide it again, and says so rather than claiming it worked — though it is still filed,
-  so a cleared image that keeps drawing objections leaves a record instead of nothing at all.
+  cannot hide it again, and says so rather than claiming it worked — to whoever files it,
+  including the person who reported it the first time, who would otherwise be told it was still
+  hidden. It is still filed either way, so a cleared image that keeps drawing objections leaves a
+  record instead of nothing at all.
 - A minimum-supported-version gate for the coming mobile app. `GET /api/app-version` publishes a
   per-platform floor set by `IOS_MIN_APP_VERSION` / `ANDROID_MIN_APP_VERSION`, and the app blocks
   with "update required" below it. Unset — the default — means no floor and gates nobody. Nothing

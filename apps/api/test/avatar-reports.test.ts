@@ -185,15 +185,32 @@ describe("reportAvatar", () => {
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
   });
 
-  // The reporter's OWN history still wins over the moderator's restore: a reporter who already
-  // filed against these bytes gets `already_reported`, because the unique (reporter, hash) index
-  // means there is genuinely nothing new to record.
-  it("tells a REPEAT reporter already_reported, not already_reviewed", async () => {
+  // ⚠️ The state of the BYTES outranks the caller's own history. `already_reported` is rendered
+  // as "You already reported this avatar. It has been hidden since, and a moderator will decide"
+  // — and for a restored hash every clause of that is false: the avatar is visible, and a
+  // moderator has already decided, against them. The original reporter is exactly the person who
+  // needs to know that. Their row already exists either way, so nothing is lost by saying so.
+  it("tells a REPEAT reporter already_reviewed once the hash was restored, not already_reported", async () => {
     await seedUser("r1"); await seedVerified("r1", "TagOne");
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
     await reportAvatar(db, "r1", HASH, "hate");
     await unbanAvatarHash(db, HASH, "moderator-1");
+
+    expect(await reportAvatar(db, "r1", HASH, "sexual")).toEqual({ error: "already_reviewed" });
+    // The unique (reporter, hash) index still holds — no duplicate row, and the restore stands.
+    expect(await db.select().from(avatarReports)).toHaveLength(1);
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+  });
+
+  // `already_reported` is still the answer when the hash is NOT restored: the ban row really is
+  // in `auto`/`confirmed`, so "it has been hidden since" is true.
+  it("tells a REPEAT reporter already_reported while the hash is still banned", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", HASH, "hate");
+    expect(await getAvatarByHash(db, HASH)).toBeNull();
 
     expect(await reportAvatar(db, "r1", HASH, "sexual")).toEqual({ error: "already_reported" });
     expect(await db.select().from(avatarReports)).toHaveLength(1);

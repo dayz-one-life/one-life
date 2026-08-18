@@ -10,9 +10,9 @@ const { db, sql } = getTestDb();
 
 const svc = Math.floor(Math.random() * 1e8) + 3e8;
 const reporterEmail = `rptr${svc}@example.com`;
-// A SECOND verified reporter, needed because `already_reported` (the reporter's own history)
-// is more specific than `already_reviewed` (the moderator's restore) and wins when both
-// apply — so only a reporter who has never touched this hash can exercise the latter.
+// A SECOND verified reporter: `already_reviewed` is about the BYTES and applies to everyone, so
+// the interesting contrast is that a first-time reporter and a repeat reporter get the SAME
+// answer for a restored hash.
 const reporter2Email = `rptr2${svc}@example.com`;
 const HASH = "dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444";
 const BYTES = Buffer.from([7, 7, 7, 7]);
@@ -117,8 +117,8 @@ describe("POST /me/reports/avatar", () => {
   // false success on a report no moderator can ever see. 409 shares its status with
   // `already_reported`; the CODE is what the client switches on.
   //
-  // ⚠️ Reported by the SECOND reporter: the first already has a row for this hash, and
-  // `already_reported` is the more specific answer for them (see the sibling test below).
+  // ⚠️ Reported by the SECOND reporter — a first-time objection to these bytes. The repeat
+  // reporter gets the same answer (see the sibling test below).
   it("409s already_reviewed once a moderator has restored the hash", async () => {
     await unbanAvatarHash(db, HASH, "route-test-moderator");
     const res = await report({ subjectHash: HASH, reason: "sexual" }, reporter2Cookie);
@@ -131,10 +131,18 @@ describe("POST /me/reports/avatar", () => {
     expect(await db.select().from(avatarReports)).toHaveLength(2);
   });
 
-  it("409s already_reported when the SAME reporter files again against a restored hash", async () => {
+  // ⚠️ The reporter who most needs the truth. `already_reported` renders "It has been hidden
+  // since, and a moderator will decide" — every clause of which is false for a RESTORED hash: the
+  // avatar is visible and a moderator has already decided, against them. The state of the bytes
+  // outranks the caller's own history, so they get `already_reviewed` like everyone else.
+  it("409s already_reviewed — not already_reported — when the SAME reporter files again against a restored hash", async () => {
     const res = await report({ subjectHash: HASH, reason: "sexual" });
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual({ error: "already_reported" });
+    expect(res.json()).toEqual({ error: "already_reviewed" });
+    // Still visible, and their original row is untouched: no signal is lost by answering with
+    // the state of the bytes.
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+    expect(await db.select().from(avatarReports)).toHaveLength(2);
   });
 
   it("401s when signed out", async () => {
