@@ -106,8 +106,9 @@ export type ClaimResult = {
 export type Me = {
   user: { id: string; name: string; email: string; image: string | null };
   accounts: Array<{ providerId: string; accountId: string }>;
-  // Display only — it decides whether the shell renders a link to /moderation. Every moderation
-  // route re-checks server-side, so trusting this client-side grants nothing.
+  // Display only — it gates whether the /moderation page renders its queue at all (the shell has
+  // no link to /moderation; the page is reached by URL only, deliberately — see CLAUDE.md).
+  // Every moderation route re-checks server-side, so trusting this client-side grants nothing.
   isModerator: boolean;
 };
 
