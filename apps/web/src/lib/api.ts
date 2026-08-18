@@ -138,6 +138,17 @@ export const getMapShare = api.getMapShare;
 export const getAvatar = api.getAvatar;
 export const syncAvatar = api.syncAvatar;
 export const removeAvatar = api.removeAvatar;
+export const reportAvatar = api.reportAvatar;
+export const getBlocks = api.getBlocks;
+export const blockPlayer = api.blockPlayer;
+export const unblockPlayer = api.unblockPlayer;
+export const getModerationQueue = api.getModerationQueue;
+export const restoreAvatarHash = api.restoreAvatarHash;
+export const confirmAvatarHash = api.confirmAvatarHash;
+
+/** Moderator-only avatar bytes. A plain URL, not a fetch — it is an <img> src. */
+export const moderationImageSrc = (hash: string) =>
+  `${API_ORIGIN}${toBackendPath(`/api/moderation/hashes/${encodeURIComponent(hash)}/image`)}`;
 
 // ── Next-only variants below. These depend on `next: { revalidate }` and have no mobile
 //    equivalent, so they stay here rather than moving into @onelife/api-client. ──

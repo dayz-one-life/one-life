@@ -10,6 +10,7 @@ import type {
   MapShare,
   TokenWalletData,
   AppVersionPolicy,
+  BlockedPlayer, ModerationEntry, ReportReason,
 } from "./types";
 
 export function createApiClient(t: Transport) {
@@ -155,6 +156,18 @@ export function createApiClient(t: Transport) {
 
     /** Bodyless DELETE: transports only set content-type when a body is present. */
     removeAvatar: () => t.send<{ ok: true }>("DELETE", "/api/me/avatar"),
+
+    reportAvatar: (subjectHash: string, reason: ReportReason) =>
+      t.send<{ ok: true }>("POST", "/api/me/reports/avatar", { subjectHash, reason }),
+    getBlocks: () => t.get<{ blocks: BlockedPlayer[] }>("/api/me/blocks"),
+    blockPlayer: (gamertag: string) => t.send<{ ok: true }>("POST", "/api/me/blocks", { gamertag }),
+    unblockPlayer: (gamertag: string) =>
+      t.send<{ ok: true }>("DELETE", `/api/me/blocks/${encodeURIComponent(gamertag)}`),
+    getModerationQueue: () => t.get<{ entries: ModerationEntry[] }>("/api/moderation/queue"),
+    restoreAvatarHash: (hash: string) =>
+      t.send<{ ok: true }>("POST", `/api/moderation/hashes/${encodeURIComponent(hash)}/restore`),
+    confirmAvatarHash: (hash: string) =>
+      t.send<{ ok: true }>("POST", `/api/moderation/hashes/${encodeURIComponent(hash)}/confirm`),
   };
 }
 
