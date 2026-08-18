@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-08-18
+
 ### Added
 
 - Groundwork for notifications on the phone. The notifier can now deliver to iOS and Android
