@@ -206,9 +206,23 @@ describe("deleteAccount interaction with UGC moderation", () => {
 
     await expect(deleteAccount(db, "da-leaver")).resolves.toMatchObject({ tokensForfeited: 0 });
 
-    // Their reports and blocks go, in both directions.
-    expect(await db.select().from(avatarReports)).toHaveLength(0);
+    // The reports they FILED go with them — a reporter deleting their account takes their
+    // reports too (reporter_user_id cascades). Blocks go in both directions.
+    expect(await db.select().from(avatarReports).where(eq(avatarReports.reporterUserId, "da-leaver")))
+      .toHaveLength(0);
     expect(await db.select().from(userBlocks)).toHaveLength(0);
+
+    // ⚠️ But a report filed AGAINST them SURVIVES, with a NULL subject. `subject_user_id` is
+    // resolved context for the moderator queue, not the key — the ban row is keyed on the hash
+    // and survives regardless, so cascading the report away left the queue rendering
+    // "<hash> · 0 reports ·" with no reason at all: a moderator asked to judge an image with no
+    // report behind it. NULL is the schema's own stated representation of "no account holds
+    // this hash".
+    const survived = await db.select().from(avatarReports).where(eq(avatarReports.reporterUserId, "da-other"));
+    expect(survived).toHaveLength(1);
+    expect(survived[0]?.subjectUserId).toBeNull();
+    expect(survived[0]?.subjectHash).toBe("hash-leaver".padEnd(64, "0"));
+    expect(survived[0]?.reason).toBe("other");
 
     // ⚠️ But the BAN survives. Otherwise deleting your account is a way to un-ban your own image.
     expect(await db.select().from(blockedAvatarHashes)).toHaveLength(1);

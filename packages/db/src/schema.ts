@@ -364,10 +364,15 @@ export const avatars = pgTable("avatars", {
 // Xbox identity proven by in-game emote verification. ──
 
 /**
- * A report against another user's avatar.
+ * A report against IMAGE BYTES, named by their content hash.
  *
- * `subjectHash` is SNAPSHOTTED at report time: the subject can swap their avatar the instant
- * they are reported, and the report must still name what was actually seen.
+ * `subjectHash` is the key, not a snapshot of a user's current avatar. That removes the
+ * avatar-swap attack rather than defending against it: the reporter names the bytes they
+ * actually saw, so there is nothing to redirect a report onto by changing avatars, and one
+ * report covers every account holding those bytes (see `blockedAvatarHashes`).
+ *
+ * There is therefore no single "subject user" — `subjectUserId` is resolved context for the
+ * moderator queue only, and is NULL when no account holds the hash.
  */
 export const avatarReports = pgTable("avatar_reports", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
@@ -376,7 +381,11 @@ export const avatarReports = pgTable("avatar_reports", {
   reporterUserId: text("reporter_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   // Resolved context for the moderator queue, not the key — several accounts can hold the same
   // bytes, so "the subject user" is ambiguous exactly when it matters. See uniqReporterHash.
-  subjectUserId: text("subject_user_id").references(() => user.id, { onDelete: "cascade" }),
+  // ⚠️ SET NULL, not cascade. Cascading a nullable CONTEXT column deletes the whole report when
+  // the reported account is deleted, while the hash's ban row survives — leaving the moderator
+  // queue showing an entry with 0 reports and no reason, an image to judge with nothing behind
+  // it. NULL is this column's own documented meaning: no account holds the hash.
+  subjectUserId: text("subject_user_id").references(() => user.id, { onDelete: "set null" }),
   subjectHash: text("subject_hash").notNull(),
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
