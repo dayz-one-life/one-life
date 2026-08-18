@@ -91,10 +91,9 @@ describe("ReportBlockMenu", () => {
 // ⚠️ `claimed` is the DOSSIER SUBJECT's claim status, not the viewer's — the prop was called
 // `verified` and sat inches from `status.kind === "verified"`, which names the opposite subject.
 // `blockByGamertag` resolves the target through `verifiedOwnerByGamertag` and 404s
-// `unknown_gamertag` for a
-// gamertag nobody has verified. Most players on the board are unclaimed, so offering Block on
-// an unclaimed dossier is an action that fails 100% of the time, forever — the same dead end
-// the signed-out guard above already refuses to ship.
+// `unknown_gamertag` for a gamertag nobody has verified. Most players on the board are
+// unclaimed, so offering Block on an unclaimed dossier is an action that fails 100% of the
+// time, forever — the same dead end the signed-out guard above already refuses to ship.
 describe("ReportBlockMenu on an unclaimed dossier", () => {
   it("withholds Block from a player nobody has verified", async () => {
     mockStatus.mockReturnValue({ kind: "verified", link: { gamertag: "Me" } });

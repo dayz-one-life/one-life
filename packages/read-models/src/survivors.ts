@@ -158,7 +158,8 @@ export async function getAliveSurvivors(
   // LIVE (non-tombstoned) avatar contributes a hash; dropping either clause would leak a pending
   // claim's or a removed avatar's hash onto the board. The ban clause makes an auto-hidden avatar
   // read as "no avatar" (silhouette fallback) instead of emitting a hash whose URL now 404s —
-  // a broken-image glyph on every board between report and confirm.
+  // a broken-image glyph on every board between report and confirm. The block clause does the
+  // same for an owner THIS VIEWER has blocked, and for that viewer alone.
   const pageGamertags = [...new Set(pageCandidates.map((c) => c.gamertag.toLowerCase()))];
   const avatarRows = pageGamertags.length > 0
     ? await db

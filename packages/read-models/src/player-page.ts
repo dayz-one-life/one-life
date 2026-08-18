@@ -111,10 +111,11 @@ export async function getPlayerPage(
   }
   const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames), eq(gamertagLinks.status, "verified"))).limit(1);
 
-  // The dossier's avatar — the board's exact clause pair (avatar-account-pass spec §5): only a
+  // The dossier's avatar — the board's exact clause set (avatar-account-pass spec §5): only a
   // VERIFIED link with a LIVE (non-tombstoned) avatar contributes; pending links and removals
   // resolve to null exactly like no row at all — and so does a BANNED hash, so an auto-hidden
-  // avatar renders the silhouette rather than a broken image pointing at a 404.
+  // avatar renders the silhouette rather than a broken image pointing at a 404, and so does an
+  // owner THIS VIEWER has blocked.
   // ⚠️ Two DIFFERENT users can each hold a verified link inside `identityNames` — the current
   // gamertag's owner, and a former-name (alias) holder who never released their now-stale link.
   // Without an explicit tie-break the row picked was whatever the query planner happened to
