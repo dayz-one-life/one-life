@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, kills, user, gamertagLinks, avatars, blockedAvatarHashes } from "@onelife/db";
-import { eq, inArray } from "drizzle-orm";
+import { servers, players, lives, kills, user, gamertagLinks, avatars, blockedAvatarHashes, userBlocks } from "@onelife/db";
+import { and, eq, inArray } from "drizzle-orm";
 import { getAliveSurvivors } from "../src/survivors.js";
 
 const { db, sql } = getTestDb();
@@ -307,5 +307,71 @@ describe("getAliveSurvivors", () => {
         await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, "bannedhash"));
       }
     });
+  });
+});
+
+// ── viewerUserId: blocks hide an avatar FROM THE BLOCKER ONLY ──────────────────────────────────
+// The board is the other surface the block dialog's "Blocking hides their avatar from you"
+// promise has to hold on. A block is VIEWER-SCOPED; a hash ban is global. The third-party test
+// is what separates them — without it this feature is indistinguishable from a takedown.
+describe("getAliveSurvivors: viewerUserId (blocks)", () => {
+  const SUBJECT = "BlockedSurvivor";
+  const HASH = "blocked-survivor-hash";
+  const uSubject = "u-bl-subject";
+  const uBlocker = "u-bl-blocker";
+  const uStranger = "u-bl-stranger";
+
+  /** Seeds the subject (alive, verified, avatared), a blocker who has blocked them, and an
+   *  unrelated third party. Relies on the file's `afterEach` to clean users up; `user_blocks`
+   *  rows go with them via ON DELETE CASCADE. */
+  async function seedBlockedSubject() {
+    await insertLife({ serverId: chern.id, gamertag: SUBJECT, endedAt: null, playtimeSeconds: 700, startedAt: hoursAgo(1) });
+    await insertAvatarLink({ gamertag: SUBJECT, userId: uSubject, status: "verified", hash: HASH });
+    for (const id of [uBlocker, uStranger]) {
+      await db.insert(user).values({ id, name: id, email: `${id}@example.com` });
+      insertedUserIds.add(id);
+    }
+    await db.insert(userBlocks).values({ blockerUserId: uBlocker, blockedUserId: uSubject, blockedGamertag: SUBJECT });
+  }
+
+  const hashFor = (res: Awaited<ReturnType<typeof getAliveSurvivors>>) =>
+    res.rows.find((r) => r.gamertag === SUBJECT)!.avatarHash;
+
+  it("hides the blocked player's avatar from the blocker", async () => {
+    await seedBlockedSubject();
+    expect(hashFor(await getAliveSurvivors(db, { page: 1, viewerUserId: uBlocker }, now))).toBeNull();
+  });
+
+  // ⚠️ THE load-bearing assertion — see the same note in player-page.test.ts.
+  it("still shows the avatar to an unrelated THIRD PARTY", async () => {
+    await seedBlockedSubject();
+    expect(hashFor(await getAliveSurvivors(db, { page: 1, viewerUserId: uStranger }, now))).toBe(HASH);
+  });
+
+  it("still shows the avatar to a signed-out visitor (no viewer)", async () => {
+    await seedBlockedSubject();
+    expect(hashFor(await getAliveSurvivors(db, { page: 1 }, now))).toBe(HASH);
+    expect(hashFor(await getAliveSurvivors(db, { page: 1, viewerUserId: undefined }, now))).toBe(HASH);
+  });
+
+  it("restores the avatar for the blocker after an unblock", async () => {
+    await seedBlockedSubject();
+    expect(hashFor(await getAliveSurvivors(db, { page: 1, viewerUserId: uBlocker }, now))).toBeNull();
+    await db.delete(userBlocks).where(and(
+      eq(userBlocks.blockerUserId, uBlocker), eq(userBlocks.blockedUserId, uSubject),
+    ));
+    expect(hashFor(await getAliveSurvivors(db, { page: 1, viewerUserId: uBlocker }, now))).toBe(HASH);
+  });
+
+  // A block only ever subtracts from what one viewer sees; the global ban still applies to
+  // everyone else.
+  it("a hash ban still hides the avatar from a viewer who blocked nobody", async () => {
+    await seedBlockedSubject();
+    await db.insert(blockedAvatarHashes).values({ hash: HASH, state: "auto" });
+    try {
+      expect(hashFor(await getAliveSurvivors(db, { page: 1, viewerUserId: uStranger }, now))).toBeNull();
+    } finally {
+      await db.delete(blockedAvatarHashes).where(eq(blockedAvatarHashes.hash, HASH));
+    }
   });
 });

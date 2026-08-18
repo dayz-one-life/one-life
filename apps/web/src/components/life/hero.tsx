@@ -26,7 +26,18 @@ function Stat({ value, label, blue = false, srLabel }: { value: string; label: s
  * Full-bleed: the PAGE owns no horizontal padding; this section states its own px, exactly like
  * `TicketStage`. The back-link strip above is part of the same dark band.
  */
-export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTimelineView }) {
+export function LifeHero({
+  data,
+  view,
+  avatarBlocked = false,
+}: {
+  data: LifeTimelineData;
+  view: LifeTimelineView;
+  /** ⚠️ VIEWER-SCOPED: this viewer has blocked the player whose life this is, so their face is
+   *  replaced by the initial disc. Decided per request by the page (see its comment) — never by
+   *  the shared life-timeline payload, which stays viewer-independent. */
+  avatarBlocked?: boolean;
+}) {
   const map = mapLabel(data.map);
   const dossier = `/players/${playerSlug(data.gamertag)}`;
   const h = view.hero;
@@ -39,9 +50,15 @@ export function LifeHero({ data, view }: { data: LifeTimelineData; view: LifeTim
       </div>
       <section className="border-b-[6px] border-red bg-dark px-6 py-10 text-paper md:px-10 md:py-14">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-5 sm:flex-nowrap">
-          {data.avatarHash != null && (
+          {avatarBlocked ? (
+            // The block dialog promises "Blocking hides their avatar from you". `variant="dark"`
+            // because this stage is dark — the paper tokens would render ink on dark.
+            <div className="flex-none">
+              <Avatar hash={null} size={132} dim={!view.alive} variant="dark" fallbackInitial={data.gamertag.trim().charAt(0).toUpperCase()} />
+            </div>
+          ) : data.avatarHash != null ? (
             <div className="flex-none"><Avatar hash={data.avatarHash} size={132} dim={!view.alive} /></div>
-          )}
+          ) : null}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-3">
               <p className={KICKER}>A life of <GamertagLink gamertag={data.gamertag} className="font-bold text-paper underline" /> · {map}</p>

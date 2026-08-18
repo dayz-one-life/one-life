@@ -7,6 +7,8 @@ import {
   resolveGamertagBySlug,
   getLifeTimeline,
 } from "@onelife/read-models";
+import type { Auth } from "@onelife/auth";
+import { getSession } from "../auth-plugin.js";
 import { resolveServerBySlug } from "../lib/resolve-server.js";
 
 const gt = z.object({ gamertag: z.string().min(1) });
@@ -16,12 +18,24 @@ const gt = z.object({ gamertag: z.string().min(1) });
 const life = z.object({ gamertag: z.string().min(1), map: z.string().min(1), n: z.coerce.number().int().positive() });
 const pageQ = z.object({ page: z.coerce.number().int().positive().catch(1) });
 
-export function registerPlayerAggregateRoutes(app: FastifyInstance, db: Database): void {
+/**
+ * ⚠️ `auth` is OPTIONAL because these are PUBLIC routes: `buildApp` registers them outside the
+ * `if (opts)` block, so a deployment built without auth must still serve them. An absent auth
+ * instance, and an absent session, both mean "no viewer" — never an error.
+ */
+export function registerPlayerAggregateRoutes(app: FastifyInstance, db: Database, auth?: Auth): void {
   app.get("/players/:gamertag", async (req, reply) => {
     const p = gt.safeParse(req.params);
     if (!p.success) return reply.code(400).send({ error: "bad_request" });
     const { page } = pageQ.parse(req.query);
-    const pg = await getPlayerPage(db, p.data.gamertag, new Date(), { page });
+    // WHO IS LOOKING. Read for one reason: a dossier must not show the avatar of a player this
+    // viewer has BLOCKED. Signed-out (or no auth configured) ⇒ undefined ⇒ the predicate is a
+    // no-op, so the anonymous response is byte-identical to what it was before this existed.
+    // ⚠️ The response is viewer-specific from here on. `apps/web`'s dossier fetch is
+    // `cache: "no-store"` with cookies forwarded, which is what makes that safe — do NOT put
+    // this behind a shared or prerendered cache.
+    const session = auth ? await getSession(auth, req) : null;
+    const pg = await getPlayerPage(db, p.data.gamertag, new Date(), { page, viewerUserId: session?.user.id });
     if (!pg) return reply.code(404).send({ error: "not_found" });
     return pg;
   });

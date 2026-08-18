@@ -1,13 +1,11 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { eq } from "drizzle-orm";
 import { avatars, avatarReports, blockedAvatarHashes, gamertagLinks, user } from "@onelife/db";
 import { reportAvatar } from "../src/lib/moderation.js";
 import { getAvatarByHash, unbanAvatarHash } from "../src/lib/avatar-store.js";
 
 const { db, sql } = getTestDb();
 const HASH = "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111";
-const OTHER_HASH = "cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333cccc3333";
 const BYTES = Buffer.from([1, 2, 3, 4]);
 
 async function seedUser(id: string) {
@@ -51,7 +49,7 @@ describe("reportAvatar", () => {
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
-    const res = await reportAvatar(db, "reporter", "subject", "hate", HASH);
+    const res = await reportAvatar(db, "reporter", HASH, "hate");
 
     expect(res).toEqual({ ok: true });
     expect(await getAvatarByHash(db, HASH)).toBeNull();
@@ -63,7 +61,7 @@ describe("reportAvatar", () => {
     await seedUser("reporter");
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
-    expect(await reportAvatar(db, "reporter", "subject", "hate", HASH)).toEqual({ error: "not_verified" });
+    expect(await reportAvatar(db, "reporter", HASH, "hate")).toEqual({ error: "not_verified" });
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
   });
 
@@ -74,33 +72,38 @@ describe("reportAvatar", () => {
     });
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
-    expect(await reportAvatar(db, "reporter", "subject", "hate", HASH)).toEqual({ error: "not_verified" });
+    expect(await reportAvatar(db, "reporter", HASH, "hate")).toEqual({ error: "not_verified" });
   });
 
-  // Nothing to snapshot means a report that can never be reviewed.
-  it("refuses to report a subject with no avatar", async () => {
+  it("refuses a hash no live avatar holds, so the queue cannot be filled with invented hashes", async () => {
     await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
-    await seedUser("subject");
-
-    expect(await reportAvatar(db, "reporter", "subject", "hate", HASH)).toEqual({ error: "no_avatar" });
+    expect(await reportAvatar(db, "reporter", "nosuchhash".padEnd(64, "0"), "hate")).toEqual({ error: "unknown_hash" });
   });
 
-  it("refuses a second report from the same reporter against the same subject", async () => {
+  it("refuses to report bytes you hold yourself", async () => {
+    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
+    await seedAvatar("reporter", HASH);
+    expect(await reportAvatar(db, "reporter", HASH, "hate")).toEqual({ error: "self" });
+  });
+
+  it("refuses a second report from the same reporter against the same hash", async () => {
     await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
-    await reportAvatar(db, "reporter", "subject", "hate", HASH);
-    expect(await reportAvatar(db, "reporter", "subject", "other", HASH)).toEqual({ error: "already_reported" });
+    await reportAvatar(db, "reporter", HASH, "hate");
+    expect(await reportAvatar(db, "reporter", HASH, "other")).toEqual({ error: "already_reported" });
 
     const rows = await db.select().from(avatarReports);
     expect(rows).toHaveLength(1);
   });
 
-  it("refuses to report yourself", async () => {
+  // The point of hash-keying: two holders, one report, both hidden.
+  it("hides the bytes for every holder from a single report", async () => {
     await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
-    await seedAvatar("reporter", HASH);
-
-    expect(await reportAvatar(db, "reporter", "reporter", "hate", HASH)).toEqual({ error: "self" });
+    await seedUser("a"); await seedAvatar("a", HASH);
+    await seedUser("b"); await seedAvatar("b", HASH);
+    expect(await reportAvatar(db, "reporter", HASH, "hate")).toEqual({ ok: true });
+    expect(await getAvatarByHash(db, HASH)).toBeNull();
   });
 
   // A second reporter on an already-banned hash records their report but must not create a
@@ -110,8 +113,8 @@ describe("reportAvatar", () => {
     await seedUser("r2"); await seedVerified("r2", "TagTwo");
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
-    await reportAvatar(db, "r1", "subject", "hate", HASH);
-    expect(await reportAvatar(db, "r2", "subject", "sexual", HASH)).toEqual({ ok: true });
+    await reportAvatar(db, "r1", HASH, "hate");
+    expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ ok: true });
 
     expect(await db.select().from(avatarReports)).toHaveLength(2);
     expect(await db.select().from(blockedAvatarHashes)).toHaveLength(1);
@@ -122,25 +125,12 @@ describe("reportAvatar", () => {
     for (let i = 0; i < 10; i++) {
       await seedUser(`s${i}`);
       await seedAvatar(`s${i}`, `hash-${i}`.padEnd(64, "0"));
-      expect(await reportAvatar(db, "reporter", `s${i}`, "other", `hash-${i}`.padEnd(64, "0"))).toEqual({ ok: true });
+      expect(await reportAvatar(db, "reporter", `hash-${i}`.padEnd(64, "0"), "other")).toEqual({ ok: true });
     }
     await seedUser("s10");
     await seedAvatar("s10", "hash-10".padEnd(64, "0"));
 
-    expect(await reportAvatar(db, "reporter", "s10", "other", "hash-10".padEnd(64, "0"))).toEqual({ error: "rate_limited" });
-  });
-  // ⚠️ Findings 3 and 5: the two ways a report could ban bytes it has no business banning.
-  it("refuses to ban bytes the reporter never saw (subject swapped avatar)", async () => {
-    await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
-    await seedUser("subject"); await seedAvatar("subject", HASH);
-    // A widely-shared image the subject swapped to AFTER the reporter looked at them. One report
-    // must not strip it from every innocent user who legitimately holds the same provider bytes.
-    await seedUser("innocent"); await seedAvatar("innocent", OTHER_HASH);
-    await db.update(avatars).set({ hash: OTHER_HASH }).where(eq(avatars.userId, "subject"));
-
-    expect(await reportAvatar(db, "reporter", "subject", "hate", HASH)).toEqual({ error: "hash_mismatch" });
-    expect(await db.select().from(avatarReports)).toHaveLength(0);
-    expect(await getAvatarByHash(db, OTHER_HASH)).not.toBeNull();
+    expect(await reportAvatar(db, "reporter", "hash-10".padEnd(64, "0"), "other")).toEqual({ error: "rate_limited" });
   });
 
   it("does not re-hide a hash a moderator restored", async () => {
@@ -148,7 +138,7 @@ describe("reportAvatar", () => {
     await seedUser("r2"); await seedVerified("r2", "TagTwo");
     await seedUser("subject"); await seedAvatar("subject", HASH);
 
-    await reportAvatar(db, "r1", "subject", "hate", HASH);
+    await reportAvatar(db, "r1", HASH, "hate");
     expect(await getAvatarByHash(db, HASH)).toBeNull();
 
     await unbanAvatarHash(db, HASH, "moderator-1");
@@ -156,14 +146,78 @@ describe("reportAvatar", () => {
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
 
     // ...and a second verified account cannot immediately undo the human decision.
-    expect(await reportAvatar(db, "r2", "subject", "sexual", HASH)).toEqual({ ok: true });
+    // ⚠️ It must also not be TOLD it succeeded. The client renders "This avatar is hidden
+    // straight away" on ok:true, which would be a flat lie here — and the queue excludes
+    // `allowed` rows, so the report would be invisible to every moderator forever. A distinct
+    // outcome is the only honest answer.
+    expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ error: "already_reviewed" });
     expect(await getAvatarByHash(db, HASH)).not.toBeNull();
-    const [ban] = await db.select().from(blockedAvatarHashes);
-    expect(ban?.state).toBe("allowed");
+    const bans = await db.select().from(blockedAvatarHashes);
+    expect(bans).toHaveLength(1);
+    expect(bans[0]?.state).toBe("allowed");
+  });
+
+  // ⚠️ The report is still RECORDED, even though it changes nothing about the ban. Refusing to
+  // write the row meant a wrongly-restored image accumulated no evidence and had no path back to
+  // a human: every later report against it vanished silently, forever. The reporter is still
+  // told `already_reviewed` — that part was honest — but the signal now survives to be queried.
+  // (Surfacing these in the moderator queue is a separate, deliberately-deferred follow-up.)
+  it("still records the report against a restored hash, without re-banning it", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("r2"); await seedVerified("r2", "TagTwo");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", HASH, "hate");
+    await unbanAvatarHash(db, HASH, "moderator-1");
+
+    expect(await reportAvatar(db, "r2", HASH, "sexual")).toEqual({ error: "already_reviewed" });
+
+    // r2's report is on record alongside r1's, attributed and queryable...
+    const reports = await db.select().from(avatarReports);
+    expect(reports).toHaveLength(2);
+    const r2Report = reports.find((r) => r.reporterUserId === "r2");
+    expect(r2Report).toMatchObject({ subjectHash: HASH, reason: "sexual", subjectUserId: "subject" });
+
+    // ...and the moderator's restore is untouched: the hash stays unbanned and the bytes serve.
+    const bans = await db.select().from(blockedAvatarHashes);
+    expect(bans).toHaveLength(1);
+    expect(bans[0]?.state).toBe("allowed");
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+  });
+
+  // ⚠️ The state of the BYTES outranks the caller's own history. `already_reported` is rendered
+  // as "You already reported this avatar. It has been hidden since, and a moderator will decide"
+  // — and for a restored hash every clause of that is false: the avatar is visible, and a
+  // moderator has already decided, against them. The original reporter is exactly the person who
+  // needs to know that. Their row already exists either way, so nothing is lost by saying so.
+  it("tells a REPEAT reporter already_reviewed once the hash was restored, not already_reported", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", HASH, "hate");
+    await unbanAvatarHash(db, HASH, "moderator-1");
+
+    expect(await reportAvatar(db, "r1", HASH, "sexual")).toEqual({ error: "already_reviewed" });
+    // The unique (reporter, hash) index still holds — no duplicate row, and the restore stands.
+    expect(await db.select().from(avatarReports)).toHaveLength(1);
+    expect(await getAvatarByHash(db, HASH)).not.toBeNull();
+  });
+
+  // `already_reported` is still the answer when the hash is NOT restored: the ban row really is
+  // in `auto`/`confirmed`, so "it has been hidden since" is true.
+  it("tells a REPEAT reporter already_reported while the hash is still banned", async () => {
+    await seedUser("r1"); await seedVerified("r1", "TagOne");
+    await seedUser("subject"); await seedAvatar("subject", HASH);
+
+    await reportAvatar(db, "r1", HASH, "hate");
+    expect(await getAvatarByHash(db, HASH)).toBeNull();
+
+    expect(await reportAvatar(db, "r1", HASH, "sexual")).toEqual({ error: "already_reported" });
+    expect(await db.select().from(avatarReports)).toHaveLength(1);
   });
 
   // ⚠️ Finding 4. Split across two statements, a failed ban left an un-retryable report row
-  // behind (unique (reporter, subject)) and the avatar silently stayed visible.
+  // behind (unique (reporter, hash)) and the avatar silently stayed visible.
   it("rolls the report back when the ban fails, so the reporter can retry", async () => {
     await seedUser("reporter"); await seedVerified("reporter", "ReporterTag");
     await seedUser("subject"); await seedAvatar("subject", HASH);
@@ -173,7 +227,7 @@ describe("reportAvatar", () => {
     // faithful failure: drop the table's insert privilege for the duration.
     await sql`ALTER TABLE blocked_avatar_hashes ADD CONSTRAINT tmp_no_inserts CHECK (hash = 'never')`;
     try {
-      await expect(reportAvatar(db, "reporter", "subject", "hate", HASH)).rejects.toThrow();
+      await expect(reportAvatar(db, "reporter", HASH, "hate")).rejects.toThrow();
     } finally {
       await sql`ALTER TABLE blocked_avatar_hashes DROP CONSTRAINT tmp_no_inserts`;
     }
@@ -181,7 +235,7 @@ describe("reportAvatar", () => {
     // The report row must NOT have survived the failed ban.
     expect(await db.select().from(avatarReports)).toHaveLength(0);
     // ...so the same reporter can retry and auto-hide actually happens.
-    expect(await reportAvatar(db, "reporter", "subject", "hate", HASH)).toEqual({ ok: true });
+    expect(await reportAvatar(db, "reporter", HASH, "hate")).toEqual({ ok: true });
     expect(await getAvatarByHash(db, HASH)).toBeNull();
   });
 });

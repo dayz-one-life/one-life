@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { players, lives, servers, sessions, kills, gamertagLinks, avatars, avatarHashNotBanned } from "@onelife/db";
+import { players, lives, servers, sessions, kills, gamertagLinks, avatars, avatarHashNotBanned, avatarOwnerNotBlockedBy } from "@onelife/db";
 import { and, eq, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 import { livePlaytime } from "./playtime.js";
 import { isLifeQualified } from "./qualified.js";
@@ -47,7 +47,20 @@ const METRICS: ((row: SurvivorCandidate) => number)[] = [
  */
 export async function getAliveSurvivors(
   db: Database,
-  opts: { slug?: string; page: number; pageSize?: number },
+  opts: {
+    slug?: string; page: number; pageSize?: number;
+    /**
+     * WHO IS LOOKING — the authenticated caller's user id, or `undefined` for a signed-out
+     * visitor. Used for one thing only: suppressing the avatar of a player this viewer has
+     * BLOCKED (see `avatarOwnerNotBlockedBy`). Ranking, membership and totals never vary by
+     * viewer — a blocked player still holds their place on the board, they just lose their face.
+     *
+     * ⚠️ Passing it makes this response VIEWER-SPECIFIC; it must only ever be served from a
+     * per-request fetch carrying the caller's own cookies (`getSurvivors` goes through the
+     * cookie-forwarding `apiGet` transport), never from a cache shared across viewers.
+     */
+    viewerUserId?: string;
+  },
   now: Date,
 ): Promise<SurvivorsPage> {
   const pageSize = opts.pageSize ?? SURVIVORS_PAGE_SIZE;
@@ -145,13 +158,22 @@ export async function getAliveSurvivors(
   // LIVE (non-tombstoned) avatar contributes a hash; dropping either clause would leak a pending
   // claim's or a removed avatar's hash onto the board. The ban clause makes an auto-hidden avatar
   // read as "no avatar" (silhouette fallback) instead of emitting a hash whose URL now 404s —
-  // a broken-image glyph on every board between report and confirm.
+  // a broken-image glyph on every board between report and confirm. The block clause does the
+  // same for an owner THIS VIEWER has blocked, and for that viewer alone.
   const pageGamertags = [...new Set(pageCandidates.map((c) => c.gamertag.toLowerCase()))];
   const avatarRows = pageGamertags.length > 0
     ? await db
         .select({ gamertag: gamertagLinks.gamertag, hash: avatars.hash })
         .from(gamertagLinks)
-        .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image), avatarHashNotBanned(avatars.hash)))
+        // Two INDEPENDENT hide clauses, and they mean different things: `avatarHashNotBanned` is
+        // a global decision about the bytes; `avatarOwnerNotBlockedBy` hides this owner's avatar
+        // from THIS VIEWER alone and is a no-op when there is no viewer. See schema.ts.
+        .innerJoin(avatars, and(
+          eq(avatars.userId, gamertagLinks.userId),
+          isNotNull(avatars.image),
+          avatarHashNotBanned(avatars.hash),
+          avatarOwnerNotBlockedBy(avatars.userId, opts.viewerUserId),
+        ))
         .where(and(
           eq(gamertagLinks.status, "verified"),
           inArray(sql`lower(${gamertagLinks.gamertag})`, pageGamertags),

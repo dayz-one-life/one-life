@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags, avatars, articles, avatarHashNotBanned } from "@onelife/db";
+import { servers, players, lives, sessions, bans, gamertagLinks, kills, playerGamertags, avatars, articles, avatarHashNotBanned, avatarOwnerNotBlockedBy } from "@onelife/db";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getPlayerProfile, getPlayerLives } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
@@ -75,7 +75,20 @@ type LifeRow = NonNullable<Awaited<ReturnType<typeof getPlayerLives>>>[number];
 
 export async function getPlayerPage(
   db: Database, gamertag: string, now: Date,
-  opts: { page?: number; pageSize?: number } = {},
+  opts: {
+    page?: number; pageSize?: number;
+    /**
+     * WHO IS LOOKING — the authenticated caller's user id, or `undefined` for a signed-out
+     * visitor. Used for one thing only: suppressing the avatar of a player this viewer has
+     * BLOCKED (see `avatarOwnerNotBlockedBy`). Nothing else on the page varies by viewer.
+     *
+     * ⚠️ Passing it makes this response VIEWER-SPECIFIC. Every caller must therefore fetch it
+     * per-request with the caller's own credentials — the dossier route does (`cache: "no-store"`
+     * plus an awaited `cookies()`). Never serve a viewer-supplied response from a cache shared
+     * across viewers or from a prerender, or one user's block list leaks into another's page.
+     */
+    viewerUserId?: string;
+  } = {},
 ): Promise<PlayerPage | null> {
   const pageSize = opts.pageSize ?? PLAYER_PAST_LIVES_PAGE_SIZE;
   const reqPage = Math.max(1, Math.trunc(opts.page ?? 1) || 1);
@@ -98,10 +111,11 @@ export async function getPlayerPage(
   }
   const [vf] = await db.select({ id: gamertagLinks.id }).from(gamertagLinks).where(and(inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames), eq(gamertagLinks.status, "verified"))).limit(1);
 
-  // The dossier's avatar — the board's exact clause pair (avatar-account-pass spec §5): only a
+  // The dossier's avatar — the board's exact clause set (avatar-account-pass spec §5): only a
   // VERIFIED link with a LIVE (non-tombstoned) avatar contributes; pending links and removals
   // resolve to null exactly like no row at all — and so does a BANNED hash, so an auto-hidden
-  // avatar renders the silhouette rather than a broken image pointing at a 404.
+  // avatar renders the silhouette rather than a broken image pointing at a 404, and so does an
+  // owner THIS VIEWER has blocked.
   // ⚠️ Two DIFFERENT users can each hold a verified link inside `identityNames` — the current
   // gamertag's owner, and a former-name (alias) holder who never released their now-stale link.
   // Without an explicit tie-break the row picked was whatever the query planner happened to
@@ -111,7 +125,15 @@ export async function getPlayerPage(
   const [avatarRow] = await db
     .select({ hash: avatars.hash })
     .from(gamertagLinks)
-    .innerJoin(avatars, and(eq(avatars.userId, gamertagLinks.userId), isNotNull(avatars.image), avatarHashNotBanned(avatars.hash)))
+    // Two INDEPENDENT hide clauses, and they mean different things: `avatarHashNotBanned` is a
+    // global decision about the bytes; `avatarOwnerNotBlockedBy` hides this owner's avatar from
+    // THIS VIEWER alone and is a no-op when there is no viewer. See both docblocks in schema.ts.
+    .innerJoin(avatars, and(
+      eq(avatars.userId, gamertagLinks.userId),
+      isNotNull(avatars.image),
+      avatarHashNotBanned(avatars.hash),
+      avatarOwnerNotBlockedBy(avatars.userId, opts.viewerUserId),
+    ))
     .where(and(
       eq(gamertagLinks.status, "verified"),
       inArray(sql`lower(${gamertagLinks.gamertag})`, identityNames),

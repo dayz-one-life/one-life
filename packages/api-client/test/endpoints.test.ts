@@ -78,4 +78,16 @@ describe("createApiClient", () => {
     await createApiClient(transport).getAppVersionPolicy();
     expect(get).toHaveBeenCalledWith("/api/app-version");
   });
+
+  it("reports an avatar by hash, never by user id", async () => {
+    const { transport, send } = fakeTransport();
+    await createApiClient(transport).reportAvatar("abc123", "hate");
+    expect(send).toHaveBeenCalledWith("POST", "/api/me/reports/avatar", { subjectHash: "abc123", reason: "hate" });
+  });
+
+  it("encodes a gamertag with a space when unblocking", async () => {
+    const { transport, send } = fakeTransport();
+    await createApiClient(transport).unblockPlayer("Big Bill");
+    expect(send).toHaveBeenCalledWith("DELETE", "/api/me/blocks/Big%20Bill");
+  });
 });

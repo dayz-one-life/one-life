@@ -5,6 +5,7 @@ import { playerSlug } from "@/lib/slug";
 import { lifeHrefBySlug } from "@/lib/life-href";
 import { verdictPhrase } from "@/lib/cause-format";
 import { FitLine } from "@/components/front-page/fit-line";
+import { ReportBlockMenu } from "./report-block-menu";
 import { StageAvatar } from "./stage-avatar";
 import { TicketSpend } from "./ticket-spend";
 import { formatDuration, banCountdown, mapLabel, relativeDate } from "./format";
@@ -124,6 +125,19 @@ export function TicketStage({
           fallbackInitial={page.gamertag.slice(0, 1)}
           editable={owner}
         />
+        {/* Never on your own dossier: you cannot report or block yourself. */}
+        {!owner && (
+          <ReportBlockMenu
+            gamertag={page.gamertag}
+            avatarHash={page.avatarHash}
+            // Blocking resolves the gamertag to a verified owner server-side; on an unclaimed
+            // dossier there is nobody to block, and the menu withholds the action rather than
+            // offering one that always 404s. Same field the kicker below prints.
+            // ⚠️ `claimed`, not `verified`: the prop is about THIS DOSSIER's subject, not about
+            // the viewer's own link (which is what "verified" means everywhere else in the menu).
+            claimed={page.verified}
+          />
+        )}
         <div className="min-w-0 flex-1">
           {/* ⚠️ The kicker READS `page.verified` — it was hardcoded "Survivor · verified", which
            *  told every visitor that a gamertag nobody has linked was a verified account. Most

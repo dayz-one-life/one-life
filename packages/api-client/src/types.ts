@@ -106,6 +106,10 @@ export type ClaimResult = {
 export type Me = {
   user: { id: string; name: string; email: string; image: string | null };
   accounts: Array<{ providerId: string; accountId: string }>;
+  // Display only — it gates whether the /moderation page renders its queue at all (the shell has
+  // no link to /moderation; the page is reached by URL only, deliberately — see CLAUDE.md).
+  // Every moderation route re-checks server-side, so trusting this client-side grants nothing.
+  isModerator: boolean;
 };
 
 export type PlayerMapStats = {
@@ -319,4 +323,18 @@ export type TokenWalletData = { balance: number; transactions: TokenTransaction[
 export type AppVersionPolicy = {
   ios: { minimumVersion: string };
   android: { minimumVersion: string };
+};
+
+export const REPORT_REASONS = ["sexual", "violent", "hate", "illegal", "impersonation", "other"] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+
+/** Snapshotted at block time, so it survives the blocked account unlinking. */
+export type BlockedPlayer = { gamertag: string; createdAt: string };
+
+export type ModerationEntry = {
+  hash: string;
+  state: "auto" | "confirmed";
+  blockedAt: string;
+  reportCount: number;
+  reasons: string[];
 };

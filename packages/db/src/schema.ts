@@ -364,22 +364,33 @@ export const avatars = pgTable("avatars", {
 // Xbox identity proven by in-game emote verification. ──
 
 /**
- * A report against another user's avatar.
+ * A report against IMAGE BYTES, named by their content hash.
  *
- * `subjectHash` is SNAPSHOTTED at report time: the subject can swap their avatar the instant
- * they are reported, and the report must still name what was actually seen.
+ * `subjectHash` is the key, not a snapshot of a user's current avatar. That removes the
+ * avatar-swap attack rather than defending against it: the reporter names the bytes they
+ * actually saw, so there is nothing to redirect a report onto by changing avatars, and one
+ * report covers every account holding those bytes (see `blockedAvatarHashes`).
+ *
+ * There is therefore no single "subject user" — `subjectUserId` is resolved context for the
+ * moderator queue only, and is NULL when no account holds the hash.
  */
 export const avatarReports = pgTable("avatar_reports", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   // ⚠️ Both FKs cascade. A non-cascading reference to user.id makes deleteAccount raise 23503
   // for anyone who has ever reported or been reported.
   reporterUserId: text("reporter_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  subjectUserId: text("subject_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  // Resolved context for the moderator queue, not the key — several accounts can hold the same
+  // bytes, so "the subject user" is ambiguous exactly when it matters. See uniqReporterHash.
+  // ⚠️ SET NULL, not cascade. Cascading a nullable CONTEXT column deletes the whole report when
+  // the reported account is deleted, while the hash's ban row survives — leaving the moderator
+  // queue showing an entry with 0 reports and no reason, an image to judge with nothing behind
+  // it. NULL is this column's own documented meaning: no account holds the hash.
+  subjectUserId: text("subject_user_id").references(() => user.id, { onDelete: "set null" }),
   subjectHash: text("subject_hash").notNull(),
   reason: text("reason").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqReporterSubject: uniqueIndex("avatar_reports_reporter_subject_uniq").on(t.reporterUserId, t.subjectUserId),
+  uniqReporterHash: uniqueIndex("avatar_reports_reporter_hash_uniq").on(t.reporterUserId, t.subjectHash),
   byHash: index("avatar_reports_hash_idx").on(t.subjectHash),
   // Supports the rolling 24h cap count.
   byReporterCreated: index("avatar_reports_reporter_created_idx").on(t.reporterUserId, t.createdAt),
@@ -426,10 +437,43 @@ export function avatarHashNotBanned(hashExpr: SQL | AnyColumn): SQL {
 export const userBlocks = pgTable("user_blocks", {
   blockerUserId: text("blocker_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   blockedUserId: text("blocked_user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  // Snapshot of the blocked player's gamertag AT BLOCK TIME. Not a join to gamertag_links: if
+  // they later unlink, a join yields null and the row becomes both unlabelable and unremovable.
+  blockedGamertag: text("blocked_gamertag").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }),
 }));
+
+/**
+ * The BLOCK predicate — the viewer-scoped counterpart to `avatarHashNotBanned`. Pass the avatar
+ * owner's user-id column (or an SQL expression yielding one) plus the id of the viewer the query
+ * is being run FOR.
+ *
+ * ⚠️ The two predicates are NOT interchangeable, and confusing them is the failure mode this
+ * comment exists to prevent:
+ *   • `avatarHashNotBanned` is GLOBAL — a report/moderator decision about the BYTES, applied
+ *     identically to every viewer.
+ *   • this one is VIEWER-SCOPED — it hides the blocked user's avatar from the BLOCKER ONLY.
+ *     Applied without a viewer, or with a viewer derived from anything but the authenticated
+ *     caller, it would let any user hide any avatar from everyone: a unilateral takedown button.
+ *
+ * ⚠️ ONE direction, deliberately. The block dialog promises "blocking hides their avatar from
+ * you"; it does not promise to hide YOUR avatar from THEM. (Location sharing IS severed both
+ * ways — see `isBlockedEitherWay` — because a live location feed is a channel, not a page the
+ * other person chose to open.) Do not symmetrise this to match location sharing: that would let
+ * a harasser erase their victim's avatar from the victim's own view of the site.
+ *
+ * ⚠️ An `undefined` viewer matches EVERY row. A signed-out visitor holds no account and
+ * therefore blocks nobody, so the predicate must be a no-op rather than a filter. For the same
+ * reason it must never be reached from a response that is CACHED ACROSS VIEWERS — see the
+ * `getOrNullCached` docblock in apps/web/src/lib/api.ts; `getLifeTimeline` is fetched that way
+ * and deliberately takes no viewer.
+ */
+export function avatarOwnerNotBlockedBy(ownerExpr: SQL | AnyColumn, viewerUserId: string | undefined): SQL {
+  if (!viewerUserId) return sql`true`;
+  return sql`not exists (select 1 from user_blocks ub where ub.blocker_user_id = ${viewerUserId} and ub.blocked_user_id = ${ownerExpr})`;
+}
 
 // ── Obituaries revival. Durable side-table — generated obituary content, trimmed to the
 // obituary slice (no birth notices, no news, no image pipeline, no Discord notifier). Like

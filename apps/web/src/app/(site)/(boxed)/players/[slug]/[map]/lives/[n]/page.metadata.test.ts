@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { generateMetadata } from "./page";
 
 vi.mock("@/lib/api", () => ({
+  // The page module also reaches `getBlocks` (through `viewer-blocks`, for the viewer-scoped
+  // avatar block); metadata never calls it, but the mocked module must still carry the export.
+  getBlocks: vi.fn(async () => ({ blocks: [] })),
   getPlayerLife: vi.fn().mockResolvedValue({
     life: {
       lifeNumber: 3,
