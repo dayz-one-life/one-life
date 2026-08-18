@@ -11,10 +11,11 @@ import { useModalBehavior } from "@/lib/use-modal-behavior";
  * no account behind it to block, today or ever.
  */
 const ERRORS: Record<string, string> = {
-  // 404. `blockByGamertag` resolves through `verifiedOwnerByGamertag`. `ReportBlockMenu` gates
+  // 404. `blockByGamertag` resolves through `verifiedOwnerByGamertag` — VERIFIED, not merely
+  // claimed: a pending claim lands here too, so the copy says "verified". `ReportBlockMenu` gates
   // Block on the dossier's `verified` flag so this should be unreachable from the dossier —
   // but a gamertag can be unlinked between page render and confirm, so it stays handled.
-  unknown_gamertag: "Nobody has claimed this gamertag, so there is no account to block. Nothing was changed.",
+  unknown_gamertag: "Nobody has verified this gamertag, so there is no account to block. Nothing was changed.",
   // 400.
   self: "That is your own account — you cannot block yourself. Nothing was changed.",
 };

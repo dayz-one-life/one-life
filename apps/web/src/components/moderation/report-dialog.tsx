@@ -35,8 +35,10 @@ const ERRORS: Record<string, string> = {
   unknown_hash: "That avatar is no longer here — it was changed or removed. Nothing to report.",
   // 400.
   self: "That is your own avatar. Remove it from your settings instead.",
-  // 409. The ban row exists in `auto` or `confirmed` state, so it really is still hidden —
-  // `allowed` would have come back as already_reviewed instead.
+  // 409. Only ever returned while the ban row is in `auto` or `confirmed` state, so "hidden" is
+  // true: the server checks the durable `allowed` state FIRST and answers `already_reviewed` for
+  // a restored hash, whoever is asking. Without that ordering this string lied to the original
+  // reporter — the one person guaranteed to hit it — about a visible avatar.
   already_reported: "You already reported this avatar. It has been hidden since, and a moderator will decide.",
   // 409. A moderator looked at these bytes and allowed them. That decision is durable — this
   // report would not hide anything, and no moderator would ever see it.
