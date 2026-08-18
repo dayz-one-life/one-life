@@ -83,4 +83,35 @@ describe("ModerationBody", () => {
     expect(await screen.findByText(/don't have access|do not have access/i)).toBeTruthy();
     expect(screen.queryByText(/abc123/)).toBeNull();
   });
+
+  it("shows the loading state on initial mount", async () => {
+    q.mockResolvedValue({ entries: [ENTRY] });
+    render(<ModerationBody />);
+    expect(screen.getAllByText(/loading/i).length).toBeGreaterThan(0);
+    // Let the pending getMe/getModerationQueue promises settle inside `act` before the test
+    // ends, so their state updates don't land un-wrapped after teardown.
+    await screen.findByText(/abc123/);
+  });
+
+  // ⚠️ A "confirmed" row already had its bytes destroyed. Offering Show image / Restore /
+  // Confirm removal on it can only mislead — Show image 404s, and Restore "succeeds" while
+  // restoring nothing because the bytes are gone. There is no action left to take.
+  it("renders an already-removed label for a confirmed row, with none of the three action buttons", async () => {
+    q.mockResolvedValue({ entries: [{ ...ENTRY, state: "confirmed" }] });
+    render(<ModerationBody />);
+    expect(await screen.findByText(/abc123/)).toBeTruthy();
+    expect(screen.getByText(/already removed|permanently removed|removed/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /show image/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /restore/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /confirm removal/i })).toBeNull();
+  });
+
+  it("still offers Show image / Restore / Confirm removal on an auto row", async () => {
+    q.mockResolvedValue({ entries: [{ ...ENTRY, state: "auto" }] });
+    render(<ModerationBody />);
+    await screen.findByText(/abc123/);
+    expect(screen.getByRole("button", { name: /show image/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /restore/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /confirm removal/i })).toBeTruthy();
+  });
 });

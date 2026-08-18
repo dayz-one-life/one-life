@@ -150,63 +150,84 @@ export function ModerationBody() {
           {state.entries.map((e) => {
             const reasons = Array.from(new Set(e.reasons));
             const isPending = pending.has(e.hash);
+            // A "confirmed" row already had its bytes destroyed by a prior takedown — the
+            // server only filters out "allowed" rows, so confirmed ones stay in the queue
+            // response. Offering Show image / Restore / Confirm removal on it can only mislead:
+            // Show image 404s, and Restore would report success while restoring nothing because
+            // the bytes are gone. There is no action left to take, so none is offered.
+            const isConfirmed = e.state === "confirmed";
             return (
-              <li key={e.hash} className="border-t border-ink/10 py-4">
+              // Confirmed rows are visibly muted (dimmed, no red accents) so a moderator
+              // scanning the queue can tell at a glance which rows still need judgment (auto,
+              // full contrast) versus which are already settled (confirmed, dimmed).
+              <li
+                key={e.hash}
+                className={`border-t border-ink/10 py-4 ${isConfirmed ? "opacity-50" : ""}`}
+              >
                 <p className="font-mono text-[11.5px] uppercase text-ink-muted">
                   {e.hash} · {e.reportCount} reports · {reasons.join(", ")}
                 </p>
 
-                {/* Click-to-reveal, never inline. Every row here is something a person reported
-                    as objectionable; a wall of them is a page the moderator learns to avoid. */}
-                {revealed.has(e.hash) ? (
-                  <img
-                    src={moderationImageSrc(e.hash)}
-                    alt="Reported avatar"
-                    width={96}
-                    height={96}
-                    className="mt-3 rounded-full border border-ink"
-                  />
+                {isConfirmed ? (
+                  <p className="mt-3 font-mono text-xs font-bold uppercase text-ink-muted">
+                    Already permanently removed — its image is gone, nothing left to review.
+                  </p>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setRevealed((s) => new Set(s).add(e.hash))}
-                    className="mt-3 border border-ink px-3 py-1 font-mono text-xs uppercase"
-                  >
-                    Show image
-                  </button>
-                )}
+                  <>
+                    {/* Click-to-reveal, never inline. Every row here is something a person
+                        reported as objectionable; a wall of them is a page the moderator learns
+                        to avoid. */}
+                    {revealed.has(e.hash) ? (
+                      <img
+                        src={moderationImageSrc(e.hash)}
+                        alt="Reported avatar"
+                        width={96}
+                        height={96}
+                        className="mt-3 rounded-full border border-ink"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setRevealed((s) => new Set(s).add(e.hash))}
+                        className="mt-3 border border-ink px-3 py-1 font-mono text-xs uppercase"
+                      >
+                        Show image
+                      </button>
+                    )}
 
-                <div className="mt-3 flex gap-3">
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => void onRestore(e.hash)}
-                    className="border border-ink px-3 py-1 font-mono text-xs uppercase disabled:opacity-50"
-                  >
-                    Restore
-                  </button>
-                  {/* Two-step: confirm DESTROYS the bytes and cannot be undone, so a single click
-                      must never trigger it. The first click only arms this row — a different
-                      button, with different wording, does the irreversible part. */}
-                  {armed === e.hash ? (
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => void onConfirm(e.hash)}
-                      className="border border-red-deep px-3 py-1 font-mono text-xs uppercase text-red-deep disabled:opacity-50"
-                    >
-                      Permanently delete
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setArmed(e.hash)}
-                      className="border border-red-deep px-3 py-1 font-mono text-xs uppercase text-red-deep"
-                    >
-                      Confirm removal
-                    </button>
-                  )}
-                </div>
+                    <div className="mt-3 flex gap-3">
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => void onRestore(e.hash)}
+                        className="border border-ink px-3 py-1 font-mono text-xs uppercase disabled:opacity-50"
+                      >
+                        Restore
+                      </button>
+                      {/* Two-step: confirm DESTROYS the bytes and cannot be undone, so a single
+                          click must never trigger it. The first click only arms this row — a
+                          different button, with different wording, does the irreversible part. */}
+                      {armed === e.hash ? (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => void onConfirm(e.hash)}
+                          className="border border-red-deep px-3 py-1 font-mono text-xs uppercase text-red-deep disabled:opacity-50"
+                        >
+                          Permanently delete
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setArmed(e.hash)}
+                          className="border border-red-deep px-3 py-1 font-mono text-xs uppercase text-red-deep"
+                        >
+                          Confirm removal
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </li>
             );
           })}
