@@ -196,8 +196,11 @@ ingested. Players are kicked by the restart regardless.
 (nitrado_service_id)`) no longer matches a partial index and is rewritten to point at
 `fleet-cutover`.
 
-Before the 15th, confirm a dotted slug is served end to end in production: `/survivors/chernarus-1.29`
-and a life page under it. No app code rejects dots, but nginx config was not inspected.
+Right after the cutover (the dotted slug does not exist before it), confirm a dotted slug is
+served end to end in production on a real life page of the old Chernarus:
+`/players/<player-slug>/chernarus-1.29/lives/<n>`. Not `/survivors/chernarus-1.29`, which 404s by
+design because retired servers drop off the boards. No app code rejects dots, but nginx config
+was not inspected.
 
 ## Testing
 

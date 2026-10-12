@@ -303,9 +303,14 @@ cd /var/www/dayzonelife.com
   legitimately created.
 - **⚠️ The fleet-turnover release (`0039`) replaces `servers_nitrado_service_id_uniq` with a partial
   unique index `WHERE active`.** Older releases do not use `ON CONFLICT` on `servers`, so a HAND
-  rollback is safe. What changes is that a second ACTIVE row on one Nitrado service is refused
-  from now on (a retired row may share its service id with the active one that replaced it).
-  This release needs no `--rebuild`.
+  rollback is safe **only BEFORE the fleet cutover (section B of "Fleet turnover") has run.**
+  After it, a pre-0039 build ignores `ingest_from` (the new Chernarus row would backfill every
+  Livonia ADM still on service 19366604), cannot recreate the old full unique index (two rows now
+  share 19366604), and shows retired servers' open lives as alive. So after the cutover: stop
+  `onelife-ingest` FIRST (`sudo systemctl stop onelife-ingest`), and prefer restoring the
+  pre-deploy dump over a hand rollback. What 0039 changes going forward is that a second ACTIVE
+  row on one Nitrado service is refused (a retired row may share its service id with the active
+  one that replaced it). This release needs no `--rebuild`.
 
 <details><summary>Manual equivalent (fallback)</summary>
 
@@ -338,7 +343,7 @@ grep -oE 'http://[^"]+' apps/web/.next/routes-manifest.json | sort -u   # expect
 ```bash
 cd /var/www/dayzonelife.com
 PNPM="$(command -v pnpm || echo /home/acab/.local/bin/pnpm)"
-DATABASE_URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)" \
+DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')" \
   "$PNPM" --filter @onelife/projector run fleet-cutover -- \
   --add <slug>:<name>:<map-codename>:<nitrado-service-id>          # dry run: prints BEFORE/AFTER
 # re-run with --apply to commit
@@ -377,7 +382,7 @@ explicitly (the script never exports it):
 ```bash
 cd /var/www/dayzonelife.com
 PNPM="$(command -v pnpm || echo /home/acab/.local/bin/pnpm)"
-DB="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)"
+DB="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/')"
 ```
 
 ### A. After the deploy, before the 15th: retire Sakhal after the fact
@@ -407,7 +412,21 @@ Nasdara's map codename and Nitrado service id are NOT known yet. Fill them in on
 codename comes from the server's mission/config once the map exists, the service id from the
 Nitrado panel. Do not guess either.
 
-1. **Dry run** (changes nothing; read the BEFORE/AFTER tables):
+⚠️ **Nothing may restart the Livonia server between `--apply` and the map switch.** From
+`--apply` on, the new Chernarus row is active on service 19366604 with `ingest_from` = the
+cutover time, so a Livonia restart in that gap writes a fresh Livonia ADM that the new row
+ingests as Chernarus. `onelife-rebooter` restarts every ACTIVE server at every even UTC hour
+(00:00, 02:00, ...), and Nitrado runs its own scheduled restarts, hence the order below.
+
+1. **Stop the rebooter**, and do the whole of steps 1 to 6 clear of the minutes around an even
+   UTC hour and of any Nitrado scheduled restart for 19366604:
+
+   ```bash
+   sudo systemctl stop onelife-rebooter
+   ```
+
+2. **In the Nitrado panel, stop the Livonia server (service 19366604).**
+3. **Dry run** (changes nothing; read the BEFORE/AFTER tables and the re-pointed obituary count):
 
    ```bash
    DATABASE_URL="$DB" "$PNPM" --filter @onelife/projector run fleet-cutover -- \
@@ -416,10 +435,28 @@ Nitrado panel. Do not guess either.
      --add nasdara:Nasdara:<NASDARA-MAP-CODENAME>:<NASDARA-NITRADO-SERVICE-ID>
    ```
 
-2. **Apply**: the same command with `--apply` appended. It is one transaction; any refusal rolls
-   back everything.
-3. **Only then switch maps on Nitrado.** Cutover first, map switch after, never before.
-4. **Watch** `sudo journalctl -u onelife-ingest -f`. Ingest goes from 2 active servers (Chernarus,
+4. **Apply**: the same command with `--apply` appended. It is one transaction; any refusal rolls
+   back everything. The rename also re-points the old Chernarus's obituaries to `chernarus-1.29`,
+   so their "Final Reload" and life links keep pointing at the old server.
+5. **Only then switch 19366604's map to Chernarus on Nitrado and start it.** Cutover first, map
+   switch after, never before.
+6. **Start the rebooter again:**
+
+   ```bash
+   sudo systemctl start onelife-rebooter
+   ```
+
+7. **Before players join, check what the new rows ingested.** Every file listed for the new
+   Chernarus and Nasdara ids must be dated after the map switch; an older one is a Livonia log
+   that slipped in, and it would put Livonia play on the new Chernarus row:
+
+   ```bash
+   psql "$DB" -c "SELECT server_id, name, log_date FROM adm_files WHERE server_id IN (SELECT id FROM servers WHERE active) ORDER BY id DESC LIMIT 10"
+   ```
+
+   If one appears, stop `onelife-ingest` (`sudo systemctl stop onelife-ingest`) before anyone
+   joins and sort it out; the abort path below stays open while no life exists on the new rows.
+8. **Watch** `sudo journalctl -u onelife-ingest -f`. Ingest goes from 2 active servers (Chernarus,
    Livonia; Sakhal is already off) to 2 active servers (the new Chernarus and Nasdara), so expect
    `"servers":2` sweeps throughout, now covering the new rows. Then confirm new lives (spawns)
    land on the new rows. The query counts lives started in the last hour per server, so expect
@@ -429,9 +466,54 @@ Nitrado panel. Do not guess either.
    psql "$DB" -c "SELECT server_id, count(*) FROM lives WHERE started_at > now() - interval '1 hour' GROUP BY 1"
    ```
 
-5. **Post-cutover web check**, once the cutover has run: confirm a dotted slug serves in
-   production, `curl -sI https://dayzonelife.com/survivors/chernarus-1.29` (expect `HTTP/2 200`).
-   It cannot be checked before the row exists.
+9. **Post-cutover web check**, once the cutover has run: confirm a dotted slug serves in
+   production on a real life page of the old Chernarus. (`/survivors/chernarus-1.29` 404s by
+   design: retired servers drop off the boards.) The query prints the player slug the site uses
+   (the gamertag lowercased, each run of non-alphanumerics turned into one `-`, leading and
+   trailing `-` trimmed) and the life number:
+
+   ```bash
+   psql "$DB" -At -c "SELECT trim(both '-' from regexp_replace(lower(p.gamertag), '[^a-z0-9]+', '-', 'g')), l.life_number FROM lives l JOIN players p ON p.id = l.player_id WHERE l.server_id = 1 ORDER BY l.id DESC LIMIT 1"
+   curl -sI https://dayzonelife.com/players/<player-slug>/chernarus-1.29/lives/<n>   # expect HTTP/2 200
+   ```
+
+   It cannot be checked before the rename.
+
+#### Aborting after `--apply` (the map switch failed and you must revert)
+
+Valid ONLY while no player has spawned on the new rows. Stop ingest, find the new rows' ids, and
+confirm they have no lives:
+
+```bash
+sudo systemctl stop onelife-ingest
+psql "$DB" -c "SELECT id, slug, nitrado_service_id FROM servers WHERE slug IN ('chernarus', 'nasdara')"
+psql "$DB" -c "SELECT server_id, count(*) FROM lives WHERE server_id IN (<NEW-CHERNARUS-ID>, <NASDARA-ID>) GROUP BY 1"
+```
+
+If the second query prints ANY row, do not use this path: restore the pre-cutover state from a
+dump instead. If it prints none, revert in one transaction. It deletes the new rows (and any
+ingest bookkeeping they gathered), hands `chernarus` back to row 1, re-points its obituaries back,
+and un-retires rows 1 and 3 (Sakhal, row 2, stays retired):
+
+```bash
+psql "$DB" -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+DELETE FROM events    WHERE server_id IN (<NEW-CHERNARUS-ID>, <NASDARA-ID>);
+DELETE FROM raw_lines WHERE server_id IN (<NEW-CHERNARUS-ID>, <NASDARA-ID>);
+DELETE FROM adm_files WHERE server_id IN (<NEW-CHERNARUS-ID>, <NASDARA-ID>);
+DELETE FROM servers   WHERE id IN (<NEW-CHERNARUS-ID>, <NASDARA-ID>);
+UPDATE servers  SET slug = 'chernarus' WHERE id = 1 AND slug = 'chernarus-1.29';
+UPDATE articles SET map_slug = 'chernarus' WHERE server_id = 1;
+UPDATE servers  SET active = true, retired_at = NULL WHERE id IN (1, 3);
+COMMIT;
+SQL
+```
+
+`ON_ERROR_STOP` makes psql quit at the first error, before `COMMIT`, so a failure changes
+nothing. A foreign-key error from the `DELETE FROM servers` means the new rows already hold projected
+play; the transaction rolls back whole and this path is closed. Otherwise restart the Livonia
+server (19366604, map still Livonia) on Nitrado, then
+`sudo systemctl start onelife-ingest onelife-rebooter`.
 
 ## Enabling Discord login
 
