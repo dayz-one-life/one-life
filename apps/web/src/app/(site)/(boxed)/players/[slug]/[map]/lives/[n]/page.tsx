@@ -25,7 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!data) return { title: { absolute: "Life — One Life" } };
   const label = mapLabel(data.map);
   const title = `Life ${data.life.lifeNumber} · ${label} — ${data.gamertag} — One Life`;
-  const description = `The record of ${data.gamertag}'s life ${data.life.lifeNumber} on ${label} — every session, kill, and the death that ended it.`;
+  const record = `The record of ${data.gamertag}'s life ${data.life.lifeNumber} on ${label}`;
+  // A server retirement ends a life without a death, and an open life has none yet.
+  const description =
+    data.life.endReason === "server_retired" ? `${record}: every session and kill, until the server closed.`
+    : data.life.endedAt === null ? `${record}: every session and kill so far.`
+    : `${record} — every session, kill, and the death that ended it.`;
   const canonical = absoluteUrl(`/players/${slug}/${map}/lives/${num}`);
   return {
     title: { absolute: title },
