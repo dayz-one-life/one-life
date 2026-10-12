@@ -15,8 +15,11 @@ export const servers = pgTable("servers", {
   active: boolean("active").notNull().default(true),
   clockOffsetMs: bigint("clock_offset_ms", { mode: "number" }).notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  ingestFrom: timestamp("ingest_from", { withTimezone: true }),
 }, (t) => ({
-  uniqService: uniqueIndex("servers_nitrado_service_id_uniq").on(t.nitradoServiceId),
+  // Partial: one Nitrado service may have many retired rows but only one active row.
+  uniqActiveService: uniqueIndex("servers_nitrado_service_id_active_uniq").on(t.nitradoServiceId).where(sql`${t.active}`),
   uniqSlug: uniqueIndex("servers_slug_uniq").on(t.slug),
 }));
 
