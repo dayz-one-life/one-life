@@ -81,32 +81,53 @@ Rule: **a life with `ended_at IS NULL` on a server with `retired_at` set ended a
 and not by death.** Nothing is written to `lives`. The fold, projection tables and `--rebuild`
 are untouched (derived facts are computed at read time, never materialized).
 
-In `packages/read-models`, the shared life queries compute it once in SQL:
+There is no single shared life query: each read-model selects `lives` itself. But only readers
+that do **not** filter on `servers.active` can ever see a retired server's life. Every board,
+standing card, leaderboard and shared-position reader already filters on `active`, so retired
+lives never reach them. The readers that can see one are:
 
-- `endedAt` = `COALESCE(lives.ended_at, servers.retired_at)`, so existing downstream
-  "open means alive" checks are right without edits.
-- New field `endReason: 'death' | 'server_retired' | null`, threaded through
-  `packages/api-client` types.
-- An open session on a retired server is capped at `retired_at` for playtime.
+| Reader | Used by |
+| --- | --- |
+| `getPlayerLives` (`queries.ts`) | the dossier's past lives and totals (after the fix below), the life page route |
+| `getLifeDetail` (`queries.ts`) | `getLifeTimeline`, the life page and its OpenGraph image |
+| `getLifeTrack` (`life-track.ts`) | the owner-only life map |
 
-Display: every place that renders a life's state reads `endReason` and shows "Alive when the
-server closed" instead of a cause of death. Known places: `ticket-stage.tsx`,
-`components/account/format.ts`, `client-logic` `player-format.ts` and `life-timeline.ts`,
-`components/servers/grouping.ts`, the life page and its OpenGraph image. The implementation plan
-enumerates the full list from a grep of `endedAt` readers.
+A new `packages/read-models/src/retirement.ts` holds the rule as one pure function,
+`applyRetirement(life, openSession, retiredAt)`, and those three readers call it. For a retired
+open life it returns:
+
+- `endedAt` = `retiredAt`, and `endReason` = `"server_retired"`;
+- `playtimeSeconds` = the stored playtime plus the open session up to `retiredAt`, and that
+  session's `disconnectedAt` = `retiredAt`.
+
+Every other life passes through with `endReason` = `"death"` (ended) or `null` (open).
+`endReason` is added to the API's `Life` type.
+
+Display, on the life page: the hero's status reads `RETIRED` (not `DEAD`) and shows no cause;
+the timeline's terminal row is a new `retired` event, "Alive when the server closed", instead of
+a death row; the OpenGraph image reads the same as the hero.
 
 Counts: a retired-ended life counts in **lives** and toward **longest life**, never in
-**deaths** or anything kill-related.
+**deaths**. Kills already count only real kills.
+
+### The dossier must include retired servers
+
+`getPlayerPage` (`player-page.ts`) loops over **active** servers only. That loop builds the
+past-lives list and every total, so retiring a server silently removes its history from every
+dossier, and a player who only ever played a retired server gets a 404. This has been live for
+Sakhal since 2026-10-09 (189 players, 125 of them Sakhal-only).
+
+Fix: loop over every **slugged** server. Build a standing card only for active ones (retired
+servers drop off the ticket stage, as decided), but take past lives and totals from all of
+them. `totals.deaths` counts `endReason === "death"` only.
 
 Workers:
 
 | Worker | Treatment |
 | --- | --- |
-| Enforcer | Reads raw `lives` and acts on deaths. A retirement never reaches it. Add a test pinning that. |
-| Newsdesk / obituaries | Driven by deaths. A retirement produces none. Add a test pinning that. |
+| Enforcer | Acts on deaths it reads from raw `lives`. Retirement writes nothing there, so it cannot cause a ban. No change. |
+| Newsdesk / obituaries | Driven by death events. A retirement has none, so it cannot produce an obituary. No change. |
 | Notifier | `generators/lives.ts` selects every open slugged life. Add `servers.retired_at IS NULL`. |
-
-Boards: retired servers are inactive, and every board already filters on `active`. No change.
 
 ## 3. The cutover command
 
@@ -191,15 +212,16 @@ and a life page under it. No app code rejects dots, but nginx config was not ins
   - every refusal case leaves the table untouched;
   - the slug handover works in one run;
   - an already-paused row is accepted.
+- **Dossier.** A retired server's lives appear in past lives and totals; a player who only
+  played a retired server gets a page, not a 404; retired servers get no standing card.
 - **Read-models.**
   - An open life on a retired server has `endedAt = retired_at` and
     `endReason = 'server_retired'`.
   - A paused, unretired server's open life stays open.
   - A retired life counts in lives, not deaths.
   - A session's playtime is capped at `retired_at`.
-- **Workers.** The notifier skips retired servers. The enforcer and newsdesk never act on a
-  retirement.
-- **Web.** "Alive when the server closed" renders at each display point.
+- **Workers.** The notifier skips retired servers.
+- **Web.** The life page hero, timeline and OpenGraph image render a retired life as retired.
 
 ## Out of scope
 
