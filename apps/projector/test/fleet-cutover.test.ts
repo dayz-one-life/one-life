@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
-import { servers } from "@onelife/db";
+import { articles, servers } from "@onelife/db";
 import { inArray } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { parseCutoverArgs, runCutover } from "../src/fleet-cutover.js";
@@ -9,7 +9,14 @@ const base = Math.floor(Math.random() * 1e7) + 14e8;
 const A = base, B = base + 1, C = base + 2;
 const AT = new Date("2026-10-15T09:00:00Z");
 
+const ids = async () => (await db.select({ id: servers.id }).from(servers).where(inArray(servers.nitradoServiceId, [A, B, C]))).map((r) => r.id);
+async function clear() {
+  const s = await ids();
+  if (s.length) await db.delete(articles).where(inArray(articles.serverId, s));
+  await db.delete(servers).where(inArray(servers.nitradoServiceId, [A, B, C]));
+}
 async function reset() {
+  await clear();
   await db.delete(servers).where(inArray(servers.nitradoServiceId, [A, B, C]));
   await db.insert(servers).values([
     { nitradoServiceId: A, name: "Chernarus", map: "chernarusplus", slug: "fc-chern" },
@@ -18,7 +25,7 @@ async function reset() {
 }
 const rows = () => db.select().from(servers).where(inArray(servers.nitradoServiceId, [A, B, C]));
 beforeEach(reset);
-afterAll(async () => { await db.delete(servers).where(inArray(servers.nitradoServiceId, [A, B, C])); await sql.end(); });
+afterAll(async () => { await clear(); await sql.end(); });
 
 describe("fleet-cutover", () => {
   const argv = ["--retire", "fc-chern=fc-chern-1.29", "--retire", "fc-liv",
@@ -80,5 +87,33 @@ describe("fleet-cutover", () => {
 
   it("refuses a second active row on one service", async () => {
     await expect(runCutover(db, parseCutoverArgs(["--add", `fc-nas:N:nasdara:${A}`, "--apply"]), AT)).rejects.toThrow(/active/);
+  });
+
+  describe("obituaries on a renamed server", () => {
+    async function seedArticles() {
+      const all = await rows();
+      const chern = all.find((s) => s.slug === "fc-chern")!, liv = all.find((s) => s.slug === "fc-liv")!;
+      await db.insert(articles).values([
+        { kind: "obituary", slug: `fc-obit-chern-${base}`, serverId: chern.id, map: "chernarusplus", mapSlug: "fc-chern", gamertag: "Ghost", lifeNumber: 3 },
+        { kind: "obituary", slug: `fc-obit-liv-${base}`, serverId: liv.id, map: "enoch", mapSlug: "fc-liv", gamertag: "Ghost", lifeNumber: 1 },
+      ]);
+      return { chern, liv };
+    }
+    const slugOf = async (slug: string) => (await db.select().from(articles).where(inArray(articles.slug, [slug])))[0]!.mapSlug;
+
+    it("--apply re-points the renamed server's articles and leaves other servers' alone", async () => {
+      await seedArticles();
+      const r = await runCutover(db, parseCutoverArgs([...argv, "--apply"]), AT);
+      expect(r.repointedArticles).toBe(1);
+      expect(await slugOf(`fc-obit-chern-${base}`)).toBe("fc-chern-1.29");
+      expect(await slugOf(`fc-obit-liv-${base}`)).toBe("fc-liv");
+    });
+
+    it("a dry run reports the count but changes no article", async () => {
+      await seedArticles();
+      const r = await runCutover(db, parseCutoverArgs(argv), AT);
+      expect(r.repointedArticles).toBe(1);
+      expect(await slugOf(`fc-obit-chern-${base}`)).toBe("fc-chern");
+    });
   });
 });

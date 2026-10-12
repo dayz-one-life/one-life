@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { Database } from "@onelife/db";
-import { servers } from "@onelife/db";
+import { articles, servers } from "@onelife/db";
 
 export type RetireOp = { slug: string; newSlug: string | null };
 export type AddOp = { slug: string; name: string; map: string; serviceId: number };
@@ -35,24 +35,33 @@ export function parseCutoverArgs(argv: string[]): CutoverPlan {
 class DryRun extends Error {}
 
 /** ⚠️ One transaction, ordered: retirements, then slug renames, then inserts. The retiring row must
- *  release its slug before the new row can take it. Any refusal rolls back everything. */
+ *  release its slug before the new row can take it. Any refusal rolls back everything.
+ *  ⚠️ A rename also re-points that server's obituaries: `articles.map_slug` is a copy taken at
+ *  publish time, so left alone it would hand an old obituary's "Final Reload" and life link to
+ *  the NEW server that takes the slug over. */
 export async function runCutover(db: Database, plan: CutoverPlan, at: Date) {
   const retiredAt = plan.retiredAt ?? at;
-  let result!: { before: ServerRow[]; after: ServerRow[] };
+  let result!: { before: ServerRow[]; after: ServerRow[]; repointedArticles: number };
   try {
     await db.transaction(async (tx) => {
       const before = await tx.select().from(servers).orderBy(servers.id);
+      const retiredIds = new Map<RetireOp, number>();
       for (const r of plan.retire) {
         const [row] = await tx.select().from(servers).where(eq(servers.slug, r.slug));
         if (!row) throw new Error(`fleet-cutover: no server with slug ${r.slug}`);
         if (row.retiredAt) throw new Error(`fleet-cutover: ${r.slug} is already retired`);
         await tx.update(servers).set({ active: false, retiredAt }).where(eq(servers.id, row.id));
+        retiredIds.set(r, row.id);
       }
+      let repointedArticles = 0;
       for (const r of plan.retire) {
         if (!r.newSlug) continue;
         const [taken] = await tx.select().from(servers).where(eq(servers.slug, r.newSlug));
         if (taken) throw new Error(`fleet-cutover: slug ${r.newSlug} is taken`);
-        await tx.update(servers).set({ slug: r.newSlug }).where(eq(servers.slug, r.slug));
+        const id = retiredIds.get(r)!;
+        await tx.update(servers).set({ slug: r.newSlug }).where(eq(servers.id, id));
+        const moved = await tx.update(articles).set({ mapSlug: r.newSlug }).where(eq(articles.serverId, id)).returning({ id: articles.id });
+        repointedArticles += moved.length;
       }
       for (const a of plan.add) {
         const [taken] = await tx.select().from(servers).where(eq(servers.slug, a.slug));
@@ -62,7 +71,7 @@ export async function runCutover(db: Database, plan: CutoverPlan, at: Date) {
         await tx.insert(servers).values({ nitradoServiceId: a.serviceId, name: a.name, map: a.map, slug: a.slug, active: true, ingestFrom: at });
       }
       const after = await tx.select().from(servers).orderBy(servers.id);
-      result = { before, after };
+      result = { before, after, repointedArticles };
       if (!plan.apply) throw new DryRun();
     });
   } catch (e) {
@@ -76,10 +85,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (!process.env.DATABASE_URL) throw new Error("fleet-cutover: DATABASE_URL is required");
   const { db, sql: end } = getDb(process.env.DATABASE_URL);
   const plan = parseCutoverArgs(process.argv.slice(2));
-  const { before, after } = await runCutover(db, plan, new Date());
+  const { before, after, repointedArticles } = await runCutover(db, plan, new Date());
   const show = (rs: ServerRow[]) => console.table(rs.map((s) => ({ id: s.id, slug: s.slug, name: s.name, map: s.map, service: s.nitradoServiceId, active: s.active, retired_at: s.retiredAt?.toISOString() ?? null, ingest_from: s.ingestFrom?.toISOString() ?? null })));
   console.log("BEFORE"); show(before);
   console.log(plan.apply ? "AFTER (applied)" : "AFTER (dry run, nothing changed; pass --apply)"); show(after);
+  console.log(`obituaries re-pointed to a renamed slug: ${repointedArticles}${plan.apply ? "" : " (dry run, nothing changed)"}`);
   await end.end();
   process.exit(0);
 }
