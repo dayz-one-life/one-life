@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.78.0] - 2026-10-12
+
 ### Added
 
 - Servers can now be retired. A life still open when its server closed reads "Alive when the
@@ -27,18 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The join-servers replica on the home page now lists Chernarus and Nasdara, and the newsdesk
   treats Nasdara as a map name rather than a place.
-- Open lives on a retired server no longer generate notifications.
 
 ### Fixed
 
 - A player's page keeps the lives they played on servers that have since closed. Switching a
   server off used to drop its history from every dossier, and a player who had only played there
   got a 404 (live for Sakhal since 2026-10-09). Closed servers still get no standing card.
-
-### Fixed
-
-- A player's dossier now keeps their history on a retired server. Sakhal's lives, deaths and
-  obituaries had dropped out of the dossier once the server was switched off.
 - The notifier no longer sends open-life notifications for lives on a retired server.
 
 ## [0.77.0] - 2026-08-18
