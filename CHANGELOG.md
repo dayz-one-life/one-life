@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The join-servers replica on the home page now lists Chernarus and Nasdara, and the newsdesk
   treats Nasdara as a map name rather than a place.
+- Open lives on a retired server no longer generate notifications.
+
+### Fixed
+
+- A player's page keeps the lives they played on servers that have since closed. Switching a
+  server off used to drop its history from every dossier, and a player who had only played there
+  got a 404 (live for Sakhal since 2026-10-09). Closed servers still get no standing card.
 
 ### Fixed
 
