@@ -109,6 +109,19 @@ describe("buildTimeline", () => {
     expect(v.hero.qualified).toBe(false);
   });
 
+  test("retired life: terminal retired row, no death row, not alive", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const v = buildTimeline(
+      data({ life: { ...data().life, endedAt: at(360), endReason: "server_retired", playtimeSeconds: 21600 } }),
+      now,
+    );
+    expect(v.alive).toBe(false);
+    expect(v.events.some((e) => e.kind === "death")).toBe(false);
+    expect(v.events.some((e) => e.kind === "now")).toBe(false);
+    const retired = v.events.find((e) => e.kind === "retired");
+    expect(retired && "title" in retired ? retired.title : "").toBe("Alive when the server closed");
+  });
+
   test("qualified caption reflects the reason", () => {
     const now = new Date(Date.parse(start) + 500 * 60_000);
     const v = buildTimeline(data({ qualifiedAt: { at: at(120), by: "kill" } }), now);

@@ -62,6 +62,14 @@ describe("LifeHero", () => {
     expect(screen.queryByText("Alive")).not.toBeInTheDocument();
   });
 
+  test("retired life shows the Retired badge, not Died or Alive", () => {
+    const d = data({ life: { ...data().life, endedAt: "2026-07-14T06:00:00Z", endReason: "server_retired", playtimeSeconds: 21600 } });
+    render(<LifeHero data={d} view={view(d)} />);
+    expect(screen.getByText("Retired")).toBeInTheDocument();
+    expect(screen.queryByText("Died")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alive")).not.toBeInTheDocument();
+  });
+
   test("renders all five stats", () => {
     const d = alive();
     render(<LifeHero data={d} view={view(d)} />);
