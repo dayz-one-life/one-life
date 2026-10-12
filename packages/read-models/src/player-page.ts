@@ -40,7 +40,10 @@ export interface ServerStanding { serverId: number; map: string; slug: string; s
    *  dateline. Null for a never-played server (and for alive/banned rows, which carry their own
    *  timestamps). */
   lastEndedAt: Date | null; }
-export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
+export interface PastLife { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: Date; endedAt: Date;
+  /** `server_retired`: the server was retired with this life open. Not a death, so `death` is all
+   *  nulls (verdict included) and it never counts toward `totals.deaths`. */
+  endReason: "death" | "server_retired"; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictSummary | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[]; }
 /** One filed obituary on a player's page — see `filedObituaries`. */
 export interface ObituaryEntry {
   slug: string; map: string; mapSlug: string; lifeNumber: number;
@@ -98,7 +101,10 @@ export async function getPlayerPage(
   gamertag = real;
 
   const [p] = await db.select().from(players).where(eq(players.gamertag, gamertag));
-  const activeServers = await db.select().from(servers).where(eq(servers.active, true));
+  // Every SLUGGED server, not just active ones: retired and paused servers keep their past lives
+  // and totals on the dossier, they just get no standing card (fleet turnover spec §2). Looping
+  // over active servers only erased a retired server's history and 404'd its only-there players.
+  const allServers = await db.select().from(servers).where(sql`${servers.slug} is not null`);
   const activeBans = await db.select().from(bans).where(and(eq(bans.gamertag, gamertag), inArray(bans.status, ACTIVE_BAN_STATUSES), eq(bans.dryRun, false)));
   // The verified stamp follows IDENTITY, not the current name: after a rename the verified
   // link still names a FORMER callsign while `gamertag` (already resolved to the current one)
@@ -146,9 +152,31 @@ export async function getPlayerPage(
   const totals = { kills: 0, lives: 0, deaths: 0, longestLifeSeconds: 0 };
   let previousBestSeconds = 0;
 
-  for (const s of activeServers) {
+  for (const s of allServers) {
     if (!s.slug) continue;
     const livesRows = (await getPlayerLives(db, s.id, gamertag)) ?? [];
+
+    if (!s.active) {
+      // Inactive (retired, or paused with `retired_at` null): history only. No ticket, and none of
+      // the active-only lookups below (ban, open life, profile) run. On a retired server every
+      // life has ended by now (`getPlayerLives` applies retirement); a paused server's open life
+      // stays open, so it counts toward `totals.lives` but is neither a death nor a past life.
+      totals.lives += livesRows.length;
+      totals.deaths += livesRows.filter((l) => l.endReason === "death").length;
+      if (p) {
+        const kcRow = await db.select({ c: sql<number>`count(*)::int` }).from(kills).where(and(eq(kills.serverId, s.id), eq(kills.killerPlayerId, p.id)));
+        totals.kills += kcRow[0]?.c ?? 0;
+      }
+      for (const l of livesRows) {
+        if (l.playtimeSeconds > totals.longestLifeSeconds) totals.longestLifeSeconds = l.playtimeSeconds;
+        if (l.endedAt && l.playtimeSeconds > previousBestSeconds) previousBestSeconds = l.playtimeSeconds;
+      }
+      for (const l of livesRows.filter((r) => r.endedAt !== null)) {
+        endedLives.push({ row: l, serverId: s.id, map: s.map, slug: s.slug });
+      }
+      continue;
+    }
+
     const serverBan = activeBans.find((b) => b.serverId === s.id) ?? null;
 
     // ⚠️ ADDITIVE lookup, deliberately separate from `getPlayerLives`. That function is the shared
@@ -173,7 +201,7 @@ export async function getPlayerPage(
 
     // totals
     totals.lives += livesRows.length;
-    totals.deaths += livesRows.filter((l) => l.endedAt !== null).length;
+    totals.deaths += livesRows.filter((l) => l.endReason === "death").length;
     if (p) {
       const kcRow = await db.select({ c: sql<number>`count(*)::int` }).from(kills).where(and(eq(kills.serverId, s.id), eq(kills.killerPlayerId, p.id)));
       totals.kills += kcRow[0]?.c ?? 0;
@@ -247,7 +275,9 @@ export async function getPlayerPage(
 
   const total = endedLives.length;
   const anyHistory = standing.some((c) => c.state !== "idle" || c.lastLifeNumber != null);
-  if (!anyHistory && total === 0) return null;
+  // `totals.lives` lets in a player whose only history is an OPEN life on a paused server (no
+  // card, no ended life). It cannot be set by an active server without also setting `anyHistory`.
+  if (!anyHistory && total === 0 && totals.lives === 0) return null;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(reqPage, totalPages);
@@ -258,12 +288,16 @@ export async function getPlayerPage(
   for (const { row: l, serverId, map, slug } of pageSlice) {
     const killList = await getLifeKills(db, serverId, gamertag, l.startedAt, l.endedAt);
     const scRow = await db.select({ c: sql<number>`count(*)::int` }).from(sessions).where(and(eq(sessions.serverId, serverId), eq(sessions.lifeId, l.id)));
-    const dossier = await dossierForLife(db, gamertag, {
-      id: l.id, serverId, startedAt: l.startedAt, endedAt: l.endedAt, playtimeSeconds: l.playtimeSeconds,
-      deathCause: l.deathCause, deathWeapon: l.deathWeapon,
-      energyAtDeath: l.energyAtDeath, waterAtDeath: l.waterAtDeath, bleedSourcesAtDeath: l.bleedSourcesAtDeath,
-    });
-    pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), death: { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: dossierVerdict(dossier) }, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
+    const endReason = l.endReason ?? "death";
+    // A retirement is not a death: no dossier to classify, and nothing to say about one.
+    const death: PastLife["death"] = endReason === "server_retired"
+      ? { cause: null, byGamertag: null, weapon: null, distanceMeters: null, verdict: null }
+      : { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: dossierVerdict(await dossierForLife(db, gamertag, {
+          id: l.id, serverId, startedAt: l.startedAt, endedAt: l.endedAt, playtimeSeconds: l.playtimeSeconds,
+          deathCause: l.deathCause, deathWeapon: l.deathWeapon,
+          energyAtDeath: l.energyAtDeath, waterAtDeath: l.waterAtDeath, bleedSourcesAtDeath: l.bleedSourcesAtDeath,
+        })) };
+    pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, endReason, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), death, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
   }
 
   const obituaries = await filedObituaries(db, identityNames, endedLives);

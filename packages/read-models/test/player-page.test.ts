@@ -671,3 +671,66 @@ describe("getPlayerPage: viewerUserId (blocks)", () => {
     }
   });
 });
+
+// ── Retired and paused servers: history stays, the ticket goes (fleet turnover spec §2) ─────────
+// Retiring a server once dropped its whole history from every dossier, and a player who only
+// played it got a 404. Every SLUGGED server feeds past lives and totals; only active ones get a
+// standing card.
+describe("getPlayerPage: inactive servers keep their history", () => {
+  const svc = Math.floor(Math.random() * 1e7) + 15e8;
+  const svcPaused = Math.floor(Math.random() * 1e7) + 16e8;
+  let goneId: number; let pausedId: number;
+  const onlyGone = `OnlyGone${svc}`;
+  const onlyPaused = `OnlyPaused${svcPaused}`;
+
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "Gone", map: "sakhal", slug: `gone-${svc}`, active: false, retiredAt: new Date("2026-10-09T18:07:00Z") }).returning();
+    const [ps] = await db.insert(servers).values({ nitradoServiceId: svcPaused, name: "Paused", map: "enoch", slug: `paused-${svcPaused}`, active: false }).returning();
+    goneId = s!.id; pausedId = ps!.id;
+    const [p] = await db.insert(players).values({ gamertag: onlyGone, firstSeenAt: new Date("2026-10-01T00:00:00Z"), lastSeenAt: new Date("2026-10-09T18:00:00Z") }).returning();
+    // dead life (qualifies by playtime) + open qualifying life
+    await db.insert(lives).values([
+      { serverId: goneId, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-10-01T00:00:00Z"), endedAt: new Date("2026-10-02T00:00:00Z"), deathCause: "infected", playtimeSeconds: 7200 },
+      { serverId: goneId, playerId: p!.id, lifeNumber: 2, startedAt: new Date("2026-10-03T00:00:00Z"), playtimeSeconds: 7200 },
+    ]);
+    const [pp] = await db.insert(players).values({ gamertag: onlyPaused, firstSeenAt: new Date("2026-10-01T00:00:00Z"), lastSeenAt: new Date("2026-10-09T18:00:00Z") }).returning();
+    await db.insert(lives).values([
+      { serverId: pausedId, playerId: pp!.id, lifeNumber: 1, startedAt: new Date("2026-10-01T00:00:00Z"), endedAt: new Date("2026-10-02T00:00:00Z"), deathCause: "infected", playtimeSeconds: 7200 },
+      { serverId: pausedId, playerId: pp!.id, lifeNumber: 2, startedAt: new Date("2026-10-03T00:00:00Z"), playtimeSeconds: 9000 },
+    ]);
+  });
+  afterAll(async () => {
+    await db.delete(lives).where(inArray(lives.serverId, [goneId, pausedId]));
+    await db.delete(players).where(inArray(players.gamertag, [onlyGone, onlyPaused]));
+    await db.delete(servers).where(inArray(servers.id, [goneId, pausedId]));
+  });
+
+  it("a player who only played a retired server still has a dossier, with that history and no ticket", async () => {
+    const page = await getPlayerPage(db, onlyGone, new Date("2026-10-12T00:00:00Z"), {});
+    expect(page).not.toBeNull();
+    expect(page!.standing.some((c) => c.serverId === goneId)).toBe(false);
+    expect(page!.totals).toMatchObject({ lives: 2, deaths: 1 });
+    expect(page!.pastLives.map((l) => l.endReason).sort()).toEqual(["death", "server_retired"]);
+  });
+
+  it("a retired-ended life is not classified as a death", async () => {
+    const page = (await getPlayerPage(db, onlyGone, new Date("2026-10-12T00:00:00Z"), {}))!;
+    const retired = page.pastLives.find((l) => l.endReason === "server_retired")!;
+    expect(retired.endedAt).toEqual(new Date("2026-10-09T18:07:00Z"));
+    expect(retired.death).toEqual({ cause: null, byGamertag: null, weapon: null, distanceMeters: null, verdict: null });
+    const died = page.pastLives.find((l) => l.endReason === "death")!;
+    expect(died.death.cause).toBe("infected");
+    expect(died.death.verdict).not.toBeNull();
+    expect(page.aliveAnywhere).toBe(false);
+  });
+
+  it("a PAUSED (inactive, not retired) server shows its history, and its open life is neither a past life nor a death", async () => {
+    const page = await getPlayerPage(db, onlyPaused, new Date("2026-10-12T00:00:00Z"), {});
+    expect(page).not.toBeNull();
+    expect(page!.standing.some((c) => c.serverId === pausedId)).toBe(false);
+    expect(page!.totals).toMatchObject({ lives: 2, deaths: 1, longestLifeSeconds: 9000 });
+    expect(page!.pastLives.map((l) => [l.lifeNumber, l.endReason])).toEqual([[1, "death"]]);
+    expect(page!.pastLivesTotal).toBe(1);
+    expect(page!.previousBestSeconds).toBe(7200);
+  });
+});
