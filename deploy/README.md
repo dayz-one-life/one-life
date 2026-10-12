@@ -301,6 +301,11 @@ cd /var/www/dayzonelife.com
   `dayz_id`) — a rollback past 0025 needs to recreate the index from scratch, not merely repoint
   it, and a hand rollback to a pre-0025 release will re-admit duplicate-gamertag rows that 0025
   legitimately created.
+- **⚠️ The fleet-turnover release (`0039`) replaces `servers_nitrado_service_id_uniq` with a partial
+  unique index `WHERE active`.** Older releases do not use `ON CONFLICT` on `servers`, so a HAND
+  rollback is safe. What changes is that a second ACTIVE row on one Nitrado service is refused
+  from now on (a retired row may share its service id with the active one that replaced it).
+  This release needs no `--rebuild`.
 
 <details><summary>Manual equivalent (fallback)</summary>
 
@@ -327,21 +332,106 @@ grep -oE 'http://[^"]+' apps/web/.next/routes-manifest.json | sort -u   # expect
 ## Enabling ingest (Nitrado)
 
 `ingest-worker` ingests every **active** server in the `servers` table, using the shared
-`NITRADO_TOKEN`. Register servers as data (single tenant → no per-server token):
+`NITRADO_TOKEN`. Register servers as data (single tenant → no per-server token), with
+`fleet-cutover --add`, never by hand-written SQL:
 
-```sql
--- one row per Nitrado game server you want ingested
-INSERT INTO servers (nitrado_service_id, name, active)
-VALUES (18196786, 'main', true)
-ON CONFLICT (nitrado_service_id) DO UPDATE SET active = true;
--- pause a server without deleting its data:  UPDATE servers SET active=false WHERE nitrado_service_id=…;
+```bash
+cd /var/www/dayzonelife.com
+PNPM="$(command -v pnpm || echo /home/acab/.local/bin/pnpm)"
+DATABASE_URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)" \
+  "$PNPM" --filter @onelife/projector run fleet-cutover -- \
+  --add <slug>:<name>:<map-codename>:<nitrado-service-id>          # dry run: prints BEFORE/AFTER
+# re-run with --apply to commit
 ```
+
+`ON CONFLICT (nitrado_service_id)` no longer applies: migration 0039 made that index partial
+(`WHERE active`), so an upsert keyed on the service id matches no constraint. Only one ACTIVE row
+may hold a service id.
 
 Then:
 1. `sudo systemctl enable --now onelife-ingest`
 2. `sudo journalctl -u onelife-ingest -f` — each tick logs `ingest sweep complete {servers,sightings}`.
 
-Adding/removing a server later is a pure data change (`active` flag) — no redeploy, no restart.
+Pausing a server without retiring it is still `UPDATE servers SET active=false WHERE id=…`; retiring
+one (so its open lives read as "Alive when the server closed") is `fleet-cutover --retire`.
+
+## Fleet turnover (2026-10-15)
+
+Chernarus and Livonia are replaced by a new Chernarus (on Livonia's old Nitrado service) and
+Nasdara. Sakhal was switched off on 2026-10-09 and is retired after the fact. Spec:
+`docs/superpowers/specs/2026-10-09-badlands-fleet-turnover-design.md`. The release has ONE
+migration (`0039`) and needs NO `--rebuild`; deploy it normally with `./deploy/deploy.sh`.
+
+Production rows going in: id 1 `chernarus` (service 18196786), id 2 `sakhal` (service 19547068,
+`active=false`), id 3 `livonia` (map `enoch`, service 19366604).
+
+`fleet-cutover` flags: `--retire <slug>[=<new-slug>]` (renames the retiring row's slug so a
+successor can take it), `--add <slug>:<name>:<map>:<nitrado-service-id>`,
+`--retired-at <ISO>` (must carry `Z` or a `±hh:mm` offset; offset-less input is refused), and
+`--apply`. Without `--apply` it prints BEFORE/AFTER tables and changes nothing. **`--retired-at`
+applies to EVERY `--retire` in the invocation**, which is why the Sakhal step is its own run.
+
+Every command below runs on the prod host in `/var/www/dayzonelife.com` and names `DATABASE_URL`
+explicitly (the script never exports it):
+
+```bash
+cd /var/www/dayzonelife.com
+PNPM="$(command -v pnpm || echo /home/acab/.local/bin/pnpm)"
+DB="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)"
+```
+
+### A. After the deploy, before the 15th: retire Sakhal after the fact
+
+The dossier fix for retired-server history is live-broken for Sakhal until this runs, so do it
+right after the deploy. Find the last thing Sakhal ingested:
+
+```bash
+docker exec <postgres-container> psql -U onelife -d onelife -c \
+  "SELECT max(occurred_at) FROM events WHERE server_id = 2"
+# (or psql "$DB" -c "..." if psql is installed on the host)
+```
+
+Convert that value to ISO with `Z` (it is UTC) and run, dry first, then with `--apply`:
+
+```bash
+DATABASE_URL="$DB" "$PNPM" --filter @onelife/projector run fleet-cutover -- \
+  --retire sakhal --retired-at <that value, e.g. 2026-10-09T13:42:07Z>
+DATABASE_URL="$DB" "$PNPM" --filter @onelife/projector run fleet-cutover -- \
+  --retire sakhal --retired-at <same value> --apply
+```
+
+Run this FIRST and on its own; do not fold it into the 15th's invocation.
+
+### B. On the 15th: the cutover
+
+Nasdara's map codename and Nitrado service id are NOT known yet. Fill them in on the day: the
+codename comes from the server's mission/config once the map exists, the service id from the
+Nitrado panel. Do not guess either.
+
+1. **Dry run** (changes nothing; read the BEFORE/AFTER tables):
+
+   ```bash
+   DATABASE_URL="$DB" "$PNPM" --filter @onelife/projector run fleet-cutover -- \
+     --retire chernarus=chernarus-1.29 --retire livonia \
+     --add chernarus:Chernarus:chernarusplus:19366604 \
+     --add nasdara:Nasdara:<NASDARA-MAP-CODENAME>:<NASDARA-NITRADO-SERVICE-ID>
+   ```
+
+2. **Apply**: the same command with `--apply` appended. It is one transaction; any refusal rolls
+   back everything.
+3. **Only then switch maps on Nitrado.** Cutover first, map switch after, never before.
+4. **Watch** `sudo journalctl -u onelife-ingest -f`. Ingest goes from 2 active servers (Chernarus,
+   Livonia; Sakhal is already off) to 2 active servers (the new Chernarus and Nasdara), so expect
+   `"servers":2` sweeps throughout, now covering the new rows. Then confirm new deaths land on
+   the new rows:
+
+   ```sql
+   SELECT server_id, count(*) FROM lives WHERE started_at > now() - interval '1 hour' GROUP BY 1;
+   ```
+
+5. **Post-cutover web check**, once the cutover has run: confirm a dotted slug serves in
+   production, `curl -sI https://dayzonelife.com/survivors/chernarus-1.29` (expect `HTTP/2 200`).
+   It cannot be checked before the row exists.
 
 ## Enabling Discord login
 
