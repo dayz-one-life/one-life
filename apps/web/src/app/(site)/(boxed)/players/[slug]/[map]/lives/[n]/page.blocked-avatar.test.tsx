@@ -26,7 +26,7 @@ const HASH = "cafe1234feed5678";
 function lifeData(): LifeTimelineData {
   return {
     gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null, avatarHash: HASH, obituarySlug: null,
-    life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: START, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
+    life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: START, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0, endReason: null },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: START, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [], qualifiedAt: null, encounters: [], verdict: null,
   };

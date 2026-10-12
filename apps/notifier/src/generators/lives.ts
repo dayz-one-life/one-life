@@ -11,7 +11,8 @@ type Row = {
 };
 
 /**
- * Open lives owned by a verified user on a slugged server, with qualification DERIVED in
+ * Open lives owned by a verified user on a slugged, NON-retired server (a retired
+ * server's open lives are frozen: no death line will ever arrive), with qualification DERIVED in
  * TypeScript via lifeQualifiedAt() — the same lazy predicate the survivors board, the
  * enforcer and the newsdesk use. There is deliberately no SQL qualification filter:
  * qualifiedLifeCondition/lives.playtime_seconds only advance when a session CLOSES, so
@@ -33,7 +34,7 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
       eq(gamertagLinks.status, "verified"),
       sql`lower(${gamertagLinks.gamertag}) = lower(${players.gamertag})`,
     ))
-    .where(and(isNull(lives.endedAt), isNotNull(servers.slug)));
+    .where(and(isNull(lives.endedAt), isNotNull(servers.slug), isNull(servers.retiredAt)));
 
   if (candidates.length === 0) return [];
 

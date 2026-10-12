@@ -16,7 +16,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
       startedAt: start, endedAt: null,
       deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null,
       energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null,
-      playtimeSeconds: 0,
+      playtimeSeconds: 0, endReason: null,
     },
 
     sessions: [
@@ -94,7 +94,7 @@ describe("buildTimeline", () => {
       data({
         qualifiedAt: null,
         life: {
-          ...data().life, endedAt: at(360), deathCause: "pvp", deathByGamertag: "SomeKiller",
+          ...data().life, endedAt: at(360), endReason: "death", deathCause: "pvp", deathByGamertag: "SomeKiller",
           deathWeapon: "VSD", deathDistance: 126, energyAtDeath: 42, waterAtDeath: 18, bleedSourcesAtDeath: 2,
           playtimeSeconds: 21600,
         },
@@ -107,6 +107,19 @@ describe("buildTimeline", () => {
     expect(death && "vitals" in death ? death.vitals : "").toBe("Energy 42 · Water 18 · bleeding ×2");
     expect(v.events.some((e) => e.kind === "qualified")).toBe(false);
     expect(v.hero.qualified).toBe(false);
+  });
+
+  test("retired life: terminal retired row, no death row, not alive", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const v = buildTimeline(
+      data({ life: { ...data().life, endedAt: at(360), endReason: "server_retired", playtimeSeconds: 21600 } }),
+      now,
+    );
+    expect(v.alive).toBe(false);
+    expect(v.events.some((e) => e.kind === "death")).toBe(false);
+    expect(v.events.some((e) => e.kind === "now")).toBe(false);
+    const retired = v.events.find((e) => e.kind === "retired");
+    expect(retired && "title" in retired ? retired.title : "").toBe("Alive when the server closed");
   });
 
   test("qualified caption reflects the reason", () => {
@@ -147,7 +160,7 @@ describe("buildTimeline", () => {
       const v = buildTimeline(
         data({
           kills: [],
-          life: { ...data().life, endedAt: at(430), playtimeSeconds: 15_000 },
+          life: { ...data().life, endedAt: at(430), endReason: "death", playtimeSeconds: 15_000 },
         }),
         now,
       );
@@ -232,7 +245,7 @@ describe("buildTimeline", () => {
       qualifiedAt: null,
       verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
       life: {
-        ...data().life, endedAt: at(360), deathCause: "environment", deathByGamertag: null,
+        ...data().life, endedAt: at(360), endReason: "death", deathCause: "environment", deathByGamertag: null,
         deathWeapon: null, deathDistance: null, energyAtDeath: 0, waterAtDeath: 10, bleedSourcesAtDeath: 0,
         playtimeSeconds: 21600,
       },

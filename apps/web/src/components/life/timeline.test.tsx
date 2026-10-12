@@ -9,7 +9,7 @@ const at = (m: number) => new Date(Date.parse(start) + m * 60_000).toISOString()
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
     gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null,
-    life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
+    life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0, endReason: null },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) }],
     qualifiedAt: { at: at(5), by: "playtime" },
@@ -41,7 +41,7 @@ describe("Timeline", () => {
     const now = new Date(Date.parse(start) + 400 * 60_000);
     const d = data({
       kills: [],
-      life: { ...data().life, endedAt: at(360), deathCause: "pvp", deathByGamertag: "SomeKiller", deathWeapon: "VSD", deathDistance: 126, energyAtDeath: 42, waterAtDeath: 18, bleedSourcesAtDeath: 2, playtimeSeconds: 21600 },
+      life: { ...data().life, endedAt: at(360), endReason: "death", deathCause: "pvp", deathByGamertag: "SomeKiller", deathWeapon: "VSD", deathDistance: 126, energyAtDeath: 42, waterAtDeath: 18, bleedSourcesAtDeath: 2, playtimeSeconds: 21600 },
     });
     render(<Timeline view={buildTimeline(d, now)} />);
     expect(screen.queryByText("Positions withheld")).not.toBeInTheDocument();
@@ -61,7 +61,7 @@ describe("Timeline", () => {
     const d = data({
       kills: [],
       verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
-      life: { ...data().life, endedAt: at(360), deathCause: "environment", deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: 0, waterAtDeath: 10, bleedSourcesAtDeath: 0, playtimeSeconds: 21600 },
+      life: { ...data().life, endedAt: at(360), endReason: "death", deathCause: "environment", deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: 0, waterAtDeath: 10, bleedSourcesAtDeath: 0, playtimeSeconds: 21600 },
     });
     render(<Timeline view={buildTimeline(d, now)} />);
     expect(screen.getByText(/Died — Likely starvation/i)).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe("Timeline", () => {
     const now = new Date(Date.parse(start) + 400 * 60_000);
     const d = data({
       kills: [{ victimGamertag: "V", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(120) }],
-      life: { ...data().life, endedAt: at(360), deathCause: "pvp", deathByGamertag: "SomeKiller", deathWeapon: "VSD", deathDistance: 126, energyAtDeath: 42, waterAtDeath: 18, bleedSourcesAtDeath: 2, playtimeSeconds: 21600 },
+      life: { ...data().life, endedAt: at(360), endReason: "death", deathCause: "pvp", deathByGamertag: "SomeKiller", deathWeapon: "VSD", deathDistance: 126, energyAtDeath: 42, waterAtDeath: 18, bleedSourcesAtDeath: 2, playtimeSeconds: 21600 },
     });
     const view = buildTimeline(d, now);
     render(<Timeline view={view} />);

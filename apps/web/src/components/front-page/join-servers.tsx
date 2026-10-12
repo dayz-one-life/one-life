@@ -14,10 +14,9 @@ import { FitLine } from "./fit-line";
  * rename must update them here.
  */
 const HOSTS = [
-  // Host A–Z, the real browser's default sort. Add Badlands here when it ships.
+  // Host A–Z, the real browser's default sort. Brand copy: a Nitrado rename must update this.
   { map: "Chernarus", players: "14/26" },
-  { map: "Livonia", players: "3/16" },
-  { map: "Sakhal", players: "6/26" },
+  { map: "Nasdara", players: "9/26" },
 ];
 
 const STEPS = [

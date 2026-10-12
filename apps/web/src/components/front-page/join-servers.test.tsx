@@ -30,15 +30,14 @@ describe("JoinServers", () => {
   it("replica: host rows verbatim, A–Z, players column static, servers-found footer", () => {
     render(<JoinServers />);
     expect(screen.getByText(/One Life Chernarus \| dayzonelife\.com/)).toBeInTheDocument();
-    expect(screen.getByText(/One Life Livonia \| dayzonelife\.com/)).toBeInTheDocument();
-    expect(screen.getByText(/One Life Sakhal \| dayzonelife\.com/)).toBeInTheDocument();
-    // Host A–Z: Chernarus before Livonia before Sakhal (DOM order).
+    expect(screen.getByText(/One Life Nasdara \| dayzonelife\.com/)).toBeInTheDocument();
+    expect(screen.queryByText(/One Life Livonia/)).toBeNull();
+    expect(screen.queryByText(/One Life Sakhal/)).toBeNull();
+    // Host A–Z: Chernarus before Nasdara (DOM order).
     const chernarus = screen.getByText(/One Life Chernarus/);
-    const livonia = screen.getByText(/One Life Livonia/);
-    const sakhal = screen.getByText(/One Life Sakhal/);
-    expect(chernarus.compareDocumentPosition(livonia) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(livonia.compareDocumentPosition(sakhal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText("Servers found: 3")).toBeInTheDocument();
+    const nasdara = screen.getByText(/One Life Nasdara/);
+    expect(chernarus.compareDocumentPosition(nasdara) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("Servers found: 2")).toBeInTheDocument();
     // The illustration caption is what frames the static numbers as honest.
     expect(screen.getByText(/What you.ll see on your screen/i)).toBeInTheDocument();
   });
@@ -59,7 +58,7 @@ describe("JoinServers", () => {
   it("host rows scale down below md so long host names fit a phone", () => {
     render(<JoinServers />);
     const rows = screen.getAllByRole("listitem").filter((li) => li.textContent?.includes("dayzonelife.com"));
-    expect(rows.length).toBe(3);
+    expect(rows.length).toBe(2);
     for (const row of rows) {
       expect(row.className).toContain("text-[11px]");
       expect(row.className).toContain("md:text-[13px]");

@@ -12,7 +12,7 @@ import type { Obituary } from "./prompt.js";
  * (a callsign like "BarnOwl" is identity, not scenery).
  */
 export const PLACE_EXEMPT_MAPS = [
-  "Chernarus", "Sakhal", "Livonia", "chernarusplus", "sakhal", "enoch",
+  "Chernarus", "Sakhal", "Livonia", "Nasdara", "chernarusplus", "sakhal", "enoch", "nasdara",
 ];
 
 const STRUCTURE_TERRAIN = [

@@ -6,6 +6,7 @@ export type Marker = "blue" | "red" | "gray" | "yellow";
 export type TimelineEvent =
   | { kind: "now"; at: Date; marker: "blue"; timeLabel: "NOW"; title: string; line: string }
   | { kind: "death"; at: Date; marker: "red"; timeLabel: string; cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; vitals: string | null; verdict: DeathVerdictDto | null }
+  | { kind: "retired"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "kill"; at: Date; marker: "red"; timeLabel: string; victimGamertag: string; weapon: string | null; distanceMeters: number | null; longestKill: boolean }
   | { kind: "session"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "session-group"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
@@ -204,6 +205,8 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
     // No "and counting" — this line is a server-baked snapshot that never ticks, capped at
     // lastSeenAt; claiming a live counter would be dishonest (spec: live-data-honesty §3).
     events.push({ kind: "now", at: now, marker: "blue", timeLabel: "NOW", title: "Still drawing breath", line: formatDuration(timeAlive) });
+  } else if (data.life.endReason === "server_retired") {
+    events.push({ kind: "retired", at: endedAt, marker: "gray", timeLabel: `${elapsedLabel(timeAlive)} in`, title: "Alive when the server closed", line: formatDuration(timeAlive) });
   } else {
     // ⚠️ The terminal row is labelled from `timeAlive` — the life's STORED `playtimeSeconds` —
     // not from `playedSecondsAt(endedAt)`. The two agree to the minute in ordinary data, but the

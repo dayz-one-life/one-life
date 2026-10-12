@@ -1,7 +1,8 @@
 import type { Database } from "@onelife/db";
-import { players, lives, sessions, kills } from "@onelife/db";
+import { servers, players, lives, sessions, kills } from "@onelife/db";
 import { and, eq, isNull, desc } from "drizzle-orm";
 import { livePlaytime, isLifeQualified } from "./qualified.js";
+import { applyRetirement, closeSessionsAt } from "./retirement.js";
 
 export type RosterEntry = { gamertag: string; sessionSeconds: number; lifeSeconds: number };
 
@@ -73,7 +74,13 @@ export async function getPlayerLives(db: Database, serverId: number, gamertag: s
     .where(and(eq(sessions.serverId, serverId), eq(sessions.playerId, p.id), isNull(sessions.disconnectedAt))))[0] ?? null;
   const pk = await killTimes(db, serverId, p.id);
   const upTo = p.lastSeenAt ?? (openSession ? openSession.connectedAt : new Date());
-  return rows.filter((l) => isLifeQualified({
+  // Retirement is applied BEFORE qualification, so a retired life's derived end and playtime
+  // feed the filter below exactly as a death's would. A non-retired row passes through as-is.
+  const [srv] = await db.select({ retiredAt: servers.retiredAt }).from(servers).where(eq(servers.id, serverId));
+  const applied = rows.map((l) => applyRetirement(
+    l, openSession && openSession.lifeId === l.id ? openSession : null, srv?.retiredAt ?? null, p.lastSeenAt,
+  ));
+  return applied.filter((l) => isLifeQualified({
     deathCause: l.deathCause,
     effectivePlaytimeSeconds: l.endedAt ? l.playtimeSeconds
       : livePlaytime(l.playtimeSeconds, openSession ? { connectedAt: openSession.connectedAt } : null, upTo),
@@ -87,5 +94,13 @@ export async function getLifeDetail(db: Database, serverId: number, lifeId: numb
   const life = (await db.select().from(lives).where(and(eq(lives.serverId, serverId), eq(lives.id, lifeId))))[0];
   if (!life) return null;
   const sess = await db.select().from(sessions).where(and(eq(sessions.serverId, serverId), eq(sessions.lifeId, lifeId))).orderBy(sessions.connectedAt);
-  return { life, sessions: sess };
+  const [srv] = await db.select({ retiredAt: servers.retiredAt }).from(servers).where(eq(servers.id, serverId));
+  const [p] = await db.select({ lastSeenAt: players.lastSeenAt }).from(players).where(eq(players.id, life.playerId));
+  const retiredAt = srv?.retiredAt ?? null;
+  const lastSeenAt = p?.lastSeenAt ?? null;
+  const open = sess.find((s) => s.disconnectedAt === null) ?? null;
+  return {
+    life: applyRetirement(life, open, retiredAt, lastSeenAt),
+    sessions: closeSessionsAt(sess, retiredAt, lastSeenAt),
+  };
 }

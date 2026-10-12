@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { servers, players, lives, sessions } from "@onelife/db";
 import { eq } from "drizzle-orm";
-import { getRoster, getPlayerProfile } from "../src/index.js";
+import { getRoster, getPlayerProfile, getPlayerLives, getLifeDetail } from "../src/index.js";
 import { getTestDb } from "@onelife/test-support";
 
 const { db, sql } = getTestDb();
@@ -36,5 +36,19 @@ describe("read-model queries", () => {
     const prof = await getPlayerProfile(db, serverId, "A", now);
     expect(prof).toMatchObject({ gamertag: "A", lives: 1, deaths: 0, alive: true, totalPlaytimeSeconds: 1200 });
     expect(prof!.currentLifeSeconds).toBe(1200);
+  });
+  it("a retired server's open life reads as ended by retirement", async () => {
+    const R = new Date("2026-07-06T12:25:00Z");
+    await db.update(servers).set({ active: false, retiredAt: R }).where(eq(servers.id, serverId));
+    try {
+      const [l] = (await getPlayerLives(db, serverId, "A"))!;
+      expect(l).toMatchObject({ endReason: "server_retired", playtimeSeconds: 600 + 300 });
+      expect(l!.endedAt).toEqual(R);
+      const d = await getLifeDetail(db, serverId, l!.id);
+      expect(d!.life.endReason).toBe("server_retired");
+      expect(d!.sessions.every((s) => s.disconnectedAt !== null)).toBe(true);
+    } finally {
+      await db.update(servers).set({ active: true, retiredAt: null }).where(eq(servers.id, serverId));
+    }
   });
 });

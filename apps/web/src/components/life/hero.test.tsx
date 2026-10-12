@@ -13,7 +13,7 @@ const start = "2026-07-14T00:00:00Z";
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
     gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null, avatarHash: null, obituarySlug: null,
-    life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0 },
+    life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0, endReason: null },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
     kills: [], qualifiedAt: { at: start, by: "playtime" },
     encounters: [],
@@ -27,7 +27,7 @@ function alive() {
 }
 
 function dead() {
-  return data({ life: { ...data().life, endedAt: "2026-07-14T06:00:00Z", deathCause: "pvp", playtimeSeconds: 21600 } });
+  return data({ life: { ...data().life, endedAt: "2026-07-14T06:00:00Z", endReason: "death", deathCause: "pvp", playtimeSeconds: 21600 } });
 }
 
 function view(d: LifeTimelineData) {
@@ -59,6 +59,14 @@ describe("LifeHero", () => {
     const d = dead();
     render(<LifeHero data={d} view={view(d)} />);
     expect(screen.getByText("Died")).toBeInTheDocument();
+    expect(screen.queryByText("Alive")).not.toBeInTheDocument();
+  });
+
+  test("retired life shows the Retired badge, not Died or Alive", () => {
+    const d = data({ life: { ...data().life, endedAt: "2026-07-14T06:00:00Z", endReason: "server_retired", playtimeSeconds: 21600 } });
+    render(<LifeHero data={d} view={view(d)} />);
+    expect(screen.getByText("Retired")).toBeInTheDocument();
+    expect(screen.queryByText("Died")).not.toBeInTheDocument();
     expect(screen.queryByText("Alive")).not.toBeInTheDocument();
   });
 

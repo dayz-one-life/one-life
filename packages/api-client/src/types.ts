@@ -40,6 +40,7 @@ export type Life = {
   waterAtDeath: number | null;
   bleedSourcesAtDeath: number | null;
   playtimeSeconds: number;
+  endReason: "death" | "server_retired" | null;
 };
 
 export type Session = {
@@ -146,7 +147,7 @@ export type QualifiedAtDtoLite = { at: string; by: "playtime" | "kill" | "pvp-de
 export type AliveStanding = { lifeId: number; lifeNumber: number; startedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; qualified: boolean; qualifiedAt: QualifiedAtDtoLite | null };
 export type BanStanding = { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean; triggeringLifeNumber: number | null; verdict: DeathVerdictDto | null };
 export type ServerStanding = { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; lastEndedAt: string | null };
-export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
+export type PastLife = { lifeId: number; serverId: number; map: string; slug: string; lifeNumber: number; startedAt: string; endedAt: string; endReason: "death" | "server_retired"; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; death: { cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; verdict: DeathVerdictDto | null }; vitals: { energy: number | null; water: number | null; bleedSources: number | null }; sessions: number; killList: PlayerKill[] };
 /** One FILED obituary on a player's page. Mirrors `ObituaryEntry` in @onelife/read-models
  *  (dates as ISO strings over the wire). A strict subset of the player's ended lives — see the
  *  ⚠️ notes on `filedObituaries` and on `<Morgue />`. */

@@ -6,6 +6,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Servers can now be retired. A life still open when its server closed reads "Alive when the
+  server closed" instead of looking like a live character, and its final session is closed at the
+  playtime cap rather than running on forever. Retirement is worked out when a page is read, never
+  stored on the life, so it needs no rebuild.
+- A forward-only `ingest_from` cutoff per server row. Log files older than it are skipped (and
+  reported if their timestamps cannot be read), so a server that changes map can be picked up
+  without ingesting the previous map's history as the new one's.
+- `fleet-cutover`, an operator command for fleet changes (`pnpm --filter @onelife/projector run
+  fleet-cutover -- --retire ... --add ... [--apply]`). It retires servers, renames the retiring
+  row's slug so a successor can take it, and adds new ones in one transaction. It prints a
+  before and after table and changes nothing without `--apply`, and refuses a `--retired-at` that
+  carries no timezone offset. The new `0039` migration lets a retired row share a Nitrado service
+  with the active one that replaced it. No `--rebuild` is needed. The 2026-10-15 sequence is in
+  `deploy/README.md`.
+
+### Changed
+
+- The join-servers replica on the home page now lists Chernarus and Nasdara, and the newsdesk
+  treats Nasdara as a map name rather than a place.
+- Open lives on a retired server no longer generate notifications.
+
+### Fixed
+
+- A player's page keeps the lives they played on servers that have since closed. Switching a
+  server off used to drop its history from every dossier, and a player who had only played there
+  got a 404 (live for Sakhal since 2026-10-09). Closed servers still get no standing card.
+
+### Fixed
+
+- A player's dossier now keeps their history on a retired server. Sakhal's lives, deaths and
+  obituaries had dropped out of the dossier once the server was switched off.
+- The notifier no longer sends open-life notifications for lives on a retired server.
+
 ## [0.77.0] - 2026-08-18
 
 ### Added

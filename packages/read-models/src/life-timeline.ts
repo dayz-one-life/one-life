@@ -47,7 +47,8 @@ export async function getLifeTimeline(
   const lastSeenAt = playerRow[0]?.lastSeenAt ?? null;
   const [kills, dossier, encounters, avatarRow, obituaryRows] = await Promise.all([
     getLifeKills(db, serverId, gamertag, life.startedAt, life.endedAt),
-    life.endedAt ? dossierForLife(db, gamertag, life) : Promise.resolve(null),
+    // A retirement is not a death: there is no death to classify, so no dossier or verdict.
+    life.endReason === "death" ? dossierForLife(db, gamertag, life) : Promise.resolve(null),
     encountersForLife(db, gamertag, life, lastSeenAt),
     db
       .select({ hash: avatars.hash })

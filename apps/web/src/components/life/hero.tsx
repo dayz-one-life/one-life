@@ -41,6 +41,7 @@ export function LifeHero({
   const map = mapLabel(data.map);
   const dossier = `/players/${playerSlug(data.gamertag)}`;
   const h = view.hero;
+  const retired = data.life.endReason === "server_retired";
   return (
     <>
       <div className="bg-dark px-6 pb-3 pt-6 md:px-10">
@@ -64,6 +65,8 @@ export function LifeHero({
               <p className={KICKER}>A life of <GamertagLink gamertag={data.gamertag} className="font-bold text-paper underline" /> · {map}</p>
               {view.alive ? (
                 <span className="bg-blue px-2 pb-0.5 pt-1 font-display text-[11px] font-bold uppercase tracking-[.1em] text-white">Alive</span>
+              ) : retired ? (
+                <span className="bg-cream-muted px-2 pb-0.5 pt-1 font-display text-[11px] font-bold uppercase tracking-[.1em] text-dark">Retired</span>
               ) : (
                 <span className="bg-red px-2 pb-0.5 pt-1 font-display text-[11px] font-bold uppercase tracking-[.1em] text-white">Died</span>
               )}

@@ -58,8 +58,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // NOTE on <loc> safety: Next's sitemap serializer interpolates `url` into `<loc>` WITHOUT
   // XML-escaping it. A URL containing a raw `&` or `<` would emit a byte that breaks the XML
-  // parse for the ENTIRE sitemap, not just this one entry. Unreachable today — `playerSlug` and
-  // hand-set `servers.slug` both produce `[a-z0-9-]+` — but if
+  // parse for the ENTIRE sitemap, not just this one entry. Unreachable today: `playerSlug`
+  // produces `[a-z0-9-]+`, and hand-set `servers.slug` produces `[a-z0-9.-]+` (a retired server's
+  // renamed slug carries a dot, e.g. `chernarus-1.29`; a dot is XML-safe). But if
   // a future slug/segment source can emit arbitrary characters, escape or reject it before it
   // reaches `absoluteUrl(...)` here.
   try {

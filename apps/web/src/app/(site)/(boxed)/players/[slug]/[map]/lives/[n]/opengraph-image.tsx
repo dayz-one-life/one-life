@@ -20,12 +20,13 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
   const gamertag = data?.gamertag ?? "A One Life record";
   const gtSize = gamertag.length > 12 ? 84 : gamertag.length > 9 ? 104 : 124;
   const alive = data ? data.life.endedAt === null : false;
+  const retired = data?.life.endReason === "server_retired";
   const stats: CardStat[] = data
     ? [
         { label: "time alive", value: formatDuration(data.life.playtimeSeconds), hot: false },
         { label: "kills", value: String(data.kills.length), hot: data.kills.length > 0 },
         { label: "sessions", value: String(data.sessions.length), hot: false },
-        { label: "status", value: alive ? "ALIVE" : "DEAD", hot: !alive },
+        { label: "status", value: alive ? "ALIVE" : retired ? "RETIRED" : "DEAD", hot: !alive && !retired },
       ]
     : [];
 
@@ -45,7 +46,7 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: gtSize, fontWeight: 700, lineHeight: 1, letterSpacing: -1, color: PAPER }}>{gamertag}</div>
-          {data && !alive && data.life.deathCause && (
+          {data && !alive && !retired && data.life.deathCause && (
             <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 22, color: DIM, marginTop: 26, textTransform: "uppercase" }}>
               {causeLabel(data.life.deathCause)}
             </div>
