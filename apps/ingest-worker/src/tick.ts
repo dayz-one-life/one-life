@@ -12,6 +12,15 @@ export type NitradoLike = {
 
 export type TickDeps = { serverId: number; client: NitradoLike; backfillBudget: number };
 
+/** ⚠️ Forward-only cutoff for a server row that inherits a Nitrado service with older logs on it
+ *  (a map change keeps the service; the new row must not backfill the old map's files). Compared
+ *  in offset-corrected time; a file with no readable timestamp is skipped while a cutoff is set. */
+export function beforeCutoff(file: AdmFileRef, offsetMs: number, ingestFrom: Date | null): boolean {
+  if (!ingestFrom) return false;
+  if (file.localTimestampMs == null) return true;
+  return file.localTimestampMs + offsetMs < ingestFrom.getTime();
+}
+
 /** One ingestion tick for one server. Backfill oldest-first up to budget; live file last. */
 export async function ingestTick(db: Database, deps: TickDeps): Promise<void> {
   const { serverId, client, backfillBudget } = deps;
@@ -38,11 +47,17 @@ export async function ingestTick(db: Database, deps: TickDeps): Promise<void> {
     offsetMs = srv?.clockOffsetMs ?? 0;
   }
 
-  const newestPath = files[files.length - 1]!.path;
+  // The clock offset above is derived from the FULL list; only processing honours the cutoff.
+  const [srvRow] = await db.select({ ingestFrom: servers.ingestFrom }).from(servers).where(eq(servers.id, serverId));
+  const ingestFrom = srvRow?.ingestFrom ?? null;
+  const eligible = files.filter((f) => !beforeCutoff(f, offsetMs, ingestFrom));
+  if (eligible.length === 0) return;
+
+  const newestPath = eligible[eligible.length - 1]!.path;
   let budget = backfillBudget;
   let allCaughtUp = true;
 
-  for (const file of files) {
+  for (const file of eligible) {
     const isNewest = file.path === newestPath;
     const rows = await db.select().from(admFiles)
       .where(and(eq(admFiles.serverId, serverId), eq(admFiles.path, file.path)));
