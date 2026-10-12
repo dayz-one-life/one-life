@@ -28,6 +28,8 @@ async function loop(): Promise<void> {
         clientFor,
         backfillBudget: cfg.backfillBudget,
         onServerError: (serverId, err) => log.error({ serverId, err }, "server ingest failed"),
+        onSkippedUnreadable: (serverId, paths) =>
+          log.warn({ serverId, paths }, "skipped ADM files with no readable timestamp (ingest_from set)"),
       });
       log.info({ servers: r.servers, ms: Date.now() - started }, "ingest sweep complete");
     } catch (err) {

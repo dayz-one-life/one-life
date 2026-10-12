@@ -93,4 +93,21 @@ describe("ingest_from cutoff", () => {
     const files = await db.select().from(admFiles).where(eq(admFiles.serverId, s!.id));
     expect(files.map((f) => f.path)).toEqual(["/s/new.ADM"]);
   });
+
+  it("a null-timestamp file is not ingested under a cutoff, and the skip is reported once", async () => {
+    const [s] = await db.insert(servers).values({
+      nitradoServiceId: 999014, name: "tick-cutoff-unreadable",
+      ingestFrom: new Date(Date.UTC(2026,6,6,0,0,0)),
+    }).returning();
+    const odd: AdmFileRef = { path: "/s/odd.ADM", name: "odd.ADM", localTimestampMs: null, modifiedAtMs: Date.UTC(2026,6,7,0,0,0) };
+    const calls: Array<[number, string[]]> = [];
+    await ingestTick(db, {
+      serverId: s!.id, backfillBudget: 15,
+      client: { ...client, listAdmFiles: async () => [older, newer, odd] },
+      onSkippedUnreadable: (id, paths) => calls.push([id, paths]),
+    });
+    const files = await db.select().from(admFiles).where(eq(admFiles.serverId, s!.id));
+    expect(files.map((f) => f.path)).toEqual(["/s/new.ADM"]);
+    expect(calls).toEqual([[s!.id, ["/s/odd.ADM"]]]);
+  });
 });

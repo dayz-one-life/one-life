@@ -10,7 +10,11 @@ export type NitradoLike = {
   downloadFile(path: string): Promise<string>;
 };
 
-export type TickDeps = { serverId: number; client: NitradoLike; backfillBudget: number };
+export type TickDeps = { serverId: number; client: NitradoLike; backfillBudget: number;
+  /** Called once per tick with the paths skipped because they have no readable timestamp while
+   *  the server has an ingest_from cutoff (otherwise they would vanish without a trace). */
+  onSkippedUnreadable?: (serverId: number, paths: string[]) => void;
+};
 
 /** ⚠️ Forward-only cutoff for a server row that inherits a Nitrado service with older logs on it
  *  (a map change keeps the service; the new row must not backfill the old map's files). Compared
@@ -50,6 +54,10 @@ export async function ingestTick(db: Database, deps: TickDeps): Promise<void> {
   // The clock offset above is derived from the FULL list; only processing honours the cutoff.
   const [srvRow] = await db.select({ ingestFrom: servers.ingestFrom }).from(servers).where(eq(servers.id, serverId));
   const ingestFrom = srvRow?.ingestFrom ?? null;
+  if (ingestFrom) {
+    const unreadable = files.filter((f) => f.localTimestampMs == null).map((f) => f.path);
+    if (unreadable.length > 0) deps.onSkippedUnreadable?.(serverId, unreadable);
+  }
   const eligible = files.filter((f) => !beforeCutoff(f, offsetMs, ingestFrom));
   if (eligible.length === 0) return;
 

@@ -13,6 +13,8 @@ export type SweepDeps = {
   backfillBudget: number;
   /** Called when a single server's pass throws; the sweep continues with the rest. */
   onServerError?: (serverId: number, err: unknown) => void;
+  /** Called when files are skipped for lacking a readable timestamp under an ingest_from cutoff. */
+  onSkippedUnreadable?: (serverId: number, paths: string[]) => void;
 };
 
 /** One ingest sweep across every active server (DB is the source of truth for which). */
@@ -22,7 +24,7 @@ export async function ingestSweep(db: Database, deps: SweepDeps): Promise<{ serv
     // Per-server isolation: one server's Nitrado failure must not abort the whole sweep.
     try {
       const client = deps.clientFor(s.nitradoServiceId);
-      await ingestTick(db, { serverId: s.id, client, backfillBudget: deps.backfillBudget });
+      await ingestTick(db, { serverId: s.id, client, backfillBudget: deps.backfillBudget, onSkippedUnreadable: deps.onSkippedUnreadable });
     } catch (err) {
       deps.onServerError?.(s.id, err);
     }
