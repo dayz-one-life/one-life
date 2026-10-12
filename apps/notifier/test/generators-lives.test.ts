@@ -14,6 +14,12 @@ beforeAll(async () => {
     { id: "lf2", name: "LF2", email: "lf2@x.com" },
   ]);
   const [s] = await db.insert(servers).values({ nitradoServiceId: 992001, name: "lifesrv", slug: "lifesrv" }).returning();
+  // A RETIRED server: its open lives are frozen (no death line will ever arrive), so
+  // neither generator may notify for them.
+  const [gone] = await db.insert(servers).values({
+    nitradoServiceId: 992002, name: "gonesrv", slug: "gonesrv", active: false,
+    retiredAt: new Date("2026-07-18T00:00:00Z"),
+  }).returning();
   // lastSeenAt is the heartbeat that caps an OPEN session's contribution.
   const [p] = await db.insert(players).values({ gamertag: "LifeOne", lastSeenAt: NOW }).returning();
   // The privacy boundary's negative case: lf2 has CLAIMED LifeTwo but never completed the
@@ -47,6 +53,11 @@ beforeAll(async () => {
     //    so BOTH generators would emit for it if the verified predicate were dropped.
     { serverId: s!.id, playerId: p2!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"), playtimeSeconds: 200 },
   ]).returning();
+  // 7. RETIRED-SERVER CASE: a carbon copy of life 1 (qualifies and crosses 7d inside the
+  //    window) on the retired server. Only the retiredAt predicate can explain its absence.
+  const [l7] = await db.insert(lives).values({
+    serverId: gone!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-07-11T12:00:00Z"), playtimeSeconds: 200,
+  }).returning();
   const [l1, l2, l3, l4, l5, l6] = inserted;
   await db.insert(sessions).values([
     // life 1: 200s already banked (closed, pre-window), then a session inside the window
@@ -69,6 +80,10 @@ beforeAll(async () => {
       disconnectedAt: new Date("2026-07-17T12:05:00Z"), durationSeconds: 600 },
     // life 6 (pending link): identical to life 1's shape, so nothing but the link status
     // can explain its absence from the drafts.
+    { serverId: gone!.id, playerId: p!.id, lifeId: l7!.id, connectedAt: new Date("2026-07-11T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-11T12:03:20Z"), durationSeconds: 200 },
+    { serverId: gone!.id, playerId: p!.id, lifeId: l7!.id, connectedAt: new Date("2026-07-18T12:00:00Z"),
+      disconnectedAt: new Date("2026-07-18T12:10:00Z"), durationSeconds: 600 },
     { serverId: s!.id, playerId: p2!.id, lifeId: l6!.id, connectedAt: new Date("2026-07-11T12:00:00Z"),
       disconnectedAt: new Date("2026-07-11T12:03:20Z"), durationSeconds: 200 },
     { serverId: s!.id, playerId: p2!.id, lifeId: l6!.id, connectedAt: new Date("2026-07-18T12:00:00Z"),
@@ -114,6 +129,15 @@ describe("lifeQualifiedGenerator", () => {
     // Guards the fixture itself: if life 6 stopped qualifying, this test would pass while
     // asserting nothing. lf1's identically-shaped life 1 proves the shape still emits.
     expect(drafts.some((d) => d.userId === "lf1" && d.body.includes("life 1"))).toBe(true);
+  });
+});
+
+describe("retired servers", () => {
+  it("neither generator notifies for an open life on a retired server", async () => {
+    const all = [...(await lifeQualifiedGenerator(deps)), ...(await survivalMilestoneGenerator(deps))];
+    expect(all.some((d) => d.body.includes("gonesrv") || d.href.includes("gonesrv"))).toBe(false);
+    // Fixture guard: the identically-shaped life on the live server still emits.
+    expect(all.some((d) => d.body.includes("lifesrv: life 1"))).toBe(true);
   });
 });
 
