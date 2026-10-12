@@ -382,20 +382,19 @@ DB="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)"
 
 ### A. After the deploy, before the 15th: retire Sakhal after the fact
 
-The dossier fix for retired-server history is live-broken for Sakhal until this runs, so do it
-right after the deploy. Find the last thing Sakhal ingested:
+Sakhal's history already shows in dossiers as soon as the deploy lands. What this step changes is
+that Sakhal's still-open lives read as retired ("Alive when the server closed") instead of open.
+Find the last thing Sakhal ingested; the query prints the exact `--retired-at` argument:
 
 ```bash
-docker exec <postgres-container> psql -U onelife -d onelife -c \
-  "SELECT max(occurred_at) FROM events WHERE server_id = 2"
-# (or psql "$DB" -c "..." if psql is installed on the host)
+psql "$DB" -At -c "SELECT to_char(max(occurred_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') FROM events WHERE server_id = 2"
 ```
 
-Convert that value to ISO with `Z` (it is UTC) and run, dry first, then with `--apply`:
+Run the cutover with that value, dry first, then with `--apply`:
 
 ```bash
 DATABASE_URL="$DB" "$PNPM" --filter @onelife/projector run fleet-cutover -- \
-  --retire sakhal --retired-at <that value, e.g. 2026-10-09T13:42:07Z>
+  --retire sakhal --retired-at <value printed above>
 DATABASE_URL="$DB" "$PNPM" --filter @onelife/projector run fleet-cutover -- \
   --retire sakhal --retired-at <same value> --apply
 ```
@@ -422,11 +421,12 @@ Nitrado panel. Do not guess either.
 3. **Only then switch maps on Nitrado.** Cutover first, map switch after, never before.
 4. **Watch** `sudo journalctl -u onelife-ingest -f`. Ingest goes from 2 active servers (Chernarus,
    Livonia; Sakhal is already off) to 2 active servers (the new Chernarus and Nasdara), so expect
-   `"servers":2` sweeps throughout, now covering the new rows. Then confirm new deaths land on
-   the new rows:
+   `"servers":2` sweeps throughout, now covering the new rows. Then confirm new lives (spawns)
+   land on the new rows. The query counts lives started in the last hour per server, so expect
+   rows for the new Chernarus and Nasdara ids:
 
-   ```sql
-   SELECT server_id, count(*) FROM lives WHERE started_at > now() - interval '1 hour' GROUP BY 1;
+   ```bash
+   psql "$DB" -c "SELECT server_id, count(*) FROM lives WHERE started_at > now() - interval '1 hour' GROUP BY 1"
    ```
 
 5. **Post-cutover web check**, once the cutover has run: confirm a dotted slug serves in
