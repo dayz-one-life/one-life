@@ -418,11 +418,13 @@ cutover time, so a Livonia restart in that gap writes a fresh Livonia ADM that t
 ingests as Chernarus. `onelife-rebooter` restarts every ACTIVE server at every even UTC hour
 (00:00, 02:00, ...), and Nitrado runs its own scheduled restarts, hence the order below.
 
-1. **Stop the rebooter**, and do the whole of steps 1 to 6 clear of the minutes around an even
-   UTC hour and of any Nitrado scheduled restart for 19366604:
+1. **Stop the rebooter and the newsdesk**, and do the whole of steps 1 to 6 clear of the minutes
+   around an even UTC hour and of any Nitrado scheduled restart for 19366604. The newsdesk is
+   paused so it cannot publish an old Chernarus obituary under the `chernarus` slug in the moment
+   the rename commits:
 
    ```bash
-   sudo systemctl stop onelife-rebooter
+   sudo systemctl stop onelife-rebooter onelife-newsdesk
    ```
 
 2. **In the Nitrado panel, stop the Livonia server (service 19366604).**
@@ -440,22 +442,30 @@ ingests as Chernarus. `onelife-rebooter` restarts every ACTIVE server at every e
    so their "Final Reload" and life links keep pointing at the old server.
 5. **Only then switch 19366604's map to Chernarus on Nitrado and start it.** Cutover first, map
    switch after, never before.
-6. **Start the rebooter again:**
+6. **Start the rebooter and the newsdesk again:**
 
    ```bash
-   sudo systemctl start onelife-rebooter
+   sudo systemctl start onelife-rebooter onelife-newsdesk
    ```
 
-7. **Before players join, check what the new rows ingested.** Every file listed for the new
-   Chernarus and Nasdara ids must be dated after the map switch; an older one is a Livonia log
-   that slipped in, and it would put Livonia play on the new Chernarus row:
+7. **Before players join, count what the new Chernarus row ingested.** Do this right after the
+   server comes up, before the next even UTC hour. The server has started exactly once since the
+   switch, so the new Chernarus row must hold **exactly one** file. Two or more means a restart
+   happened between `--apply` and the switch, and the extra file is a Livonia log that would put
+   Livonia play on the new Chernarus row:
 
    ```bash
-   psql "$DB" -c "SELECT server_id, name, log_date FROM adm_files WHERE server_id IN (SELECT id FROM servers WHERE active) ORDER BY id DESC LIMIT 10"
+   psql "$DB" -c "SELECT a.server_id, a.name, a.log_date FROM adm_files a JOIN servers s ON s.id = a.server_id WHERE s.slug = 'chernarus' AND s.active ORDER BY a.id"
    ```
 
-   If one appears, stop `onelife-ingest` (`sudo systemctl stop onelife-ingest`) before anyone
-   joins and sort it out; the abort path below stays open while no life exists on the new rows.
+   Zero rows only means the first sweep has not run yet; wait a minute and repeat. Do not judge
+   the file by its `log_date`: that is the server's local clock, uncorrected, so it cannot be
+   compared with the time you switched the map. Nasdara is a new service with no older logs, so
+   it needs no such check.
+
+   If there are two or more, stop `onelife-ingest` (`sudo systemctl stop onelife-ingest`) before
+   anyone joins and sort it out; the abort path below stays open while no life exists on the new
+   rows.
 8. **Watch** `sudo journalctl -u onelife-ingest -f`. Ingest goes from 2 active servers (Chernarus,
    Livonia; Sakhal is already off) to 2 active servers (the new Chernarus and Nasdara), so expect
    `"servers":2` sweeps throughout, now covering the new rows. Then confirm new lives (spawns)
@@ -481,8 +491,9 @@ ingests as Chernarus. `onelife-rebooter` restarts every ACTIVE server at every e
 
 #### Aborting after `--apply` (the map switch failed and you must revert)
 
-Valid ONLY while no player has spawned on the new rows. Stop ingest, find the new rows' ids, and
-confirm they have no lives:
+Valid ONLY while no player has spawned on the new rows. If the map on 19366604 was already
+switched, first stop that server on Nitrado and switch its map back to Livonia. Then stop ingest,
+find the new rows' ids, and confirm they have no lives:
 
 ```bash
 sudo systemctl stop onelife-ingest
@@ -511,9 +522,9 @@ SQL
 
 `ON_ERROR_STOP` makes psql quit at the first error, before `COMMIT`, so a failure changes
 nothing. A foreign-key error from the `DELETE FROM servers` means the new rows already hold projected
-play; the transaction rolls back whole and this path is closed. Otherwise restart the Livonia
-server (19366604, map still Livonia) on Nitrado, then
-`sudo systemctl start onelife-ingest onelife-rebooter`.
+play; the transaction rolls back whole and this path is closed. Otherwise start the Livonia
+server (19366604, map Livonia) on Nitrado, then
+`sudo systemctl start onelife-ingest onelife-rebooter onelife-newsdesk`.
 
 ## Enabling Discord login
 

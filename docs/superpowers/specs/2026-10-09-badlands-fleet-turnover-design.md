@@ -184,10 +184,17 @@ Rollout:
 2. Immediately after the deploy, retire Sakhal properly:
    `fleet-cutover --retire sakhal --retired-at <Sakhal's last ingested event time> --apply`.
 3. On 2026-10-15:
-   1. Run the cutover (dry run, then `--apply`).
-   2. **Then** switch the maps on Nitrado. The reverse order would ingest the first Chernarus log
-      into the Livonia row.
-   3. Watch `journalctl -u onelife-ingest` and confirm new deaths land on the new rows.
+   1. Stop `onelife-rebooter` and `onelife-newsdesk`, and stop the Livonia server on Nitrado.
+      From `--apply` until the map switch, a Livonia restart would write a Livonia log that the
+      new Chernarus row ingests; a paused newsdesk cannot publish an old Chernarus obituary under
+      the reused slug while the rename commits.
+   2. Run the cutover (dry run, then `--apply`).
+   3. **Then** switch the maps on Nitrado and start the servers. The reverse order would ingest
+      the first Chernarus log into the Livonia row.
+   4. Start `onelife-rebooter` and `onelife-newsdesk` again.
+   5. Before players join, confirm the new Chernarus row holds exactly one ADM file (its
+      `log_date` is uncorrected server-local time, so it cannot be compared with the switch time).
+   6. Watch `journalctl -u onelife-ingest` and confirm new lives land on the new rows.
 
 The cost is the last few minutes of the old maps' live logs before the switch, which are not
 ingested. Players are kicked by the restart regardless.
