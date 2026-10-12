@@ -38,6 +38,7 @@ const pastLife = (lifeId: number): PastLife => ({
   lifeNumber: lifeId,
   startedAt: "2026-06-01T00:00:00Z",
   endedAt: "2026-06-02T00:00:00Z",
+  endReason: "death",
   timeAliveSeconds: 3600,
   kills: 0,
   longestKillMeters: null,

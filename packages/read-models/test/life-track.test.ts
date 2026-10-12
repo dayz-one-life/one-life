@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, sessions, kills, positions } from "@onelife/db";
+import { eq } from "drizzle-orm";
 import { getLifeTrack } from "../src/life-track.js";
 
 const { db, sql } = getTestDb();
@@ -187,6 +188,18 @@ describe("getLifeTrack", () => {
     expect(kill!.sampleAgeSeconds).toBe(60);
     expect(death).toBeDefined();
     expect(death!.x).toBe(105);
+  });
+
+  it("a retired server's open life is not alive and gets no death marker", async () => {
+    await db.update(servers).set({ active: false, retiredAt: mins(210) }).where(eq(servers.id, serverId));
+    try {
+      const t = await getLifeTrack(db, serverId, tag, 2);
+      expect(t!.alive).toBe(false);
+      expect(t!.markers.some((m) => m.kind === "death")).toBe(false);
+      expect(t!.markers.some((m) => m.kind === "now")).toBe(false);
+    } finally {
+      await db.update(servers).set({ active: true, retiredAt: null }).where(eq(servers.id, serverId));
+    }
   });
 
   it("returns null for a life number that gamertag does not have", async () => {

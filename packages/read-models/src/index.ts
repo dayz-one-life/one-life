@@ -20,3 +20,4 @@ export type { SharedPosition } from "./shared-positions.js";
 export * from "./obituary-articles.js";
 export * from "./online-players.js";
 export * from "./site-stats.js";
+export * from "./retirement.js";
