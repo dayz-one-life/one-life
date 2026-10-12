@@ -10,11 +10,24 @@ export function applyRetirement<L extends { endedAt: Date | null; playtimeSecond
 ): L & { endReason: EndReason | null } {
   if (life.endedAt) return { ...life, endReason: "death" };
   if (!retiredAt) return { ...life, endReason: null };
-  const cap = lastSeenAt && lastSeenAt < retiredAt ? lastSeenAt : retiredAt;
-  return { ...life, endedAt: retiredAt, endReason: "server_retired", playtimeSeconds: livePlaytime(life.playtimeSeconds, openSession, cap) };
+  return {
+    ...life, endedAt: retiredAt, endReason: "server_retired",
+    playtimeSeconds: livePlaytime(life.playtimeSeconds, openSession, retirementCap(retiredAt, lastSeenAt)),
+  };
 }
 
-export function closeSessionsAt<S extends { disconnectedAt: Date | null }>(rows: S[], retiredAt: Date | null): S[] {
+/** Where a retired life's open session stops counting: `retired_at`, or the player's last
+ *  heartbeat when that is earlier (a ghosted player stops accumulating, as everywhere else).
+ *  The playtime, the closed session and the life-track window all use this one cap so they agree;
+ *  the life's `endedAt` stays `retired_at`. */
+export function retirementCap(retiredAt: Date, lastSeenAt: Date | null): Date {
+  return lastSeenAt && lastSeenAt < retiredAt ? lastSeenAt : retiredAt;
+}
+
+export function closeSessionsAt<S extends { disconnectedAt: Date | null }>(
+  rows: S[], retiredAt: Date | null, lastSeenAt: Date | null,
+): S[] {
   if (!retiredAt) return rows;
-  return rows.map((s) => (s.disconnectedAt ? s : { ...s, disconnectedAt: retiredAt }));
+  const cap = retirementCap(retiredAt, lastSeenAt);
+  return rows.map((s) => (s.disconnectedAt ? s : { ...s, disconnectedAt: cap }));
 }

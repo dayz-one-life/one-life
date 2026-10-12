@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyRetirement, closeSessionsAt } from "../src/retirement.js";
+import { applyRetirement, closeSessionsAt, retirementCap } from "../src/retirement.js";
 
 const R = new Date("2026-10-09T18:07:00Z");
 describe("applyRetirement", () => {
@@ -19,7 +19,21 @@ describe("applyRetirement", () => {
     expect(applyRetirement({ endedAt: d, playtimeSeconds: 9 }, null, R, null)).toMatchObject({ endedAt: d, endReason: "death", playtimeSeconds: 9 });
   });
   it("closeSessionsAt closes open sessions at retired_at only when retired", () => {
-    expect(closeSessionsAt([{ disconnectedAt: null }], R)[0]!.disconnectedAt).toEqual(R);
-    expect(closeSessionsAt([{ disconnectedAt: null }], null)[0]!.disconnectedAt).toBeNull();
+    expect(closeSessionsAt([{ disconnectedAt: null }], R, null)[0]!.disconnectedAt).toEqual(R);
+    expect(closeSessionsAt([{ disconnectedAt: null }], R, new Date("2026-10-09T18:10:00Z"))[0]!.disconnectedAt).toEqual(R);
+    expect(closeSessionsAt([{ disconnectedAt: null }], null, null)[0]!.disconnectedAt).toBeNull();
+  });
+  it("closeSessionsAt closes a ghosted session at lastSeenAt, the same cap the playtime uses", () => {
+    const seen = new Date("2026-09-01T01:00:00Z");
+    expect(closeSessionsAt([{ disconnectedAt: null }], R, seen)[0]!.disconnectedAt).toEqual(seen);
+  });
+  it("closeSessionsAt leaves already-closed sessions alone", () => {
+    const d = new Date("2026-10-01T00:00:00Z");
+    expect(closeSessionsAt([{ disconnectedAt: d }], R, null)[0]!.disconnectedAt).toEqual(d);
+  });
+  it("retirementCap is the earlier of lastSeenAt and retired_at", () => {
+    expect(retirementCap(R, null)).toEqual(R);
+    expect(retirementCap(R, new Date("2026-10-09T19:00:00Z"))).toEqual(R);
+    expect(retirementCap(R, new Date("2026-10-09T17:00:00Z"))).toEqual(new Date("2026-10-09T17:00:00Z"));
   });
 });

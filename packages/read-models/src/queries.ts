@@ -97,9 +97,10 @@ export async function getLifeDetail(db: Database, serverId: number, lifeId: numb
   const [srv] = await db.select({ retiredAt: servers.retiredAt }).from(servers).where(eq(servers.id, serverId));
   const [p] = await db.select({ lastSeenAt: players.lastSeenAt }).from(players).where(eq(players.id, life.playerId));
   const retiredAt = srv?.retiredAt ?? null;
+  const lastSeenAt = p?.lastSeenAt ?? null;
   const open = sess.find((s) => s.disconnectedAt === null) ?? null;
   return {
-    life: applyRetirement(life, open, retiredAt, p?.lastSeenAt ?? null),
-    sessions: closeSessionsAt(sess, retiredAt),
+    life: applyRetirement(life, open, retiredAt, lastSeenAt),
+    sessions: closeSessionsAt(sess, retiredAt, lastSeenAt),
   };
 }

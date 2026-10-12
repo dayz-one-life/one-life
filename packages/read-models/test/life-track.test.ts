@@ -202,6 +202,24 @@ describe("getLifeTrack", () => {
     }
   });
 
+  it("a retired life's window ends at lastSeenAt when the player ghosted before retirement", async () => {
+    // lastSeenAt is mins(200); a fix at mins(250) lies after it but before retired_at.
+    const [ghost] = await db.insert(positions).values({
+      serverId, playerId: pid, gamertag: tag, x: 8888, y: 8888, recordedAt: mins(250),
+    }).returning();
+    await db.update(servers).set({ active: false, retiredAt: mins(300) }).where(eq(servers.id, serverId));
+    try {
+      const t = await getLifeTrack(db, serverId, tag, 2);
+      const xs = t!.segments.flatMap((s) => s.points.map((p) => p.x));
+      expect(xs).toContain(7000);
+      expect(xs).not.toContain(8888);
+      expect(t!.alive).toBe(false);
+    } finally {
+      await db.update(servers).set({ active: true, retiredAt: null }).where(eq(servers.id, serverId));
+      await db.delete(positions).where(eq(positions.id, ghost!.id));
+    }
+  });
+
   it("returns null for a life number that gamertag does not have", async () => {
     expect(await getLifeTrack(db, serverId, tag, 99)).toBeNull();
   });

@@ -5,6 +5,7 @@ import {
   thinTrackWithMeta, segmentBySession, markerAt,
   type TrackPoint, type TrackSegment, type TrackMarker,
 } from "./life-track-shape.js";
+import { retirementCap } from "./retirement.js";
 
 export interface LifeTrack {
   mapCodename: string;
@@ -64,16 +65,19 @@ export async function getLifeTrack(
     .where(and(eq(sessions.serverId, serverId), eq(sessions.lifeId, row.lifeId)))
     .orderBy(asc(sessions.connectedAt));
 
-  // A retired server's open life ended at `retired_at` (derived at read time, see retirement.ts).
+  // A retired server's open life ended at `retired_at` (derived at read time, see retirement.ts),
+  // but its window stops at `retirementCap`, the same cap its playtime and closed session use, so
+  // a ghosted player's track does not run on past their last heartbeat.
   const endedAt = row.endedAt ?? row.retiredAt;
-  const cap = endedAt ?? row.lastSeenAt ?? row.startedAt;
+  const windowCap = row.endedAt ?? (row.retiredAt ? retirementCap(row.retiredAt, row.lastSeenAt) : null);
+  const cap = windowCap ?? row.lastSeenAt ?? row.startedAt;
   const windows = sessionRows.map((s) => ({
     id: s.id,
     connectedAt: s.connectedAt,
     endedAt: s.disconnectedAt ?? (cap > s.connectedAt ? cap : s.connectedAt),
   }));
 
-  const windowEnd = endedAt ?? cap;
+  const windowEnd = windowCap ?? cap;
   // Filtered by `player_id`, not `lower(gamertag)` — this is the ONLY predicate shape
   // that can use `positions_player_idx` (server_id, player_id, recorded_at) end-to-end.
   // A `lower(gamertag) = lower($1)` predicate defeats that index past its `server_id`
