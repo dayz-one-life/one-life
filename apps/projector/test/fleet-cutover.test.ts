@@ -31,6 +31,15 @@ describe("fleet-cutover", () => {
     expect(plan.add[0]).toEqual({ slug: "fc-chern", name: "Chernarus", map: "chernarusplus", serviceId: B });
   });
 
+  it("--retired-at requires an explicit offset", () => {
+    for (const ok of ["2026-10-09T18:07:00Z", "2026-10-09T18:07:00+00:00"]) {
+      expect(parseCutoverArgs(["--retired-at", ok]).retiredAt!.toISOString()).toBe("2026-10-09T18:07:00.000Z");
+    }
+    for (const bad of ["2026-10-09T18:07:00", "2026-10-09 18:07", "2026-10-09", "10/09/2026"]) {
+      expect(() => parseCutoverArgs(["--retired-at", bad])).toThrow(/fleet-cutover: bad --retired-at/);
+    }
+  });
+
   it("dry run changes nothing but reports the after-state", async () => {
     const r = await runCutover(db, parseCutoverArgs(argv), AT);
     expect(r.after.find((s) => s.slug === "fc-nas")).toBeTruthy();

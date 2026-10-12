@@ -7,6 +7,8 @@ export type AddOp = { slug: string; name: string; map: string; serviceId: number
 export type CutoverPlan = { retire: RetireOp[]; add: AddOp[]; retiredAt: Date | null; apply: boolean };
 type ServerRow = typeof servers.$inferSelect;
 
+const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
 export function parseCutoverArgs(argv: string[]): CutoverPlan {
   const plan: CutoverPlan = { retire: [], add: [], retiredAt: null, apply: false };
   for (let i = 0; i < argv.length; i++) {
@@ -20,7 +22,9 @@ export function parseCutoverArgs(argv: string[]): CutoverPlan {
       if (!slug || !name || !map || !svc || !Number.isFinite(Number(svc))) throw new Error(`fleet-cutover: bad --add ${argv[i]}`);
       plan.add.push({ slug, name, map, serviceId: Number(svc) });
     } else if (a === "--retired-at") {
-      const d = new Date(argv[++i]!);
+      const raw = argv[++i]!;
+      // ⚠️ Require an explicit offset: a bare local time would be read in the host's zone and silently shift retired_at.
+      const d = ISO_WITH_OFFSET.test(raw) ? new Date(raw) : new Date(NaN);
       if (Number.isNaN(d.getTime())) throw new Error(`fleet-cutover: bad --retired-at ${argv[i]}`);
       plan.retiredAt = d;
     } else if (a !== "--") throw new Error(`fleet-cutover: unknown argument ${a}`);
