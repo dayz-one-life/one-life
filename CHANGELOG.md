@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Nasdara on the maps. Its world size (16384 m) is now known, so trails and dots on a Nasdara
+  map are placed instead of the map drawing nothing. `deploy/mirror-tiles.sh` now also mirrors
+  Nasdara's terrain tiles, from xam.nu's early upload (tile version `26.10.15`). DZMap's upstream
+  config does not list Nasdara yet, so the `deploy/dzmap.yaml` entry was added by hand. Run
+  `./deploy/mirror-tiles.sh` on the host after deploying to fetch the tiles.
+
 ## [0.78.0] - 2026-10-12
 
 ### Added
