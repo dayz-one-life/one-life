@@ -1,9 +1,9 @@
 # DayZ map sources for deploy/mirror-tiles.sh — vendored from DZMap's own upstream
 # config.yaml (https://github.com/WoozyMasta/dzmap/blob/master/config.yaml), trimmed
-# down to the three maps this project runs and to the "topographic" layer only (the
+# down to the maps this project runs and to the "topographic" layer only (the
 # one layer the owner-only life map actually serves; see track-map.tsx). If xam.nu
 # bumps a map's tile-source version segment (the "/1.27/" in the URL below), re-copy
-# the three blocks below from the upstream file — do not hand-edit the version guess.
+# the upstream-sourced blocks below from that file — do not hand-edit the version guess.
 attribution: '<a href="https://dayz.xam.nu" target="_blank">Tiles © Xam.nu</a>'
 maps:
   - name: chernarusplus
@@ -23,3 +23,14 @@ maps:
     id: 2968040
     aliases: ["frostline"]
     topographic: https://static.xam.nu/dayz/maps/sakhal/1.27/topographic/{z}/{x}/{y}.webp
+
+  # NOT in DZMap's upstream config.yaml yet (as of 2026-10-15) — hand-added from
+  # xam.nu's own per-map JSON (static.xam.nu/dayz/json/nasdara/1.30-5.json), which
+  # serves tilev "26.10.15" (a date, not a game version) and a 0–7 zoom pyramid.
+  # xam.nu flagged the upload as "very early", so expect the tilev segment to move;
+  # if this URL starts 403ing, re-read that JSON (or take upstream's block once it lands).
+  - name: nasdara
+    size: 16384
+    id: 221100
+    aliases: ["badlands"]
+    topographic: https://static.xam.nu/dayz/maps/nasdara/26.10.15/topographic/{z}/{x}/{y}.webp

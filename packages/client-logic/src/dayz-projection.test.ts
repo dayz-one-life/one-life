@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import { MAP_WORLD_SIZE, worldSize, worldToPixel, worldToLatLng } from "./dayz-projection";
 
 describe("worldSize", () => {
-  it("knows the three maps we run", () => {
+  it("knows the maps we run", () => {
     expect(MAP_WORLD_SIZE.chernarusplus).toBe(15360);
     expect(MAP_WORLD_SIZE.sakhal).toBe(15360);
     expect(MAP_WORLD_SIZE.enoch).toBe(12800);
+    expect(MAP_WORLD_SIZE.nasdara).toBe(16384);
   });
 
   it("returns null for an unknown codename rather than guessing a size", () => {

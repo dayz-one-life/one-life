@@ -15,7 +15,7 @@
 # be installed and on PATH. This script does not install it.
 #
 # Usage:
-#   ./deploy/mirror-tiles.sh              # first-time mirror of all three maps
+#   ./deploy/mirror-tiles.sh              # first-time mirror of every map in MAPS
 #   ./deploy/mirror-tiles.sh              # re-mirror (after a DayZ terrain update) —
 #                                          # a bare re-run already fully re-downloads
 #                                          # into a fresh staging dir and replaces the
@@ -29,7 +29,7 @@
 set -euo pipefail
 
 DEST="${TILE_DIR:-/var/www/tiles}"
-MAPS=(chernarusplus sakhal enoch)
+MAPS=(chernarusplus sakhal enoch nasdara)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="$SCRIPT_DIR/dzmap.yaml"
 

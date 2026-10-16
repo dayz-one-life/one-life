@@ -5,6 +5,7 @@ export const MAP_WORLD_SIZE: Record<string, number> = {
   chernarusplus: 15360,
   sakhal: 15360,
   enoch: 12800,
+  nasdara: 16384,
 };
 
 export function worldSize(mapCodename: string): number | null {
