@@ -18,20 +18,38 @@
 #   ./deploy/mirror-tiles.sh              # first-time mirror of every map in MAPS
 #   ./deploy/mirror-tiles.sh              # re-mirror (after a DayZ terrain update) —
 #                                          # a bare re-run already fully re-downloads
-#                                          # into a fresh staging dir and replaces the
-#                                          # destination unconditionally, so there is
-#                                          # no force flag to reach for here. Any extra
-#                                          # args are passed straight through to
-#                                          # dzmap-loader.
+#                                          # into a fresh staging dir and replaces each
+#                                          # map whose staged pyramid is complete, so
+#                                          # there is no force flag to reach for here.
+#                                          # Any extra args are passed straight through
+#                                          # to dzmap-loader (e.g. -p 4 for concurrency).
 #
 # TILE_DIR overrides the destination (default /var/www/tiles, matching the nginx
-# `alias` in deploy/README.md).
+# `alias` in deploy/README.md). The tiles there are root-owned, so on the host this
+# runs under sudo. ZOOM_LIMIT (default 6, matching MAX_ZOOM in map-canvas.tsx) sets
+# the deepest zoom mirrored.
+#
+# ⚠️ static.xam.nu answers most tile requests from a non-browser client with 403,
+# and dzmap-loader reads a 403 as "this tile does not exist" and still reports
+# success. On 2026-10-15 that turned complete 5461-tile Chernarus and Livonia
+# mirrors into 1144- and 537-tile ones, and a 403 was wrongly taken to mean a
+# sea/edge tile that xam.nu doesn't serve: every tile at zoom 0–6 exists. So after
+# dzmap-loader runs, every tile still missing from the staged pyramid is fetched
+# again with curl (browser User-Agent + xam.nu Referer, 4 at a time), and a map
+# replaces the live mirror ONLY if its staged pyramid is complete. A partial result
+# leaves the existing tiles untouched. Do not relax that check to "non-empty": that
+# is exactly the guard that let the partial mirrors through.
 set -euo pipefail
 
 DEST="${TILE_DIR:-/var/www/tiles}"
 MAPS=(chernarusplus sakhal enoch nasdara)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="$SCRIPT_DIR/dzmap.yaml"
+ZOOM="${ZOOM_LIMIT:-6}"
+# A full square pyramid for zoom 0..ZOOM: 1 + 4 + 16 + ... + 4^ZOOM (5461 at zoom 6).
+EXPECTED=$(( (4 ** (ZOOM + 1) - 1) / 3 ))
+FILL_UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+FILL_REFERER="https://dayz.xam.nu/"
 
 command -v dzmap-loader >/dev/null 2>&1 || {
   echo "error: dzmap-loader not found on PATH." >&2
@@ -57,7 +75,54 @@ echo "==> mirroring ${MAPS[*]} into staging dir $WORK ..."
 # --tiles-only: we don't consume DZMap's GeoJSON locations output, only the tile
 # pyramid itself. Extra args ("$@" — e.g. -f/--force for a post-terrain-update
 # re-mirror) are passed straight through to dzmap-loader.
-( cd "$WORK" && dzmap-loader -c "$CONFIG" "${LIMIT_ARGS[@]}" --tiles-only "$@" )
+( cd "$WORK" && dzmap-loader -c "$CONFIG" "${LIMIT_ARGS[@]}" --tiles-only -z "$ZOOM" "$@" )
+
+# .webp files under $1; 0 when $1 doesn't exist. (A bare `find | wc` aborts the whole
+# script there: under pipefail the failing find fails the pipeline, and set -e exits.)
+count_tiles() {
+  if [[ -d "$1" ]]; then find "$1" -name '*.webp' | wc -l | tr -d ' '; else echo 0; fi
+}
+
+# The map's topographic URL template from dzmap.yaml, e.g.
+# https://static.xam.nu/dayz/maps/livonia/1.27/topographic/{z}/{x}/{y}.webp
+tile_url_template() {
+  awk -v m="$1" '$1 == "-" && $2 == "name:" { cur = $3 }
+                 cur == m && $1 == "topographic:" { print $2; exit }' "$CONFIG"
+}
+
+# Fetch one tile into $root/z/x/y.webp, keeping it only if it really is a WebP.
+# Always succeeds: a tile that still fails just stays missing, and the
+# completeness check below refuses the map.
+fetch_tile() {
+  local root=$1 tmpl=$2 z=$3 x=$4 y=$5 url tmp
+  url="${tmpl//\{z\}/$z}"; url="${url//\{x\}/$x}"; url="${url//\{y\}/$y}"
+  tmp="$(mktemp)"
+  if curl -sf --max-time 30 --retry 2 -A "$FILL_UA" -e "$FILL_REFERER" -o "$tmp" "$url" \
+     && [[ "$(head -c 4 "$tmp")" == RIFF && "$(dd if="$tmp" bs=1 skip=8 count=4 2>/dev/null)" == WEBP ]]; then
+    mkdir -p "$root/$z/$x" && mv "$tmp" "$root/$z/$x/$y.webp"
+  else
+    rm -f "$tmp"
+  fi
+  return 0
+}
+export -f fetch_tile
+export FILL_UA FILL_REFERER
+
+# Re-fetch every tile dzmap-loader left out of the staged pyramid (see the ⚠️ above).
+fill_gaps() {
+  local map=$1 root=$2 tmpl z x y n
+  tmpl="$(tile_url_template "$map")"
+  [[ -n "$tmpl" ]] || { echo "warning: no topographic URL for $map in $CONFIG" >&2; return 0; }
+  mkdir -p "$root"
+  for (( z = 0; z <= ZOOM; z++ )); do
+    n=$(( 1 << z ))
+    for (( x = 0; x < n; x++ )); do
+      for (( y = 0; y < n; y++ )); do
+        [[ -f "$root/$z/$x/$y.webp" ]] || echo "$z $x $y"
+      done
+    done
+  done | xargs -P 4 -n 3 bash -c 'fetch_tile "$0" "$1" "$2" "$3" "$4"' "$root" "$tmpl"
+}
 
 mkdir -p "$DEST" || {
   echo "error: could not create $DEST — check that the parent directory is" >&2
@@ -69,21 +134,23 @@ OK_MAPS=()
 FAILED_MAPS=()
 for m in "${MAPS[@]}"; do
   SRC="$WORK/maps/$m/topographic"
-  if [[ ! -d "$SRC" ]]; then
-    echo "warning: no tiles produced for $m (source unreachable, or the map name" >&2
-    echo "         doesn't match dzmap.yaml) — skipping, existing tiles untouched" >&2
-    FAILED_MAPS+=("$m")
-    continue
+  # Also runs when dzmap-loader produced nothing at all for this map (every request
+  # 403ed, as Sakhal's did on 2026-10-15): fill_gaps then fetches the whole pyramid.
+  LOADER_COUNT="$(count_tiles "$SRC")"
+  if [[ "$LOADER_COUNT" -lt "$EXPECTED" ]]; then
+    echo "==> $m: dzmap-loader got $LOADER_COUNT/$EXPECTED tiles; fetching the rest ..."
+    fill_gaps "$m" "$SRC"
   fi
 
-  # Counted BEFORE touching $DEST at all: a staged-but-empty source must never destroy
-  # the previously-working mirror. The `rm -rf` + `mv` below is the destructive step, and
-  # the missing-source branch above promises "existing tiles untouched" — this check makes
-  # that promise hold for an empty-but-present source too, not just an absent one.
-  STAGED_COUNT="$(find "$SRC" -name '*.webp' | wc -l | tr -d ' ')"
-  if [[ "$STAGED_COUNT" -eq 0 ]]; then
-    echo "warning: $m produced a tile directory with zero .webp files — leaving the" >&2
-    echo "         existing mirror at $DEST/$m/topographic untouched" >&2
+  # Counted BEFORE touching $DEST at all: the `rm -rf` + `mv` below is the destructive
+  # step, so only a COMPLETE staged pyramid may replace the live mirror. Anything short
+  # of that (a 403ing source, a wrong map name, a dropped connection) leaves the
+  # existing tiles exactly as they were. See the ⚠️ at the top for why "non-empty"
+  # is not good enough.
+  STAGED_COUNT="$(count_tiles "$SRC")"
+  if [[ "$STAGED_COUNT" -ne "$EXPECTED" ]]; then
+    echo "warning: $m staged $STAGED_COUNT/$EXPECTED tiles — incomplete, so the existing" >&2
+    echo "         mirror at $DEST/$m/topographic is left untouched. Re-run later." >&2
     FAILED_MAPS+=("$m")
     continue
   fi
@@ -95,7 +162,7 @@ for m in "${MAPS[@]}"; do
   mkdir -p "$DEST/$m"
   rm -rf "$DEST/$m/topographic"
   mv "$SRC" "$DEST/$m/topographic"
-  TILE_COUNT="$(find "$DEST/$m/topographic" -name '*.webp' | wc -l | tr -d ' ')"
+  TILE_COUNT="$(count_tiles "$DEST/$m/topographic")"
   echo "==> $m: $TILE_COUNT tiles mirrored"
   OK_MAPS+=("$m")
 done

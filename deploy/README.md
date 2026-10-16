@@ -556,12 +556,13 @@ mirroring is independent of the release train: it may be run before or after any
 the host and put it on `PATH` first. `deploy/mirror-tiles.sh` checks for it and
 fails with a clear message rather than half-running if it's missing.
 
-Mirror all three maps (`chernarusplus`, `sakhal`, `enoch`/Livonia):
+Mirror every map in the script's `MAPS` list (`chernarusplus`, `sakhal`, `enoch`/Livonia,
+`nasdara`). `/var/www/tiles` is root-owned, so run it under `sudo`:
 
 ```bash
 cd /var/www/dayzonelife.com
-./deploy/mirror-tiles.sh              # first-time mirror
-./deploy/mirror-tiles.sh              # re-mirror (after a DayZ terrain update) —
+sudo ./deploy/mirror-tiles.sh -p 4    # first-time mirror (-p 4: dzmap-loader concurrency)
+sudo ./deploy/mirror-tiles.sh -p 4    # re-mirror (after a DayZ terrain update) —
                                        # a bare re-run already fully re-downloads
                                        # and replaces the destination, so there is
                                        # no force flag needed here
@@ -596,6 +597,15 @@ Things to know before relying on this:
   reproducible by re-running `deploy/mirror-tiles.sh` — that's the trade being
   made: no backup coverage, in exchange for keeping hundreds of MB of static
   binary tiles out of every database checkpoint.
+- **⚠️ A map is only replaced when its new pyramid is COMPLETE** (5461 tiles at the default
+  zoom 0–6). static.xam.nu returns 403 for most tiles to non-browser clients, and
+  `dzmap-loader` reads that 403 as "tile does not exist" and reports success. On 2026-10-15
+  that silently turned the complete Chernarus and Livonia mirrors into 1144- and 537-tile ones
+  under the script's old "non-empty is good enough" check. The script now re-fetches every
+  missing tile with curl (browser User-Agent + xam.nu Referer, 4 at a time) and refuses to swap
+  in anything short of a full pyramid, leaving the live tiles untouched and listing the map
+  under `failed/empty`. If that happens, just re-run later. A 403 from xam.nu is not evidence
+  a tile is missing: every tile at zoom 0–6 exists.
 - **A missed or not-yet-run mirror is not a release blocker.** `track-map.tsx`
   sets `errorTileUrl` to a blank placeholder and the map container has a dark
   background, so an absent tile set degrades to a bare trail on a dark

@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `deploy/mirror-tiles.sh` no longer replaces a map's terrain tiles with an incomplete set.
+  xam.nu turns most non-browser tile requests away, and the downloader quietly treated those as
+  missing tiles, which on 2026-10-15 left Chernarus and Livonia with only a fraction of their
+  tiles until they were refilled by hand. The script now fetches whatever the downloader missed
+  and only swaps in a map whose tiles are all there; otherwise the live tiles stay as they were.
+
 ## [0.79.0] - 2026-10-15
 
 ### Added
