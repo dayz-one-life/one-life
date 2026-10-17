@@ -6,7 +6,7 @@ describe("map-places data", () => {
   it("covers every map codename the app serves", () => {
     // These are `servers.map` codenames, NOT DZMap's publishing names — Livonia's upstream
     // data is published as `livonia` and is re-keyed to `enoch` by the refresh script.
-    for (const codename of ["chernarusplus", "enoch", "sakhal"]) {
+    for (const codename of ["chernarusplus", "enoch", "sakhal", "nasdara"]) {
       expect(placesFor(codename, 6).length).toBeGreaterThan(0);
     }
   });
