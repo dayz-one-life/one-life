@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 //
-// apps/web/scripts/refresh-map-places.mjs — regenerates src/lib/map-places.json from
+// apps/web/scripts/refresh-map-places.mjs — regenerates packages/client-logic/src/map-places.json from
 // DZMap's upstream location data (the same source as the mirrored tiles).
 //
 // NOTE: apps/newsdesk/src/map-places.json is a vendored copy for the obituary no-place
@@ -9,8 +9,12 @@
 // Run by hand after a DayZ terrain update, on the same cadence as deploy/mirror-tiles.sh
 // — place names change with the game, not with our releases:
 //
-//   node apps/web/scripts/refresh-map-places.mjs            # current pinned version
-//   node apps/web/scripts/refresh-map-places.mjs 1.30-1     # after a DayZ update
+//   node apps/web/scripts/refresh-map-places.mjs                       # pinned versions
+//   node apps/web/scripts/refresh-map-places.mjs chernarusplus=1.30-0  # override one map
+//
+// Each map carries its own version segment: the iteration counter is per map upstream
+// (on 2026-10-16 chernarusplus was 1.30-0 while nasdara was 1.30-6), so one shared
+// version would 0-byte at least one of them.
 //
 // ⚠️ FINDING THE VERSION SEGMENT. The URL is
 // `https://static.xam.nu/dayz/json/<map>/<version>-<iteration>.json` and the host answers
@@ -21,7 +25,8 @@
 //   curl -s https://dayz.xam.nu/ | grep -oE '/js/bundle[^"]+'      # find the bundle
 //   curl -s https://dayz.xam.nu/<bundle> | grep -o '"chernarusplus":{"v":"[^"]*","i":[0-9]*}'
 //
-// which yields e.g. {"v":"1.29","i":7} ⇒ version segment `1.29-7`.
+// which yields e.g. {"v":"1.29","i":7} ⇒ version segment `1.29-7`. Swap `chernarusplus`
+// for the publishing name of the map you are bumping.
 //
 // NOTE the map key mismatch: Livonia's data is published under `livonia`, while our
 // `servers.map` codename (and the tile directory) is `enoch`. The output is keyed by OUR
@@ -30,37 +35,60 @@ import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const VERSION = process.argv[2] ?? "1.29-7";
-// [our servers.map codename, DZMap's publishing name]
+// [our servers.map codename, DZMap's publishing name, version segment]
 const MAPS = [
-  ["chernarusplus", "chernarusplus"],
-  ["enoch", "livonia"],
-  ["sakhal", "sakhal"],
+  ["chernarusplus", "chernarusplus", "1.29-7"],
+  ["enoch", "livonia", "1.29-7"],
+  ["sakhal", "sakhal", "1.29-7"],
+  // Nasdara is xam.nu's "very early" upload; its tilev (26.10.15) matches deploy/dzmap.yaml.
+  ["nasdara", "nasdara", "1.30-6"],
 ];
+const OVERRIDES = Object.fromEntries(
+  process.argv.slice(2).map((arg) => {
+    const [codename, version] = arg.split("=");
+    if (!version || !MAPS.some(([c]) => c === codename)) {
+      throw new Error(`bad argument "${arg}" — expected <codename>=<version>, codename one of ${MAPS.map(([c]) => c).join(", ")}`);
+    }
+    return [codename, version];
+  }),
+);
 
 /** Lowercase source name → display casing. Every word, including after a `(` or `-`. */
 function titleCase(raw) {
   // U+0307 COMBINING DOT ABOVE rides on the `i` of `i̇turup` in the source data; upper-casing
   // that sequence produces a stray floating dot, so it is dropped before casing.
   const clean = raw.normalize("NFC").replace(/̇/g, "");
-  return clean.replace(/(^|[\s(\-])(\p{Ll})/gu, (_m, lead, ch) => lead + ch.toUpperCase());
+  return clean
+    .replace(/(^|[\s(\-])(\p{Ll})/gu, (_m, lead, ch) => lead + ch.toUpperCase())
+    // Nasdara's Persian ezafe stays lowercase: `bagh-e mir` ⇒ "Bagh-e Mir", not "Bagh-E Mir".
+    .replace(/-E(?=\s|$)/g, "-e")
+    // Roman numerals and military/Soviet acronyms are all-caps words, not names.
+    .replace(/\b(Ii|Iii|Iv|Cop|Fob|Okb|Nii)\b/g, (w) => w.toUpperCase());
 }
 
-function assertNonEmpty(text, url) {
+// static.xam.nu's bot filter 403s Node's default fetch headers (a 403 is NOT a missing file);
+// the same browser UA + Referer pair deploy/mirror-tiles.sh uses gets through.
+const HEADERS = {
+  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+  Referer: "https://dayz.xam.nu/",
+};
+
+function assertNonEmpty(text, url, version) {
   // static.xam.nu answers an unknown path with 200 + an empty body, so a stale version
   // segment would otherwise silently write a file with zero places for that map.
   if (text.trim().length === 0) {
-    throw new Error(`empty body from ${url} — the version segment "${VERSION}" is probably stale (see the header comment)`);
+    throw new Error(`empty body from ${url} — the version segment "${version}" is probably stale (see the header comment)`);
   }
 }
 
 const out = {};
-for (const [codename, upstream] of MAPS) {
-  const url = `https://static.xam.nu/dayz/json/${upstream}/${VERSION}.json`;
-  const res = await fetch(url);
+for (const [codename, upstream, pinned] of MAPS) {
+  const version = OVERRIDES[codename] ?? pinned;
+  const url = `https://static.xam.nu/dayz/json/${upstream}/${version}.json`;
+  const res = await fetch(url, { headers: HEADERS });
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
   const text = await res.text();
-  assertNonEmpty(text, url);
+  assertNonEmpty(text, url, version);
   const locations = JSON.parse(text).markers?.locations;
   if (!Array.isArray(locations) || locations.length === 0) {
     throw new Error(`${url} has no markers.locations array`);
@@ -74,6 +102,6 @@ for (const [codename, upstream] of MAPS) {
   console.log(`${codename}: ${out[codename].length} places`);
 }
 
-const dest = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "lib", "map-places.json");
+const dest = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "packages", "client-logic", "src", "map-places.json");
 await writeFile(dest, JSON.stringify(out, null, 1) + "\n");
 console.log(`wrote ${dest}`);

@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Place names on the Nasdara map: 156 towns, villages, bases and landmarks from xam.nu's early
+  Nasdara data (version `1.30-6`), labelled by zoom like the other maps. The obituary writer
+  also learns them, so it won't name a Nasdara place it can't verify.
+
+### Fixed
+
+- `apps/web/scripts/refresh-map-places.mjs` works again. It now writes to
+  `packages/client-logic/src/map-places.json`, where the file has lived since that package was
+  split out. It sends browser headers, because xam.nu now refuses its plain requests with a 403.
+  It also pins a version per map, since upstream's version numbers now differ between maps.
+  Nasdara's Persian names keep their lowercase "-e" ("Bagh-e Mir"), and roman numerals and
+  acronyms are capitalised ("Helios Solar II", "FOB Atlas").
+
 ## [0.79.1] - 2026-10-16
 
 ### Fixed
