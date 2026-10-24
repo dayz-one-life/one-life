@@ -8,7 +8,7 @@
   "dependencies": {
     "@onelife/db": "workspace:*",
     "@onelife/domain": "workspace:*",
-    "drizzle-orm": "^0.36.0"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@onelife/test-support": "workspace:*",
