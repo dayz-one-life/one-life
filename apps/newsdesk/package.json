@@ -6,7 +6,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "preview": "tsx src/preview.ts",
+    "check-inferred-previews": "tsx scripts/check-inferred-previews.ts"
   },
   "dependencies": {
     "@onelife/db": "workspace:*",
