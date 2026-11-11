@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, NO_MECHANISM_DIRECTIVE, causeUnrecorded } from "../src/prompt.js";
+import { buildObituaryPrompt, describeDeath, parseObituary, composeTags, causeCategoryTag, OBITUARY_PROMPT_VERSION, UNKNOWN_DEATH_PHRASE, NO_MECHANISM_DIRECTIVE, NAMES_NO_PERSON_DIRECTIVE, causeUnrecorded } from "../src/prompt.js";
 import type { ObituaryFacts } from "../src/facts.js";
 
 const facts: ObituaryFacts = {
@@ -323,13 +323,13 @@ describe("parseObituary", () => {
   });
 
   it("exposes a stable prompt version", () => {
-    expect(OBITUARY_PROMPT_VERSION).toBe("obituary-v3");
+    expect(OBITUARY_PROMPT_VERSION).toBe("obituary-v3.1");
   });
 });
 
 describe("obituary-v3", () => {
-  it("is prompt version obituary-v3", () => {
-    expect(OBITUARY_PROMPT_VERSION).toBe("obituary-v3");
+  it("is prompt version obituary-v3.1", () => {
+    expect(OBITUARY_PROMPT_VERSION).toBe("obituary-v3.1");
   });
   it("still carries the map dateline line — the map is the one allowed place", () => {
     const { user } = buildObituaryPrompt(facts);
@@ -353,5 +353,68 @@ describe("composeTags", () => {
     expect(causeCategoryTag("unknown")).toBe("Unknown");
     const f = mkFacts({ cause: "suicide", causeCategory: "suicide", killerGamertag: null, weapon: null });
     expect(composeTags(f, ["Elektro"])).toEqual(["Obituaries", "Chernarus", "Self-Inflicted", "Elektro"]);
+  });
+});
+
+// v3.1 — the parser now stores `explosion` and `vehicle` for deaths a kill line pins on an object
+// (a grenade, a mine, a tripwire, a 40mm round, a fuel pump, a riderless motorbike). The log names
+// no person on those lines. That is NOT the same as there being no person, and the prose goes to
+// places it cannot be edited — so the prompt may neither deny a player's hand nor point at one.
+describe("obituary-v3.1 — explosion and vehicle name no person", () => {
+  const env = (overrides: Partial<ObituaryFacts>) =>
+    mkFacts({ causeCategory: "environment", killerGamertag: null, weapon: null, ...overrides });
+  // The three ways a cause reaches describeDeath: no verdict, a verdict that names it, and a
+  // verdict that names nothing over a recorded cause.
+  const paths = (cause: string): ObituaryFacts[] => [
+    env({ cause, verdict: null }),
+    env({ cause, verdict: { cause, confidence: "high", conditions: [] } }),
+    env({ cause, verdict: { cause: "environmental", confidence: "high", conditions: [] } }),
+  ];
+
+  it('explosion and vehicle carry no "(not a player kill)"', () => {
+    for (const cause of ["explosion", "vehicle"]) {
+      for (const f of paths(cause)) {
+        expect(describeDeath(f)).not.toContain("not a player kill");
+        expect(buildObituaryPrompt(f).user).not.toContain("not a player kill");
+      }
+    }
+    expect(describeDeath(paths("explosion")[1]!)).toBe("killed in an explosion.");
+    expect(describeDeath(paths("vehicle")[1]!)).toBe("killed by a vehicle.");
+    expect(describeDeath(paths("explosion")[0]!)).toBe("explosion.");
+    expect(describeDeath(paths("vehicle")[2]!)).toBe("vehicle.");
+  });
+
+  it("keeps the hedge and the end-of-life state around the shortened phrase", () => {
+    expect(describeDeath(env({ cause: "explosion", verdict: { cause: "explosion", confidence: "low", conditions: ["starving"] } })))
+      .toBe("likely killed in an explosion. At the end they were starving.");
+  });
+
+  it("they carry the names-no-person directive", () => {
+    expect(NAMES_NO_PERSON_DIRECTIVE).toBe(
+      "The record names no person behind this. Do not name, hint at or speculate about anyone, and do not say that no one was involved.",
+    );
+    for (const cause of ["explosion", "vehicle"]) {
+      for (const f of paths(cause)) expect(buildObituaryPrompt(f).user).toContain(NAMES_NO_PERSON_DIRECTIVE);
+    }
+  });
+
+  it("suicide and infected are unchanged", () => {
+    const suicide = env({ cause: "suicide", causeCategory: "suicide", verdict: null });
+    expect(describeDeath(suicide)).toBe("died by their own hand (not a player kill).");
+    expect(buildObituaryPrompt(suicide).user).not.toContain(NAMES_NO_PERSON_DIRECTIVE);
+
+    const infected = env({ cause: "infected", verdict: { cause: "infected", confidence: "high", conditions: [] } });
+    expect(describeDeath(infected)).toBe("killed by the infected (not a player kill).");
+    expect(buildObituaryPrompt(infected).user).not.toContain(NAMES_NO_PERSON_DIRECTIVE);
+    expect(describeDeath(env({ cause: "infected", verdict: null }))).toBe("infected (not a player kill).");
+  });
+
+  it("a player kill never carries the directive, whatever the weapon", () => {
+    const { user } = buildObituaryPrompt(mkFacts({ cause: "pvp", causeCategory: "pvp", killerGamertag: "Killer Two", weapon: "M79" }));
+    expect(user).not.toContain(NAMES_NO_PERSON_DIRECTIVE);
+  });
+
+  it("the tag is still Environment", () => {
+    expect(composeTags(paths("explosion")[0]!, [])).toEqual(["Obituaries", "Chernarus", "Environment"]);
   });
 });
