@@ -44,7 +44,7 @@ describe("verifyVerdicts", () => {
     expect(r.ok).toBe(true);
     expect(r.lines.join("\n")).toContain("credited");
     // check 7 prints the classifier's spawn table beside what production observed
-    expect(r.lines.some((l) => /^7\. server \d+: table water \d+, energy \d+; /.test(l))).toBe(true);
+    expect(r.lines.some((l) => /^7\. server \d+: table water \d+, energy \d+( since [\d-]+| \(default\)); /.test(l))).toBe(true);
   });
 
   it("fails while a life has no verdict, and on a needs_review row", async () => {
@@ -127,5 +127,50 @@ describe("verifyVerdicts", () => {
       expect(r.failures.some((f) => f.startsWith("check 2"))).toBe(true);
       expect(r.csv).toContain(`${row.uid},1 10`);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("check 7 measures only the deaths since the server's current spawn levels, and flags a difference either way", async () => {
+    // Five deaths within 120 s of spawn at the old levels (Water and Energy 595), three at the
+    // new ones (740 / 990). Over all time the median is the old level; since the change it is 750/1000.
+    const deaths = async (date: string, n: number, water: number, energy: number, from: number) => {
+      const entries: [string, string][] = [];
+      for (let i = 0; i < n; i++) {
+        entries.push([`1${i}:00:00`, line.connected(O, 3000)], [`1${i}:01:00`, line.died(O, 3000, 2000, water, energy)]);
+      }
+      const l = await seedAdmLog(db, sid, [{ date, start: "09:00:00", complete: true, lines: entries }]);
+      const f = l.fileIds[0]!;
+      const [o] = (await db.execute(dsql`SELECT id FROM players WHERE dayz_id = ${O.id}`)) as unknown as { id: string }[];
+      for (let i = 0; i < n; i++) {
+        await db.insert(lives).values({ serverId: sid, playerId: Number(o!.id), lifeNumber: from + i, startedAt: l.at(f, l.idx(2 * i)), endedAt: l.at(f, l.idx(2 * i + 1)), deathCause: "died", playtimeSeconds: 60 });
+      }
+    };
+    await deaths("2031-05-20", 5, 595, 595, 1);
+    await deaths("2031-06-05", 3, 740, 990, 10);
+    const run = (rows: { from: string; water: number; energy: number }[]) =>
+      verifyVerdicts(db, { now: new Date("2031-06-20T00:00:00Z"), spawnTable: { [sid]: rows } });
+    const right = await run([{ from: "2031-05-01T00:00:00Z", water: 600, energy: 600 }, { from: "2031-06-01T00:00:00Z", water: 750, energy: 1000 }]);
+    expect(right.lines.find((l) => l.startsWith(`7. server ${sid}:`))).toContain("since 2031-06-01");
+    expect(right.lines.find((l) => l.startsWith(`7. server ${sid}:`))).toContain("deaths within 120 s of spawn 3");
+    expect(right.failures.filter((f) => f.startsWith("check 7"))).toEqual([]);
+    // the table says higher than observed: flagged too
+    const high = await run([{ from: "2031-06-01T00:00:00Z", water: 1000, energy: 1000 }]);
+    expect(high.failures.filter((f) => f.startsWith("check 7"))).toEqual([expect.stringContaining(`server ${sid}`)]);
+    // the table says lower than observed: an entry since the change that kept the old levels
+    const low = await run([{ from: "2031-06-01T00:00:00Z", water: 600, energy: 600 }]);
+    expect(low.lines.find((l) => l.startsWith(`7. server ${sid}:`))).toContain("level 750 / 1000");
+    expect(low.failures.filter((f) => f.startsWith("check 7"))).toEqual([expect.stringContaining(`server ${sid}`)]);
+  });
+
+  it("--held lists needs_review rows, the death event of a held life, and lives still waiting", async () => {
+    await sweepVerdicts(db, { now: NOW, log });
+    await db.execute(dsql`UPDATE death_verdicts SET needs_review = true`);
+    const r = await verifyVerdicts(db, { held: true, now: new Date(NOW.getTime() + 3600_000) });
+    const text = r.lines.join("\n");
+    expect(text).toMatch(/needs_review: life \d+ explosive_trap/);
+    expect(text).toMatch(/waiting over 45 min for a reviewable verdict: 1/);
+    await db.execute(dsql`DELETE FROM death_verdicts`);
+    await db.execute(dsql`INSERT INTO death_verdict_queue (life_id, attempts, last_error) SELECT id, 3, 'boom' FROM lives`);
+    const h = (await verifyVerdicts(db, { held: true })).lines.join("\n");
+    expect(h).toContain(`override key (death event) ${deathRef.f}:${deathRef.l}`);
   });
 });

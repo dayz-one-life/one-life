@@ -2,8 +2,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import pino from "pino";
 import { getDb, type Database } from "@onelife/db";
-import { CLASSIFIER_VERSION, objectKeyFromText, spawnAt, type CreditEvidence } from "@onelife/death-verdict";
-import { newFileCache } from "@onelife/read-models";
+import { CLASSIFIER_VERSION, SPAWN_BASELINES, objectKeyFromText, spawnAt, type CreditEvidence, type SpawnBaseline } from "@onelife/death-verdict";
+import { deathSeedOf, newFileCache } from "@onelife/read-models";
 import {
   deriveLife, lifeCountsOnItsOwn, overrideOf, overrideProblem, verdictRow, HELD_ATTEMPTS,
 } from "./verdict-sweep.js";
@@ -29,6 +29,21 @@ export interface VerifyOptions {
   /** `fileId:lineIndex` of a death that must be explosive_trap / definitive / m67_grenade / A07. */
   expectTrap?: string | null;
   trapKillsWrite?: boolean;
+  /** Test seams: the clock, and a spawn table in place of the checked-in one (check 7). */
+  now?: Date;
+  spawnTable?: Readonly<Record<number, readonly SpawnBaseline[]>>;
+}
+
+/** A death this long after its life ended with no reviewable verdict at this version is overdue. */
+export const OVERDUE_MINUTES = 45;
+
+/**
+ * The spawn level behind a stat read within 120 s of a respawn: the smallest level seen in the data
+ * that is at or above it (the reference's `spawn_level`).
+ */
+export function spawnLevel(v: number): number {
+  for (const k of [600, 750, 1000]) if (v <= k + 1) return k;
+  return Math.ceil(v / 50) * 50;
 }
 
 export interface VerifyReport { ok: boolean; lines: string[]; failures: string[]; csv: string | null }
@@ -115,7 +130,34 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
   say(`1. ended lives ${n(c1!.dead)}, verdicts at version ${CLASSIFIER_VERSION}: ${n(c1!.current)} (all versions ${n(c1!.total)})`);
   if (n(c1!.dead) !== n(c1!.current)) fail(`check 1: ${n(c1!.dead) - n(c1!.current)} ended lives have no verdict at version ${CLASSIFIER_VERSION}`);
   const held = await q(db, sql`SELECT life_id, attempts, last_error, next_attempt_at FROM death_verdict_queue WHERE attempts >= ${o.held ? 1 : HELD_ATTEMPTS} ORDER BY life_id`);
-  for (const h of held) say(`   queue: life ${n(h.life_id)} attempts ${n(h.attempts)} next ${isoS(h.next_attempt_at)}: ${String(h.last_error ?? "")}`);
+  for (const h of held) {
+    // A held life has no stored verdict, so no resolved line: its override goes on the death event.
+    const seed = o.held ? await deathSeedOf(db, n(h.life_id)) : null;
+    say(`   queue: life ${n(h.life_id)} attempts ${n(h.attempts)} next ${isoS(h.next_attempt_at)}: ${String(h.last_error ?? "")}${
+      seed ? `; override key (death event) ${seed.admFileId}:${seed.lineIndex}` : ""}`);
+  }
+  if (o.held) {
+    // Lives that block their obituary: a needs_review row, and every ended life that has waited
+    // more than OVERDUE_MINUTES for a reviewable verdict at this version.
+    const review = await q(db, sql`
+      SELECT v.life_id, v.cause, v.attr_basis, l.death_cause FROM death_verdicts v JOIN lives l ON l.id = v.life_id
+      WHERE v.needs_review ORDER BY v.life_id`);
+    for (const r of review) say(`   needs_review: life ${n(r.life_id)} ${String(r.cause)} (basis ${String(r.attr_basis ?? "none")}, life row ${String(r.death_cause ?? "none")})`);
+    const cutoff = new Date((o.now ?? new Date()).getTime() - OVERDUE_MINUTES * 60_000).toISOString();
+    const waiting = await q(db, sql`
+      SELECT l.id, v.classifier_version, v.needs_review, qq.last_error FROM lives l
+      LEFT JOIN death_verdicts v ON v.life_id = l.id
+      LEFT JOIN death_verdict_queue qq ON qq.life_id = l.id
+      WHERE l.ended_at IS NOT NULL AND l.ended_at < ${cutoff}::timestamptz
+        AND (v.life_id IS NULL OR v.classifier_version <> ${CLASSIFIER_VERSION} OR v.needs_review)
+      ORDER BY l.ended_at`);
+    say(`   waiting over ${OVERDUE_MINUTES} min for a reviewable verdict: ${waiting.length}`);
+    for (const w of waiting.slice(0, 50)) {
+      const why = w.classifier_version == null ? (w.last_error ? `failing: ${String(w.last_error)}` : "no verdict yet")
+        : w.needs_review ? "needs_review" : `verdict at version ${n(w.classifier_version)}`;
+      say(`     life ${n(w.id)}: ${why}`);
+    }
+  }
   const heldCount = held.filter((h) => n(h.attempts) >= HELD_ATTEMPTS).length;
   if (heldCount > 0) fail(`check 1: ${heldCount} held lives`);
 
@@ -158,7 +200,15 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
            (SELECT count(*) FROM kills k JOIN lives l ON l.id = k.victim_life_id WHERE k.basis = 'kill_line' AND l.death_cause IS DISTINCT FROM 'pvp') AS stray`);
   say(`4. needs_review ${n(c4!.review)}; kill-line verdicts ${n(c4!.named)}, pvp lives ${n(c4!.pvp)}; kill-line rows on a non-pvp victim life ${n(c4!.stray)}`);
   if (n(c4!.review)) fail(`check 4: ${n(c4!.review)} verdicts need review`);
-  if (n(c4!.named) !== n(c4!.pvp)) fail("check 4: kill-line verdicts and pvp lives differ in number");
+  // Each life whose verdict and life row disagree, row by row (a pvp life with no verdict is check
+  // 1's). One an operator's override decided is listed, not failed.
+  const odd = await q(db, sql`
+    SELECT v.life_id, v.evidence->>'reviewResolvedBy' AS resolved FROM death_verdicts v JOIN lives l ON l.id = v.life_id
+    WHERE coalesce(v.attr_basis IN ('kill_line', 'kill_line_driver'), false) <> coalesce(l.death_cause = 'pvp', false)
+    ORDER BY v.life_id`);
+  for (const r of odd.filter((x) => x.resolved === "override")) say(`   life ${n(r.life_id)}: basis and coarse word differ; decided by an override`);
+  const undecided = odd.filter((x) => x.resolved !== "override").length;
+  if (undecided) fail(`check 4: ${undecided} verdicts disagree with their life row on a kill-line killer`);
   if (n(c4!.stray)) fail(`check 4: ${n(c4!.stray)} kill-line rows on a victim life that is not pvp`);
 
   // 5. The tripwire case (named by the operator on the command line, never in the repository).
@@ -181,22 +231,30 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
   }
 
   // 7. Observed spawn levels next to the classifier's table (SPAWN_BASELINES, as it applies now).
-  // A server whose observed median sits above its table level needs a new entry: a version bump.
-  const spawn = await q(db, sql`
-    SELECT l.server_id, percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.payload->>'water')::float8) AS water,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.payload->>'energy')::float8) AS energy, count(*) AS n
-    FROM lives l JOIN events e ON e.server_id = l.server_id AND e.type = 'player.died'
-      AND e.occurred_at BETWEEN l.ended_at - interval '2 seconds' AND l.ended_at + interval '2 seconds'
-      AND e.payload->>'water' IS NOT NULL
-    WHERE l.ended_at IS NOT NULL AND l.ended_at - l.started_at < interval '120 seconds'
-    GROUP BY l.server_id ORDER BY l.server_id`);
-  const observed = new Map(spawn.map((s) => [n(s.server_id), s]));
-  const nowTs = Math.floor(Date.now() / 1000);
+  // ⚠️ Only deaths since the table entry that applies now are measured: a median over all time
+  // blends two levels. A server whose observed level differs from its table level, either way,
+  // needs a new entry: a classifier version bump.
+  const table = o.spawnTable ?? SPAWN_BASELINES;
+  const nowTs = Math.floor((o.now ?? new Date()).getTime() / 1000);
   for (const sv of await q(db, sql`SELECT id FROM servers ORDER BY id`)) {
-    const id = n(sv.id), t = spawnAt(id, nowTs), s = observed.get(id);
-    say(`7. server ${id}: table water ${t.water}, energy ${t.energy}; ${s
-      ? `deaths within 120 s of spawn ${n(s.n)}, median water ${Number(s.water).toFixed(0)}, energy ${Number(s.energy).toFixed(0)}`
+    const id = n(sv.id), rows = table[id] ?? [], t = spawnAt(id, nowTs, rows);
+    const entry = [...rows].reverse().find((r) => Date.parse(r.from) / 1000 <= nowTs) ?? null;
+    const since = entry ? new Date(entry.from).toISOString() : null;
+    const [s] = await q(db, sql`
+      SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.payload->>'water')::float8) AS water,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.payload->>'energy')::float8) AS energy, count(*) AS n
+      FROM lives l JOIN events e ON e.server_id = l.server_id AND e.type = 'player.died'
+        AND e.occurred_at BETWEEN l.ended_at - interval '2 seconds' AND l.ended_at + interval '2 seconds'
+        AND e.payload->>'water' IS NOT NULL
+      WHERE l.server_id = ${id} AND l.ended_at IS NOT NULL AND l.ended_at - l.started_at < interval '120 seconds'
+        AND (${since}::timestamptz IS NULL OR l.ended_at >= ${since}::timestamptz)`);
+    const seen = s && n(s.n) > 0 ? { n: n(s.n), water: Number(s.water), energy: Number(s.energy) } : null;
+    say(`7. server ${id}: table water ${t.water}, energy ${t.energy}${since ? ` since ${since.slice(0, 10)}` : " (default)"}; ${seen
+      ? `deaths within 120 s of spawn ${seen.n}, median water ${seen.water.toFixed(0)}, energy ${seen.energy.toFixed(0)} (level ${spawnLevel(seen.water)} / ${spawnLevel(seen.energy)})`
       : "no death within 120 s of spawn observed"}`);
+    if (seen && seen.n >= 3 && (spawnLevel(seen.water) !== t.water || spawnLevel(seen.energy) !== t.energy)) {
+      fail(`check 7: server ${id} spawns at ${spawnLevel(seen.water)} / ${spawnLevel(seen.energy)} since ${since ?? "its first death"}, the table says ${t.water} / ${t.energy}: add a SPAWN_BASELINES entry (a classifier version bump)`);
+    }
   }
 
   // 8. Overrides.
