@@ -11,14 +11,17 @@
     "backfill-death-stats": "tsx src/backfill-death-stats.ts",
     "backfill-death-causes": "tsx src/backfill-death-causes.ts",
     "backfill-unconscious": "tsx src/backfill-unconscious.ts",
-    "fleet-cutover": "tsx src/fleet-cutover.ts"
+    "fleet-cutover": "tsx src/fleet-cutover.ts",
+    "verify-verdicts": "tsx src/verify-verdicts.ts"
   },
   "dependencies": {
     "@onelife/adm-parser": "workspace:*",
     "@onelife/db": "workspace:*",
+    "@onelife/death-verdict": "workspace:*",
     "@onelife/domain": "workspace:*",
     "@onelife/event-log": "workspace:*",
     "@onelife/projections": "workspace:*",
+    "@onelife/read-models": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "pino": "^10.3.1",
     "zod": "^3.23.8"

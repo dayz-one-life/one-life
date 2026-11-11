@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, admFiles, playerGamertags, unconsciousEvents } from "@onelife/db";
-import { eq } from "drizzle-orm";
+import { servers, players, lives, admFiles, playerGamertags, unconsciousEvents, kills, deathVerdicts } from "@onelife/db";
+import { eq, sql as dsql } from "drizzle-orm";
+import { seedAdmLog, line, fakeId } from "@onelife/test-support/adm-log";
+import { sweepVerdicts } from "../src/verdict-sweep.js";
 import { getCursor, setCursor, appendEvent } from "@onelife/event-log";
 import { rebuildAll, REBUILD_TRUNCATE_TABLES } from "../src/rebuild.js";
 import { projectorTick } from "../src/tick.js";
@@ -127,5 +129,69 @@ describe("rebuildAll", () => {
     for (const l of lifeRows) {
       expect(l.lifeNumber).toBe(1);
     }
+  });
+
+  it("death_verdicts is not in REBUILD_TRUNCATE_TABLES and is emptied by the cascade", async () => {
+    // Created by migration 0040 in the release that ships it: naming it here would abort the
+    // rebuild phase, which runs before migrate (the v0.42.1 deploy bug). TRUNCATE lives CASCADE
+    // reaches it, and the queue, through their foreign keys.
+    for (const t of ["death_verdicts", "death_verdict_queue", "death_verdict_overrides"]) {
+      expect(REBUILD_TRUNCATE_TABLES as readonly string[]).not.toContain(t);
+    }
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svc + 7, name: "rebuild-verdicts" }).returning();
+    const [p] = await db.insert(players).values({ gamertag: `DV-${svc}`, dayzId: `DV=${svc}` }).returning();
+    const [l] = await db.insert(lives).values({
+      serverId: s!.id, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2031-01-01T00:00:00Z"), endedAt: new Date("2031-01-01T01:00:00Z"),
+    }).returning();
+    await db.insert(deathVerdicts).values({
+      lifeId: l!.id, classifierVersion: 1, settledBy: "file", deathFileId: 1, deathLineIndex: 1, deathAt: new Date(),
+      cause: "fall", confidence: "definitive", mechanismStated: true, rule: "B03",
+    });
+    await db.execute(dsql`INSERT INTO death_verdict_queue (life_id) VALUES (${l!.id})`);
+    await db.execute(dsql`INSERT INTO death_verdict_overrides (server_id, death_file_id, death_line_index, cause, note, created_by)
+      VALUES (${s!.id}, 1, 1, 'fall', 'durable', 'test')`);
+    expect(await db.select().from(deathVerdicts)).toHaveLength(1);
+    await rebuildAll(db, `rb-dv-${svc}`);
+    expect(await db.select().from(deathVerdicts)).toHaveLength(0);
+    expect((await db.execute(dsql`SELECT 1 FROM death_verdict_queue`)) as unknown as unknown[]).toHaveLength(0);
+    // overrides are durable: keyed on the death line, they survive the rebuild
+    expect((await db.execute(dsql`SELECT 1 FROM death_verdict_overrides`)) as unknown as unknown[]).toHaveLength(1);
+    await db.execute(dsql`DELETE FROM death_verdict_overrides`);
+  });
+
+  it("kills is truncated and trap rows return after the sweep", async () => {
+    // ⚠️ invented lines: Other Two sets a wire; two days later Victim One trips it.
+    await db.execute(dsql`TRUNCATE kills, lives, players, events, raw_lines, adm_files, servers RESTART IDENTITY CASCADE`);
+    const V = { name: "Victim One", id: fakeId("1") }, O = { name: "Other Two", id: fakeId("2") };
+    const [s] = await db.insert(servers).values({ nitradoServiceId: svc + 9, name: "rebuild-trap" }).returning();
+    await seedAdmLog(db, s!.id, [
+      { date: "2031-06-08", start: "08:00:00", lines: [["08:05:00", line.connected(O, 1001.5)], ["08:10:00", line.wire(O, 1001.5)]] },
+      { date: "2031-06-10", start: "12:00:00", complete: true, lines: [
+        ["12:01:00", line.connected(V)], ["12:20:00", line.trip(V)], ["12:20:04", line.fragBlast(V)], ["12:20:04", line.fragKill(V)],
+      ] },
+    ]);
+    const consumer = `rb-trap-${svc}`;
+    const fold = async () => {
+      await setCursor(db, consumer, 0);
+      for (let i = 0; i < 20; i++) if ((await projectorTick(db, { batchSize: 500, consumerName: consumer })).applied === 0) break;
+    };
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+    const trapRows = () => db.select().from(kills).where(eq(kills.basis, "trap_placement"));
+    await fold();
+    await sweepVerdicts(db, { log, trapKillsWrite: true, now: new Date("2031-06-11T00:00:00Z") });
+    expect(await trapRows()).toMatchObject([{ killerGamertag: O.name, victimGamertag: V.name, weapon: "Tripwire" }]);
+
+    await rebuildAll(db, consumer);
+    expect(await db.select().from(kills)).toHaveLength(0);
+    expect(await db.select().from(deathVerdicts)).toHaveLength(0);
+    await fold();
+    // folded again: the kill-line rows return with the fold, the trap row only with the sweep
+    expect(await trapRows()).toHaveLength(0);
+    await sweepVerdicts(db, { log, trapKillsWrite: true, now: new Date("2031-06-11T00:00:00Z") });
+    const [l] = await db.select().from(lives).where(eq(lives.lifeNumber, 1)).orderBy(lives.id);
+    const rows = await trapRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.victimLifeId).not.toBeNull();
+    expect(l).toBeDefined();
   });
 });
