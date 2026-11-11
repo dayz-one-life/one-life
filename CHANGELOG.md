@@ -122,6 +122,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the ended ban used, such as an old gamertag, is still taken off the server's list. No ban
   is recorded for a life whose ban would already be over. None of this changes a ban on the
   servers today.
+- Obituaries are written from the stored cause of death (prompt `obituary-v4`). The writer is told
+  the cause with its certainty: a cause the log states is given as fact, one that was worked out
+  may carry one small qualifier, and a best reading is given as "most likely" under a heading that
+  says it is not confirmed, with the instruction to hedge it in every sentence and keep it out of
+  the headline and the pull quote. A death the server gives no cause for, or one we choose not to
+  describe, gets no cause at all. When a trap kill is credited, the victim's obituary may name the
+  player credited in its body only, never in the headline, the opening paragraph or the pull
+  quote, and a trap-setter's obituary counts trap kills as kills but keeps any kill count out of
+  the headline and the opening paragraph. A check now reads every draft before it is published
+  and sends it back once, then gives up, if it breaks any of these rules or mentions how a player
+  left the game. The cause tag on a new obituary is the death's family ("Hunger and Thirst",
+  "Trap", "Exposure", ...) instead of "Environment"; it is "Unknown" only when no cause is given.
+  A re-published obituary keeps its address. The obituary records which version of the cause it
+  was written from (new column `articles.verdict_version`, migration `0041`), and stores the cause
+  in the old vocabulary so older pages and app builds still read it. The privacy page lists the
+  new things sent to the writer. `pnpm --filter @onelife/newsdesk run preview -- --life <id>
+  [--generate]` prints what would be sent for a death without writing anything. No `--rebuild` and
+  no backfill is needed.
 
 ### Fixed
 
