@@ -21,8 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   belong to one death, and choosing the lines of the log a death needs. No cause is worked out
   yet and nothing on the site reads any of it, so no page, card or obituary changes. A new file,
   `packages/death-verdict/golden-attest.json`, records that the private checks were run against
-  the code as committed; a test fails when the two drift apart. No `--rebuild` and no backfill is
-  needed.
+  the code as committed. It is signed with a key kept beside the private data, so it cannot be
+  written by hand, and a test fails when the code, the checks themselves or the signature no
+  longer match it. No `--rebuild` and no backfill is needed.
 
 ### Changed
 

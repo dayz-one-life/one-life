@@ -25,12 +25,28 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   (which lines are one death and which is its primary line — ⚠️ never a `committed suicide`
   line, so the line a life was folded from is not always the primary), `context/select.ts`
   (`selectContextLines`, the ONE rule for which lines a death needs) and `context/build.ts`
-  (`DeathContext`). ⚠️ `classifyDeath` is a stub that answers "unknown" until the rules are
-  ported; nothing may store or show its verdict. Its private golden suites need
-  `DEATH_GOLDEN_DIR` and are skipped without it; `pnpm --filter @onelife/death-verdict run golden`
-  runs them where the data is and writes `golden-attest.json`, and the public `attest.test.ts`
-  fails when `src/` no longer matches that file — so a change under `src/` needs a fresh golden
-  run, never a hand-edited hash), `event-log` (append/cursor over
+  (`DeathContext`). Distances and float sums are the reference's to the last bit (`pyHypot`,
+  `pySum`, `pyRound` — never `Math.hypot` or a plain `+` where the reference calls `hypot` or
+  `sum`): rules compare them with round thresholds. ⚠️ `classifyDeath` is a stub that answers
+  "unknown" until the rules are ported; nothing may store or show its verdict. Its private
+  golden suites need `DEATH_GOLDEN_DIR` and are skipped without it;
+  `pnpm --filter @onelife/death-verdict run golden` runs them where the data is and writes
+  `golden-attest.json`. **The attestation is signed.** It records the hash of `src/`
+  (`sourceHash`), of the golden harness — `scripts/**`, `test/golden-private/**`,
+  `vitest.golden.config.ts` and the `golden` command (`harnessHash`) — and of every private file
+  the suites read, answers included (`corpusSha`), how many suites and tests ran, and the
+  outcome; the Ed25519 key that signs it lives ONLY with the golden data
+  (`$DEATH_GOLDEN_DIR/attest-key/`), and `golden-attest.pub.pem` is its public half. The public
+  `attest.test.ts` verifies the signature and both hashes, pins the suite and test counts, and
+  holds a ceiling on the known gaps that each step lowers. So a change under `src/`, `scripts/`
+  or `test/golden-private/` needs a fresh golden run by someone who has the data — the file
+  cannot be edited by hand. A run counts only when `scripts/golden-reporter.ts` saw every suite
+  of `GOLDEN_SUITES` pass with nothing skipped and nothing changed underneath; it deletes the
+  previous run's record when a run starts. ⚠️ Two limits, stated plainly: the signature proves
+  the file came from a machine with the golden data, not that its holder ran the suites
+  honestly; and a pull request can replace `golden-attest.pub.pem` together with the
+  attestation — a change to that file is a change to who may attest and must be reviewed as
+  one), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
   `player-priors` — global cross-life reputation via `getPlayerPriors`), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
