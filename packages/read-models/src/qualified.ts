@@ -68,16 +68,19 @@ export function lifeQualifiedAt(input: QualifiedAtInput): QualifiedAt | null {
 
   // A kill logged inside the two-second grace after the death counts (kill-window.ts), but the
   // life cannot have qualified after it ended: the instant is capped at the death.
+  // ⚠️ The basis is chosen from the UNCAPPED times and only `at` is capped. Capping first would
+  // let a grace-window kill line tie a trap kill that really happened at the death and take its
+  // basis (qualified-at.test.ts).
   const e = input.endedAt?.getTime() ?? Infinity;
   const inWindow = input.playerKills
     .filter((k) => isKillInLife(k.occurredAt, input))
-    .map((k) => ({ t: Math.min(k.occurredAt.getTime(), e), basis: k.basis }));
+    .map((k) => ({ t: k.occurredAt.getTime(), basis: k.basis }));
   if (inWindow.length > 0) {
     const first = Math.min(...inWindow.map((k) => k.t));
     // On a tie the kill line wins: it is the stronger statement of the two.
     const atFirst = inWindow.filter((k) => k.t === first);
     const killBasis: KillBasis = atFirst.every((k) => k.basis === "trap_placement") ? "trap_placement" : "kill_line";
-    candidates.push({ at: new Date(first), by: "kill", killBasis });
+    candidates.push({ at: new Date(Math.min(first, e)), by: "kill", killBasis });
   }
 
   let acc = 0;

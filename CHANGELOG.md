@@ -22,10 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cause reaches them; it used to be kept for a year. Switching off a "Likely" cause also takes it
   off older obituaries whose stored cause is waiting for review. Kill counts never show
   anyone the log does not name. No `--rebuild` and no backfill is needed.
-- A kill credited from a trap is shown as one. When the server operator turns trap kills on, the
-  player whose tripwire or land mine killed someone has the kill in their "Kills" count like any
-  other, marked "by trap" in their kill list and life timeline with a note that the log names no
-  killer, and a life that the trap kill qualified says "A trap kill credited. The life counts from
+- A kill credited from a trap is shown as one. When the server operator turns trap kills on, a
+  kill credited to the player whose tripwire or land mine killed someone is marked "by trap" in
+  their kill list and life timeline with a note that the log names no killer, and a life that the trap kill qualified says "A trap kill credited. The life counts from
   here." The victim's life page says "Kill credited to" that player. The life map shows no marker
   for a trap kill, and the About page's grace rule now says that having a trap you set kill
   another survivor qualifies the life. Nothing here turns trap kills on. No `--rebuild` and no

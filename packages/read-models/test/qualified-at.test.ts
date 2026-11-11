@@ -74,6 +74,18 @@ describe("lifeQualifiedAt", () => {
     expect(q).toEqual({ at: min(3), by: "kill", killBasis: "kill_line" });
   });
 
+  it("a kill line in the grace after the death does not take the basis from a trap kill at the death", () => {
+    const d = min(2);
+    const q = lifeQualifiedAt({
+      startedAt: T0, endedAt: d, deathCause: "explosion", sessions: [], lastSeenAt: null,
+      playerKills: [
+        { occurredAt: new Date(d.getTime() + 1000), basis: "kill_line" }, // grace window, capped to d
+        { occurredAt: d, basis: "trap_placement" },
+      ],
+    });
+    expect(q).toEqual({ at: d, by: "kill", killBasis: "trap_placement" });
+  });
+
   it("ignores kills outside the life window", () => {
     const q = lifeQualifiedAt({
       startedAt: T0, endedAt: min(4), deathCause: "suicide",
