@@ -35,6 +35,19 @@ const verifiedOwner = and(
  */
 const realBan = eq(bans.dryRun, false);
 
+/**
+ * "banned until 2026-07-17 00:00 UTC", from the row's own expiry.
+ *
+ * ⚠️ Not a fixed "24 hours": a ban can be written late (a trap kill is scored minutes after the
+ * death it qualifies, an operator grant much later), and it still ends at the death time plus the
+ * ban length, so less of it is left. Spelled out in UTC: the notification has no viewer zone.
+ */
+export function bannedUntil(expiresAt: Date | null): string {
+  if (!expiresAt) return "banned";
+  const iso = expiresAt.toISOString();
+  return `banned until ${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+
 export const banAppliedGenerator: Generator = async (deps) => {
   const from = windowStart(deps);
   const rows = await deps.db
@@ -60,7 +73,7 @@ export const banAppliedGenerator: Generator = async (deps) => {
     kind: "ban_applied",
     naturalKey: `ban_applied:${r.id}`,
     title: "You died on a qualified life",
-    body: `${r.serverName}: banned for 24 hours. Spend an unban token to come back early.`,
+    body: `${r.serverName}: ${bannedUntil(r.expiresAt)}. Spend an unban token to come back early.`,
     href: `/players/${playerSlug(r.gamertag)}`,
   }));
 };

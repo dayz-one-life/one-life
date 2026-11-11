@@ -25,9 +25,10 @@ async function playerIdForGamertag(tx: Executor, gamertag: string): Promise<numb
 }
 
 /**
- * Spend one token to lift the user's active 24h death-ban. Sets the ban to 'lift_pending'
+ * Spend one token to lift the user's active death-ban. Sets the ban to 'lift_pending'
  * (the enforcer removes it from Nitrado) — or straight to 'lifted' if it was still 'pending'
- * (queued but not yet applied to Nitrado). Never calls Nitrado.
+ * (queued but not yet applied to Nitrado). Every other active ban of the same player on the same
+ * server is lifted with it, for the same token. Never calls Nitrado.
  * A ban placed under ENFORCER_DRY_RUN (`bans.dryRun = true`) was never actually applied on the
  * game server — it is not a real ban, so it is excluded from the candidate set entirely and
  * cannot be redeemed (throws 'no_active_ban'/'not_owner' as appropriate; no token is spent).
@@ -81,11 +82,21 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
       relatedBanId: ban.id,
     });
 
-    const lifted = ban.status !== "applied"; // 'pending' was never on Nitrado
-    await tx
-      .update(bans)
-      .set({ status: lifted ? "lifted" : "lift_pending", liftedAt: lifted ? new Date() : null })
-      .where(eq(bans.id, ban.id));
+    // ⚠️ One token lifts EVERY active ban of this player on this server, not only the one named.
+    // The server's ban list holds names, shared by all of them: a late ban (a trap kill written
+    // after the death it qualifies) can overlap a later one, and lifting only one would leave the
+    // player locked out by the other while they have paid to come back.
+    const chosenId = banIds.get(ban.gamertag);
+    const siblings = owned.filter((b) => b.serverId === ban.serverId
+      && (b.id === ban.id || banIds.get(b.gamertag) === chosenId || (ban.dayzId != null && b.dayzId === ban.dayzId)));
+    const at = new Date();
+    for (const b of siblings) {
+      const lifted = b.status !== "applied"; // 'pending' was never on Nitrado
+      await tx
+        .update(bans)
+        .set({ status: lifted ? "lifted" : "lift_pending", liftedAt: lifted ? at : null })
+        .where(eq(bans.id, b.id));
+    }
 
     return { banId: ban.id, gamertag: ban.gamertag };
   });

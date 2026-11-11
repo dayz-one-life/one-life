@@ -1,4 +1,4 @@
-import { and, eq, isNull, isNotNull, gte, lte } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, gte, lte, ne, gt, or, inArray, sql } from "drizzle-orm";
 import { type Database, lives, players, kills, bans, servers } from "@onelife/db";
 import type { EndedLife, BanPlan } from "./decide.js";
 
@@ -126,4 +126,27 @@ export async function serverServiceId(db: Database, serverId: number): Promise<n
   const [s] = await db.select({ sid: servers.nitradoServiceId }).from(servers).where(eq(servers.id, serverId));
   if (!s) throw new Error(`enforcer: no server ${serverId}`);
   return s.sid;
+}
+
+/**
+ * Whether another real ban of the same player on the same server is still running: not dry-run,
+ * `pending` or `applied`, not yet due, matched by dayz id or by gamertag (ignoring case).
+ *
+ * ⚠️ The server's ban list holds names, not bans: two bans of one player share one entry. A late
+ * ban (a trap kill written after the death it qualifies, an operator grant) can overlap a later
+ * one; removing the names when the earlier one expires or is lifted would let the player back in
+ * while the database still says the later ban is applied.
+ */
+export async function hasActiveSibling(db: Database, ban: BanRow, now: Date): Promise<boolean> {
+  const sameName = sql`lower(${bans.gamertag}) = lower(${ban.gamertag})`;
+  const who = ban.dayzId ? or(eq(bans.dayzId, ban.dayzId), sameName)! : sameName;
+  const rows = await db.select({ id: bans.id }).from(bans).where(and(
+    ne(bans.id, ban.id),
+    eq(bans.serverId, ban.serverId),
+    eq(bans.dryRun, false),
+    inArray(bans.status, ["pending", "applied"]),
+    gt(bans.expiresAt, now),
+    who,
+  )).limit(1);
+  return rows.length > 0;
 }

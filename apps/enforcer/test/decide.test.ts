@@ -12,32 +12,43 @@ const base: EndedLife = {
   playerKills: [],
 };
 
+/** Just after the base life's death. */
+const NOW = new Date("2026-07-11T12:00:01Z");
+
 describe("planBans", () => {
+  it("planBans skips a life whose ban would already have ended", () => {
+    const life = { ...base, effectivePlaytimeSeconds: 400 };
+    // a 24 h ban dated at the death: still running a second before it ends, gone at its end
+    expect(planBans([life], 24, new Date("2026-07-12T11:59:59Z"))).toHaveLength(1);
+    expect(planBans([life], 24, new Date("2026-07-12T12:00:00Z"))).toHaveLength(0);
+    expect(planBans([life], 24, new Date("2026-08-01T00:00:00Z"))).toHaveLength(0);
+  });
+
   it("plans a 24h ban for a life qualified by playtime (>=300s)", () => {
-    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 400 }], 24);
+    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 400 }], 24, NOW);
     expect(plans).toHaveLength(1);
     expect(plans[0]).toMatchObject({ serverId: 1, gamertag: "Steveo12491", qualifiedBy: "playtime", lifeStartedAt: base.startedAt, bannedAt: base.endedAt });
     expect(plans[0]!.expiresAt.toISOString()).toBe("2026-07-12T12:00:00.000Z");
   });
 
   it("plans a ban for a life qualified by a kill in-window", () => {
-    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 10, playerKills: [{ occurredAt: new Date("2026-07-11T11:00:00Z") }] }], 24);
+    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 10, playerKills: [{ occurredAt: new Date("2026-07-11T11:00:00Z") }] }], 24, NOW);
     expect(plans).toHaveLength(1);
     expect(plans[0]!.qualifiedBy).toBe("kill");
   });
 
   it("plans a ban for a PvP death", () => {
-    const plans = planBans([{ ...base, deathCause: "pvp", effectivePlaytimeSeconds: 10 }], 24);
+    const plans = planBans([{ ...base, deathCause: "pvp", effectivePlaytimeSeconds: 10 }], 24, NOW);
     expect(plans[0]!.qualifiedBy).toBe("pvp-death");
   });
 
   it("does NOT plan a ban for an unqualified life (<300s, no kill, non-pvp death)", () => {
-    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 120 }], 24);
+    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 120 }], 24, NOW);
     expect(plans).toEqual([]);
   });
 
   it("uses BAN_DURATION_HOURS for expiry", () => {
-    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 400 }], 12);
+    const plans = planBans([{ ...base, effectivePlaytimeSeconds: 400 }], 12, NOW);
     expect(plans[0]!.expiresAt.toISOString()).toBe("2026-07-12T00:00:00.000Z");
   });
 
@@ -48,7 +59,7 @@ describe("planBans", () => {
       endedAt: new Date("2026-07-20T02:00:00Z"),
       deathCause: "pvp", effectivePlaytimeSeconds: 7200, playerKills: [],
     };
-    expect(planBans([life], 24)[0]!.dayzId).toBe("ABC123");
+    expect(planBans([life], 24, NOW)[0]!.dayzId).toBe("ABC123");
   });
 
   it("carries a null dayzId through rather than dropping the ban", () => {
@@ -58,7 +69,7 @@ describe("planBans", () => {
       endedAt: new Date("2026-07-20T02:00:00Z"),
       deathCause: "pvp", effectivePlaytimeSeconds: 7200, playerKills: [],
     };
-    const plans = planBans([life], 24);
+    const plans = planBans([life], 24, NOW);
     expect(plans).toHaveLength(1);
     expect(plans[0]!.dayzId).toBeNull();
   });
@@ -69,7 +80,7 @@ describe("planBans", () => {
 // for such a life must be exactly what it was — playtime or an earlier kill, never "pvp-death".
 describe("planBans — the self-kill line", () => {
   const plan = (deathCause: string, over: Partial<EndedLife> = {}) =>
-    planBans([{ ...base, deathCause, ...over }], 24);
+    planBans([{ ...base, deathCause, ...over }], 24, NOW);
 
   it("decisions are unchanged for the self-kill line", () => {
     const cases: Partial<EndedLife>[] = [

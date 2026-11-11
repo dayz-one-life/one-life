@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, bans } from "@onelife/db";
+import { servers, players, lives, bans, kills } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { enforcerTick, type BanClient } from "../src/tick.js";
@@ -157,5 +157,98 @@ describe("enforcerTick — lift_pending (token redemption)", () => {
     expect(r.lifted).toBe(1);
     const [b] = await db.select().from(bans).where(eq(bans.lifeStartedAt, L));
     expect(b!.status).toBe("lifted");
+  });
+});
+
+describe("enforcerTick — two bans of one player share the server's name entry", () => {
+  // ⚠️ Invented players. The ban list holds names, not bans: removing the names for one ban lifts
+  // every ban of that player.
+  let sid2: number;
+  const H = 3600_000;
+  const T1 = new Date("2026-09-01T12:00:00Z");
+  async function ban(gamertag: string, dayzId: string | null, startedAt: Date, expiresAt: Date, status = "applied", dryRun = false) {
+    await db.insert(bans).values({
+      serverId: sid2, gamertag, dayzId, lifeStartedAt: startedAt, reason: "qualified_death", bannedAt: new Date(expiresAt.getTime() - 24 * H),
+      expiresAt, status, dryRun,
+    });
+  }
+  const tick = (now: Date) => {
+    const fake = fakeNitrado();
+    return enforcerTick(db, { nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24, now, log }).then((r) => ({ r, fake }));
+  };
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: 555002, name: "enf-siblings" }).returning();
+    sid2 = s!.id;
+  });
+
+  it("an expiring ban does not call removeBans while the same player has a later applied ban", async () => {
+    await ban("Sibling One", "S1S1", new Date("2026-08-30T00:00:00Z"), T1);
+    await ban("Sibling One", "S1S1", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 10 * H));
+    const { r, fake } = await tick(new Date(T1.getTime() + H));
+    expect(r.expired).toBe(1);
+    expect(fake.calls.remove).not.toContainEqual(["S1S1", "Sibling One"]);
+    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Sibling One")).orderBy(bans.id);
+    expect(rows.map((b) => b.status)).toEqual(["expired", "applied"]);
+  });
+
+  it("the later ban's expiry does call it", async () => {
+    const { r, fake } = await tick(new Date(T1.getTime() + 11 * H));
+    expect(r.expired).toBe(1);
+    expect(fake.calls.remove).toContainEqual(["S1S1", "Sibling One"]);
+  });
+
+  it("a lifted ban does not call removeBans while a sibling is applied", async () => {
+    await ban("Sibling Two", "S2S2", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 5 * H), "lift_pending");
+    await ban("Sibling Two", "S2S2", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 20 * H));
+    const { r, fake } = await tick(new Date(T1.getTime() + 2 * H));
+    expect(r.lifted).toBe(1);
+    expect(fake.calls.remove).not.toContainEqual(["S2S2", "Sibling Two"]);
+    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Sibling Two")).orderBy(bans.id);
+    expect(rows.map((b) => b.status)).toEqual(["lifted", "applied"]);
+  });
+
+  it("a sibling under a different gamertag but the same dayz id counts", async () => {
+    await ban("Old Name Three", "S3S3", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("New Name Three", "S3S3", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove).not.toContainEqual(["S3S3", "Old Name Three"]);
+    const [old] = await db.select().from(bans).where(eq(bans.gamertag, "Old Name Three"));
+    expect(old!.status).toBe("expired");
+  });
+
+  it("a dry-run sibling does not count", async () => {
+    await ban("Sibling Four", "S4S4", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("Sibling Four", "S4S4", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 40 * H), "pending", true);
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove).toContainEqual(["S4S4", "Sibling Four"]);
+  });
+
+  it("planBans skips a life whose ban would already have ended", async () => {
+    const [p] = await db.insert(players).values({ gamertag: "Late Five", dayzId: "L5L5" }).returning();
+    await db.insert(lives).values({
+      serverId: sid2, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-08-01T10:00:00Z"),
+      endedAt: new Date("2026-08-01T12:00:00Z"), deathCause: "infected", playtimeSeconds: 4000,
+    });
+    await tick(new Date(T1.getTime() + 50 * H));
+    expect(await db.select().from(bans).where(eq(bans.gamertag, "Late Five"))).toHaveLength(0);
+  });
+
+  it("a trap_placement row qualifies an ended 60-second life exactly as a kill_line row does", async () => {
+    const start = new Date(T1.getTime() + 60 * H);
+    const end = new Date(start.getTime() + 60_000);
+    for (const [name, basis] of [["Line Six", "kill_line"], ["Trap Seven", "trap_placement"]] as const) {
+      const [p] = await db.insert(players).values({ gamertag: name, dayzId: name === "Line Six" ? "K6K6" : "K7K7" }).returning();
+      await db.insert(lives).values({ serverId: sid2, playerId: p!.id, lifeNumber: 1, startedAt: start, endedAt: end, deathCause: "infected", playtimeSeconds: 60 });
+      await db.insert(kills).values({
+        serverId: sid2, killerGamertag: name, killerPlayerId: p!.id, victimGamertag: "Someone Else", victimLifeId: 900000 + p!.id,
+        weapon: basis === "kill_line" ? "M4-A1" : "Tripwire", occurredAt: new Date(start.getTime() + 30_000),
+        basis, creditSource: basis === "kill_line" ? null : "classifier",
+      });
+    }
+    await tick(new Date(end.getTime() + 60_000));
+    const rows = await db.select().from(bans).where(eq(bans.serverId, sid2));
+    const of = (g: string) => rows.find((b) => b.gamertag === g);
+    expect(of("Line Six")).toMatchObject({ qualifiedBy: "kill" });
+    expect(of("Trap Seven")).toMatchObject({ qualifiedBy: "kill" });
   });
 });

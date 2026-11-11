@@ -34,10 +34,19 @@ function qualifiedBy(life: EndedLife): QualifiedBy {
   return "playtime";
 }
 
-/** Which ended (already-unbanned) lives are qualified and therefore need a ban. Pure. */
-export function planBans(lives: EndedLife[], banDurationHours: number): BanPlan[] {
+/**
+ * Which ended (already-unbanned) lives are qualified and therefore need a ban. Pure.
+ *
+ * ⚠️ A life whose ban would already have ended by `now` gets none. A kill can arrive long after the
+ * life it qualifies has ended (a trap kill is written minutes after the death it scores, an
+ * operator grant weeks later, and an enforcer outage of over a day does the same), and a ban
+ * dated at that old death would be added and expired in one tick: a pointless add-then-remove on
+ * the server, and one that can lift another, still-running ban sharing the same name entry.
+ */
+export function planBans(lives: EndedLife[], banDurationHours: number, now: Date): BanPlan[] {
   const plans: BanPlan[] = [];
   for (const life of lives) {
+    if (life.endedAt.getTime() + banDurationHours * 3600_000 <= now.getTime()) continue;
     const input: QualificationInput = {
       deathCause: life.deathCause,
       effectivePlaytimeSeconds: life.effectivePlaytimeSeconds,

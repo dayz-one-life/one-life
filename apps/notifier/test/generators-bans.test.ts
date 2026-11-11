@@ -91,6 +91,13 @@ describe("banAppliedGenerator", () => {
     expect(drafts[0]!.naturalKey).toMatch(/^ban_applied:\d+$/);
   });
 
+  it("the applied body gives the expiry time", async () => {
+    // fixture (A) expires 2026-07-17T00:00:00Z: a late ban has less than 24 hours left
+    const [d] = await banAppliedGenerator(deps);
+    expect(d!.body).toContain("banned until 2026-07-17 00:00 UTC");
+    expect(d!.body).not.toContain("24 hours");
+  });
+
   it("ignores a ban whose gamertag is only pending", async () => {
     const drafts = await banAppliedGenerator(deps);
     expect(drafts.some((d) => d.userId === "bn2")).toBe(false);
