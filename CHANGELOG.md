@@ -24,6 +24,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   total but is not counted toward the life that had just ended.
 - `backfill-death-causes` never upgrades a stored death to a player kill. It patches the cause
   only, so it would have produced a player-kill death with no killer and no kill credited.
+- A kill the log writes up to two seconds after the killer's own death now counts toward the
+  life that had just ended. This happens when a grenade is already in the air, or when two
+  players kill each other and the second line is stamped a second late. The kill was in the
+  killer's career total but in none of their lives, so that life's page, kill streak and
+  obituary showed one kill fewer than the victim's page credited.
+- **This can ban a player who was not banned before.** If such a kill is the only thing that
+  makes a life count (the life was under five minutes and did not end in a player kill), the
+  life now qualifies "by kill" and its death draws the 24-hour ban. A life that ended in a player
+  kill, or lasted five minutes, was banned already and is not affected.
+- The kill is never counted twice. If the killer is back within those two seconds, it still
+  belongs to the life that died and not to the new one. It then shows in the new life's "kills
+  across prior lives", which used to miss it.
+- A life that is still open gets the same two seconds past the player's last heartbeat, which is
+  where its window ends until the next one. A kill stamped a second or two after that heartbeat
+  now qualifies the life on the survivors and alive boards and the profile straight away, and
+  not one heartbeat later. No ban follows from this: only a death is banned.
+- The enforcer no longer records a ban for a death whose ban period is already over when the
+  death is first judged. This happens after the enforcer has been down for longer than a ban
+  lasts, or when a kill that qualifies an old life only reaches the database later, for example
+  in a rebuild with a newer log parser. Before, such a ban was added to the Nitrado list and
+  removed in the same pass, and the player was told they had been banned for a death that could
+  be weeks old. Now nothing is written and nobody is notified.
+- **A ban that expires no longer takes the player off the Nitrado ban list while they are
+  serving a later ban on the same server.** The list holds names, not bans, so removing the name
+  ended both, and the later ban went on showing as active. The expiring ban is now closed and
+  the name stays until the last ban ends. After a rename only the old name is removed.
+- A ban still waiting to be sent to Nitrado when its time runs out is closed as expired and
+  never sent.
+
+No migration, `--rebuild` or backfill is needed: nothing stored changes, only which life a kill
+is read as part of. None of the kills recorded on One Life up to 2026-11-10 is affected, so
+no existing life page, board or ban changes on deploy.
 
 ### Fixed
 

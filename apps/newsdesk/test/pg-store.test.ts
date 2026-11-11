@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles, playerGamertags } from "@onelife/db";
+import { servers, players, lives, kills, articles, playerGamertags } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
+import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
 import { findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
+import { buildObituaryFacts } from "../src/facts.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
@@ -35,6 +37,7 @@ beforeAll(async () => {
   unqualified = await seedLife(`nd-u-${svc}`, { lifeNumber: 1, endedAt: hrs(3), deathCause: "environment", playtimeSeconds: 60 });
 });
 afterAll(async () => {
+  await db.delete(kills).where(eq(kills.serverId, serverId));
   await db.delete(articles).where(eq(articles.serverId, serverId));
   await db.delete(lives).where(inArray(lives.id, lifeIds));
   await db.delete(players).where(inArray(players.id, pids));
@@ -109,5 +112,37 @@ describe("findObituaryTargets", () => {
     targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     expect(targets.find((t) => t.lifeId === q2.lifeId)).toBeUndefined(); // attempts 3 >= 3
     void un;
+  });
+});
+
+// The two-second posthumous-kill grace (read-models kill-window.ts), end to end through the
+// newsdesk: a life under five minutes that ended in a non-player death becomes an obituary
+// target when its kill line is stamped just after the death, and the obituary counts that kill.
+describe("findObituaryTargets — a kill logged just after the killer's own death", () => {
+  const died = new Date(hrs(8).getTime() + 180_000);
+  const seedShort = async (tag: string, killAfterMs: number) => {
+    const o = await seedLife(tag, { lifeNumber: 1, startedAt: hrs(8), endedAt: died, deathCause: "explosion", playtimeSeconds: 180 });
+    await db.insert(kills).values({
+      serverId, killerGamertag: tag, killerPlayerId: o.playerId, victimGamertag: "v", weapon: "Grenade", distance: 4,
+      occurredAt: new Date(died.getTime() + killAfterMs),
+    });
+    return o;
+  };
+  const since = new Date("2020-01-01T00:00:00Z");
+
+  it("targets the life whose kill was logged a second late, with the kill in its facts", async () => {
+    const o = await seedShort(`nd-grace-${svc}`, 1000);
+    const target = (await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since })).find((t) => t.lifeId === o.lifeId);
+    expect(target).toBeDefined();
+    const timeline = await getLifeTimeline(db, target!.serverId, target!.gamertag, target!.lifeId);
+    const facts = buildObituaryFacts(target!, timeline!, await getPlayerPriors(db, target!.gamertag, target!.lifeStartedAt));
+    expect(facts.kills).toBe(1);
+    expect(facts.longestKillMeters).toBe(4);
+  });
+
+  it("does not target one whose kill was logged three seconds after", async () => {
+    const o = await seedShort(`nd-late-${svc}`, 3000);
+    const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since });
+    expect(targets.find((t) => t.lifeId === o.lifeId)).toBeUndefined();
   });
 });

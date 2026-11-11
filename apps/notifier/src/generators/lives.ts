@@ -1,5 +1,5 @@
 import { gamertagLinks, kills, lives, players, servers, sessions } from "@onelife/db";
-import { lifeQualifiedAt, type LifeSessionSlice } from "@onelife/read-models";
+import { lifeQualifiedAt, loadPreviousLifeEnds, type LifeSessionSlice } from "@onelife/read-models";
 import { and, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import type { Generator, NotificationDraft } from "../types.js";
 import { windowStart } from "../types.js";
@@ -24,6 +24,7 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
     .select({
       lifeId: lives.id, lifeNumber: lives.lifeNumber, startedAt: lives.startedAt,
       deathCause: lives.deathCause, serverId: lives.serverId, lastSeenAt: players.lastSeenAt,
+      playerId: lives.playerId,
       userId: gamertagLinks.userId, gamertag: gamertagLinks.gamertag,
       serverSlug: servers.slug, serverName: servers.name,
     })
@@ -54,6 +55,9 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
     .from(kills)
     .where(inArray(kills.serverId, serverIds));
 
+  // A kill logged just after this player's previous death belongs to that life, not this one.
+  const previousEnd = await loadPreviousLifeEnds(deps.db, serverIds);
+
   const rows: Row[] = [];
   for (const c of candidates) {
     const lifeSessions: LifeSessionSlice[] = sessionRows
@@ -69,6 +73,7 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
       sessions: lifeSessions,
       lastSeenAt: c.lastSeenAt,
       playerKills,
+      previousLifeEndedAt: previousEnd(c.serverId, c.playerId, c.startedAt, null),
     });
     if (!q) continue;
     rows.push({

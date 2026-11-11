@@ -2,6 +2,8 @@ import type { Database } from "@onelife/db";
 import { players, lives, kills, sessions, buildEvents } from "@onelife/db";
 import { and, eq, isNull, isNotNull, desc, sql } from "drizzle-orm";
 import { livePlaytime, isLifeQualified } from "./qualified.js";
+import { isKillInLife, previousLifeEndLookup } from "./kill-window.js";
+import { loadPreviousLifeEnds } from "./kill-window-db.js";
 
 export const LEADERBOARDS = [
   "alive-longest", "alltime-longest", "most-kills", "longest-killstreak",
@@ -32,7 +34,9 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
       const rows = await db.select({
         gamertag: players.gamertag, startedAt: lives.startedAt, endedAt: lives.endedAt,
         deathCause: lives.deathCause, playtimeSeconds: lives.playtimeSeconds,
+        serverId: lives.serverId, playerId: lives.playerId,
       }).from(lives).innerJoin(players, eq(players.id, lives.playerId)).where(eq(lives.serverId, serverId));
+      const previousEnd = previousLifeEndLookup(rows);
       const killRows = await db.select({ gamertag: kills.killerGamertag, occurredAt: kills.occurredAt })
         .from(kills).where(eq(kills.serverId, serverId));
       const byPlayer = new Map<string, number>();
@@ -40,6 +44,7 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
         const qualified = isLifeQualified({
           deathCause: r.deathCause, effectivePlaytimeSeconds: r.playtimeSeconds, startedAt: r.startedAt,
           windowEnd: r.endedAt ?? now, playerKills: killRows.filter((k) => k.gamertag === r.gamertag),
+          previousLifeEndedAt: previousEnd(r.serverId, r.playerId, r.startedAt, r.endedAt),
         });
         if (!qualified) continue;
         byPlayer.set(r.gamertag, Math.max(byPlayer.get(r.gamertag) ?? 0, r.playtimeSeconds));
@@ -52,12 +57,14 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
       const rows = await db.select({
         gamertag: players.gamertag, stored: lives.playtimeSeconds, connectedAt: sessions.connectedAt,
         startedAt: lives.startedAt, deathCause: lives.deathCause, lastSeenAt: players.lastSeenAt,
+        playerId: lives.playerId,
       }).from(lives)
         .innerJoin(players, eq(players.id, lives.playerId))
         .leftJoin(sessions, and(eq(sessions.lifeId, lives.id), isNull(sessions.disconnectedAt)))
         .where(and(eq(lives.serverId, serverId), isNull(lives.endedAt)));
       const killRows = await db.select({ gamertag: kills.killerGamertag, occurredAt: kills.occurredAt })
         .from(kills).where(eq(kills.serverId, serverId));
+      const previousEnd = await loadPreviousLifeEnds(db, [serverId]);
       return rows
         .map((r) => {
           const upTo = r.lastSeenAt ?? r.connectedAt ?? now;
@@ -65,6 +72,7 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
           const qualified = isLifeQualified({
             deathCause: r.deathCause, effectivePlaytimeSeconds: value, startedAt: r.startedAt, windowEnd: upTo,
             playerKills: killRows.filter((k) => k.gamertag === r.gamertag),
+            previousLifeEndedAt: previousEnd(serverId, r.playerId, r.startedAt, null),
           });
           return { gamertag: r.gamertag, value, qualified };
         })
@@ -77,14 +85,18 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
       // kills that fall inside the killer's own life window, counted per life; max per player.
       const rows = await db.select({
         gamertag: players.gamertag, lifeId: lives.id, startedAt: lives.startedAt, endedAt: lives.endedAt,
+        serverId: lives.serverId, playerId: lives.playerId,
       }).from(lives).innerJoin(players, eq(players.id, lives.playerId)).where(eq(lives.serverId, serverId));
+      const previousEnd = previousLifeEndLookup(rows);
       const killRows = await db.select().from(kills).where(and(eq(kills.serverId, serverId), isNotNull(kills.killerPlayerId)));
       const byPlayer = new Map<string, number>();
       for (const life of rows) {
-        const end = life.endedAt ? life.endedAt.getTime() : now.getTime();
+        // kill-window.ts: a kill logged up to two seconds after the death is part of the streak
+        // it ended, and is not the first kill of the next life's streak.
+        const window = { startedAt: life.startedAt, endedAt: life.endedAt, previousLifeEndedAt: previousEnd(life.serverId, life.playerId, life.startedAt, life.endedAt) };
         const count = killRows.filter((k) =>
-          k.killerGamertag === life.gamertag &&
-          k.occurredAt.getTime() >= life.startedAt.getTime() && k.occurredAt.getTime() <= end).length;
+          k.killerGamertag === life.gamertag && isKillInLife(k.occurredAt, window) &&
+          (life.endedAt !== null || k.occurredAt.getTime() <= now.getTime())).length;
         byPlayer.set(life.gamertag, Math.max(byPlayer.get(life.gamertag) ?? 0, count));
       }
       return [...byPlayer.entries()].map(([gamertag, value]) => ({ gamertag, value }))

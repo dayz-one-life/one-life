@@ -1,4 +1,5 @@
-import { and, eq, isNull, isNotNull, gte, lte } from "drizzle-orm";
+import { and, eq, isNull, isNotNull } from "drizzle-orm";
+import { killsInLifeWindow, previousLifeEndedAt } from "@onelife/read-models";
 import { type Database, lives, players, kills, bans, servers } from "@onelife/db";
 import type { EndedLife, BanPlan } from "./decide.js";
 
@@ -7,6 +8,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const rows = await db
     .select({
       serverId: lives.serverId,
+      playerId: lives.playerId,
       gamertag: players.gamertag,
       dayzId: players.dayzId,
       startedAt: lives.startedAt,
@@ -34,6 +36,10 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const out: EndedLife[] = [];
   for (const r of rows) {
     if (!r.endedAt) continue;
+    // ⚠️ The kill window is read-models' kill-window.ts: it runs two seconds past the death, and
+    // skips a kill that belongs to the previous life's two seconds. decide.ts applies the same
+    // rule again to what this returns; narrowing here alone would silently un-ban.
+    const previousEnd = await previousLifeEndedAt(db, r.serverId, r.playerId, r.startedAt, r.endedAt);
     const krows = await db
       .select({ occurredAt: kills.occurredAt })
       .from(kills)
@@ -41,8 +47,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
         and(
           eq(kills.serverId, r.serverId),
           eq(kills.killerGamertag, r.gamertag),
-          gte(kills.occurredAt, r.startedAt),
-          lte(kills.occurredAt, r.endedAt),
+          killsInLifeWindow({ startedAt: r.startedAt, endedAt: r.endedAt, previousLifeEndedAt: previousEnd }),
         ),
       );
     out.push({
@@ -54,6 +59,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
       deathCause: r.deathCause,
       effectivePlaytimeSeconds: r.playtimeSeconds,
       playerKills: krows.map((k) => ({ occurredAt: k.occurredAt })),
+      previousLifeEndedAt: previousEnd,
     });
   }
   return out;

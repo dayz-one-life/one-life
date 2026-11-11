@@ -1,3 +1,5 @@
+import { isKillInLife } from "./kill-window.js";
+
 export { livePlaytime } from "./playtime.js";
 
 /** A life counts only once it has survived 5 minutes of accumulated playtime OR seen lethal PvP. */
@@ -9,12 +11,18 @@ export type QualificationInput = {
   startedAt: Date;                   // life.started_at
   windowEnd: Date;                   // life.ended_at ?? lastSeenAt ?? now — upper bound of the kill window
   playerKills: { occurredAt: Date }[]; // kills scored by this player on this server (killer_gamertag = player)
+  /** End of this player's previous life on this server. Keeps that life's posthumous kill out of
+   *  this one (kill-window.ts). Omit only when `playerKills` was already filtered with it. */
+  previousLifeEndedAt?: Date | null;
 };
 
 export function isLifeQualified(input: QualificationInput): boolean {
   if (input.deathCause === "pvp") return true;               // killed by a player
-  const s = input.startedAt.getTime(), e = input.windowEnd.getTime();
-  if (input.playerKills.some((k) => { const ts = k.occurredAt.getTime(); return ts >= s && ts <= e; })) {
+  // ⚠️ The kill window runs two seconds past `windowEnd` (kill-window.ts): a kill line stamped
+  // just after the killer's own death qualifies the life that ended. This is what bans a killer
+  // who died on a life under five minutes — the enforcer decides through this function.
+  const window = { startedAt: input.startedAt, endedAt: input.windowEnd, previousLifeEndedAt: input.previousLifeEndedAt };
+  if (input.playerKills.some((k) => isKillInLife(k.occurredAt, window))) {
     return true;                                             // scored a kill during this life
   }
   return input.effectivePlaytimeSeconds >= QUALIFY_SECONDS;  // survived 5 minutes
@@ -33,6 +41,7 @@ export type QualifiedAtInput = {
   sessions: LifeSessionSlice[];   // this life's sessions
   lastSeenAt: Date | null;        // player heartbeat — caps the open session (ghost never crosses)
   playerKills: { occurredAt: Date }[];
+  previousLifeEndedAt?: Date | null; // see QualificationInput
 };
 
 export type QualifiedAt = { at: Date; by: "playtime" | "kill" | "pvp-death" };
@@ -47,11 +56,12 @@ export function lifeQualifiedAt(input: QualifiedAtInput): QualifiedAt | null {
     candidates.push({ at: input.endedAt, by: "pvp-death" });
   }
 
-  const s = input.startedAt.getTime();
+  // A kill logged inside the two-second grace after the death counts (kill-window.ts), but the
+  // life cannot have qualified after it ended: the instant is capped at the death.
   const e = input.endedAt?.getTime() ?? Infinity;
   const killMs = input.playerKills
-    .map((k) => k.occurredAt.getTime())
-    .filter((t) => t >= s && t <= e);
+    .filter((k) => isKillInLife(k.occurredAt, input))
+    .map((k) => Math.min(k.occurredAt.getTime(), e));
   if (killMs.length > 0) candidates.push({ at: new Date(Math.min(...killMs)), by: "kill" });
 
   let acc = 0;
