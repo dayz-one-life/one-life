@@ -62,6 +62,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   An operator's correction of a death's cause now clears a review, and also releases a death the
   projector cannot work out at all (`verify-verdicts --held` prints the line to correct). A death
   the projector kept retrying is tried again as soon as the projector restarts after a fix.
+- A command for the operator to correct obituaries already published:
+  `pnpm --filter @onelife/newsdesk run regenerate`. It rewrites an obituary in place, at the same
+  web address, once the cause of death behind it has changed: obituaries filed with no cause, or
+  as a bare "explosion", "vehicle" or "environment", whose cause is now stated; older obituaries of
+  a death now read as a "Likely" cause; obituaries of a "Likely" cause whose kind has since been
+  switched off; and obituaries that named a trap-setter, or counted a trap kill, that the operator
+  has since denied (taken down instead when the life no longer qualifies). It only shows what it
+  would write unless given `--write`, writes each rewrite through the same checks as a new
+  obituary, keeps the earlier text so `--restore` can put it back, and never posts anything to
+  Discord or Facebook again. A rewritten obituary says under its byline "This obituary was
+  rewritten on <date> after the cause of death was corrected." An obituary that was taken down is
+  never written again by itself. New table `article_revisions` (migration `0042`).
+- A command for the operator to lift bans that rest on a trap kill since denied:
+  `pnpm --filter @onelife/enforcer run unqualified-bans`, which lists running bans whose life no
+  longer qualifies and, with `--lift`, lifts them. The player is told "the ban was lifted by the
+  server operator" rather than that a token was spent; a token spent on such a ban is refunded by
+  hand. Bans now record who lifted them (`bans.lift_reason`, migration `0043`). This command and
+  `regenerate --denied-credit` refuse to run until every death has its stored cause. No
+  `--rebuild` and no backfill is needed.
 
 ### Changed
 

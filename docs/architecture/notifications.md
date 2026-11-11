@@ -47,6 +47,10 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
      told. `expires_at` is merely `banned_at + BAN_DURATION_HOURS`, which both announces old bans at
      go-live and drops one the enforcer expires late. `lifted_at` is stamped by
      `markExpired`/`markLifted`/`redeem`, including under `ENFORCER_DRY_RUN`.
+  1b. **`ban_lifted` reads `bans.lift_reason`** (0043; death-verdict plan step 9). A ban the
+     operator lifted with the enforcer's `unqualified-bans --lift` (`'operator'`) says "the ban was
+     lifted by the server operator", never that a token was spent; `'token'` and NULL (every row
+     before 0043, when a token was the only way to lift one) keep the token wording.
   2. **`ban_applied` has no status or `applied_at` filter.** Under `ENFORCER_DRY_RUN` — the
      production default — `markApplied()` is never called, so rows sit at `pending` with a NULL
      `applied_at`; either filter would be always-false in the configuration we actually run.

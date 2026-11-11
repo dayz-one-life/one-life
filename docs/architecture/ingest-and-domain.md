@@ -438,6 +438,55 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     - **Preview.** `pnpm --filter @onelife/newsdesk run preview -- --life <id> [--generate]` prints
       the prompt the tick would send, recent-prose block included (and with `--generate` one draft
       and both checks, with the internal hints). It writes nothing.
+  - **Correcting old obituaries** (plan step 9, release R4). `pnpm --filter @onelife/newsdesk run
+    regenerate -- <selector> [--slug <s>] [--limit N] [--write]` rewrites published obituaries in
+    place through the same prompt and checks as a new one (`generateObituary`, with
+    `getDeathCheckHints`' result). Selectors: `--slug <s>` (that article; the pilot),
+    `--stale-cause` (filed with no cause, or as a bare explosion / vehicle / environment, while the
+    verdict now states one at definitive or strong; never an inferred one), `--stale-inferred`
+    (written before `obituary-v4` about a death now read "Likely ..." with its family on; residual
+    question R5 decides whether it is run), `--inferred-family <f>` (v4 articles inferred in `f`,
+    rewritten as not recorded whatever `PUBLIC_INFERRED` says: `getWriterDeath`'s
+    `withdrawFamily`), `--denied-credit` (spec 6.4: a victim's article whose credit is gone, or a
+    placer's whose `facts.trapKills` / `facts.priors.trapKills` exceeds the live count; retracted
+    with `status = 'retracted'` when the life no longer qualifies). `--restore <slug>` writes the
+    latest archived version back.
+    - **⚠️ Dry-run is the default, and it still calls the model** (the operator reads the new
+      headline and lede first). `--write` archives the row in `article_revisions` (0042, durable,
+      no FK) and swaps the text in one transaction. Failed generation or check: nothing changes.
+    - **⚠️ Updated by article id, never through `publishObituary`'s upsert** (the slug freeze does
+      not survive a rename). The life is found through `player_gamertags`
+      (`getArticleLives`); the reads use the player's current name and the prose the article's
+      frozen `articles.gamertag`. Never touched: `slug`, `status` (except retract/restore),
+      `attempts`, `created_at`, `syndications`. Besides the plan's columns it also rewrites
+      `kills`, `time_alive_seconds` and `longest_kill_meters` (the Rap Sheet reads them, and a
+      denied trap kill must leave the count) and nulls `body_blocks` (an old rich body would be
+      rendered instead of the new flat one).
+    - **The do-not-reuse list** is `recentProse` plus the drafts written earlier in the same run
+      (regeneration keeps `created_at`, so `recentProse` alone never sees them).
+    - **⚠️ `--denied-credit` refuses while the verdict sweep has anything outstanding**
+      (`verdictSweepBacklog`: a queue row, an ended life with no verdict at the current version, or
+      the fold cursor behind the newest event). In the gap after a `--rebuild` every trap kill is
+      absent and the command would act on all of them. A death in its settle window blocks it for a
+      few minutes too; run it again.
+    - **⚠️ A retracted obituary blocks its life** in `findObituaryTargets` and the overdue alarm
+      (`status IN ('published','retracted')`), so a life that qualifies again is not regenerated
+      and re-posted with a paid model call. Every reader and the crier select `published` only.
+    - **The correction line** ("This obituary was rewritten on <date> after the cause of death was
+      corrected.", question 5 answer A) is `correctedAt` on `getObituaryBySlug`, read from the
+      NEWEST revision only (`correctedAtOf`): a `cause-corrected` rewrite shows it; a `restored`
+      revision carries the restored text's own value (`restoredCorrectedAt`), so restoring the
+      original text drops the line; `kills-corrected` (a count fix) and `retracted` never show it.
+    - Discord and Facebook posts cannot be recalled: `--inferred-family` and `--denied-credit`
+      print each article's URL and publish date so they can be deleted by hand.
+  - **Unqualified bans** (spec 6.4). `pnpm --filter @onelife/enforcer run unqualified-bans [--
+    --lift]` lists running `qualified_death` bans whose life no longer qualifies by the predicate
+    `planBans` uses (`lifeQualifies`, on the same kills: `endedLifeOf`). `--lift` sets an applied
+    ban to `lift_pending` and a pending one to `lifted`, with `bans.lift_reason = 'operator'` (0043;
+    `redeem` writes `'token'`; NULL on older rows reads as token). The next enforcer tick removes
+    only the names no other running ban needs (`namesToRemove`). Same sweep guard as above. The
+    notifier's `ban_lifted` says "the ban was lifted by the server operator" for these, never that a
+    token was spent. A token spent on such a ban is refunded by hand.
 ## Identity merge, content engine, obituaries
 
 - **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;
@@ -554,7 +603,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `LifeDossier`, forwarded by `dossierVerdict` as `classifyDeath`'s **required** third argument.
   Verdicts stay lazy and are never materialized (stage 4's stored verdicts are re-derived by the
   sweep on a version bump instead), so corrected lives fix themselves; already-published
-  obituary prose is frozen and is NOT regenerated.
+  obituary prose is frozen and is NOT regenerated automatically (the newsdesk's `regenerate`
+  command rewrites it on the operator's say-so; see "Correcting old obituaries").
   **⚠️ `terminalHp` reads INFECTED hits only, never all hits in the window.** `hunted` and the
   terminal-HP corroboration must rest on the SAME hits — otherwise a fire tick or a player's shot
   that left the victim at ~0 HP is corroborated by an unrelated infected scratch elsewhere in the
