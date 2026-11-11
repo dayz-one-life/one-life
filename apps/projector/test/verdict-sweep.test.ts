@@ -312,6 +312,15 @@ describe("overrides", () => {
     expect(await trapRows()).toHaveLength(0);
   });
 
+  it("an override applied once is not applied again: updated_at's microseconds are not a change", async () => {
+    const d = await plainDeath({ complete: true });
+    await db.execute(dsql`
+      INSERT INTO death_verdict_overrides (server_id, death_file_id, death_line_index, cause, note, created_by, updated_at)
+      VALUES (${sid}, ${d.f}, ${d.deathLine}, 'fall', 'test', 'test', '2031-06-01T00:00:00.123456Z')`);
+    expect(await sweep()).toMatchObject({ written: 1 });
+    expect(await sweep()).toMatchObject({ written: 0 });
+  });
+
   it("editing an override row re-derives the life on the next pass", async () => {
     const d = await plainDeath({ complete: true });
     await override(d.f, d.deathLine, { cause: "fall" });

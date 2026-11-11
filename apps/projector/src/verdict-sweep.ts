@@ -374,7 +374,11 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
     LEFT JOIN death_verdict_overrides o ON o.death_file_id = v.death_file_id AND o.death_line_index = v.death_line_index
     WHERE l.ended_at IS NOT NULL
       AND (v.life_id IS NULL OR v.classifier_version < ${CLASSIFIER_VERSION}
-           OR (o.death_file_id IS NOT NULL AND o.updated_at IS DISTINCT FROM v.override_seen_at)
+           -- ⚠️ milliseconds on both sides: updated_at has microseconds, and override_seen_at is
+           -- written back from a JS Date, which keeps milliseconds. Compared whole, every life with
+           -- an override would be rewritten on every pass.
+           OR (o.death_file_id IS NOT NULL
+               AND date_trunc('milliseconds', o.updated_at) IS DISTINCT FROM date_trunc('milliseconds', v.override_seen_at))
            OR (o.death_file_id IS NULL AND v.override_seen_at IS NOT NULL))
       AND (q.life_id IS NULL OR q.next_attempt_at <= ${nowIso}::timestamptz)
     ORDER BY l.ended_at, l.id

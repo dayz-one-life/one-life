@@ -312,7 +312,7 @@ async function credits(db: Database, o: VerifyOptions, say: (m: string) => void,
     SELECT o.*, v.life_id, l.ended_at, l.server_id AS lserver FROM death_verdict_overrides o
     JOIN death_verdicts v ON v.death_file_id = o.death_file_id AND v.death_line_index = o.death_line_index
     JOIN lives l ON l.id = v.life_id
-    WHERE o.credit = 'grant' AND o.updated_at IS DISTINCT FROM v.override_seen_at`);
+    WHERE o.credit = 'grant' AND date_trunc('milliseconds', o.updated_at) IS DISTINCT FROM date_trunc('milliseconds', v.override_seen_at)`);
   for (const g of pending) {
     const [pl] = await q(db, sql`SELECT id, gamertag FROM players WHERE dayz_id = ${String(g.credit_dayz_id)}`);
     if (!pl) { say(`   grant on life ${n(g.life_id)}: the granted id has no player row (test 6 will refuse it)`); continue; }
