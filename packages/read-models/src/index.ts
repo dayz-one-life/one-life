@@ -22,3 +22,4 @@ export * from "./online-players.js";
 export * from "./site-stats.js";
 export * from "./retirement.js";
 export * from "./death-context.js";
+export * from "./death-verdicts.js";

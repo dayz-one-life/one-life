@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { players, lives, kills, sessions, buildEvents } from "@onelife/db";
-import { and, eq, isNull, isNotNull, desc, sql } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, asc, desc, sql } from "drizzle-orm";
 import { livePlaytime, isLifeQualified } from "./qualified.js";
 
 export const LEADERBOARDS = [
@@ -15,7 +15,9 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
     // kill-based: a kill implies the killer's life is qualified — inherently over qualified lives
     case "most-kills": {
       const rows = await db.select({ gamertag: kills.killerGamertag, value: sql<number>`count(*)::int` }).from(kills)
-        .where(eq(kills.serverId, serverId)).groupBy(kills.killerGamertag).orderBy(desc(sql`count(*)`)).limit(limit);
+        .where(eq(kills.serverId, serverId)).groupBy(kills.killerGamertag)
+        // Second key: level players come back in a stable order (trap kills make ties common).
+        .orderBy(desc(sql`count(*)`), asc(kills.killerGamertag)).limit(limit);
       return rows.map((r) => ({ gamertag: r.gamertag, value: Number(r.value) }));
     }
     // kill-based: a kill implies the killer's life is qualified — inherently over qualified lives

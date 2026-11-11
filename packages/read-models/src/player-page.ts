@@ -4,9 +4,11 @@ import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getPlayerProfile, getPlayerLives } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
 import { resolveGamertagBySlug } from "./player-aggregate.js";
-import { dossierForLife, dossierVerdict, type DeathVerdictSummary } from "./life-dossier.js";
+import type { DeathVerdictSummary } from "./life-dossier.js";
+import { getPublicDeath, getPublicDeathsForLives } from "./death-verdicts.js";
 import { lifeQualifiedAt, type QualifiedAt } from "./qualified.js";
 import { livePlaytime } from "./playtime.js";
+import { DEATH_KEY_COLS, withArticleDeaths, type ArticleDeath } from "./obituary-articles.js";
 
 /**
  * `qualified` refines `state: "alive"`; the state union is deliberately NOT widened to a fourth
@@ -49,6 +51,8 @@ export interface ObituaryEntry {
   slug: string; map: string; mapSlug: string; lifeNumber: number;
   headline: string; lede: string | null; deathAt: Date;
   timeAliveSeconds: number; kills: number; longestKillMeters: number | null; cause: string | null;
+  /** Live final verdict, else the article's frozen strings, else null — see `ObituaryCard.death`. */
+  death: ArticleDeath | null;
 }
 
 export interface PlayerPage {
@@ -226,14 +230,10 @@ export async function getPlayerPage(
     // precedence self-heals: once the ban lifts/expires this falls through to the alive branch.
     if (serverBan) {
       const trig = livesRows.find((l) => l.startedAt.getTime() === serverBan.lifeStartedAt.getTime()) ?? null;
-      // The banned row's context line ("mauled · life 7") — one dossier per active ban, and
-      // active bans are rare, so this stays off the hot path.
-      const trigDossier = trig ? await dossierForLife(db, gamertag, {
-        id: trig.id, serverId: s.id, startedAt: trig.startedAt, endedAt: trig.endedAt, playtimeSeconds: trig.playtimeSeconds,
-        deathCause: trig.deathCause, deathWeapon: trig.deathWeapon,
-        energyAtDeath: trig.energyAtDeath, waterAtDeath: trig.waterAtDeath, bleedSourcesAtDeath: trig.bleedSourcesAtDeath,
-      }) : null;
-      card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null, verdict: trigDossier ? dossierVerdict(trigDossier) : null }, lastLifeNumber: trig?.lifeNumber ?? null, lastEndedAt: null };
+      // The banned row's context line ("Starvation · life 7"): the stored verdict's label, or the
+      // pending state while the sweep has not written it. One read per active ban; bans are rare.
+      const trigVerdict = trig ? await getPublicDeath(db, { ...trig, endReason: trig.endReason ?? "death" }) : null;
+      card = { serverId: s.id, map: s.map, slug: s.slug, state: "banned", alive: null, ban: { banId: serverBan.id, bannedAt: serverBan.bannedAt, expiresAt: serverBan.expiresAt, liftPending: serverBan.status === "lift_pending", triggeringLifeNumber: trig?.lifeNumber ?? null, verdict: trigVerdict }, lastLifeNumber: trig?.lifeNumber ?? null, lastEndedAt: null };
     } else if (anyOpenLife) {
       // `openLife` (from the qualified-filtered list) being null while `anyOpenLife` is set is
       // exactly the provisional case. `profile.currentLifeSeconds` is 0 there — getPlayerProfile
@@ -258,7 +258,7 @@ export async function getPlayerPage(
         deathCause: anyOpenLife.deathCause,
         sessions: sessionRows.map((x) => ({ connectedAt: x.connectedAt, disconnectedAt: x.disconnectedAt, durationSeconds: x.durationSeconds })),
         lastSeenAt: p?.lastSeenAt ?? null,
-        playerKills: killList.map((k) => ({ occurredAt: k.occurredAt })),
+        playerKills: killList.map((k) => ({ occurredAt: k.occurredAt, basis: k.basis })),
       });
       card = { serverId: s.id, map: s.map, slug: s.slug, state: "alive", alive: { lifeId: anyOpenLife.id, lifeNumber: anyOpenLife.lifeNumber, startedAt: anyOpenLife.startedAt, timeAliveSeconds: seconds, kills: killList.length, longestKillMeters: longest(killList), killList, qualified: qAt !== null, qualifiedAt: qAt }, ban: null, lastLifeNumber: anyOpenLife.lifeNumber, lastEndedAt: null };
     } else {
@@ -285,18 +285,17 @@ export async function getPlayerPage(
   const pageSlice = endedLives.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
   const pastLives: PastLife[] = [];
+  // ⚠️ The guard stays: a retired life is not a death and gets no verdict at all (the batch read
+  // also returns nothing for one, but the shape below says so explicitly).
+  const verdicts = await getPublicDeathsForLives(db, pageSlice.map(({ row }) => ({ ...row, endReason: row.endReason ?? "death" })));
   for (const { row: l, serverId, map, slug } of pageSlice) {
     const killList = await getLifeKills(db, serverId, gamertag, l.startedAt, l.endedAt);
     const scRow = await db.select({ c: sql<number>`count(*)::int` }).from(sessions).where(and(eq(sessions.serverId, serverId), eq(sessions.lifeId, l.id)));
     const endReason = l.endReason ?? "death";
-    // A retirement is not a death: no dossier to classify, and nothing to say about one.
+    // A retirement is not a death: nothing to classify, and nothing to say about one.
     const death: PastLife["death"] = endReason === "server_retired"
       ? { cause: null, byGamertag: null, weapon: null, distanceMeters: null, verdict: null }
-      : { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: dossierVerdict(await dossierForLife(db, gamertag, {
-          id: l.id, serverId, startedAt: l.startedAt, endedAt: l.endedAt, playtimeSeconds: l.playtimeSeconds,
-          deathCause: l.deathCause, deathWeapon: l.deathWeapon,
-          energyAtDeath: l.energyAtDeath, waterAtDeath: l.waterAtDeath, bleedSourcesAtDeath: l.bleedSourcesAtDeath,
-        })) };
+      : { cause: l.deathCause, byGamertag: l.deathByGamertag, weapon: l.deathWeapon, distanceMeters: l.deathDistance, verdict: verdicts.get(l.id) ?? null };
     pastLives.push({ lifeId: l.id, serverId, map, slug, lifeNumber: l.lifeNumber, startedAt: l.startedAt, endedAt: l.endedAt!, endReason, timeAliveSeconds: l.playtimeSeconds, kills: killList.length, longestKillMeters: longest(killList), death, vitals: { energy: l.energyAtDeath, water: l.waterAtDeath, bleedSources: l.bleedSourcesAtDeath }, sessions: scRow[0]?.c ?? 0, killList });
   }
 
@@ -331,8 +330,9 @@ async function filedObituaries(
   endedLives: { row: LifeRow; serverId: number; map: string; slug: string }[],
 ): Promise<ObituaryEntry[]> {
   if (endedLives.length === 0) return [];
-  const rows = await db
+  const raw = await db
     .select({
+      ...DEATH_KEY_COLS,
       slug: articles.slug, map: articles.map, mapSlug: articles.mapSlug, serverId: articles.serverId,
       lifeNumber: articles.lifeNumber, lifeStartedAt: articles.lifeStartedAt, deathAt: articles.deathAt,
       timeAliveSeconds: articles.timeAliveSeconds, kills: articles.kills,
@@ -346,6 +346,7 @@ async function filedObituaries(
       isNotNull(articles.slug),
       inArray(sql`lower(${articles.gamertag})`, identityNames),
     ));
+  const rows = await withArticleDeaths(db, raw);
 
   // Keyed on (server_id, life_started_at) against the lives this page already resolved, so an
   // article whose life is not one of this player's ended lives cannot slip in.
@@ -368,6 +369,7 @@ async function filedObituaries(
         kills: a.kills,
         longestKillMeters: a.longestKillMeters,
         cause: a.cause,
+        death: a.death,
       }];
     })
     .sort((x, y) => y.deathAt.getTime() - x.deathAt.getTime());

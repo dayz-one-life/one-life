@@ -58,6 +58,13 @@ beforeAll(async () => {
   await db.insert(kills).values({
     serverId, killerGamertag: tag, killerPlayerId: pid, victimGamertag: "Victim1", weapon: "KAS-74U", distance: 25, occurredAt: mins(70),
   });
+  // A trap kill credited to the subject (death-verdict spec 2.4): it is a kill, but the map has
+  // nothing honest to pin — the marker means "where you stood when you killed", and a trap fires
+  // where it was placed, often while its placer is miles away or offline.
+  await db.insert(kills).values({
+    serverId, killerGamertag: tag, killerPlayerId: pid, victimGamertag: "TrapVictim", victimLifeId: ol!.id, weapon: "Tripwire", distance: null,
+    occurredAt: mins(110), basis: "trap_placement", creditSource: "classifier",
+  });
   // A kill by the OTHER player in the same server/time window — must never bleed into
   // the subject's track via a missing killer_player_id predicate.
   await db.insert(kills).values({
@@ -104,6 +111,11 @@ describe("getLifeTrack", () => {
     expect(k!.x).toBe(5000);
     expect(k!.label).toBe("Victim1");
     expect(k!.sampleAgeSeconds).toBe(300); // 65m fix, 70m kill
+  });
+
+  it("a trap_placement kill produces no marker", async () => {
+    const t = await getLifeTrack(db, serverId, tag, 1);
+    expect(t!.markers.filter((m) => m.kind === "kill").map((m) => m.label)).toEqual(["Victim1"]);
   });
 
   it("NEVER includes a kill credited to another player, even in the same server and window", async () => {

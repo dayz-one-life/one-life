@@ -72,8 +72,8 @@ describe.each(["kill_line", "trap_placement"] as const)("a %s kill 19 hours afte
     await kill(basis);
     expect(lifeQualifiedAt({
       startedAt: START, endedAt: null, deathCause: null, lastSeenAt: LAST_SEEN,
-      sessions: [{ connectedAt: START, disconnectedAt: LAST_SEEN, durationSeconds: 180 }], playerKills: [{ occurredAt: KILL_AT }],
-    })).toEqual({ at: KILL_AT, by: "kill" });
+      sessions: [{ connectedAt: START, disconnectedAt: LAST_SEEN, durationSeconds: 180 }], playerKills: [{ occurredAt: KILL_AT, basis }],
+    })).toEqual({ at: KILL_AT, by: "kill", killBasis: basis });
     const rows = await db.select({ id: lives.id }).from(lives).innerJoin(players, eq(players.id, lives.playerId))
       .where(and(inArray(lives.id, [lid]), qualifiedLifeCondition(db)));
     expect(rows.map((r) => Number(r.id))).toEqual([lid]);

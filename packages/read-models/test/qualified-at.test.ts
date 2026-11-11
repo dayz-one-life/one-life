@@ -53,7 +53,25 @@ describe("lifeQualifiedAt", () => {
       lastSeenAt: min(30),
       playerKills: [{ occurredAt: min(2) }, { occurredAt: min(20) }],
     });
-    expect(q).toEqual({ at: min(2), by: "kill" });
+    expect(q).toEqual({ at: min(2), by: "kill", killBasis: "kill_line" });
+  });
+
+  it("a trap kill that qualifies the life says so in killBasis; when it qualifies is unchanged", () => {
+    const q = lifeQualifiedAt({
+      startedAt: T0, endedAt: null, deathCause: null,
+      sessions: [{ connectedAt: T0, disconnectedAt: min(1), durationSeconds: 60 }],
+      lastSeenAt: min(1),
+      playerKills: [{ occurredAt: min(30), basis: "trap_placement" }, { occurredAt: min(40), basis: "kill_line" }],
+    });
+    expect(q).toEqual({ at: min(30), by: "kill", killBasis: "trap_placement" });
+  });
+
+  it("the basis is that of the earliest kill in the window; a tie goes to the kill line", () => {
+    const q = lifeQualifiedAt({
+      startedAt: T0, endedAt: null, deathCause: null, sessions: [], lastSeenAt: null,
+      playerKills: [{ occurredAt: min(3), basis: "trap_placement" }, { occurredAt: min(3), basis: "kill_line" }],
+    });
+    expect(q).toEqual({ at: min(3), by: "kill", killBasis: "kill_line" });
   });
 
   it("ignores kills outside the life window", () => {

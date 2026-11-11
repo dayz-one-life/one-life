@@ -4,14 +4,15 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getLifeDetail } from "./queries.js";
 import { getLifeKills, type PlayerKill } from "./player-kills.js";
 import { lifeQualifiedAt, type QualifiedAt } from "./qualified.js";
-import { dossierForLife, dossierVerdict, encountersForLife, type LifeDossier, type DeathVerdictSummary, type LifeEncounter } from "./life-dossier.js";
+import { dossierForLife, encountersForLife, type LifeDossier, type DeathVerdictSummary, type LifeEncounter } from "./life-dossier.js";
+import { getPublicDeath } from "./death-verdicts.js";
 
 export interface LifeTimeline {
   life: NonNullable<Awaited<ReturnType<typeof getLifeDetail>>>["life"];
   sessions: NonNullable<Awaited<ReturnType<typeof getLifeDetail>>>["sessions"];
   kills: PlayerKill[];
   qualifiedAt: QualifiedAt | null;
-  verdict: DeathVerdictSummary | null; // classified death — null while the life is open
+  verdict: DeathVerdictSummary | null; // the public death (stored verdict, or pending) — null unless the life ended in a death
   ordeals: LifeDossier["ordeals"] | null; // null while the life is open (no dossier fetched)
   hpLow: number | null;
   // Always present; `[]` when the life took no hits — fetched for open lives too, unlike the
@@ -45,10 +46,11 @@ export async function getLifeTimeline(
   // needs that value up front, not resolved in parallel with the query that consumes it.
   const playerRow = await db.select({ lastSeenAt: players.lastSeenAt }).from(players).where(eq(players.gamertag, gamertag));
   const lastSeenAt = playerRow[0]?.lastSeenAt ?? null;
-  const [kills, dossier, encounters, avatarRow, obituaryRows] = await Promise.all([
+  const [kills, dossier, verdict, encounters, avatarRow, obituaryRows] = await Promise.all([
     getLifeKills(db, serverId, gamertag, life.startedAt, life.endedAt),
     // A retirement is not a death: there is no death to classify, so no dossier or verdict.
     life.endReason === "death" ? dossierForLife(db, gamertag, life) : Promise.resolve(null),
+    life.endReason === "death" ? getPublicDeath(db, life) : Promise.resolve(null),
     encountersForLife(db, gamertag, life, lastSeenAt),
     db
       .select({ hash: avatars.hash })
@@ -85,7 +87,7 @@ export async function getLifeTimeline(
     deathCause: life.deathCause,
     startedAt: life.startedAt,
     endedAt: life.endedAt,
-    playerKills: kills.map((k) => ({ occurredAt: k.occurredAt })),
+    playerKills: kills.map((k) => ({ occurredAt: k.occurredAt, basis: k.basis })),
     sessions: sessions.map((s) => ({
       connectedAt: s.connectedAt,
       disconnectedAt: s.disconnectedAt,
@@ -95,7 +97,7 @@ export async function getLifeTimeline(
   });
   return {
     life, sessions, kills, qualifiedAt,
-    verdict: dossier ? dossierVerdict(dossier) : null,
+    verdict,
     ordeals: dossier?.ordeals ?? null,
     hpLow: dossier?.hpLow ?? null,
     encounters,

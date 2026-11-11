@@ -32,10 +32,18 @@ export type QualifiedAtInput = {
   deathCause: string | null;
   sessions: LifeSessionSlice[];   // this life's sessions
   lastSeenAt: Date | null;        // player heartbeat — caps the open session (ghost never crosses)
-  playerKills: { occurredAt: Date }[];
+  /** `basis` is only reported back (`killBasis`); it never changes WHEN a life qualifies — a trap
+   *  kill counts exactly as a kill line does (death-verdict spec 2.4). Absent reads as a kill line. */
+  playerKills: { occurredAt: Date; basis?: KillBasis }[];
 };
 
-export type QualifiedAt = { at: Date; by: "playtime" | "kill" | "pvp-death" };
+/** How a `kills` row was established: the log's kill line, or a trap credited from where it was
+ *  placed (death-verdict spec 2.4). */
+export type KillBasis = "kill_line" | "trap_placement";
+
+export type QualifiedAt =
+  | { at: Date; by: "playtime" | "pvp-death" }
+  | { at: Date; by: "kill"; killBasis: KillBasis };
 
 /** The instant a life qualified — earliest of playtime crossing QUALIFY_SECONDS, first kill in the
  *  life window, or a PvP death. Pure and stable once defined: more history never moves it.
@@ -49,10 +57,14 @@ export function lifeQualifiedAt(input: QualifiedAtInput): QualifiedAt | null {
 
   const s = input.startedAt.getTime();
   const e = input.endedAt?.getTime() ?? Infinity;
-  const killMs = input.playerKills
-    .map((k) => k.occurredAt.getTime())
-    .filter((t) => t >= s && t <= e);
-  if (killMs.length > 0) candidates.push({ at: new Date(Math.min(...killMs)), by: "kill" });
+  const inWindow = input.playerKills.filter((k) => { const t = k.occurredAt.getTime(); return t >= s && t <= e; });
+  if (inWindow.length > 0) {
+    const first = Math.min(...inWindow.map((k) => k.occurredAt.getTime()));
+    // On a tie the kill line wins: it is the stronger statement of the two.
+    const atFirst = inWindow.filter((k) => k.occurredAt.getTime() === first);
+    const killBasis: KillBasis = atFirst.every((k) => k.basis === "trap_placement") ? "trap_placement" : "kill_line";
+    candidates.push({ at: new Date(first), by: "kill", killBasis });
+  }
 
   let acc = 0;
   const ordered = [...input.sessions].sort((a, b) => a.connectedAt.getTime() - b.connectedAt.getTime());

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, sessions, hitEvents, buildEvents, unconsciousEvents } from "@onelife/db";
 import { inArray, eq } from "drizzle-orm";
-import { getLifeDossier, dossierVerdict, encountersForLife } from "../src/life-dossier.js";
+import { getLifeDossier, legacyDossierVerdict as dossierVerdict, encountersForLife } from "../src/life-dossier.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 61e7;

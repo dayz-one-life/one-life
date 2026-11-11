@@ -2,6 +2,8 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import type { Database } from "@onelife/db";
 import { lives, sessions, hitEvents, buildEvents, players, unconsciousEvents } from "@onelife/db";
 import { classifyDeath, classifyEntityLabel, RECENT_HIT_WINDOW_S, type DeathVerdict } from "@onelife/domain";
+import type { PublicDeath } from "@onelife/death-verdict";
+import { getPublicDeath, type PublicDeathLife } from "./death-verdicts.js";
 
 // Damage arrives as individual ticks; consecutive same-category hits within this gap are ONE
 // encounter (a single fire, a single zombie scrap), so the story counts run-ins, not blows.
@@ -119,14 +121,25 @@ export async function getLifeDossier(db: Database, serverId: number, lifeId: num
   return dossierForLife(db, player.gamertag, life);
 }
 
-/** The public verdict shape: `basis` is an internal audit detail (raw facts snapshot) that
- *  stays inside `@onelife/domain` — the read-model boundary and everything downstream
- *  (API, newsdesk, web) only ever sees cause/confidence/conditions. */
-export type DeathVerdictSummary = Pick<DeathVerdict, "cause" | "confidence" | "conditions">;
+/**
+ * The death a page shows: the stored verdict through `toPublicDeath` (death-verdict spec 7), or
+ * the pending state while the sweep has not written it. `cause`, `confidence` and `conditions`
+ * are still there, in today's vocabulary (`legacyCause`), for readers that predate the label —
+ * newsdesk's v3.1 prompt, old mobile builds, a rolled-back web.
+ */
+export type DeathVerdictSummary = PublicDeath;
 
-/** The classified death verdict for a dossier — pure composition over classifyDeath.
- *  `basis` is stripped here at the read-model boundary; it's an internal audit detail. */
-export function dossierVerdict(d: LifeDossier): DeathVerdictSummary {
+/** The public death of a life whose row the caller holds; null when it did not end in a death. */
+export async function dossierVerdict(db: Database, life: PublicDeathLife): Promise<DeathVerdictSummary | null> {
+  return getPublicDeath(db, life);
+}
+
+/**
+ * @deprecated The read-time classification every page used before stage 4. Nothing serves it any
+ * more; it is kept only so `suicide-wording.test.ts` can prove the stored verdict words a suicide
+ * exactly as this did, and goes with the domain classifier in step 10.
+ */
+export function legacyDossierVerdict(d: LifeDossier): Pick<DeathVerdict, "cause" | "confidence" | "conditions"> {
   const { cause, confidence, conditions } = classifyDeath(
     { mechanism: d.death.mechanism, energy: d.death.energy, water: d.death.water,
       bleedSources: d.death.bleedSources, weapon: d.death.weapon },
