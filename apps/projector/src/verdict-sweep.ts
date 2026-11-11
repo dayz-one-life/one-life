@@ -1,10 +1,10 @@
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { deathVerdicts, kills, type Database } from "@onelife/db";
 import {
   CLASSIFIER_VERSION, INTERNAL_CAUSES, TRAP_DEVICE_OF_CAUSE, classifyDeath, isObjectKey,
   type Confidence, type CreditEvidence, type InternalVerdict, type ObjectKey,
 } from "@onelife/death-verdict";
-import { deathSeedOf, loadDeath, newFileCache, type FileCache, type LoadedDeath } from "@onelife/read-models";
+import { deathSeedOf, killsByPlayer, killsInLifeWindow, loadDeath, newFileCache, previousLifeEndedAt, type FileCache, type LoadedDeath } from "@onelife/read-models";
 
 /**
  * The verdict sweep (death-verdict spec 4.4): classifies every ended life from its raw lines and
@@ -161,13 +161,17 @@ async function placerRow(db: Database, dayzId: string): Promise<{ id: number; ga
  */
 export async function lifeCountsOnItsOwn(db: Database, life: CreditLife): Promise<boolean> {
   if (life.playtimeSeconds >= QUALIFY_PLAYTIME_S) return true;
-  const r = (await db.execute<{ n: string }>(sql`
-    SELECT count(*) AS n FROM kills
-    WHERE server_id = ${life.serverId} AND basis = 'kill_line'
-      AND (killer_player_id = ${life.playerId}
-           OR (killer_player_id IS NULL AND lower(killer_gamertag) = lower(${life.victimGamertag})))
-      AND occurred_at >= ${life.startedAt.toISOString()} AND occurred_at <= ${life.endedAt.toISOString()}`)) as unknown as { n: string }[];
-  return Number(r[0]?.n ?? 0) > 0;
+  // ⚠️ The same kill window as every other reader (read-models kill-window.ts): two seconds past
+  // the death, minus the previous life's two seconds. A window of its own here refused a credit
+  // for a life the boards and the enforcer count as qualified.
+  const previousEnd = await previousLifeEndedAt(db, life.serverId, life.playerId, life.startedAt, life.endedAt);
+  const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(kills).where(and(
+    eq(kills.serverId, life.serverId),
+    eq(kills.basis, "kill_line"),
+    killsByPlayer(life.playerId, life.victimGamertag),
+    killsInLifeWindow({ startedAt: life.startedAt, endedAt: life.endedAt, previousLifeEndedAt: previousEnd }),
+  ));
+  return Number(r?.n ?? 0) > 0;
 }
 
 /**

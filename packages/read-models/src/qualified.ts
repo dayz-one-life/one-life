@@ -1,3 +1,5 @@
+import { isKillInLife } from "./kill-window.js";
+
 export { livePlaytime } from "./playtime.js";
 
 /** A life counts only once it has survived 5 minutes of accumulated playtime OR seen lethal PvP. */
@@ -7,14 +9,22 @@ export type QualificationInput = {
   deathCause: string | null;         // lives.death_cause ("pvp" = the victim died in PvP)
   effectivePlaytimeSeconds: number;  // livePlaytime(stored, openSession, lastSeenAt) for this life
   startedAt: Date;                   // life.started_at
-  windowEnd: Date;                   // life.ended_at ?? lastSeenAt ?? now — upper bound of the kill window
-  playerKills: { occurredAt: Date }[]; // kills scored by this player on this server (killer_gamertag = player)
+  windowEnd: Date;                   // life.ended_at ?? now — upper bound of the kill window (an open
+                                     // life's ends now, not at the last heartbeat: a trap kill lands
+                                     // while its placer is offline)
+  playerKills: { occurredAt: Date }[]; // kills scored by this player on this server (kill-owner.ts)
+  /** End of this player's previous life on this server. Keeps that life's posthumous kill out of
+   *  this one (kill-window.ts). Omit only when `playerKills` was already filtered with it. */
+  previousLifeEndedAt?: Date | null;
 };
 
 export function isLifeQualified(input: QualificationInput): boolean {
   if (input.deathCause === "pvp") return true;               // killed by a player
-  const s = input.startedAt.getTime(), e = input.windowEnd.getTime();
-  if (input.playerKills.some((k) => { const ts = k.occurredAt.getTime(); return ts >= s && ts <= e; })) {
+  // ⚠️ The kill window runs two seconds past `windowEnd` (kill-window.ts): a kill line stamped
+  // just after the killer's own death qualifies the life that ended. This is what bans a killer
+  // who died on a life under five minutes — the enforcer decides through this function.
+  const window = { startedAt: input.startedAt, endedAt: input.windowEnd, previousLifeEndedAt: input.previousLifeEndedAt };
+  if (input.playerKills.some((k) => isKillInLife(k.occurredAt, window))) {
     return true;                                             // scored a kill during this life
   }
   return input.effectivePlaytimeSeconds >= QUALIFY_SECONDS;  // survived 5 minutes
@@ -35,6 +45,7 @@ export type QualifiedAtInput = {
   /** `basis` is only reported back (`killBasis`); it never changes WHEN a life qualifies — a trap
    *  kill counts exactly as a kill line does (death-verdict spec 2.4). Absent reads as a kill line. */
   playerKills: { occurredAt: Date; basis?: KillBasis }[];
+  previousLifeEndedAt?: Date | null; // see QualificationInput
 };
 
 /** How a `kills` row was established: the log's kill line, or a trap credited from where it was
@@ -55,13 +66,16 @@ export function lifeQualifiedAt(input: QualifiedAtInput): QualifiedAt | null {
     candidates.push({ at: input.endedAt, by: "pvp-death" });
   }
 
-  const s = input.startedAt.getTime();
+  // A kill logged inside the two-second grace after the death counts (kill-window.ts), but the
+  // life cannot have qualified after it ended: the instant is capped at the death.
   const e = input.endedAt?.getTime() ?? Infinity;
-  const inWindow = input.playerKills.filter((k) => { const t = k.occurredAt.getTime(); return t >= s && t <= e; });
+  const inWindow = input.playerKills
+    .filter((k) => isKillInLife(k.occurredAt, input))
+    .map((k) => ({ t: Math.min(k.occurredAt.getTime(), e), basis: k.basis }));
   if (inWindow.length > 0) {
-    const first = Math.min(...inWindow.map((k) => k.occurredAt.getTime()));
+    const first = Math.min(...inWindow.map((k) => k.t));
     // On a tie the kill line wins: it is the stronger statement of the two.
-    const atFirst = inWindow.filter((k) => k.occurredAt.getTime() === first);
+    const atFirst = inWindow.filter((k) => k.t === first);
     const killBasis: KillBasis = atFirst.every((k) => k.basis === "trap_placement") ? "trap_placement" : "kill_line";
     candidates.push({ at: new Date(first), by: "kill", killBasis });
   }

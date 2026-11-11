@@ -171,33 +171,62 @@ describe("most-kills orders level players by name", () => {
   });
 });
 
+describe("a trap kill logged inside the two-second grace after the placer's death", () => {
+  // kill-window.ts (#397): a kill stamped up to two seconds after the killer's own death belongs
+  // to the life that ended. A trap row gets the same window as a kill line, nothing more or less.
+  const grace = new Date(at(5).getTime() + 2_000);
+  async function lonerReaders() {
+    const page = (await getPlayerPage(db, LONER, NOW))!;
+    const timeline = (await getLifeTimeline(db, sid, LONER, lonerLife))!;
+    const streak = await getLeaderboard(db, sid, "longest-killstreak", NOW, 50);
+    return { pastKills: page.pastLives.map((l) => l.kills), timeline, streak };
+  }
+  it("counts toward the life that ended, exactly as a kill line does", async () => {
+    await kill("kill_line", { killerId: lonerId, killerName: LONER, at: grace });
+    const asLine = await lonerReaders();
+    await db.delete(kills).where(eq(kills.serverId, sid));
+    await kill("trap_placement", { killerId: lonerId, killerName: LONER, at: grace });
+    const asTrap = await lonerReaders();
+    expect(unmarked(asTrap)).toEqual(unmarked(asLine));
+    expect(asTrap.pastKills).toEqual([1]);
+    expect(asTrap.timeline.kills).toHaveLength(1);
+    // capped at the death: a life cannot qualify after it ended
+    expect(asTrap.timeline.qualifiedAt).toEqual({ at: at(5), by: "kill", killBasis: "trap_placement" });
+    expect(asLine.timeline.qualifiedAt).toEqual({ at: at(5), by: "kill", killBasis: "kill_line" });
+    expect(asTrap.streak).toContainEqual({ gamertag: LONER, value: 1 });
+  });
+  it("one second past the grace it is in no life", async () => {
+    await kill("trap_placement", { killerId: lonerId, killerName: LONER, at: new Date(grace.getTime() + 1_000) });
+    const r = await lonerReaders();
+    expect(r.pastKills).toEqual([0]);
+    expect(r.timeline.kills).toEqual([]);
+  });
+});
+
 describe("a rename after the row is written", () => {
   /**
-   * A trap row carries the placer's name when the sweep wrote it. Until killer-id matching (PR
-   * #398, residual question Q8) ships, the readers that match a kill to a player BY NAME lose the
-   * kill after a rename; the readers that match by `killer_player_id` keep it. This pins today's
-   * behaviour and names the readers on each side; once #398 merges, the four name readers move to
-   * the "keeps it" side and this test must be changed to assert agreement.
+   * A trap row carries the placer's name when the sweep wrote it. Since killer-id matching
+   * (#398, residual question Q8) every reader follows `killer_player_id`, so a rename loses
+   * nothing anywhere, and the name-keyed boards print the placer's current name.
    */
-  it("id readers keep the kill; name readers (most-kills by name, killstreak, alive-longest) do not yet", async () => {
+  it("every reader keeps the kill and prints the current name", async () => {
     await kill("trap_placement");
     const RENAMED = `Renamed Placer ${svc}`;
     await db.update(players).set({ gamertag: RENAMED }).where(eq(players.id, placerId));
     await db.insert(playerGamertags).values({ playerId: placerId, gamertag: RENAMED, firstSeenAt: NOW, lastSeenAt: NOW });
     try {
-      // by id: the page, the timeline and qualification
       const page = (await getPlayerPage(db, RENAMED, NOW))!;
       expect(page.totals.kills).toBe(1);
       expect(mine(page.standing)).toMatchObject({ alive: { qualified: true, kills: 1 } });
       const tl = (await getLifeTimeline(db, sid, RENAMED, placerLife))!;
       expect(tl.kills).toHaveLength(1);
-      // by name: the board shows the name on the row, the streak and alive-longest lose it
       const most = await getLeaderboard(db, sid, "most-kills", NOW, 50);
-      expect(most.map((r) => r.gamertag)).toEqual([PLACER]);
+      expect(most).toEqual([{ gamertag: RENAMED, value: 1 }]);
       const streak = await getLeaderboard(db, sid, "longest-killstreak", NOW, 50);
-      expect(streak.map((r) => r.gamertag)).not.toContain(RENAMED);
+      expect(streak.map((r) => r.gamertag)).toContain(RENAMED);
+      expect(streak.map((r) => r.gamertag)).not.toContain(PLACER);
       const alive = await getLeaderboard(db, sid, "alive-longest", NOW, 50);
-      expect(alive.map((r) => r.gamertag)).not.toContain(RENAMED);
+      expect(alive.map((r) => r.gamertag)).toContain(RENAMED);
     } finally {
       await db.delete(playerGamertags).where(and(eq(playerGamertags.playerId, placerId), eq(playerGamertags.gamertag, RENAMED)));
     }
