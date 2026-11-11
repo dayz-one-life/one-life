@@ -63,6 +63,32 @@ export function causeUnrecorded(facts: ObituaryFacts): boolean {
   return isUnrecordedCause(facts.cause) && isUnrecordedCause(facts.verdict?.cause ?? null);
 }
 
+/** How a cause is worded for the model. A cause not listed is sent as its token, spaced. */
+const CAUSE_PHRASE: Record<string, string> = {
+  suicide: "died by their own hand",
+  starvation: "starvation — they ran out of food",
+  dehydration: "dehydration — they ran out of water",
+  bled_out: "bled out",
+  mauled: "mauled — bleeding out after an animal or infected attack",
+  wolf: "killed by a wolf",
+  bear: "killed by a bear",
+  animal: "killed by a wild animal",
+  infected: "killed by the infected",
+  fall: "died in a fall",
+  vehicle: "killed by a vehicle",
+  explosion: "killed in an explosion",
+};
+/**
+ * The recorded cause as words, for the two paths with no verdict to word it. Explosion and vehicle
+ * drop the "(not a player kill)" suffix, and a bare "explosion." / "vehicle." is not something to
+ * hand the model — so those two take their phrase. Every other cause keeps its token: it still
+ * carries the suffix, which is what makes it read as a statement.
+ */
+function recordedCausePhrase(cause: string): string {
+  const key = cause.trim().toLowerCase();
+  return NAMES_NO_PERSON_CAUSES.has(key) ? CAUSE_PHRASE[key]! : cause.replace(/_/g, " ");
+}
+
 /** Deterministic, qualitative death sentence for the prompt — words, never raw stat values. */
 export function describeDeath(facts: ObituaryFacts): string {
   if (facts.causeCategory === "pvp") {
@@ -81,7 +107,7 @@ export function describeDeath(facts: ObituaryFacts): string {
     if (facts.cause === "suicide") return "died by their own hand (not a player kill).";
     // D4: no verdict and no mechanism token — say so plainly rather than emitting a bare word.
     if (isUnrecordedCause(facts.cause)) return UNKNOWN_DEATH_PHRASE;
-    return `${facts.cause!.replace(/_/g, " ")}${notPlayer}`;
+    return `${recordedCausePhrase(facts.cause!)}${notPlayer}`;
   }
   const conds = v.conditions.filter((c) => c !== "healthy");
   const state = conds.length
@@ -92,23 +118,9 @@ export function describeDeath(facts: ObituaryFacts): string {
   // mechanism when there is one; otherwise it is an explicit unknown, plus the factual state.
   if (isUnrecordedCause(v.cause)) {
     if (isUnrecordedCause(facts.cause)) return `${UNKNOWN_DEATH_PHRASE}${state}`;
-    return `${hedge}${facts.cause!.replace(/_/g, " ")}${notPlayer}${state}`;
+    return `${hedge}${recordedCausePhrase(facts.cause!)}${notPlayer}${state}`;
   }
-  const noun: Record<string, string> = {
-    suicide: "died by their own hand",
-    starvation: "starvation — they ran out of food",
-    dehydration: "dehydration — they ran out of water",
-    bled_out: "bled out",
-    mauled: "mauled — bleeding out after an animal or infected attack",
-    wolf: "killed by a wolf",
-    bear: "killed by a bear",
-    animal: "killed by a wild animal",
-    infected: "killed by the infected",
-    fall: "died in a fall",
-    vehicle: "killed by a vehicle",
-    explosion: "killed in an explosion",
-  };
-  const base = noun[v.cause] ?? v.cause.replace(/_/g, " ");
+  const base = CAUSE_PHRASE[v.cause] ?? v.cause.replace(/_/g, " ");
   return `${hedge}${base}${notPlayer}${state}`;
 }
 

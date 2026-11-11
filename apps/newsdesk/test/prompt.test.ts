@@ -380,8 +380,10 @@ describe("obituary-v3.1 — explosion and vehicle name no person", () => {
     }
     expect(describeDeath(paths("explosion")[1]!)).toBe("killed in an explosion.");
     expect(describeDeath(paths("vehicle")[1]!)).toBe("killed by a vehicle.");
-    expect(describeDeath(paths("explosion")[0]!)).toBe("explosion.");
-    expect(describeDeath(paths("vehicle")[2]!)).toBe("vehicle.");
+    // With no verdict (or one that names nothing) the recorded cause is still worded, never a bare
+    // token: "Cause of death: vehicle." is not a sentence the model should be handed.
+    for (const f of paths("explosion")) expect(describeDeath(f)).toMatch(/^(likely )?killed in an explosion\./);
+    for (const f of paths("vehicle")) expect(describeDeath(f)).toMatch(/^(likely )?killed by a vehicle\./);
   });
 
   it("keeps the hedge and the end-of-life state around the shortened phrase", () => {
