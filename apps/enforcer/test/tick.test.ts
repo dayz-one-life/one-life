@@ -212,8 +212,19 @@ describe("enforcerTick — two bans of one player share the server's name entry"
     await ban("New Name Three", "S3S3", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
     const { fake } = await tick(new Date(T1.getTime() + 4 * H));
     expect(fake.calls.remove).not.toContainEqual(["S3S3", "Old Name Three"]);
+    // the old name is needed by no running ban: it comes off; the shared id stays
+    expect(fake.calls.remove).toContainEqual(["Old Name Three"]);
     const [old] = await db.select().from(bans).where(eq(bans.gamertag, "Old Name Three"));
     expect(old!.status).toBe("expired");
+  });
+
+  it("a recycled gamertag held by another player: the first id comes off, the shared name stays", async () => {
+    await ban("Shared Name", "R1R1", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("Shared Name", "R2R2", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    // the first player's id comes off; the name stays for the other player's running ban
+    expect(fake.calls.remove).toContainEqual(["R1R1"]);
+    expect(fake.calls.remove.flat()).not.toContain("Shared Name");
   });
 
   it("a dry-run sibling does not count", async () => {

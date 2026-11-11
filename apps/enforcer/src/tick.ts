@@ -2,7 +2,7 @@ import type { Database } from "@onelife/db";
 import { planBans, planExpiries, banNames } from "./decide.js";
 import {
   findEndedUnbannedLives, insertBan, pendingBans, appliedBans, liftPendingBans,
-  markApplied, markError, markExpired, markLifted, serverServiceId, hasActiveSibling,
+  markApplied, markError, markExpired, markLifted, serverServiceId, namesToRemove,
 } from "./pg-store.js";
 
 /** Minimal Nitrado surface the enforcer needs — real client or a fake in tests. */
@@ -59,13 +59,13 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
       continue;
     }
     try {
-      // ⚠️ The ban list holds names, shared by every ban of this player: another running ban
-      // still needs them. The row is marked as usual; the names stay.
-      if (await hasActiveSibling(db, b, deps.now)) {
-        deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id }, "ban expired; names kept for a later ban");
-      } else {
+      // ⚠️ The ban list holds names, shared by every ban of this player: a name another running
+      // ban still needs stays. The row is marked as usual.
+      const names = await namesToRemove(db, b, deps.now);
+      if (names.length < banNames(b).length) deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id, removed: names.length }, "ban expired; names kept for a later ban");
+      if (names.length) {
         const sid = await serverServiceId(db, b.serverId);
-        await deps.nitradoFor(sid).removeBans(banNames(b));
+        await deps.nitradoFor(sid).removeBans(names);
       }
       await markExpired(db, b.id, deps.now);
       expired++;
@@ -84,11 +84,11 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
       continue;
     }
     try {
-      if (await hasActiveSibling(db, b, deps.now)) {
-        deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id }, "ban lifted; names kept for a later ban");
-      } else {
+      const names = await namesToRemove(db, b, deps.now);
+      if (names.length < banNames(b).length) deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id, removed: names.length }, "ban lifted; names kept for a later ban");
+      if (names.length) {
         const sid = await serverServiceId(db, b.serverId);
-        await deps.nitradoFor(sid).removeBans(banNames(b));
+        await deps.nitradoFor(sid).removeBans(names);
       }
       await markLifted(db, b.id, deps.now);
       lifted++;
