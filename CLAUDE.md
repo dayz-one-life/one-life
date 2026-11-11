@@ -30,7 +30,7 @@ Specs and plans for every sub-project live in `docs/superpowers/specs/` and
 ## Shape of the repo
 
 pnpm + turbo monorepo, TS/ESM, Postgres + Drizzle. `packages/`: `db`, `domain`, `nitrado`,
-`adm-parser`, `event-log`, `projections`, `read-models`, `test-support`, `auth`, `verification`,
+`adm-parser`, `death-verdict`, `event-log`, `projections`, `read-models`, `test-support`, `auth`, `verification`,
 `tokens`, `friends`. `apps/`: `ingest-worker`, `projector`, `verifier`, `api` (Fastify),
 `web` (Next.js App Router), `enforcer`, `granter`, `rebooter`, `notifier`, `newsdesk`.
 

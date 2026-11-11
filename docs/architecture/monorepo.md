@@ -13,7 +13,11 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `apps/projector/src/rebuild.ts`'s truncate list, present in `APP_TABLES`
   (`packages/test-support/src/global-setup.ts`),
   `domain` (zod events, emote/weapon dicts),
-  `nitrado` (log-file client), `adm-parser` (pure ADM line parser), `event-log` (append/cursor over
+  `nitrado` (log-file client), `adm-parser` (pure ADM line parser),
+  `death-verdict` (pure, no workspace dependencies: the death-cause vocabulary and
+  `toPublicDeath`, the one function that turns a stored verdict into the words a page prints —
+  nothing imports it yet; its private golden suites need `DEATH_GOLDEN_DIR` and are skipped
+  without it), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
   `player-priors` — global cross-life reputation via `getPlayerPriors`), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
