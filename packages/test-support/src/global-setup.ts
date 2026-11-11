@@ -48,6 +48,9 @@ export const APP_TABLES = [
   "death_verdicts",
   "death_verdict_queue",
   "death_verdict_overrides",
+  // Replaced obituary text (0042). No foreign key (an article is never deleted), so nothing
+  // cascades into it.
+  "article_revisions",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */
