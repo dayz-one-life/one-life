@@ -8,7 +8,7 @@ import { MoreFromMorgue } from "./more-from-morgue";
 import { Timeline } from "@/components/life/timeline";
 import type { ObituaryArticle, ObituaryCard } from "@/lib/types";
 import type { LifeTimelineView } from "@/lib/life-timeline";
-import { dateline } from "@/lib/obituary-format";
+import { correctionLine, dateline } from "@/lib/obituary-format";
 import { mapLabel } from "@/components/player/format";
 import { lifeHref } from "@/lib/life-href";
 import { obituaryRoster } from "@/lib/article-roster";
@@ -42,6 +42,9 @@ export function ObituaryArticleView({
           )}{" "}
           · {mapLabel(article.map)}
         </p>
+        {article.correctedAt && (
+          <p className="mt-2 font-mono text-[11px] italic text-ink-muted">{correctionLine(article.correctedAt)}</p>
+        )}
       </div>
 
       <p className="mt-6 font-mono text-[15px] font-bold leading-relaxed text-ink">{linkifyGamertags(article.lede, roster)}</p>

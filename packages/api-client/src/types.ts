@@ -294,6 +294,9 @@ export type ObituaryArticle = ObituaryCard & {
   weapon: string | null;
   /** The legacy triple frozen into the article (`facts.verdict`); the live death is `death`. */
   verdict: LegacyVerdictDto | null;
+  /** ISO time the text was rewritten after the cause of death was corrected; null when the text is
+   *  not such a rewrite. Optional: an API older than death-verdict step 9 does not send it. */
+  correctedAt?: string | null;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,

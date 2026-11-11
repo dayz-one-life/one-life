@@ -43,6 +43,15 @@ export function rapSheetFacts(
   return out;
 }
 
+/**
+ * The line under the byline of an obituary rewritten after its cause was corrected (death-verdict
+ * spec 6.2, question 5). The date is the UTC day, so every viewer and the server render agree.
+ */
+export function correctionLine(correctedAtIso: string): string {
+  const day = new Date(correctedAtIso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  return `This obituary was rewritten on ${day} after the cause of death was corrected.`;
+}
+
 export function obituaryShowingLine(page: number, pageSize: number, total: number): string {
   const to = Math.min(page * pageSize, total);
   const from = Math.min((page - 1) * pageSize + 1, to);

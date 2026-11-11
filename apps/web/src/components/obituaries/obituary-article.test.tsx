@@ -104,3 +104,30 @@ describe("obituary prose linkification", () => {
     expect(container.querySelector("h1 a")).toBeNull();
   });
 });
+
+describe("the correction line (death-verdict spec 6.2, question 5)", () => {
+  const view = (a: ObituaryArticle) =>
+    render(<ObituaryArticleView article={a} more={[]} finalReload={null} now={new Date("2026-12-01T00:00:00Z")} />);
+
+  test("a rewritten obituary says when it was rewritten, under the byline", () => {
+    view({ ...article, correctedAt: "2026-11-20T23:30:00Z" });
+    const line = screen.getByText("This obituary was rewritten on 20 November 2026 after the cause of death was corrected.");
+    // under the byline: inside the header block, after the "Filed by The Desk" line
+    const byline = screen.getByText(/Filed by The Desk/);
+    expect(byline.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(byline.parentElement).toBe(line.parentElement);
+  });
+
+  test("the date is the UTC day, whatever the viewer's zone", () => {
+    view({ ...article, correctedAt: "2026-11-20T00:30:00Z" });
+    expect(screen.getByText(/rewritten on 20 November 2026/)).toBeInTheDocument();
+  });
+
+  test("no line for an article never rewritten, or from an API that predates the field", () => {
+    view({ ...article, correctedAt: null });
+    expect(screen.queryByText(/rewritten on/)).toBeNull();
+    const { correctedAt: _c, ...older } = { ...article, correctedAt: null };
+    view(older as ObituaryArticle);
+    expect(screen.queryByText(/rewritten on/)).toBeNull();
+  });
+});
