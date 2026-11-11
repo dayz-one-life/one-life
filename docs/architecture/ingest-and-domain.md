@@ -174,7 +174,7 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   - **A trap names no placer, so a trap death credits no kill — for now.** The operator decided
     (2026-11-10) that a player whose placed trap kills another player gets the kill. The kill
     line cannot supply that; it is the work of a later step, which attributes the trap from its
-    placement record. The fold test that pins "no kill" is marked temporary.
+    placement record. The fold itself never credits it; the fold test pinning "no kill" is permanent.
   **⚠️ None of this may change how many results `parseLine` returns for a line** — `subIndex` is
   the array index and `events_idempotency_uniq` is keyed on it. The shape test pins the counts.
   **The obituary prompt moved with it (`obituary-v3.1`)**: for `explosion` and `vehicle` the

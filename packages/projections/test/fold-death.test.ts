@@ -117,11 +117,10 @@ describe("death + kills + reboot fold", () => {
     expect(life.deathDistance ?? null).toBeNull();
   });
 
-  // ⚠️ TEMPORARY — the step 1 state, not the intended one. Operator decision 2026-11-10 (spec
-  // question 3): a player whose placed trap kills another player IS to be credited with the kill.
-  // The kill line names no placer, so the parser cannot do it; a later step attributes the trap
-  // from the placement record. When that lands this test changes to expect the placer's kill.
-  it("step 1, pending trap attribution: a trap death names nobody on the life and credits no kill", async () => {
+  // ⚠️ Permanent, not a gap. The kill line names no placer, so the fold credits nobody. A player
+  // whose placed trap kills another is credited (operator decision 2026-11-10), but by a later,
+  // separate pass that reads the placement record — never by the fold.
+  it("the fold names nobody on a trap death and credits no kill (trap credit is a separate pass)", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "Victim One", "2026-07-06T12:00:00Z"));
     await applyEvent(s, { id: 2, serverId: 1, type: "player.died", occurredAt: new Date("2026-07-06T12:30:00Z"),
