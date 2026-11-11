@@ -249,7 +249,12 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     returns a life that has a `death_verdicts` row at the CURRENT `CLASSIFIER_VERSION` with
     `needs_review = false`. A new obituary therefore waits for the sweep (minutes), and every
     obituary waits while a version bump is being swept. The prompt still reads the life's own
-    fields; only whether a verdict exists is read.
+    fields; only whether a verdict exists is read. **⚠️ The overdue alarm:** every newsdesk tick
+    logs `newsdesk.obituary_overdue` at error level with the ids of qualified dead lives (since
+    `NEWSDESK_SINCE`) that ended over 45 minutes ago and still have no such row
+    (`overdueObituaryLives`): a needs_review row, a sweep skipped because the projector is behind,
+    a projector still on an older `CLASSIFIER_VERSION` after a partial deploy, or a held life. The
+    sweep never fails on most of these, so this is the one signal that sees them all.
   - **The sweep** (`apps/projector/src/verdict-sweep.ts`) runs in the projector loop after a fold
     tick (`loop.ts` `runLoopOnce`), in its own try/catch, and **⚠️ only when the fold has caught
     up** (the tick took less than a full batch and the cursor is at the newest event): mid-rebuild
@@ -257,6 +262,10 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     with no row at `CLASSIFIER_VERSION`, or whose override changed (`death_verdict_overrides.updated_at`
     vs `death_verdicts.override_seen_at`, kept current by a trigger), oldest first. A failing life
     gets a queue row with backoff (30 s doubling to 6 h); three failures log `verdict_sweep.held`.
+    **The first pass after the projector starts makes every backing-off row due** (`resetBackoff`
+    in `main.ts`): a deploy is how a classifier fix arrives, and the queue row records no version.
+    A life is also a candidate when `lives.death_cause` differs from the `evidence.lifeDeathCause`
+    its verdict was checked against.
   - **Settled** is judged from ingest progress in the death's own file, never from stored times:
     `file` (a line of that file is 300 s past the death on the log clock), `rotation` (a later file,
     or the file is complete), `wall` (30 minutes since the sweep FIRST SAW the life —
@@ -276,11 +285,22 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   - **⚠️ The classifier never reads `payload.cause` or `lives.death_cause`.** The sweep reads
     `death_cause` for two things only: the invariant (a `kill_line`/`kill_line_driver` attribution
     exactly when `death_cause = 'pvp'`, else `needs_review = true` — such a row is pending, never
-    public) and the rule that no trap kill is written for a `pvp` life.
+    public, and blocks its obituary) and the rule that no trap kill is written for a `pvp` life.
+    **⚠️ A needs_review row must have a way out:** every pass logs `verdict_sweep.needs_review` at
+    error level with the count, and `verify-verdicts --held` lists each. An override that sets the
+    cause, confidence, object or upstream is the operator's decision on that death and clears the
+    flag (`evidence.reviewResolvedBy = 'override'`; check 4 lists it instead of failing); a credit-only
+    override does not. Correcting `lives.death_cause` re-derives the life.
   - **Overrides** are keyed on the resolved death line (stable across rebuilds), validated on read
     against the classifier's vocabulary (an invalid row is ignored and listed by `verify-verdicts`);
     non-null fields replace the classifier's and set `source = 'override'`. `credit = 'deny' | 'grant'`
-    drives the trap kill.
+    drives the trap kill. **A held life** (the loader or the classifier throws) has no stored row,
+    so no resolved line: an override with a cause AND a confidence on the life's death EVENT (the
+    seed, `deathSeedOf`; `verify-verdicts --held` prints it as "override key (death event)") is
+    stored as the verdict on its own (`writeHeldOverride`: rule `override`, no attribution, no
+    evidence, no trap kill, never second-looked). It stands until the override changes or a version
+    bump re-derives the life; for a firearm suicide the seed is the `committed suicide` line, so a
+    fixed classifier keys on the `died.` line instead and check 8 lists the old override.
   - **Trap kills** (spec 2.4): a credited trap or mine kill is a row in `kills` with
     `basis = 'trap_placement'` (`credit_source` `classifier` or `override`), written by the sweep in
     the SAME transaction as the verdict. **⚠️ Two writers: the fold never touches a trap row, the
@@ -317,7 +337,16 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   - `backfill-death-causes` is kept and is not needed for any of this.
   - **Verify** (`pnpm --filter @onelife/projector run verify-verdicts`, read-only): checks 1 to 10
     of spec 5.5 (`--golden`, `--csv`, `--rederive`, `--held`, `--credits`, `--expect-trap`). Its
-    output names players: read it on the host, never paste it anywhere public.
+    output names players: read it on the host, never paste it anywhere public. `--held` also lists
+    needs_review rows and every life waiting over 45 minutes for a reviewable verdict. **Check 7**
+    measures spawn levels only on deaths since the server's current `SPAWN_BASELINES` entry (an
+    all-time median blends levels) and fails when the observed level differs from the table either
+    way, with three deaths or more: add an entry, which is a version bump.
+  - **⚠️ Inferred causes with no family are never shown.** `present.ts` prints an inferred verdict
+    only when its public row has an `InferredFamily` whose `PUBLIC_INFERRED` switch is on. Fall,
+    wildlife, a held grenade and the like have no family (the operator approved six), so B12's and
+    B10's inferred fall or wildlife verdicts read "Not recorded" until the operator gives that row a
+    family and a switch.
 ## Identity merge, content engine, obituaries
 
 - **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;
