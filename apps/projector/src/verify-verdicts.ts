@@ -5,7 +5,7 @@ import { getDb, type Database } from "@onelife/db";
 import { CLASSIFIER_VERSION, objectKeyFromText, type CreditEvidence } from "@onelife/death-verdict";
 import { newFileCache } from "@onelife/read-models";
 import {
-  deriveLife, lifeCountsOnItsOwn, overrideProblem, verdictRow, HELD_ATTEMPTS, type OverrideRow,
+  deriveLife, lifeCountsOnItsOwn, overrideOf, overrideProblem, verdictRow, HELD_ATTEMPTS,
 } from "./verdict-sweep.js";
 
 /**
@@ -87,16 +87,12 @@ export function failedGoldenChecks(v: Row, e: GoldenRow): number[] {
   return bad;
 }
 
-function overrideOf(r: Row): OverrideRow {
-  return {
-    serverId: n(r.server_id), deathFileId: n(r.death_file_id), deathLineIndex: n(r.death_line_index),
-    cause: (r.cause as string | null) ?? null, confidence: (r.confidence as string | null) ?? null, objectKey: (r.object_key as string | null) ?? null,
-    upstreamCause: (r.upstream_cause as string | null) ?? null, upstreamConfidence: (r.upstream_confidence as string | null) ?? null,
-    credit: (r.credit as string | null) ?? null, creditDayzId: (r.credit_dayz_id as string | null) ?? null, updatedAt: new Date(r.updated_at as string),
-  };
-}
-
-/** The classifier's half of a stored credit (tests 1 to 5), whatever the policy half made of it. */
+/**
+ * The evidence half of a credit (tests 1 to 5) as the policy half left it, with tests 6 and 7
+ * counted as passing. ⚠️ Compare a stored credit only with a fresh credit that went through the same
+ * policy half (`Derivation.credit`), never with the classifier's raw one: a grant or a deny
+ * overwrites the outcome, and a grant to another placer clears the placement.
+ */
 function evidenceHalf(c: CreditEvidence | null): string {
   if (!c) return "none";
   const passed = ["evidence_passes", "credited", "granted", "denied"].includes(c.outcome) || (c.outcome === "refused" && (c.refusedBy ?? 0) >= 6);
@@ -197,7 +193,8 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
 
   // 8. Overrides.
   const ovs = await q(db, sql`
-    SELECT o.*, v.life_id FROM death_verdict_overrides o
+    SELECT o.*, f.server_id AS file_server_id, v.life_id FROM death_verdict_overrides o
+    LEFT JOIN adm_files f ON f.id = o.death_file_id
     LEFT JOIN death_verdicts v ON v.death_file_id = o.death_file_id AND v.death_line_index = o.death_line_index`);
   for (const r of ovs) {
     const p = overrideProblem(overrideOf(r));
@@ -220,7 +217,7 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
         const changed = keys.filter(([a, b]) => (fresh[a] ?? null) !== (s[b] ?? null)).map(([, b]) => b);
         if (isoS(fresh.deathAt) !== isoS(s.death_at)) changed.push("death_at");
         const sc = ((s.evidence as { credit?: CreditEvidence | null }).credit) ?? null;
-        if (evidenceHalf(d.classifier.evidence.credit) !== evidenceHalf(sc)) changed.push("credit evidence");
+        if (evidenceHalf(d.credit) !== evidenceHalf(sc)) changed.push("credit evidence");
         if (changed.length) { differ++; say(`   life ${n(s.life_id)} differs: ${changed.join(", ")}`); }
         if ((d.credit?.outcome ?? null) !== (sc?.outcome ?? null) || (d.credit?.refusedBy ?? null) !== (sc?.refusedBy ?? null)) {
           policy++; say(`   life ${n(s.life_id)} credit policy now ${d.credit?.outcome ?? "none"}${d.credit?.refusedBy ? ` (test ${d.credit.refusedBy})` : ""}, stored ${sc?.outcome ?? "none"}`);

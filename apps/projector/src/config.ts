@@ -13,8 +13,10 @@ export type Config = {
   /**
    * Whether the verdict sweep writes trap kills into `kills` (death-verdict spec 2.4). SAFE
    * DEFAULT off: a row in `kills` is public, counts toward qualification and so toward bans, the
-   * moment it is written. Off, the outcome is kept in `death_verdicts.evidence.credit` only and any
-   * trap row found is removed on the next pass, which also makes it the rollback.
+   * moment it is written. Off, the outcome is kept in `death_verdicts.evidence.credit` only and
+   * every trap row in `kills` is deleted at the start of each sweep pass, which also makes it the
+   * rollback. Turned on, each stored credit that has no row gets one on the next pass, so the
+   * switch takes effect for deaths that already have a verdict.
    */
   trapKillsWrite: boolean;
 };

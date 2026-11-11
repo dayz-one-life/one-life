@@ -60,6 +60,43 @@ describe("verifyVerdicts", () => {
     expect(r.failures.filter((f) => f.startsWith("check 8"))).toHaveLength(2);
   });
 
+  it("re-derivation passes with a deny on a credited death", async () => {
+    await db.execute(dsql`INSERT INTO death_verdict_overrides (server_id, death_file_id, death_line_index, credit, note, created_by)
+      VALUES (${sid}, ${deathRef.f}, ${deathRef.l}, 'deny', 'n', 't')`);
+    await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: true });
+    const r = await verifyVerdicts(db, { rederive: true, credits: true, trapKillsWrite: true });
+    expect(r.lines.join("\n")).toContain("denied");
+    expect(r.failures).toEqual([]);
+  });
+
+  it("re-derivation passes with a grant, and with a deny, on a death the evidence refused", async () => {
+    // a second wire near the first: test 2 refuses, which is what a grant is for
+    const T: Who = { name: "Third Three", id: fakeId("3") };
+    const more = await seedAdmLog(db, sid, [{ date: "2031-06-08", start: "09:00:00", lines: [["09:15:00", line.wire(T, 1002.5)]] }]);
+    expect(more.fileIds).toHaveLength(1);
+    await db.insert(players).values({ gamertag: T.name, dayzId: T.id });
+    await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: true });
+    const [c] = (await db.execute(dsql`SELECT evidence->'credit' AS c FROM death_verdicts`)) as unknown as { c: { outcome: string; refusedBy: number } }[];
+    expect(c!.c).toMatchObject({ outcome: "refused", refusedBy: 2 });
+    for (const [credit, id] of [["grant", T.id], ["deny", null]] as const) {
+      await db.execute(dsql`DELETE FROM death_verdict_overrides`);
+      await db.execute(dsql`INSERT INTO death_verdict_overrides (server_id, death_file_id, death_line_index, credit, credit_dayz_id, note, created_by)
+        VALUES (${sid}, ${deathRef.f}, ${deathRef.l}, ${credit}, ${id}, 'n', 't')`);
+      await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: true });
+      const r = await verifyVerdicts(db, { rederive: true, credits: true, trapKillsWrite: true });
+      expect(r.lines.join("\n")).toContain(credit === "grant" ? "granted" : "denied");
+      expect(r.failures).toEqual([]);
+    }
+  });
+
+  it("an override whose server_id is not the death file's server fails check 8", async () => {
+    await sweepVerdicts(db, { now: NOW, log });
+    await db.execute(dsql`INSERT INTO death_verdict_overrides (server_id, death_file_id, death_line_index, credit, note, created_by)
+      VALUES (999999, ${deathRef.f}, ${deathRef.l}, 'deny', 'n', 't')`);
+    const r = await verifyVerdicts(db);
+    expect(r.failures.filter((f) => f.startsWith("check 8"))).toEqual([expect.stringContaining("server")]);
+  });
+
   it("a trap row with no credited verdict fails check 10", async () => {
     await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: true });
     await db.execute(dsql`UPDATE death_verdicts SET evidence = jsonb_set(evidence, '{credit,outcome}', '"denied"')`);

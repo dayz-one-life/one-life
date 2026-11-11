@@ -48,7 +48,11 @@ export interface SweepLogger {
 export interface SweepOptions {
   now?: Date;
   log: SweepLogger;
-  /** `TRAP_KILLS_WRITE`. Off (the default): no trap row is written and any found is removed. */
+  /**
+   * `TRAP_KILLS_WRITE`. Off (the default): no trap row is written, and every trap row in `kills` is
+   * deleted at the start of each pass. On: a stored credit that has no row gets one on the next
+   * pass, so turning the switch either way takes effect for deaths that already have a verdict.
+   */
   trapKillsWrite?: boolean;
   budgetMs?: number;
   limit?: number;
@@ -64,6 +68,11 @@ export interface OverrideRow {
   cause: string | null; confidence: string | null; objectKey: string | null;
   upstreamCause: string | null; upstreamConfidence: string | null;
   credit: string | null; creditDayzId: string | null; updatedAt: Date;
+  /**
+   * `adm_files.server_id` of the death file, when it was read with the row; null when the file is
+   * missing. `undefined` (not read) skips the check.
+   */
+  fileServerId?: number | null;
 }
 
 const CONFIDENCES: readonly Confidence[] = ["definitive", "strong", "inferred", "unknown"];
@@ -76,6 +85,8 @@ const isDayzId = (v: unknown): v is string => typeof v === "string" && /^[0-9A-F
  * half-applied.
  */
 export function overrideProblem(o: OverrideRow): string | null {
+  if (o.fileServerId === null) return "death_file_id is not an adm_files row";
+  if (o.fileServerId !== undefined && o.fileServerId !== o.serverId) return `server_id ${o.serverId} is not the death file's server (${o.fileServerId})`;
   if (o.cause != null && !(INTERNAL_CAUSES as readonly string[]).includes(o.cause)) return `unknown cause ${o.cause}`;
   if (o.confidence != null && !isConfidence(o.confidence)) return `unknown confidence ${o.confidence}`;
   if (o.objectKey != null && !isObjectKey(o.objectKey)) return `unknown object key ${o.objectKey}`;
@@ -156,7 +167,8 @@ export async function lifeCountsOnItsOwn(db: Database, life: CreditLife): Promis
  *
  * Never returns `evidence_passes`: that word is the classifier's, and is not a kill.
  */
-export async function resolveCredit(db: Database, life: CreditLife, verdict: InternalVerdict, override: OverrideRow | null):
+export async function resolveCredit(db: Database, life: CreditLife, verdict: InternalVerdict, override: OverrideRow | null,
+  classifierCause: InternalVerdict["cause"] = verdict.cause):
   Promise<{ credit: CreditEvidence | null; row: TrapKillRow | null }> {
   const base = verdict.evidence.credit;
   const o = override && !overrideProblem(override) ? override : null;
@@ -174,6 +186,13 @@ export async function resolveCredit(db: Database, life: CreditLife, verdict: Int
   if (o?.credit === "deny") {
     credit.outcome = "denied"; credit.refusedBy = null;
     return { credit, row: null };
+  }
+  // Test 1 against the verdict as it now stands: an override can lower the confidence, or move the
+  // cause to another trap device, after the classifier's evidence half passed. ⚠️ The classifier's
+  // evidence (placement, distance) is for its own device; a different device is not that evidence.
+  if (base.outcome !== "not_applicable" && base.refusedBy !== 1) {
+    if (verdict.confidence !== "definitive" && verdict.confidence !== "strong") return refuse(1, "override_changed_test_1");
+    if (device && device !== TRAP_DEVICE_OF_CAUSE[classifierCause]) return refuse(1, "override_changed_test_1");
   }
 
   let placerId: string | null;
@@ -242,17 +261,43 @@ async function lifeRow(db: Database, lifeId: number): Promise<LifeRow | null> {
   };
 }
 
-export async function overrideFor(db: Database, deathFileId: number, deathLineIndex: number): Promise<OverrideRow | null> {
-  const r = (await db.execute<Record<string, unknown>>(sql`
-    SELECT * FROM death_verdict_overrides WHERE death_file_id = ${deathFileId} AND death_line_index = ${deathLineIndex}`)) as unknown as Record<string, unknown>[];
-  const x = r[0];
-  if (!x) return null;
+/** A `death_verdict_overrides` row joined with its death file's server, as read. */
+export function overrideOf(x: Record<string, unknown>): OverrideRow {
   return {
     serverId: Number(x.server_id), deathFileId: Number(x.death_file_id), deathLineIndex: Number(x.death_line_index),
     cause: (x.cause as string | null) ?? null, confidence: (x.confidence as string | null) ?? null, objectKey: (x.object_key as string | null) ?? null,
     upstreamCause: (x.upstream_cause as string | null) ?? null, upstreamConfidence: (x.upstream_confidence as string | null) ?? null,
     credit: (x.credit as string | null) ?? null, creditDayzId: (x.credit_dayz_id as string | null) ?? null, updatedAt: new Date(x.updated_at as string),
+    fileServerId: x.file_server_id == null ? null : Number(x.file_server_id),
   };
+}
+
+export async function overrideFor(db: Database, deathFileId: number, deathLineIndex: number): Promise<OverrideRow | null> {
+  const r = (await db.execute<Record<string, unknown>>(sql`
+    SELECT o.*, f.server_id AS file_server_id FROM death_verdict_overrides o LEFT JOIN adm_files f ON f.id = o.death_file_id
+    WHERE o.death_file_id = ${deathFileId} AND o.death_line_index = ${deathLineIndex}`)) as unknown as Record<string, unknown>[];
+  return r[0] ? overrideOf(r[0]) : null;
+}
+
+/**
+ * A valid override `deny` on another line of the death's cluster (not the resolved primary line),
+ * or null. ⚠️ Overrides are keyed on the primary line (spec 3.2), but a re-derivation (a version
+ * bump, a second look that sees more lines) can move the primary within the cluster. A deny left
+ * on the old line must still keep a public trap kill out; its other fields are not applied, and
+ * verify-verdicts check 8 lists it as matching no stored verdict.
+ */
+async function offPrimaryDeny(db: Database, v: InternalVerdict): Promise<OverrideRow | null> {
+  const refs = v.deathLines.filter((l) => l.admFileId !== v.deathRef.admFileId || l.lineIndex !== v.deathRef.lineIndex);
+  if (!refs.length) return null;
+  const r = (await db.execute<Record<string, unknown>>(sql`
+    SELECT o.*, f.server_id AS file_server_id FROM death_verdict_overrides o LEFT JOIN adm_files f ON f.id = o.death_file_id
+    WHERE o.credit = 'deny' AND (o.death_file_id, o.death_line_index) IN (${sql.join(refs.map((l) => sql`(${l.admFileId}, ${l.lineIndex})`), sql`, `)})
+    ORDER BY o.death_file_id, o.death_line_index`)) as unknown as Record<string, unknown>[];
+  for (const x of r) {
+    const o = overrideOf(x);
+    if (!overrideProblem(o)) return o;
+  }
+  return null;
 }
 
 /** Everything one derivation produces, before it is written. */
@@ -266,6 +311,8 @@ export interface Derivation {
   needsReview: boolean;
   credit: CreditEvidence | null;
   trapRow: TrapKillRow | null;
+  /** A deny found on a cluster line other than the primary (applied to the credit only). */
+  offPrimaryDeny: OverrideRow | null;
 }
 
 /** Works one life out from its raw lines, override and credit policy included. Writes nothing. */
@@ -277,11 +324,12 @@ export async function deriveLife(db: Database, lifeId: number, cache: FileCache)
   const override = await overrideFor(db, classifier.deathRef.admFileId, classifier.deathRef.lineIndex);
   const { verdict, source } = applyOverride(classifier, override);
   const review = needsReview(verdict, life.deathCause);
+  const stray = override && !overrideProblem(override) ? null : await offPrimaryDeny(db, classifier);
   const { credit, row } = await resolveCredit(db, {
     id: life.id, serverId: life.serverId, playerId: life.playerId, startedAt: life.startedAt, endedAt: life.endedAt,
     playtimeSeconds: life.playtimeSeconds, deathCause: life.deathCause, victimDayzId: life.dayzId ?? "", victimGamertag: life.gamertag,
-  }, verdict, override);
-  return { life, loaded, classifier, verdict, source, override, needsReview: review, credit, trapRow: row };
+  }, verdict, stray ?? override, classifier.cause);
+  return { life, loaded, classifier, verdict, source, override, needsReview: review, credit, trapRow: row, offPrimaryDeny: stray };
 }
 
 /** The `death_verdicts` row for a derivation. */
@@ -311,7 +359,8 @@ export function verdictRow(d: Derivation, settled: SettledBy, now: Date): typeof
 export async function writeDerivation(db: Database, d: Derivation, settled: SettledBy, now: Date, trapKillsWrite: boolean,
   extraEvidence: Record<string, unknown> = {}): Promise<typeof deathVerdicts.$inferInsert> {
   const row = verdictRow(d, settled, now);
-  row.evidence = { ...(row.evidence as object), ...extraEvidence };
+  const probe = settled === "wall" ? { settleProbe: await settleProbe(db, d.life.serverId, d.verdict.deathRef.admFileId) } : {};
+  row.evidence = { ...(row.evidence as object), ...probe, ...extraEvidence };
   const credit = (row.evidence as { credit: CreditEvidence | null }).credit;
   // ⚠️ "evidence_passes" is the classifier's word and is not a kill; a stored row must say what
   // the policy half decided.
@@ -335,6 +384,21 @@ export async function writeDerivation(db: Database, d: Derivation, settled: Sett
     await tx.execute(sql`DELETE FROM death_verdict_queue WHERE life_id = ${d.life.id}`);
   });
   return row;
+}
+
+/**
+ * What the second look of a wall-settled row waits for, in cheap terms: the server's newest file,
+ * and how far the death's file reaches. Until one of them moves (or 24 h pass), a fresh derivation
+ * cannot settle the row by file or rotation, so it is not attempted.
+ */
+export interface SettleProbe { maxFileId: number; lastLine: number; complete: boolean }
+async function settleProbe(db: Database, serverId: number, deathFileId: number): Promise<SettleProbe> {
+  const r = (await db.execute<Record<string, unknown>>(sql`
+    SELECT (SELECT coalesce(max(id), 0) FROM adm_files WHERE server_id = ${serverId}) AS max_file_id,
+           (SELECT coalesce(max(line_index), -1) FROM raw_lines WHERE adm_file_id = ${deathFileId}) AS last_line,
+           (SELECT coalesce(bool_or(is_complete), false) FROM adm_files WHERE id = ${deathFileId}) AS complete`)) as unknown as Record<string, unknown>[];
+  const x = r[0]!;
+  return { maxFileId: Number(x.max_file_id), lastLine: Number(x.last_line), complete: x.complete === true };
 }
 
 async function recordFailure(db: Database, lifeId: number, err: unknown, now: Date): Promise<void> {
@@ -365,10 +429,24 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
   let started_n = 0;
   const overBudget = () => started_n >= limit || clock() - started >= budget;
 
-  // Candidates: no verdict at this version, or an override changed since it was applied; and not
-  // backing off. Oldest death first.
-  const cands = (await db.execute<{ id: string }>(sql`
-    SELECT l.id FROM lives l
+  // ⚠️ The switch is the rollback (spec 2.4): off means no trap row exists after this pass,
+  // whichever lives have verdicts already.
+  if (!trapKillsWrite) {
+    const gone = (await db.execute(sql`DELETE FROM kills WHERE basis = 'trap_placement' RETURNING id`)) as unknown as unknown[];
+    if (gone.length) opts.log.info({ removed: gone.length }, "verdict_sweep.trap_rows_removed");
+  }
+
+  // Candidates, not backing off, oldest death first:
+  // - no verdict at this version, or an override changed since it was applied;
+  // - the switch is on and a stored credit stands with no row in kills for its life (the switch was
+  //   turned on after the verdict was written). A kill-line row for the life excludes it: that row
+  //   wins, and re-deriving would only add the flag again;
+  // - a refusal by test 6 whose placer now has a players row.
+  // ⚠️ A refusal by test 7 is not reconsidered: its inputs (playtime, the life's kill-line kills)
+  //    are complete once the fold has caught up, which is when the sweep runs. A rebuild or a
+  //    version bump re-derives it; verify-verdicts --rederive lists a change.
+  const cands = (await db.execute<{ id: string; settled_by: string | null }>(sql`
+    SELECT l.id, v.settled_by FROM lives l
     LEFT JOIN death_verdicts v ON v.life_id = l.id
     LEFT JOIN death_verdict_queue q ON q.life_id = l.id
     LEFT JOIN death_verdict_overrides o ON o.death_file_id = v.death_file_id AND o.death_line_index = v.death_line_index
@@ -379,11 +457,18 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
            -- an override would be rewritten on every pass.
            OR (o.death_file_id IS NOT NULL
                AND date_trunc('milliseconds', o.updated_at) IS DISTINCT FROM date_trunc('milliseconds', v.override_seen_at))
-           OR (o.death_file_id IS NULL AND v.override_seen_at IS NOT NULL))
+           OR (o.death_file_id IS NULL AND v.override_seen_at IS NOT NULL)
+           OR (${trapKillsWrite} AND v.evidence->'credit'->>'outcome' IN ('credited', 'granted')
+               AND NOT v.needs_review AND l.death_cause IS DISTINCT FROM 'pvp'
+               AND NOT EXISTS (SELECT 1 FROM kills k WHERE k.victim_life_id = l.id))
+           OR (v.evidence->'credit'->>'outcome' = 'refused' AND v.evidence->'credit'->>'refusedBy' = '6'
+               AND EXISTS (SELECT 1 FROM players p WHERE p.dayz_id = v.evidence->'credit'->>'placerDayzId')))
       AND (q.life_id IS NULL OR q.next_attempt_at <= ${nowIso}::timestamptz)
     ORDER BY l.ended_at, l.id
-    LIMIT ${limit * 4}`)) as unknown as { id: string }[];
+    LIMIT ${limit * 4}`)) as unknown as { id: string; settled_by: string | null }[];
   const ids = cands.map((c) => Number(c.id));
+  // A life that already has a verdict was settled when it was written; it stays settled.
+  const storedSettle = new Map(cands.filter((c) => c.settled_by != null).map((c) => [Number(c.id), c.settled_by as SettledBy]));
   if (ids.length) {
     // first sight: the wall-clock settle fallback measures from here, not from ended_at
     await db.execute(sql`
@@ -404,8 +489,11 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
     try {
       const d = await deriveLife(db, lifeId, cache);
       if (d.loaded.unknownZone) opts.log.warn({ serverId: d.life.serverId }, "verdict_sweep.unknown_zone");
-      const settled = settledBy(d.loaded, firstSeen.get(lifeId) ?? now, now);
+      const settled = settledBy(d.loaded, firstSeen.get(lifeId) ?? now, now) ?? storedSettle.get(lifeId) ?? null;
       if (!settled) continue;
+      if (d.offPrimaryDeny) {
+        opts.log.warn({ lifeId, overrideLine: `${d.offPrimaryDeny.deathFileId}:${d.offPrimaryDeny.deathLineIndex}` }, "verdict_sweep.override_off_primary");
+      }
       await writeDerivation(db, d, settled, now, trapKillsWrite);
       res.written++;
     } catch (err) {
@@ -418,10 +506,24 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
   // Second look: a row settled by the wall clock is worked out once more, when its file has since
   // passed +300 s, its server has rotated, or after 24 h.
   if (!overBudget()) {
-    const wall = (await db.execute<{ life_id: string; classified_at: string }>(sql`
-      SELECT v.life_id, v.classified_at FROM death_verdicts v
+    // ⚠️ Only rows whose settle facts have moved since they were written (a newer file on the
+    // server, the death's file grown or marked complete), or that are 24 h old: anything else
+    // would cost a full derivation per pass only to be discarded. A row backing off after a
+    // failed second look waits like any other.
+    const dayAgo = new Date(now.getTime() - SECOND_LOOK_HOURS * 3600_000).toISOString();
+    const wall = (await db.execute<{ life_id: string; classified_at: string; server_id: string }>(sql`
+      SELECT v.life_id, v.classified_at, l.server_id FROM death_verdicts v
+      JOIN lives l ON l.id = v.life_id
+      LEFT JOIN death_verdict_queue q ON q.life_id = v.life_id
       WHERE v.settled_by = 'wall' AND v.classifier_version = ${CLASSIFIER_VERSION} AND NOT (v.evidence ? 'secondLookAt')
-      ORDER BY v.classified_at LIMIT ${limit}`)) as unknown as { life_id: string; classified_at: string }[];
+        AND (q.life_id IS NULL OR q.next_attempt_at <= ${nowIso}::timestamptz)
+        AND (v.classified_at <= ${dayAgo}::timestamptz
+             OR NOT (v.evidence ? 'settleProbe')
+             OR EXISTS (SELECT 1 FROM adm_files f WHERE f.server_id = l.server_id AND f.id > (v.evidence->'settleProbe'->>'maxFileId')::bigint)
+             OR EXISTS (SELECT 1 FROM adm_files f WHERE f.id = v.death_file_id AND f.is_complete)
+             OR EXISTS (SELECT 1 FROM raw_lines r WHERE r.adm_file_id = v.death_file_id
+                          AND r.line_index > (v.evidence->'settleProbe'->>'lastLine')::int))
+      ORDER BY v.classified_at LIMIT ${limit}`)) as unknown as { life_id: string; classified_at: string; server_id: string }[];
     for (const w of wall) {
       if (overBudget()) break;
       started_n++;
@@ -431,7 +533,13 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
         const d = await deriveLife(db, lifeId, cache);
         const now2 = settledBy(d.loaded, new Date(8.64e15), now); // file or rotation only
         const old = now.getTime() - new Date(w.classified_at).getTime() >= SECOND_LOOK_HOURS * 3600_000;
-        if (now2 == null && !old) continue;
+        if (now2 == null && !old) {
+          // moved, but not far enough: wait for the next move
+          const p = await settleProbe(db, Number(w.server_id), d.verdict.deathRef.admFileId);
+          await db.execute(sql`UPDATE death_verdicts SET evidence = jsonb_set(evidence, '{settleProbe}', ${JSON.stringify(p)}::jsonb)
+            WHERE life_id = ${lifeId}`);
+          continue;
+        }
         const settled: SettledBy = now2 ?? "wall";
         const row = await writeDerivation(db, d, settled, now, trapKillsWrite, settled === "wall" ? { secondLookAt: nowIso } : {});
         res.rederived++;
@@ -440,6 +548,7 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
         }
       } catch (err) {
         res.failed++;
+        await recordFailure(db, lifeId, err, now);
         opts.log.warn({ lifeId, err: err instanceof Error ? err.message : String(err) }, "verdict_sweep.second_look_failed");
       }
     }

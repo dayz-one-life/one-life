@@ -47,12 +47,21 @@ const debug = (what: string, xs: string[]) => { if (process.env.DEATH_GOLDEN_DEB
 
 describe.skipIf(!ready)("the verdict sweep on the One Life export (private data)", () => {
   let dead = 0;
+  let trapRowsAfterR2 = -1;
   beforeAll(async () => {
     await db.execute(TABLES);
     dead = (await seedCorpus(db, GOLD!)).deadLives;
-    for (let i = 0; i < 20; i++) {
-      const r = await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: true, limit: 2000, budgetMs: 3_600_000 });
-      if (r.written === 0 && r.failed === 0) break;
+    // The release order: R2 sweeps every death with the switch off, then R3 turns it on. The trap
+    // rows must appear for deaths that already have a verdict.
+    for (const on of [false, true]) {
+      for (let i = 0; i < 20; i++) {
+        const r = await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: on, limit: 2000, budgetMs: 3_600_000 });
+        if (r.written === 0 && r.failed === 0) break;
+      }
+      if (!on) {
+        const [t] = (await db.execute(dsql`SELECT count(*) AS n FROM kills WHERE basis = 'trap_placement'`)) as unknown as { n: string }[];
+        trapRowsAfterR2 = Number(t!.n);
+      }
     }
   }, 1_200_000);
   afterAll(async () => {
@@ -198,4 +207,15 @@ describe.skipIf(!ready)("the verdict sweep on the One Life export (private data)
     if (process.env.DEATH_GOLDEN_DEBUG) console.error(`[debug] boards ${JSON.stringify(out)}`);
     expect(out).toEqual(want);
   });
+
+  it("no trap row exists after R2; the switch turned off removes every one, and on brings them back", async () => {
+    expect(trapRowsAfterR2).toBe(0);
+    const count = async () => Number(((await db.execute(dsql`SELECT count(*) AS n FROM kills WHERE basis = 'trap_placement'`)) as unknown as { n: string }[])[0]!.n);
+    const before = await count();
+    expect(before).toBeGreaterThan(0);
+    await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: false, limit: 2000, budgetMs: 3_600_000 });
+    expect(await count()).toBe(0);
+    await sweepVerdicts(db, { now: NOW, log, trapKillsWrite: true, limit: 2000, budgetMs: 3_600_000 });
+    expect(await count()).toBe(before);
+  }, 600_000);
 });

@@ -4,6 +4,7 @@ import { servers, players, lives, kills, deathVerdicts, events } from "@onelife/
 import { getTestDb } from "@onelife/test-support";
 import { seedAdmLog, line, fakeId, type Who, type SeedFile } from "@onelife/test-support/adm-log";
 import { CLASSIFIER_VERSION, type CreditEvidence } from "@onelife/death-verdict";
+import * as rm from "@onelife/read-models";
 import { sweepVerdicts, SETTLE_WALL_MINUTES } from "../src/verdict-sweep.js";
 
 /**
@@ -76,13 +77,14 @@ async function plainDeath(opts: { after?: [string, string][]; complete?: boolean
  * A tripwire death: Other Two placed a wire 1.5 m from where Victim One trips it two days later;
  * a frag goes off four seconds after the trip. The file goes on six minutes past the death.
  */
-async function trapDeath(opts: { secondPlacer?: boolean; placerRow?: boolean; playtime?: number; deathCause?: string } = {}) {
+async function trapDeath(opts: { secondPlacer?: boolean; placerRow?: boolean; playtime?: number; deathCause?: string; diedLine?: boolean } = {}) {
   const placements: [string, string][] = [["08:10:00", line.wire(O, 1001.5)]];
   if (opts.secondPlacer) placements.push(["08:15:00", line.wire(T, 1002.5)]);
   const log2 = await seedAdmLog(db, sid, [
     { date: "2031-06-08", start: "08:00:00", lines: placements },
     { date: "2031-06-10", start: "12:00:00", lines: [
       ["12:01:00", line.connected(V)], ["12:20:00", line.trip(V)], ["12:20:04", line.fragBlast(V)], ["12:20:04", line.fragKill(V)],
+      ...(opts.diedLine ? [["12:20:04", line.died(V)] as [string, string]] : []),
       ["12:26:05", line.pos(K, 6000)],
     ] },
   ]);
@@ -243,6 +245,34 @@ describe("a pass", () => {
     expect(await sweep({ now: day })).toMatchObject({ rederived: 1 });
     expect((await verdict(d.lid))!.settledBy).toBe("wall");
     expect(await sweep({ now: new Date(day.getTime() + 60_000) })).toMatchObject({ rederived: 0 });
+  });
+
+  it("a wall-settled row whose file has not moved is not worked out again on every pass", async () => {
+    const d = await plainDeath();
+    await sweep({ now: NOW });
+    const later = new Date(NOW.getTime() + SETTLE_WALL_MINUTES * 60_000);
+    await sweep({ now: later });
+    expect((await verdict(d.lid))!.settledBy).toBe("wall");
+    const spy = vi.spyOn(rm, "loadDeath");
+    for (let i = 1; i <= 5; i++) await sweep({ now: new Date(later.getTime() + i * 60_000) });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("a second look that throws gets a queue row with backoff and counts towards held", async () => {
+    const d = await plainDeath();
+    await sweep({ now: NOW });
+    const later = new Date(NOW.getTime() + SETTLE_WALL_MINUTES * 60_000);
+    await sweep({ now: later });
+    await seedAdmLog(db, sid, [{ date: "2031-06-10", start: "16:00:00", lines: [["16:01:00", line.connected(T, 5000)]] }]);
+    const spy = vi.spyOn(rm, "loadDeath").mockRejectedValue(new Error("boom"));
+    try {
+      const t1 = new Date(later.getTime() + 60_000);
+      expect(await sweep({ now: t1 })).toMatchObject({ failed: 1 });
+      expect(await queueRow(d.lid)).toMatchObject({ attempts: 1, last_error: "boom" });
+      // backing off: the next pass does not try it again
+      expect(await sweep({ now: new Date(t1.getTime() + 1_000) })).toMatchObject({ failed: 0 });
+    } finally { spy.mockRestore(); }
   });
 
   it("refills after TRUNCATE lives CASCADE", async () => {
@@ -513,6 +543,92 @@ describe("trap kills", () => {
     const again = await life(l!.playerId, l!.startedAt, l!.endedAt!, l!.deathCause, l!.playtimeSeconds);
     await sweep({ trapKillsWrite: true });
     expect(await trapRows()).toMatchObject([{ victimLifeId: again, basis: "trap_placement" }]);
+  });
+
+  it("the switch turned on after the verdict is stored writes the trap row on the next pass, once", async () => {
+    const d = await trapDeath();
+    await sweep({ trapKillsWrite: false });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "credited" });
+    expect(await trapRows()).toHaveLength(0);
+    expect(await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 60_000) })).toMatchObject({ written: 1 });
+    expect(await trapRows()).toMatchObject([{ victimLifeId: d.lid, killerPlayerId: pids.get(O.id), basis: "trap_placement" }]);
+    expect(await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 120_000) })).toMatchObject({ written: 0 });
+    expect(await trapRows()).toHaveLength(1);
+  });
+
+  it("the switch turned off after the row exists removes it on the next pass", async () => {
+    const d = await trapDeath();
+    await sweep({ trapKillsWrite: true });
+    expect(await trapRows()).toHaveLength(1);
+    await sweep({ trapKillsWrite: false, now: new Date(NOW.getTime() + 60_000) });
+    expect(await trapRows()).toHaveLength(0);
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "credited" });
+  });
+
+  it("switching on does not re-derive, pass after pass, a credit the kill line already holds", async () => {
+    const d = await trapDeath();
+    await db.insert(kills).values({
+      serverId: sid, killerGamertag: K.name, killerPlayerId: pids.get(K.id), victimGamertag: V.name, victimPlayerId: pids.get(V.id),
+      victimLifeId: d.lid, weapon: "M4-A1", distance: 40, occurredAt: d.endedAt,
+    });
+    await sweep({ trapKillsWrite: false });
+    await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 60_000) });
+    expect(await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 120_000) })).toMatchObject({ written: 0 });
+    expect(await trapRows()).toHaveLength(0);
+  });
+
+  it("a refusal by test 6 is reconsidered once the placer's players row exists", async () => {
+    const d = await trapDeath({ placerRow: false });
+    await sweep({ trapKillsWrite: true });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "refused", refusedBy: 6 });
+    expect(await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 60_000) })).toMatchObject({ written: 0 });
+    await player(O);
+    expect(await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 120_000) })).toMatchObject({ written: 1 });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "credited" });
+    expect(await trapRows()).toHaveLength(1);
+  });
+
+  it("an override that lowers the confidence below strong refuses the credit (test 1)", async () => {
+    const d = await trapDeath();
+    await override(d.f, d.deathLine, { confidence: "inferred" });
+    await sweep({ trapKillsWrite: true });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "refused", refusedBy: 1 });
+    expect(await trapRows()).toHaveLength(0);
+  });
+
+  it("an override that turns a tripwire death into a mine death refuses the credit (test 1)", async () => {
+    const d = await trapDeath();
+    await override(d.f, d.deathLine, { cause: "landmine" });
+    await sweep({ trapKillsWrite: true });
+    expect(await verdict(d.lid)).toMatchObject({ cause: "landmine", source: "override" });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "refused", refusedBy: 1 });
+    expect(await trapRows()).toHaveLength(0);
+  });
+
+  it("a deny on another line of the death's cluster still keeps the trap kill out", async () => {
+    const d = await trapDeath({ diedLine: true });
+    await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() - 60_000) });
+    const lines = ((await verdict(d.lid))!.evidence as { deathLines: { admFileId: number; lineIndex: number; role: string }[] }).deathLines;
+    const other = lines.find((l) => l.role !== "primary");
+    expect(other).toBeDefined();
+    // a deny on the cluster's other line, not the resolved death line (as a moved primary leaves it)
+    await override(other!.admFileId, other!.lineIndex, { credit: "deny" });
+    await db.execute(dsql`UPDATE death_verdicts SET classifier_version = ${CLASSIFIER_VERSION - 1}`);
+    await sweep({ trapKillsWrite: true });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "denied" });
+    expect(await trapRows()).toHaveLength(0);
+    expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ lifeId: d.lid }), "verdict_sweep.override_off_primary");
+    expect(await sweep({ trapKillsWrite: true, now: new Date(NOW.getTime() + 60_000) })).toMatchObject({ written: 0 });
+  });
+
+  it("an override whose server_id is not the death file's server is ignored", async () => {
+    const d = await trapDeath();
+    await db.execute(dsql`
+      INSERT INTO death_verdict_overrides (server_id, death_file_id, death_line_index, credit, note, created_by)
+      VALUES (999999, ${d.f}, ${d.deathLine}, 'deny', 'test', 'test')`);
+    await sweep({ trapKillsWrite: true });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "credited" });
+    expect(await trapRows()).toHaveLength(1);
   });
 
   it("a stored credit never says evidence_passes", async () => {
