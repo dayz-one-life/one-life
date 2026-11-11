@@ -11,9 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A new internal package, `@onelife/death-verdict`, holding the wording for every cause of death:
   the label, the sentence, the caption, the tag and the line given to the obituary writer, each
   at three levels of certainty. A cause the log states is printed as fact, one that was worked
-  out carries "Worked out from the log", and a best reading always says "Likely". Nothing on the
-  site uses it yet, so no page, card or obituary changes with this release. No `--rebuild` and no
-  backfill is needed.
+  out carries a caption saying so, and a best reading always says "Likely". A stored value the
+  running release does not recognise reads "Not recorded". Nothing on the site uses the package
+  yet, so no page, card or obituary changes with this release. No `--rebuild` and no backfill is
+  needed.
 
 ### Changed
 

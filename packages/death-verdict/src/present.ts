@@ -1,11 +1,11 @@
 import type {
-  Confidence, LifeDeathFacts, PublicCauseKey, PublicDeath, StoredVerdict, TrapCredit,
+  Condition, Grade, LifeDeathFacts, PublicCauseKey, PublicDeath, StoredVerdict, TrapCredit, WriterBrief,
 } from "./types.js";
 import {
   CAPTION, CAUSE_VOCAB, COARSE_TO_LEGACY, CREDIT_DIRECTIVE, CREDIT_TEXT, INFERRED_CAUSE_DIRECTIVE, LOGOUT_CAUSES,
-  LOGOUT_SENTENCE, NAMES_NO_PERSON_DIRECTIVE, OBJECT_LABEL, PUBLIC_INFERRED, PUBLIC_ROWS, PVP_UNNAMED_ON_KILL_LINE,
-  STATED_COARSE,
-  STRONG_CAUSE_DIRECTIVE, UPSTREAM_TO_PUBLIC, WITHHELD_DIRECTIVE, formatDistance, inferredOf, legacyCause,
+  LOGOUT_SENTENCE, NAMES_NO_PERSON_DIRECTIVE, OBJECT_LABEL, PUBLIC_INFERRED, PUBLIC_ROWS, PVP_UNNAMED_VARIANT,
+  STATED_COARSE, STRONG_CAUSE_DIRECTIVE, TRAP_DEVICE_OF_CAUSE, UPSTREAM_TO_PUBLIC, WITHHELD_DIRECTIVE,
+  formatDistance, gradeOf, inferredOf, legacyCause, publicConditions,
   type ObjectLabel, type WordingInput,
 } from "./vocabulary.js";
 
@@ -17,43 +17,188 @@ import {
  * who probably fired, who was nearby. `StoredVerdict` does not carry those names at all, and the
  * rules below keep the rest in:
  *   - a killer is printed only when the kill line names one AND the life itself was recorded as a
- *     player kill; the name comes from the life, never from the verdict;
+ *     player kill AND the verdict is not a best reading; the name comes from the life, never from
+ *     the verdict;
  *   - a driver is printed only when the kill line names one, and never as the killer;
  *   - "their own" is printed only when the kill line names the victim;
  *   - the player who set a trap appears only through the `credit` argument, which the caller reads
  *     from a `kills` row — this function never builds a credit from an attribution;
  *   - a death after a knock-out prints the cause of the knock-out, worded "died after", and
  *     nothing about how the player left.
+ *
+ * ⚠️ It fails closed. The verdict is a database row: a cause, a confidence, an object or a
+ * condition this release does not know reads as "Not recorded" or is left out. Nothing here may
+ * throw on a stored value (one bad row would take a whole feed down) and nothing unknown may be
+ * printed as fact. The object and the credit are checked against the cause for the same reason:
+ * the caller and the classifier are trusted to be consistent nowhere.
+ *
+ * ⚠️ The writer's line and directives are built here, from the verdict, in the same pass as the
+ * public death. They are not worked back from a `PublicDeath`: that shape deliberately carries no
+ * marker for a knock-out, so anything that reads one back out of its sentences breaks silently
+ * the day a sentence is reworded.
  */
 
-const none = (key: "withheld" | "unknown"): PublicDeath => {
-  const w = PUBLIC_ROWS[key].stated(EMPTY);
-  return {
-    status: "final", key, tag: "Unknown", certainty: "unknown", label: w.label, detail: null, sentence: w.sentence,
-    caption: null, killerGamertag: null, driverGamertag: null, credit: null, trap: false, selfStated: false,
-    conditions: [], ...legacyCause(key, "unknown"),
-  };
-};
+interface Presented { death: PublicDeath; brief: WriterBrief }
+
 const EMPTY: WordingInput = { name: null, weapon: null, distance: null, object: null, conditions: [] };
 
-/** Which public row a stored verdict prints under. Null means "Not recorded". */
-function keyFor(v: StoredVerdict, killer: string | null): PublicCauseKey | null {
+const none = (key: "withheld" | "unknown"): Presented => {
+  const w = PUBLIC_ROWS[key].stated(EMPTY);
+  return {
+    death: {
+      status: "final", key, tag: "Unknown", certainty: "unknown", label: w.label, detail: null, sentence: w.sentence,
+      caption: null, killerGamertag: null, driverGamertag: null, credit: null, trap: false, selfStated: false,
+      conditions: [], ...legacyCause(key, "unknown"),
+    },
+    brief: { line: null, creditLine: null, directives: key === "withheld" ? [WITHHELD_DIRECTIVE] : [] },
+  };
+};
+
+/** The instructions that go with a cause line: one for the grade, then one for the cause. */
+function directivesOf(death: PublicDeath, grade: Grade): string[] {
+  const out: string[] = [];
+  if (grade === "strong") out.push(STRONG_CAUSE_DIRECTIVE);
+  if (grade === "inferred") out.push(INFERRED_CAUSE_DIRECTIVE);
+  if (death.credit) {
+    out.push(CREDIT_DIRECTIVE(death.credit.gamertag, death.credit.device));
+  } else if (death.tag === "Trap" || death.tag === "Vehicle" || death.tag === "Fire"
+    || (death.tag === "Explosion" && !death.selfStated)) {
+    out.push(NAMES_NO_PERSON_DIRECTIVE);
+  }
+  return out;
+}
+
+/** 1. A death that followed a knock-out prints the cause of the knock-out. */
+function presentAfterKnockOut(v: StoredVerdict, conditions: Condition[]): Presented {
+  const up = v.upstream;
+  const key = up && typeof up.cause === "string" && Object.hasOwn(UPSTREAM_TO_PUBLIC, up.cause)
+    ? UPSTREAM_TO_PUBLIC[up.cause] ?? null : null;
+  const words = key ? LOGOUT_SENTENCE[key] : undefined;
+  const stored = up ? gradeOf(up.confidence) : null;
+  if (!key || !words || !stored) return none("withheld");
+  // Never shown as stated outright: the log states the knock-out, not that it was the end.
+  const grade: Grade = stored === "definitive" ? "strong" : stored;
+  const row = PUBLIC_ROWS[key];
+  const inferred = grade === "inferred";
+  if (inferred && row.family && !PUBLIC_INFERRED[row.family]) return none("unknown");
+  const death: PublicDeath = {
+    status: "final", key, tag: row.tag, certainty: grade,
+    label: inferred ? inferredOf(row).label : row.stated(EMPTY).label,
+    detail: null,
+    sentence: inferred ? words.inferred : words.strong,
+    caption: CAPTION[grade],
+    killerGamertag: null, driverGamertag: null, credit: null, trap: false, selfStated: false,
+    conditions, ...legacyCause(key, grade),
+  };
+  // The by-cause directive is kept here on purpose: it says nothing about how the player left,
+  // and an explosion still names no person. Pinned in present.test.ts.
+  return { death, brief: { line: inferred ? words.inferredPromptLine : words.promptLine, creditLine: null,
+    directives: directivesOf(death, grade) } };
+}
+
+/**
+ * Which public row a stored verdict prints under. Null means "Not recorded".
+ * `killer` is the name the kill line gives, when it may be printed; `self` is true when the kill
+ * line names the victim.
+ */
+function keyFor(v: StoredVerdict, killer: string | null, self: boolean): PublicCauseKey | null {
   const key = CAUSE_VOCAB[v.cause].key;
   if (v.cause === "pvp") {
     if (killer) return "pvp";
-    // A kill line that names a weapon and nobody behind it: the rounds landed after their
-    // shooter had dropped. An object key means the line named a thing, not a firearm.
-    if (v.mechanismStated && v.objectKey == null) return "shot";
+    // ⚠️ "Shot" needs the positive signal. Never infer it from what is absent: a player kill with
+    // no name and no object is also a punch with an item in hand, or a name withheld.
+    if (v.ownerlessFirearm === true && v.mechanismStated === true) return "shot";
     return "pvp_unnamed";
   }
   // "Own" is a claim about a person. It is printed only when the kill line makes it.
-  if (key === "own_explosive") return v.attrBasis === "kill_line_self" ? "own_explosive" : "explosion";
-  if (key === "self_inflicted") return v.attrBasis === "kill_line_self" ? "self_inflicted" : null;
+  if (key === "own_explosive") return self ? "own_explosive" : "explosion";
+  if (key === "self_inflicted") return self ? "self_inflicted" : null;
   return key;
 }
 
-function minStrong(c: Confidence): Confidence {
-  return c === "definitive" ? "strong" : c;
+function present(v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | null): Presented {
+  // A cause this release does not know. `Object.hasOwn`, so "toString" is not a cause either.
+  if (typeof v.cause !== "string" || !Object.hasOwn(CAUSE_VOCAB, v.cause)) return none("unknown");
+  const conditions = publicConditions(v.conditions);
+  if (LOGOUT_CAUSES.has(v.cause)) return presentAfterKnockOut(v, conditions);
+
+  const stored = gradeOf(v.confidence);
+  if (!stored) return none("unknown");
+
+  // Names and "own" are stated by a kill line or not at all. A best reading has no kill line, so
+  // an inferred verdict carries neither, whatever its basis claims.
+  const lineStated = stored !== "inferred";
+  const named = lineStated && v.attrBasis === "kill_line" && life.deathCause === "pvp" ? life.deathByGamertag || null : null;
+  const self = lineStated && v.attrBasis === "kill_line_self";
+  const key = keyFor(v, named, self);
+  if (key == null) return none("unknown");
+  if (key === "withheld" || key === "unknown") return none(key);
+  const row = PUBLIC_ROWS[key];
+
+  // Where the log states what happened and the grade is about something never printed (the
+  // source of a wound, who fired), the death is not hedged below strong.
+  const grade: Grade = row.gradesWhatIsNotPrinted && v.mechanismStated === true && stored === "inferred" ? "strong" : stored;
+  const inferred = grade === "inferred";
+
+  // 2. An inferred family that has been switched off reads "Not recorded".
+  if (inferred && row.family && !PUBLIC_INFERRED[row.family]) return none("unknown");
+
+  // 3. Names. Only what the kill line names.
+  const killerGamertag = key === "pvp" || key === "held_grenade" ? named : null;
+  const driverGamertag = lineStated && key === "hit_by_vehicle_driver" && v.attrBasis === "kill_line_driver"
+    ? life.deathByGamertag || null : null;
+
+  // 4. The detail, at definitive and strong only, and only an object the row can hold.
+  const object: ObjectLabel | null = !inferred && row.detail === "object" && v.objectKey != null
+    && row.objects?.includes(v.objectKey) ? OBJECT_LABEL[v.objectKey] : null;
+  const weapon = !inferred && row.detail === "weapon" ? life.deathWeapon : null;
+  const distance = weapon && key === "pvp" ? life.deathDistance : null;
+  let detail: string | null = null;
+  if (!inferred && row.detail === "object") detail = object?.short ?? (key === "held_grenade" ? "Grenade" : null);
+  if (!inferred && row.detail === "weapon") {
+    detail = [weapon, distance != null ? formatDistance(distance) : null].filter(Boolean).join(" · ") || null;
+  }
+
+  const input: WordingInput = { name: killerGamertag ?? driverGamertag, weapon, distance, object, conditions };
+  const words = inferred ? inferredOf(row, input) : row.stated(input);
+  // The writer is never given a driver.
+  const writerWords = inferred ? inferredOf(row, input) : row.stated({ ...input, name: killerGamertag });
+
+  // An unnamed player kill says "the log has no kill line" only when that is so.
+  const unnamed = key !== "pvp_unnamed" || inferred ? null
+    : v.attrBasis === "kill_line" ? PVP_UNNAMED_VARIANT.nameWithheld
+      : v.mechanismStated === true ? PVP_UNNAMED_VARIANT.onKillLine : null;
+
+  // 5. Flags, as booleans.
+  const device = TRAP_DEVICE_OF_CAUSE[v.cause] ?? null;
+  const trap = device != null;
+  const selfStated = self && (key === "own_explosive" || key === "self_inflicted");
+
+  // A credit is shown only on a trap death that is stated or strong, only when handed in, and
+  // only when it is for the device this death was.
+  const shown = credit && device && !inferred && credit.device === device
+    && typeof credit.gamertag === "string" && credit.gamertag !== "" ? credit : null;
+  const creditText = shown && device ? CREDIT_TEXT[device] : null;
+  const base = unnamed?.sentence ?? words.sentence;
+  const sentence = shown && creditText ? `${base} ${creditText.sentenceSuffix(shown.gamertag)}` : base;
+  const caption = shown && creditText
+    ? (shown.byOperator === true ? creditText.operatorCaption : creditText.caption(shown.gamertag))
+    : CAPTION[grade];
+
+  const death: PublicDeath = {
+    status: "final", key, tag: row.tag, certainty: grade, label: words.label, detail, sentence, caption,
+    killerGamertag, driverGamertag,
+    credit: shown && device ? { gamertag: shown.gamertag, basis: "trap_placement", device, byOperator: shown.byOperator === true } : null,
+    trap, selfStated, conditions, ...legacyCause(key, grade),
+  };
+  return {
+    death,
+    brief: {
+      line: row.noPromptLine ? null : unnamed?.promptLine ?? writerWords.promptLine,
+      creditLine: shown && creditText ? creditText.writerLine(shown.gamertag) : null,
+      directives: directivesOf(death, grade),
+    },
+  };
 }
 
 /**
@@ -64,75 +209,19 @@ function minStrong(c: Confidence): Confidence {
  * holds.
  */
 export function toPublicDeath(v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | null = null): PublicDeath {
-  // 1. A death that followed a knock-out prints the cause of the knock-out.
-  if (LOGOUT_CAUSES.has(v.cause)) {
-    const key = v.upstream ? UPSTREAM_TO_PUBLIC[v.upstream.cause] ?? null : null;
-    const words = key ? LOGOUT_SENTENCE[key] : undefined;
-    if (!v.upstream || !key || !words || v.upstream.confidence === "unknown") return none("withheld");
-    const certainty = minStrong(v.upstream.confidence);
-    const row = PUBLIC_ROWS[key];
-    const inferred = certainty === "inferred";
-    if (inferred && row.family && !PUBLIC_INFERRED[row.family]) return none("unknown");
-    return {
-      status: "final", key, tag: row.tag, certainty,
-      label: inferred ? inferredOf(row).label : row.stated(EMPTY).label,
-      detail: null,
-      sentence: inferred ? words.inferred : words.strong,
-      caption: inferred ? CAPTION.inferred : CAPTION.strong,
-      killerGamertag: null, driverGamertag: null, credit: null, trap: false, selfStated: false,
-      conditions: v.conditions, ...legacyCause(key, certainty),
-    };
-  }
+  return present(v, life, credit).death;
+}
 
-  if (v.confidence === "unknown") return none("unknown");
-
-  const namedOnKillLine = v.attrBasis === "kill_line" && life.deathCause === "pvp" ? life.deathByGamertag : null;
-  const key = keyFor(v, namedOnKillLine);
-  if (key == null) return none("unknown");
-  if (key === "withheld" || key === "unknown") return none(key);
-  const row = PUBLIC_ROWS[key];
-  const certainty = v.confidence;
-  const inferred = certainty === "inferred";
-
-  // 2. An inferred family that has been switched off reads "Not recorded".
-  if (inferred && row.family && !PUBLIC_INFERRED[row.family]) return none("unknown");
-
-  // 3. Names. Only what the kill line names.
-  const killerGamertag = key === "pvp" || key === "held_grenade" ? namedOnKillLine : null;
-  const driverGamertag = key === "hit_by_vehicle_driver" && v.attrBasis === "kill_line_driver" ? life.deathByGamertag : null;
-
-  // 4. The detail, at definitive and strong only.
-  const object: ObjectLabel | null = !inferred && v.objectKey ? OBJECT_LABEL[v.objectKey] : null;
-  const weapon = !inferred && row.detail === "weapon" ? life.deathWeapon : null;
-  const distance = weapon && key === "pvp" ? life.deathDistance : null;
-  let detail: string | null = null;
-  if (!inferred && row.detail === "object") detail = object?.short ?? (key === "held_grenade" ? "Grenade" : null);
-  if (!inferred && row.detail === "weapon") {
-    detail = [weapon, distance != null ? formatDistance(distance) : null].filter(Boolean).join(" · ") || null;
-  }
-
-  const input: WordingInput = { name: killerGamertag ?? driverGamertag, weapon, distance, object, conditions: v.conditions };
-  const words = inferred ? inferredOf(row, input) : row.stated(input);
-
-  // 5. Flags, as booleans.
-  const trap = v.cause === "explosive_trap" || v.cause === "landmine";
-  const selfStated = v.attrBasis === "kill_line_self";
-
-  // A credit is shown only on a trap death that is stated or strong, and only when handed in.
-  const shown = credit && trap && !inferred ? credit : null;
-  const creditText = shown ? CREDIT_TEXT[shown.device] : null;
-  const base = key === "pvp_unnamed" && v.mechanismStated && !inferred ? PVP_UNNAMED_ON_KILL_LINE : words.sentence;
-  const sentence = shown && creditText ? `${base} ${creditText.sentenceSuffix(shown.gamertag)}` : base;
-  const caption = shown && creditText
-    ? (shown.byOperator ? creditText.operatorCaption : creditText.caption(shown.gamertag))
-    : certainty === "strong" ? CAPTION.strong : inferred ? CAPTION.inferred : null;
-
-  return {
-    status: "final", key, tag: row.tag, certainty, label: words.label, detail, sentence, caption,
-    killerGamertag, driverGamertag,
-    credit: shown ? { gamertag: shown.gamertag, basis: "trap_placement", device: shown.device, byOperator: shown.byOperator } : null,
-    trap, selfStated, conditions: v.conditions, ...legacyCause(key, certainty),
-  };
+/**
+ * What the obituary writer is given about the same death: the cause line, the credit line and the
+ * fixed instructions. It takes the same three arguments as `toPublicDeath` and agrees with it by
+ * construction. A death with no stored verdict has no brief: no obituary is written until one
+ * exists.
+ *
+ * A named driver is never in the line.
+ */
+export function writerBrief(v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | null = null): WriterBrief {
+  return present(v, life, credit).brief;
 }
 
 /**
@@ -154,51 +243,4 @@ export function pendingPublicDeath(life: LifeDeathFacts): PublicDeath {
     killerGamertag, driverGamertag: null, credit: null, trap: false, selfStated: false, conditions: [],
     cause: legacy ?? "unknown", confidence: legacy ? "high" : "low",
   };
-}
-
-/** True when the death is worded as following a knock-out. Read off the sentence, because the
- *  public shape deliberately carries no marker for it. */
-function logoutWords(p: PublicDeath) {
-  const w = LOGOUT_SENTENCE[p.key];
-  return w && (p.sentence === w.strong || p.sentence === w.inferred) ? w : null;
-}
-
-/**
- * The cause line the writer is given, or null when it is given none (not recorded, withheld,
- * pending). An inferred line starts "most likely" and belongs under `NOT_CONFIRMED_HEADING`.
- *
- * `life` adds the weapon and distance of a player kill; without it the line names the killer only.
- * A named driver is never in the line.
- */
-export function promptLine(p: PublicDeath, life: LifeDeathFacts | null = null): string | null {
-  if (p.status !== "final") return null;
-  const row = PUBLIC_ROWS[p.key];
-  if (row.noPromptLine) return null;
-  const inferred = p.certainty === "inferred";
-  const logout = logoutWords(p);
-  if (logout) return inferred ? logout.inferredPromptLine : logout.promptLine;
-  const object = p.detail && row.detail === "object"
-    ? Object.values(OBJECT_LABEL).find((o) => o.short === p.detail) ?? null : null;
-  const input: WordingInput = {
-    name: p.killerGamertag,
-    weapon: p.key === "pvp" ? life?.deathWeapon ?? null : null,
-    distance: p.key === "pvp" && life?.deathWeapon ? life.deathDistance : null,
-    object, conditions: p.conditions,
-  };
-  return (inferred ? inferredOf(row, input) : row.stated(input)).promptLine;
-}
-
-/** The fixed instructions that go with a death's cause line, in the order they are sent. */
-export function directivesFor(p: PublicDeath): string[] {
-  if (p.status !== "final" || p.key === "unknown" || p.key === "awaiting") return [];
-  if (p.key === "withheld") return [WITHHELD_DIRECTIVE];
-  const out: string[] = [];
-  if (p.certainty === "strong") out.push(STRONG_CAUSE_DIRECTIVE);
-  if (p.certainty === "inferred") out.push(INFERRED_CAUSE_DIRECTIVE);
-  if (p.credit) {
-    out.push(CREDIT_DIRECTIVE(p.credit.gamertag, p.credit.device));
-  } else if (p.tag === "Trap" || p.tag === "Vehicle" || p.tag === "Fire" || (p.tag === "Explosion" && !p.selfStated)) {
-    out.push(NAMES_NO_PERSON_DIRECTIVE);
-  }
-  return out;
 }

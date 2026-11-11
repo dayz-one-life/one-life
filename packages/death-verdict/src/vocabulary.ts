@@ -1,5 +1,6 @@
 import type {
-  Confidence, InferredFamily, InternalCause, LegacyCause, ObjectKey, PublicCauseKey, PublicTag, TrapDevice,
+  Condition, Confidence, Grade, InferredFamily, InternalCause, LegacyCause, ObjectKey, PublicCauseKey, PublicTag,
+  TrapDevice,
 } from "./types.js";
 
 /**
@@ -23,7 +24,19 @@ export interface WordingInput {
   weapon: string | null;
   distance: number | null;
   object: ObjectLabel | null;
-  conditions: readonly string[];
+  conditions: readonly Condition[];
+}
+
+/**
+ * The only words a death's `conditions` may hold. They are printed verbatim in the suicide label
+ * and given to the writer, so the list is closed: anything else a stored row carries is dropped
+ * by `publicConditions`, never printed.
+ */
+export const CONDITIONS = ["starving", "dehydrated", "hunted", "healthy"] as const satisfies readonly Condition[];
+const CONDITION_SET = new Set<string>(CONDITIONS);
+export function publicConditions(raw: unknown): Condition[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((c): c is Condition => typeof c === "string" && CONDITION_SET.has(c)))];
 }
 
 export interface ObjectLabel {
@@ -105,10 +118,27 @@ export const FAMILY_TAG: Record<InferredFamily, PublicTag> = {
   infected: "Infected", pvp: "PvP",
 };
 
-export const CAPTION = {
+/** One per grade, so a new grade cannot be added without deciding its caption. */
+export const CAPTION: Record<Grade, string | null> = {
+  definitive: null,
   strong: "Worked out from the log",
   inferred: "Best reading of the log. The server recorded no cause.",
-} as const;
+};
+
+/**
+ * The grade a stored confidence is shown at; null is "Not recorded".
+ *
+ * ⚠️ A `Record`, read with `Object.hasOwn`: a confidence this release does not know (a newer
+ * classifier's row read by a rolled-back deploy, a null, a typo) is shown as not recorded. It must
+ * never fall through to "stated as fact".
+ */
+const SHOWN_GRADE: Record<Confidence, Grade | null> = {
+  definitive: "definitive", strong: "strong", inferred: "inferred", unknown: null,
+};
+export function gradeOf(confidence: unknown): Grade | null {
+  return typeof confidence === "string" && Object.hasOwn(SHOWN_GRADE, confidence)
+    ? SHOWN_GRADE[confidence as Confidence] : null;
+}
 
 // ---------------------------------------------------------------------------------------------
 // The public rows: one per key.
@@ -121,6 +151,16 @@ export interface PublicRow {
   family: InferredFamily | null;
   /** What may be printed beside the label, at definitive or strong only. */
   detail: "object" | "weapon" | "none";
+  /** The objects this row may name. A stored object outside the list is not printed: a vehicle
+   *  death never shows a grenade, whatever the row holds. */
+  objects?: readonly ObjectKey[];
+  /**
+   * Set where the log line itself states what happened and the classifier's grade is about
+   * something this row never prints: where the wound came from, who fired. Such a death is never
+   * shown below strong while the mechanism is stated — "Likely bled out" and "the server recorded
+   * no cause" would both be false about a line that says `bled out`.
+   */
+  gradesWhatIsNotPrinted?: true;
   /** Wording at definitive and strong. */
   stated: (o: WordingInput) => Wording;
   /** Wording at inferred, where the row has its own. Otherwise it is derived: see `inferredOf`. */
@@ -132,6 +172,10 @@ export interface PublicRow {
   legacyInferred?: LegacyCause;
 }
 
+const GRENADES = ["m67_grenade", "rgd5_grenade"] as const satisfies readonly ObjectKey[];
+const EXPLOSIVES = [...GRENADES, "claymore", "land_mine", "round_40mm", "m79", "plastic_explosive"] as const satisfies readonly ObjectKey[];
+const VEHICLES = ["car", "motorbike"] as const satisfies readonly ObjectKey[];
+
 const fixed = (label: string, sentence: string, promptLine: string) => (): Wording => ({ label, sentence, promptLine });
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
@@ -140,14 +184,14 @@ export function formatDistance(meters: number): string {
   return `${Math.round(meters)}${NBSP}m`;
 }
 
-function suicideLabel(conditions: readonly string[]): string {
+function suicideLabel(conditions: readonly Condition[]): string {
   // Unchanged from the wording the site has always used for a suicide.
   const conds = conditions.filter((c) => c !== "healthy");
   if (conds.length) return `Suicide (${conds.join(", ")})`;
   if (conditions.includes("healthy")) return "Suicide (in good health)";
   return "Suicide";
 }
-function suicidePromptLine(conditions: readonly string[]): string {
+function suicidePromptLine(conditions: readonly Condition[]): string {
   const conds = conditions.filter((c) => c !== "healthy");
   const state = conds.length
     ? ` At the end they were ${conds.join(" and ")}.`
@@ -175,12 +219,14 @@ export const PUBLIC_ROWS: Record<PublicCauseKey, PublicRow> = {
     inferred: { label: "Likely killed", sentence: "Likely killed by another player.",
       promptLine: "most likely killed by another player; the record names no one" },
   },
+  // Only for a kill line with a firearm and an empty killer (`StoredVerdict.ownerlessFirearm`).
+  // The shot is stated; what the classifier grades is who fired, which is never printed.
   shot: {
-    tag: "Gunfire", family: null, detail: "weapon", legacy: "pvp",
+    tag: "Gunfire", family: null, detail: "weapon", legacy: "pvp", gradesWhatIsNotPrinted: true,
     stated: fixed("Shot", "Shot. The log names no shooter.", "shot dead; the record names no shooter"),
   },
   held_grenade: {
-    tag: "PvP", family: null, detail: "object", legacy: "pvp",
+    tag: "PvP", family: null, detail: "object", objects: GRENADES, legacy: "pvp",
     stated: ({ name }) => name
       ? { label: `Killed by ${name}`, sentence: `Killed by ${name} (a grenade).`,
           promptLine: `killed by another player (${name}) with a grenade` }
@@ -196,7 +242,7 @@ export const PUBLIC_ROWS: Record<PublicCauseKey, PublicRow> = {
     stated: fixed("Self-inflicted", "Died by their own weapon.", "died by their own weapon"),
   },
   tripwire: {
-    tag: "Trap", family: null, detail: "object", legacy: "explosion",
+    tag: "Trap", family: null, detail: "object", objects: [...GRENADES, "claymore"], legacy: "explosion",
     stated: ({ object }) => {
       const what = object ? `a tripwire rigged with ${object.withArticle}` : "a tripwire";
       return { label: "Tripwire", sentence: `Killed by ${what}.`, promptLine: `killed by ${what}` };
@@ -207,21 +253,21 @@ export const PUBLIC_ROWS: Record<PublicCauseKey, PublicRow> = {
     stated: fixed("Land mine", "Killed by a land mine.", "killed by a land mine"),
   },
   grenade: {
-    tag: "Explosion", family: null, detail: "object", legacy: "explosion",
+    tag: "Explosion", family: null, detail: "object", objects: GRENADES, legacy: "explosion",
     stated: ({ object }) => {
       const what = object?.withArticle ?? "a grenade";
       return { label: "Grenade", sentence: `Killed by ${what}. The log names no thrower.`, promptLine: `killed by ${what}` };
     },
   },
   explosion: {
-    tag: "Explosion", family: null, detail: "object", legacy: "explosion",
+    tag: "Explosion", family: null, detail: "object", objects: EXPLOSIVES, legacy: "explosion",
     stated: ({ object }) => {
       const what = object?.withArticle ?? "an explosion";
       return { label: "Explosion", sentence: `Killed by ${what}.`, promptLine: `killed by ${what}` };
     },
   },
   own_explosive: {
-    tag: "Explosion", family: null, detail: "object", legacy: "explosion",
+    tag: "Explosion", family: null, detail: "object", objects: EXPLOSIVES, legacy: "explosion",
     stated: ({ object }) => {
       const what = `their own ${object?.bare ?? "explosive"}`;
       return { label: "Own explosive", sentence: `Killed by ${what}.`, promptLine: `killed by ${what}` };
@@ -255,13 +301,13 @@ export const PUBLIC_ROWS: Record<PublicCauseKey, PublicRow> = {
   drowned: { tag: "Drowned", family: null, detail: "none", legacy: "environmental",
     stated: fixed("Drowned", "Drowned.", "drowned") },
   hit_by_vehicle: {
-    tag: "Vehicle", family: null, detail: "object", legacy: "vehicle",
+    tag: "Vehicle", family: null, detail: "object", objects: VEHICLES, legacy: "vehicle",
     stated: fixed("Hit by a vehicle", "Hit by a vehicle. The log names no driver.", "struck and killed by a vehicle"),
   },
   // The driver is printed on the life page as the log has it — in the seat — never as the killer,
   // and is not given to the writer at all.
   hit_by_vehicle_driver: {
-    tag: "Vehicle", family: null, detail: "object", legacy: "vehicle",
+    tag: "Vehicle", family: null, detail: "object", objects: VEHICLES, legacy: "vehicle",
     stated: ({ name }) => ({ label: "Hit by a vehicle",
       sentence: name ? `Hit by a vehicle. The log puts ${name} in the driver's seat.` : "Hit by a vehicle.",
       promptLine: "struck and killed by a vehicle" }),
@@ -283,8 +329,9 @@ export const PUBLIC_ROWS: Record<PublicCauseKey, PublicRow> = {
     tag: "Vehicle", family: null, detail: "none", legacy: "vehicle",
     stated: fixed("Vehicle", "Killed in a vehicle incident.", "killed in a vehicle incident"),
   },
-  // No source is named. The bleed is stated; where it came from is a reading.
-  bled_out: { tag: "Blood Loss", family: null, detail: "none", legacy: "bled_out",
+  // No source is named. The bleed is stated; where it came from is a reading, and the classifier's
+  // grade for these causes is the grade of that reading.
+  bled_out: { tag: "Blood Loss", family: null, detail: "none", legacy: "bled_out", gradesWhatIsNotPrinted: true,
     stated: fixed("Bled out", "Bled out.", "bled out") },
   starvation: {
     tag: "Hunger and Thirst", family: "hunger_thirst", detail: "none", legacy: "starvation", legacyInferred: "starvation",
@@ -322,9 +369,18 @@ export const PUBLIC_ROWS: Record<PublicCauseKey, PublicRow> = {
     stated: fixed("Awaiting the record", "Awaiting the record.", "") },
 };
 
-/** For a player kill whose kill line exists but names a thing and no person: the standard
- *  sentence ("the log has no kill line") would be false. */
-export const PVP_UNNAMED_ON_KILL_LINE = "Killed by another player. The log names no one.";
+/**
+ * A player kill that prints no name, where the row's own sentence ("the log has no kill line")
+ * would be false. Each says only what is true of its case:
+ *   - `onKillLine`: a kill line exists and names a thing, no person. Another line may name the
+ *     attacker, so this speaks of the kill line and not of the log.
+ *   - `nameWithheld`: the kill line does name someone, and the name is not printed because the
+ *     life row and the verdict disagree. Nothing is said about what the log names.
+ */
+export const PVP_UNNAMED_VARIANT = {
+  onKillLine: { sentence: "Killed by another player. The kill line names no one.", promptLine: "killed by another player" },
+  nameWithheld: { sentence: "Killed by another player.", promptLine: "killed by another player" },
+} as const;
 
 const EMPTY_INPUT: WordingInput = { name: null, weapon: null, distance: null, object: null, conditions: [] };
 
@@ -394,7 +450,6 @@ const KEY_OF_CAUSE: Record<InternalCause, PublicCauseKey> = {
   unknown: "unknown",
 };
 
-type Grade = "definitive" | "strong" | "inferred";
 export interface VocabEntry {
   label: string;
   sentence: (o: WordingInput) => string;
@@ -445,7 +500,7 @@ export const LOGOUT_CAUSES: ReadonlySet<InternalCause> = new Set<InternalCause>(
 ]);
 
 /** The classifier's upstream words to the public row they print under; null is withheld. */
-export const UPSTREAM_TO_PUBLIC: Record<string, PublicCauseKey | null> = {
+export const UPSTREAM_TO_PUBLIC: Readonly<Record<string, PublicCauseKey | null>> = {
   infected: "infected",
   fall: "fall",
   explosion: "explosion",
@@ -556,6 +611,11 @@ export const CREDIT_TEXT: Record<TrapDevice, {
     listFootnote: "By trap: credited from where the trap was placed. The log names no killer.",
     writerLine: (name) => `The record names no killer. The only land mine on record that fits was set by ${name}, who is credited with the kill.`,
   },
+};
+
+/** The device a trap death was, by its cause. A credit for any other device is not shown. */
+export const TRAP_DEVICE_OF_CAUSE: Partial<Record<InternalCause, TrapDevice>> = {
+  explosive_trap: "tripwire", landmine: "land_mine",
 };
 
 const DEVICE_NOUN: Record<TrapDevice, string> = { tripwire: "a tripwire", land_mine: "a land mine" };

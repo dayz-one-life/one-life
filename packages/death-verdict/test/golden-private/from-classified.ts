@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   isInternalCause, objectKeyFromText, toPublicDeath,
-  type AttributionBasis, type Confidence, type LifeDeathFacts, type PublicDeath, type StoredVerdict, type TrapCredit,
+  type AttributionBasis, type Condition, type Confidence, type LifeDeathFacts, type PublicDeath, type StoredVerdict, type TrapCredit,
 } from "../../src/index.js";
 
 /**
@@ -45,6 +45,7 @@ export function goldenPaths(gold: string) {
     kills: join(gold, "corpus", "ol_kills.csv"),
     lines: join(gold, "corpus", "ol_raw_lines.tsv"),
     snapshot: join(gold, "labels.snapshot.json"),
+    expected: join(gold, "labels.expected.json"),
     tokens: join(gold, "tokens.json"),
   };
 }
@@ -160,7 +161,7 @@ export function loadGoldenDeaths(gold: string): GoldenDeath[] {
       deathWeapon: lifeRow.death_weapon || null, deathDistance: num(lifeRow.death_distance),
     };
 
-    const conditions: string[] = [];
+    const conditions: Condition[] = [];
     if (r.stats && r.stats.energy <= STARVE_ENERGY_MAX) conditions.push("starving");
     if (r.stats && r.stats.water <= DEHYDRATE_WATER_MAX) conditions.push("dehydrated");
     if (hunted(r)) conditions.push("hunted");
@@ -170,7 +171,7 @@ export function loadGoldenDeaths(gold: string): GoldenDeath[] {
       cause: r.cause, confidence: r.confidence, mechanismStated: r.mechanism_stated,
       objectKey: objectKeyFromText(r.weapon_or_object),
       upstream: r.upstream_cause && r.upstream_confidence ? { cause: r.upstream_cause, confidence: r.upstream_confidence } : null,
-      attrBasis: basisOf(r), conditions,
+      attrBasis: basisOf(r), ownerlessFirearm: r.rule === "A14", conditions,
     };
 
     // The half of the credit bar that needs the database: the victim's life must count in its own

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ATTRIBUTION_ROLES, CAPTION, CAUSE_VOCAB, CONTRIBUTOR_ROLES, CREDIT_DIRECTIVE, CREDIT_TEXT, FAMILY_TAG,
   INFERRED_CAUSE_DIRECTIVE, INTERNAL_CAUSES, LOGOUT_CAUSES, LOGOUT_SENTENCE, NAMES_NO_PERSON_DIRECTIVE,
-  NOT_CONFIRMED_HEADING, OBJECT_KEY_FROM_TEXT, OBJECT_LABEL, PUBLIC_INFERRED, PUBLIC_ROWS, PVP_UNNAMED_ON_KILL_LINE,
+  NOT_CONFIRMED_HEADING, OBJECT_KEY_FROM_TEXT, OBJECT_LABEL, PUBLIC_INFERRED, PUBLIC_ROWS, PVP_UNNAMED_VARIANT,
   STATED_COARSE, STRONG_CAUSE_DIRECTIVE, TRAP_KILLS_CAVEAT, TRAP_QUALIFIED_LINE, UPSTREAM_TO_PUBLIC, WITHHELD_DIRECTIVE,
   inferredOf, isInternalCause, objectKeyFromText,
   type InternalCause, type WordingInput,
@@ -35,7 +35,8 @@ function everyPublicString(): string[] {
   for (const c of Object.values(CREDIT_TEXT)) {
     out.push(c.sentenceSuffix(NAME), c.caption(NAME), c.operatorCaption, c.listLabel, c.listFootnote, c.writerLine(NAME));
   }
-  out.push(CAPTION.strong, CAPTION.inferred, TRAP_QUALIFIED_LINE, TRAP_KILLS_CAVEAT(1, 2), PVP_UNNAMED_ON_KILL_LINE,
+  out.push(CAPTION.strong!, CAPTION.inferred!, TRAP_QUALIFIED_LINE, TRAP_KILLS_CAVEAT(1, 2),
+    ...Object.values(PVP_UNNAMED_VARIANT).flatMap((w) => [w.sentence, w.promptLine]),
     CREDIT_DIRECTIVE(NAME, "tripwire"), CREDIT_DIRECTIVE(NAME, "land_mine"), INFERRED_CAUSE_DIRECTIVE,
     NOT_CONFIRMED_HEADING, STRONG_CAUSE_DIRECTIVE, WITHHELD_DIRECTIVE, NAMES_NO_PERSON_DIRECTIVE,
     ...Object.values(FAMILY_TAG));
@@ -245,7 +246,7 @@ describe("vocabulary", () => {
     expect(PUBLIC_ROWS.pvp_unnamed.inferred!.label).toBe("Likely killed");
     expect(PUBLIC_ROWS.shot.stated(bare).sentence).toBe("Shot. The log names no shooter.");
     expect(PUBLIC_ROWS.shot.tag).toBe("Gunfire");
-    expect(CAPTION).toEqual({ strong: "Worked out from the log", inferred: "Best reading of the log. The server recorded no cause." });
+    expect(CAPTION).toEqual({ definitive: null, strong: "Worked out from the log", inferred: "Best reading of the log. The server recorded no cause." });
   });
 
   it("the trap credit wording", () => {

@@ -3,6 +3,11 @@ import type { ATTRIBUTION_ROLES, CONTRIBUTOR_ROLES, INTERNAL_CAUSES } from "./to
 /** How sure a verdict is. `definitive`: the log states it. `strong`: worked out, with little room
  *  for another reading. `inferred`: the best reading of a log that states nothing. */
 export type Confidence = "definitive" | "strong" | "inferred" | "unknown";
+/** The three grades a cause can be shown at. */
+export type Grade = Exclude<Confidence, "unknown">;
+
+/** The state a player was in at the end. A closed list: these words are printed. */
+export type Condition = "starving" | "dehydrated" | "hunted" | "healthy";
 
 /** The precise cause the classifier stores. INTERNAL — see the ⚠️ in tokens.ts. */
 export type InternalCause = (typeof INTERNAL_CAUSES)[number];
@@ -53,8 +58,7 @@ export interface InternalVerdict {
   deathLines: (LineRef & { role: string })[];
   /** UTC, from the log's own clock. */
   deathAt: string;
-  /** Public-safe: "starving", "dehydrated", "hunted", "healthy". */
-  conditions: string[];
+  conditions: Condition[];
   evidence: {
     refs: (LineRef & { role: string })[];
     flags: string[];
@@ -84,6 +88,11 @@ export interface CreditEvidence {
  * rule, no evidence and no object text, so `toPublicDeath` cannot publish one by mistake: every
  * name it prints comes from the life's own kill line (`LifeDeathFacts`) or from the `credit`
  * argument. Adding a field here widens what can reach a page — read present.ts first.
+ *
+ * ⚠️ The values come from a database row, so the types are a hope, not a guarantee: a row written
+ * by a newer classifier can hold a cause or a confidence this release has never heard of.
+ * `toPublicDeath` checks every one at run time and reads anything it does not know as
+ * "Not recorded". It must never throw and never print an unknown value as fact.
  */
 export interface StoredVerdict {
   cause: InternalCause;
@@ -92,7 +101,15 @@ export interface StoredVerdict {
   objectKey: ObjectKey | null;
   upstream: { cause: string; confidence: Confidence } | null;
   attrBasis: AttributionBasis | null;
-  conditions: string[];
+  /**
+   * True only for the one kill-line form that is a firearm with an empty killer (the reference's
+   * rule A14, flag `ownerless_firearm`). It is what lets a page say "Shot". ⚠️ Set it from the
+   * rule that fired, never by elimination: a player kill with no name and no object is not
+   * thereby a shooting (a punch with an item in hand has the same shape).
+   */
+  ownerlessFirearm: boolean;
+  /** Only the words of `Condition` are printed; anything else is dropped. */
+  conditions: readonly Condition[];
 }
 
 /** What the life row itself records about its end: the parser's coarse word and, for a player
@@ -109,6 +126,18 @@ export type TrapDevice = "tripwire" | "land_mine";
 /** A trap kill credited to the player who set the trap. The caller reads it from the victim
  *  life's `kills` row whose basis is a trap placement; presentation never builds one itself. */
 export interface TrapCredit { gamertag: string; device: TrapDevice; byOperator: boolean }
+
+/** What the obituary writer is given about a death. Built from the verdict, never worked back
+ *  from a `PublicDeath`. */
+export interface WriterBrief {
+  /** The cause line, or null when the writer is given none (not recorded, withheld). An inferred
+   *  line starts "most likely" and belongs under `NOT_CONFIRMED_HEADING`. */
+  line: string | null;
+  /** The line about a credited trap-setter, for under `NOT_CONFIRMED_HEADING`; null with no credit. */
+  creditLine: string | null;
+  /** The fixed instructions that go with the line, in the order they are sent. */
+  directives: string[];
+}
 
 /** One key per public wording. Closed: a page can switch on it. */
 export type PublicCauseKey =
@@ -143,6 +172,9 @@ export interface PublicDeath {
   key: PublicCauseKey;
   /** Null while pending. */
   tag: PublicTag | null;
+  /** The certainty shown, which is what the wording follows. It can differ from the stored
+   *  confidence: a death after a knock-out is capped at strong, and a stated bleed-out or shot is
+   *  never shown below it. */
   certainty: Confidence;
   label: string;
   detail: string | null;
@@ -156,7 +188,7 @@ export interface PublicDeath {
   /** Booleans, not phrases: there is no text channel here for the player who set a trap. */
   trap: boolean;
   selfStated: boolean;
-  conditions: string[];
+  conditions: Condition[];
   /** Today's vocabulary, for readers that predate `label`. */
   cause: LegacyCause;
   confidence: "high" | "low";

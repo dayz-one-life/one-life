@@ -15,7 +15,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `domain` (zod events, emote/weapon dicts),
   `nitrado` (log-file client), `adm-parser` (pure ADM line parser),
   `death-verdict` (pure, no workspace dependencies: the death-cause vocabulary and
-  `toPublicDeath`, the one function that turns a stored verdict into the words a page prints —
+  `toPublicDeath`, the one function that turns a stored verdict into the words a page prints,
+  with `writerBrief` for what the obituary writer is told about the same death —
   nothing imports it yet; its private golden suites need `DEATH_GOLDEN_DIR` and are skipped
   without it), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
