@@ -48,8 +48,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kills of deaths already stored on the next pass too. Deaths the log gives no cause for are stored as
   unknown for now. Nothing on the site reads the stored causes yet, so no page, card or obituary
   changes. The deploy runs a database migration; no `--rebuild` and no backfill is needed.
+- `@onelife/death-verdict` now also works out the deaths the log gives no cause for, from what
+  it does show: health readings, hunger and thirst, the faints of heatstroke, speed, altitude and
+  other deaths in the same moment. These answers are never shown as certain: starvation, cold,
+  heatstroke (on Nasdara "heatstroke or silicosis", which the log cannot tell apart), illness, a
+  vehicle crash, or a creature or player who wore the player down. A death nothing explains stays
+  unknown. The projector works every stored death out again on its next passes, in place. Nothing
+  on the site reads the stored causes yet.
 
 ### Changed
+
+- New obituaries wait until the projector has stored how the player died, which takes a few
+  minutes after the death. The obituary itself is written as before. No `--rebuild` and no
+  backfill is needed.
 
 - New deaths by grenade, land mine, claymore, tripwire, plastic explosive, 40mm round or an
   exploding fuel pump are recorded as "Explosion", and deaths under a riderless motorbike or

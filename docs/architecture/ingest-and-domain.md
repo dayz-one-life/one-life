@@ -243,6 +243,13 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   **`death_verdicts`** (migration `0040`), one row per life, with `death_verdict_queue` (lives seen
   but not yet written) and the durable **`death_verdict_overrides`**. Nothing reads them on a page
   yet (step 7); the operator checks them with `verify-verdicts`.
+  - **Classifier version 2** (plan step 6, release R2b) ports the inferred rules (B09 to B23), so
+    every death gets the reference's answer; the version bump makes the sweep rewrite every row in
+    place. **⚠️ The newsdesk gate:** `findObituaryTargets` (`apps/newsdesk/src/pg-store.ts`) only
+    returns a life that has a `death_verdicts` row at the CURRENT `CLASSIFIER_VERSION` with
+    `needs_review = false`. A new obituary therefore waits for the sweep (minutes), and every
+    obituary waits while a version bump is being swept. The prompt still reads the life's own
+    fields; only whether a verdict exists is read.
   - **The sweep** (`apps/projector/src/verdict-sweep.ts`) runs in the projector loop after a fold
     tick (`loop.ts` `runLoopOnce`), in its own try/catch, and **⚠️ only when the fold has caught
     up** (the tick took less than a full batch and the cursor is at the newest event): mid-rebuild
