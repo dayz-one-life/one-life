@@ -3,8 +3,9 @@ import type { Condition } from "../types.js";
 
 /**
  * The state the player was in at the end, for the public suicide wording ("Suicide (starving,
- * hunted)"). The same definitions the site uses today, so the wording does not move:
- * `packages/domain/src/death-verdict.ts` is where they come from.
+ * hunted)"). The definitions are the ones the stage-1 read-time classifier in `@onelife/domain`
+ * used, so the wording did not move when the stored verdict replaced it; that classifier was
+ * deleted in death-verdict plan step 10 and these are now the only copy.
  */
 /** Energy at or below this on the death line is starving (the game prints 0 when out of food). */
 export const STARVE_ENERGY_MAX = 1;

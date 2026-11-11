@@ -38,8 +38,8 @@ beforeAll(async () => {
     // An infected hit well clear of death — kept distinct from the pvp hit below so the
     // existing `ordeals.pvp.encounters === 1` assertion is untouched. Used to assert
     // `encounters` is populated for a dead life: the pvp hit right before death, below, falls
-    // inside RECENT_HIT_WINDOW_S and is suppressed by encountersForLife's death-adjacent rule,
-    // same as the dossier's recentHits window — so this is the one encounter that survives.
+    // inside the 120 s death-adjacent window and is suppressed by encountersForLife — so this
+    // is the one encounter that survives.
     { serverId, victimGamertag: `LtHero-${svc}`, victimPlayerId: pid, attackerType: "infected", attackerLabel: "Infected",
       victimHp: 60, occurredAt: mins(50) },
     { serverId, victimGamertag: `LtHero-${svc}`, victimPlayerId: pid, attackerType: "player", attackerGamertag: "SomeKiller",

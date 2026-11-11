@@ -53,7 +53,7 @@ export const parseRef = (s: string): LineRef => {
   const [f, l] = s.split(":");
   return { admFileId: Number(f), lineIndex: Number(l) };
 };
-/** `OL-3-1234-56` (project, server, file, line) -> the primary line it names. */
+/** A golden uid, `<project>-<server>-<file>-<line>`, -> the primary line it names. */
 export const refOfUid = (uid: string): LineRef => {
   const p = uid.split("-");
   return { admFileId: Number(p[2]), lineIndex: Number(p[3]) };

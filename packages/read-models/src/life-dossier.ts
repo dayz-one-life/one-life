@@ -1,7 +1,7 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { Database } from "@onelife/db";
-import { lives, sessions, hitEvents, buildEvents, players, unconsciousEvents } from "@onelife/db";
-import { classifyDeath, classifyEntityLabel, RECENT_HIT_WINDOW_S, type DeathVerdict } from "@onelife/domain";
+import { lives, sessions, hitEvents, buildEvents, players } from "@onelife/db";
+import { classifyEntityLabel } from "@onelife/domain";
 import type { PublicDeath } from "@onelife/death-verdict";
 import { getPublicDeath, type PublicDeathLife } from "./death-verdicts.js";
 
@@ -9,11 +9,20 @@ import { getPublicDeath, type PublicDeathLife } from "./death-verdicts.js";
 // encounter (a single fire, a single zombie scrap), so the story counts run-ins, not blows.
 const ENCOUNTER_GAP_S = 120;
 
+/** An encounter whose last tick is this close to the death is part of the death (see
+ *  `encountersForLife`). It was `RECENT_HIT_WINDOW_S` of the stage-1 classifier, deleted in
+ *  death-verdict plan step 10; the value, 120 s, is unchanged. */
+const DEATH_ADJACENT_S = 120;
+
 /** One ordeal category, collapsed from raw hit-ticks into distinct encounters. */
 export interface OrdealSummary { encounters: number; hits: number; worstEncounterHits: number }
 
-export interface DossierRecentHit { attackerType: string; attackerLabel: string | null; secondsBeforeDeath: number; victimHp: number | null }
-export interface DossierUnconscious { secondsBeforeDeath: number; disconnecting: boolean }
+/**
+ * The ordeals fact sheet of a life. It used to carry the inputs of the stage-1 read-time classifier
+ * as well (the 120 s hits and knockouts, the death vitals); death-verdict plan step 10 removed them,
+ * because the stored verdict (`death_verdicts`, `getPublicDeath`) is the only answer to how a life
+ * ended, its `hunted` condition included.
+ */
 export interface LifeDossier {
   lifeId: number;
   startedAt: Date;
@@ -22,9 +31,6 @@ export interface LifeDossier {
   sessionCount: number;
   hpLow: number | null;
   ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary; buildsPlaced: number };
-  recentHits: DossierRecentHit[];
-  recentUnconscious: DossierUnconscious[];
-  death: { mechanism: string | null; energy: number | null; water: number | null; bleedSources: number | null; weapon: string | null };
 }
 
 /** The lives-row slice the dossier needs — satisfied structurally by a full lives row. */
@@ -34,11 +40,6 @@ export interface DossierLife {
   startedAt: Date;
   endedAt: Date | null;
   playtimeSeconds: number;
-  deathCause: string | null;
-  deathWeapon: string | null;
-  energyAtDeath: number | null;
-  waterAtDeath: number | null;
-  bleedSourcesAtDeath: number | null;
 }
 
 /** Collapse time-sorted hit ticks of one category into encounters (gap > ENCOUNTER_GAP_S = new one). */
@@ -54,7 +55,7 @@ function summarizeEncounters(times: number[]): OrdealSummary {
   return { encounters, hits: sorted.length, worstEncounterHits: worst };
 }
 
-/** The ordeals + recent-hits fact sheet for a life whose row the caller already holds. */
+/** The ordeals fact sheet for a life whose row the caller already holds. */
 export async function dossierForLife(db: Database, gamertag: string, life: DossierLife): Promise<LifeDossier> {
   const windowEnd = life.endedAt ?? life.startedAt;
   const sess = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.lifeId, life.id));
@@ -73,15 +74,6 @@ export async function dossierForLife(db: Database, gamertag: string, life: Dossi
     gte(hitEvents.occurredAt, life.startedAt), lte(hitEvents.occurredAt, windowEnd),
   )) : [];
 
-  // Knockouts in the life window. Same bounds and same player-id resolution as `hits` —
-  // the evidence that an infected mauling turned lethal when bleeding has already closed.
-  const knockouts = p ? await db.select({
-    disconnecting: unconsciousEvents.disconnecting, occurredAt: unconsciousEvents.occurredAt,
-  }).from(unconsciousEvents).where(and(
-    eq(unconsciousEvents.serverId, life.serverId), eq(unconsciousEvents.playerId, p.id),
-    gte(unconsciousEvents.occurredAt, life.startedAt), lte(unconsciousEvents.occurredAt, windowEnd),
-  )) : [];
-
   const isFire = (h: { attackerLabel: string | null }) => (h.attackerLabel ?? "").toLowerCase().includes("fire");
   const ms = (h: { occurredAt: Date }) => h.occurredAt.getTime();
   // Fire is checked first (a fire tick is attackerType "environment" but reads as its own ordeal).
@@ -93,22 +85,9 @@ export async function dossierForLife(db: Database, gamertag: string, life: Dossi
   };
   const hps = hits.map((h) => h.victimHp).filter((n): n is number => n != null);
   const hpLow = hps.length ? Math.min(...hps) : null;
-  const endMs = windowEnd.getTime();
-  const recentHits: DossierRecentHit[] = hits
-    // victimHp is carried through so classifyDeath can spot a terminal hit — a fatal fall names
-    // itself only here, never on the death line. Dropping it is what made those deaths "unknown".
-    .map((h) => ({ attackerType: h.attackerType, attackerLabel: h.attackerLabel, victimHp: h.victimHp, secondsBeforeDeath: Math.round((endMs - h.occurredAt.getTime()) / 1000) }))
-    .filter((h) => h.secondsBeforeDeath >= 0 && h.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
-
-  const recentUnconscious: DossierUnconscious[] = knockouts
-    .map((u) => ({ disconnecting: u.disconnecting, secondsBeforeDeath: Math.round((endMs - u.occurredAt.getTime()) / 1000) }))
-    .filter((u) => u.secondsBeforeDeath >= 0 && u.secondsBeforeDeath <= RECENT_HIT_WINDOW_S);
-
   return {
     lifeId: life.id, startedAt: life.startedAt, endedAt: life.endedAt, playtimeSeconds: life.playtimeSeconds,
-    sessionCount: sess.length, hpLow, ordeals, recentHits, recentUnconscious,
-    death: { mechanism: life.deathCause, energy: life.energyAtDeath, water: life.waterAtDeath,
-      bleedSources: life.bleedSourcesAtDeath, weapon: life.deathWeapon },
+    sessionCount: sess.length, hpLow, ordeals,
   };
 }
 
@@ -124,29 +103,15 @@ export async function getLifeDossier(db: Database, serverId: number, lifeId: num
 /**
  * The death a page shows: the stored verdict through `toPublicDeath` (death-verdict spec 7), or
  * the pending state while the sweep has not written it. `cause`, `confidence` and `conditions`
- * are still there, in today's vocabulary (`legacyCause`), for readers that predate the label —
- * newsdesk's v3.1 prompt, old mobile builds, a rolled-back web.
+ * are still there, in the pre-stage-4 vocabulary (`legacyCause`), for readers that predate the
+ * label (an old mobile build, a rolled-back web, a third-party reader of the public JSON). They
+ * stay until the mobile minimum-version gate is raised past the last build that reads them.
  */
 export type DeathVerdictSummary = PublicDeath;
 
 /** The public death of a life whose row the caller holds; null when it did not end in a death. */
 export async function dossierVerdict(db: Database, life: PublicDeathLife): Promise<DeathVerdictSummary | null> {
   return getPublicDeath(db, life);
-}
-
-/**
- * @deprecated The read-time classification every page used before stage 4. Nothing serves it any
- * more; it is kept only so `suicide-wording.test.ts` can prove the stored verdict words a suicide
- * exactly as this did, and goes with the domain classifier in step 10.
- */
-export function legacyDossierVerdict(d: LifeDossier): Pick<DeathVerdict, "cause" | "confidence" | "conditions"> {
-  const { cause, confidence, conditions } = classifyDeath(
-    { mechanism: d.death.mechanism, energy: d.death.energy, water: d.death.water,
-      bleedSources: d.death.bleedSources, weapon: d.death.weapon },
-    d.recentHits,
-    d.recentUnconscious,
-  );
-  return { cause, confidence, conditions };
 }
 
 /** One per-encounter span for the timeline (v0.69 spec §7) — distinct from `OrdealSummary`,
@@ -178,7 +143,7 @@ function encounterKey(h: { attackerType: string; attackerGamertag: string | null
  * ⚠️ Window end for an OPEN life is `lastSeenAt ?? now` — `endedAt ?? startedAt` (the dossier's
  * rule) would give an open life a zero-width window and silently hide every fight.
  *
- * ⚠️ An encounter whose last tick lands within RECENT_HIT_WINDOW_S of the death is suppressed —
+ * ⚠️ An encounter whose last tick lands within DEATH_ADJACENT_S of the death is suppressed —
  * the death row already tells that story, and printing it twice reads as two fights.
  */
 export async function encountersForLife(db: Database, gamertag: string, life: DossierLife, lastSeenAt: Date | null): Promise<LifeEncounter[]> {
@@ -206,7 +171,7 @@ export async function encountersForLife(db: Database, gamertag: string, life: Do
       if (span.length === 0) return;
       const last = span[span.length - 1]!.occurredAt;
       // death-adjacent suppression
-      if (life.endedAt && (life.endedAt.getTime() - last.getTime()) / 1000 <= RECENT_HIT_WINDOW_S) { span = []; return; }
+      if (life.endedAt && (life.endedAt.getTime() - last.getTime()) / 1000 <= DEATH_ADJACENT_S) { span = []; return; }
       const hps = span.map((t) => t.victimHp).filter((n): n is number => n != null);
       const category = key.startsWith("player:") ? "player" : (key as LifeEncounter["category"]);
       out.push({

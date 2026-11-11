@@ -143,19 +143,19 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   duplicate precheck in the UP1 plan's runbook (`0005`/`0006` are separate transactions).
 ## Death-cause fidelity
 
-- **Death-cause fidelity, stage 1** ✅: the archived platform's interpretation layer, ported.
-  `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
-  thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
-  (`starvation|dehydration|bled_out|mauled|…`, `high|low` confidence, conditions). Computed lazily —
-  never materialized (no migration/rebuild; the `isLifeQualified` precedent; **superseded by stage 4**,
-  which stores the death-verdict classifier's answer in `death_verdicts`; since death-verdict plan
-  step 7 no page reads this stage-1 verdict — `dossierVerdict` now returns the stored public death,
-  and the old classification survives only as `legacyDossierVerdict` for the suicide-wording parity
-  test until step 10) — by the new
-  `life-dossier` read-model (`dossierForLife`/`getLifeDossier`/`dossierVerdict`, plus ordeals:
-  encounter-collapsed infected/fire/pvp hits, hpLow, builds). Surfaces: `getLifeTimeline` +
-  `getPlayerPage` visible slice → API → web (`verdictPhrase`, shared `@/lib/cause-format`) on the
-  timeline death row and funeral cards. **PvP keeps the literal `"pvp"` everywhere.**
+- **Death-cause fidelity, stage 1** (historical; **the code is deleted**). The archived
+  platform's interpretation layer was ported as `classifyDeath` in `@onelife/domain`: a pure,
+  read-time ladder over the mechanism, the death vitals and a 120 s `hit_events` window, giving
+  `starvation|dehydration|bled_out|mauled|…` at `high|low` confidence plus conditions. **Stage 4
+  superseded it** (`death_verdicts`, below); from death-verdict plan step 7 no page read it, and
+  plan step 10 deleted `classifyDeath`, `causeFamily`, `ENTITY_MECHANISMS`, their tests and the
+  suicide-wording parity test, and took the 120 s hits, knockouts and death vitals out of
+  `LifeDossier`. What is left of the `life-dossier` read-model is the ordeals sheet
+  (`dossierForLife`/`getLifeDossier`: encounter-collapsed infected/fire/pvp hits, hpLow, builds),
+  `dossierVerdict` (which returns the stored public death) and `encountersForLife`. The legacy
+  vocabulary (`starvation`, `mauled`, `environmental`, `high|low`) lives on only as the legacy
+  fields of a public death (`legacyCause`) and in old articles' `cause` / `facts.verdict`, which
+  keep it permanently. **PvP keeps the literal `"pvp"` everywhere.**
   **Stage 2 shipped — richer parser vocabulary + backfill.** The parser's non-player `killed by X`
   branch maps entities through an ordered dict (`Animal_CanisLupus*`→`wolf`,
   `Animal_UrsusArctos*`→`bear`, other `Animal_*`→`animal`, `Zmb*`→`infected`, `FallDamage`→`fall`,
@@ -163,27 +163,22 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `Offroad_02`/Humvee, `OffroadHatchback`/Ada, `Truck_01_Covered`/M3S, `Boat_01`; prefix-matched)
   →`vehicle`**; unmapped→`environment`; `explosion` still reserved) and
   captures the raw entity as `deathEntity` on the event payload (no `lives` column, zod `nullish`).
-  `classifyDeath` passes them through as stated mechanisms; priors' `usualDeathCause` aggregates over `causeFamily`
-  (`@onelife/domain` — wolf/bear/animal → "animal"); `causeLabel` reads `fall` as "Fell" and a
-  bare `died` as "Unknown".
+  The stage-1 classifier passed them through as stated mechanisms (priors now aggregate on the
+  stored verdict's tag, not on a cause family); `causeLabel` reads `fall` as "Fell" and a bare
+  `died` as "Unknown".
   **A fatal fall is logged TWICE and inconsistently — the entity dict alone cannot catch it.** DayZ
   writes the fall on a *hit* line (`hit by FallDamageHealth`, `[HP: 0]`) and then a death line with
   **no `killed by` clause at all**, unlike an animal or infected kill. `ENTITY_CAUSES` only reads the
-  killer clause, so these deaths land as a bare `died` → `unknown`. `classifyDeath` therefore carries
-  a **fall rung**: a `hit_events` row in the 120s window whose `attackerLabel` starts with
-  `FallDamage` and whose `victimHp <= 0` is the killing blow → `cause: "fall"`, `high` confidence.
-  It sits **above** the starvation/dehydration/bleeding inferences (a starving man who falls died of
-  the fall; hunger stays in `conditions`) and **below** every stated mechanism. A non-terminal fall
-  hit is ignored. This is why `RecentHit`/`DossierRecentHit` carry **`victimHp`** — the read-model
-  already queried it and dropped it in the mapping, which is what made the evidence unreachable.
+  killer clause, so these deaths land as a bare `died` → `unknown`. The stage-1 classifier carried
+  a fall rung for this (a `FallDamage` hit at HP 0 in the 120 s window); the stored verdict's rule
+  B03 does the same from the raw lines.
   **A verdict that names a mechanism must also outrank the raw cause on the web** — `verdictPhrase`
-  (`@/lib/cause-format`) falls back to `causeLabel(cause)` for any verdict with no `VERDICT_NOUN`
-  entry, and for a fall the raw cause is a bare `died` → "Unknown". `ENTITY_VERDICTS` there mirrors
-  `ENTITY_MECHANISMS` in `@onelife/domain` (duplicated deliberately — `apps/web` has no dependency
-  on that package); **add a new mechanism token to both**, or the classifier will be right and the
-  page will still say Unknown.
-  Retroactive — these stage-1 verdicts are lazy, never materialized (stage 4's stored verdicts are
-  re-derived by the sweep instead: a `CLASSIFIER_VERSION` bump rewrites every row).
+  (`@onelife/client-logic/cause-format`) falls back to `causeLabel(cause)` for a legacy verdict
+  with no `VERDICT_NOUN` entry, and for a fall the raw cause is a bare `died` → "Unknown".
+  `ENTITY_VERDICTS` there is a frozen copy of the stage-1 token list. A public death's `label` wins
+  over all of it; the token branches serve only payloads with the legacy triple and stay until the
+  mobile minimum-version gate (`GET /api/app-version`) is raised past the last build that reads
+  them. The floor is unset today, so they stay.
   **Deploy runbook (stage-2 release):** normal deploy → on the host run
   `apps/projector` `backfill-death-causes` (re-parses `raw_lines`, upgrade-only, prints the
   unmapped-entity survey — feed it back into the dict) → projection rebuild
@@ -255,22 +250,17 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   **⚠️ A knocked-out player's death belongs to whatever knocked him out.** He never gets up: he
   picks "respawn" or logs out, and the SERVER kills the character, so the death line names nothing.
   All 8 `choosing to respawn` lines in production follow an `is unconscious` line, each with hits
-  behind it (infected ×5, player ×2, fall ×1). `classifyDeath`'s **knockout rung** attributes the
-  death to the pre-knockout hit with the **lowest victim HP**. Two rules are load-bearing:
-  only hits **at or before** the knockout count (infected keep chewing on a body afterwards, and
-  crediting those turns a fall into a mauling), and lowest-HP wins so a stray 98 HP scratch cannot
-  outvote the hits that did the work (real case: Cee Lo GREEN 96, 2026-07-13 — 1 infected scratch
-  at 98.3 vs player hits to 43.6). It sits **below** starvation/dehydration (that ordering predates
-  it and is pinned by its own test) and **above** the infected `mauled` rung, which it subsumes for
-  knockout cases while keeping the bleeding/terminal-HP paths that rung owns. This generalises what
-  `mauled` already did — that rung was gated on `hunted`, so a fall or a player putting you down
-  was invisible.
+  behind it (infected ×5, player ×2, fall ×1). The stage-1 classifier's knockout rung (deleted in
+  plan step 10) attributed the death to the pre-knockout hit with the lowest victim HP; the stored
+  verdict models the same deaths as the logout family (`respawn_while_unconscious`,
+  `unconscious_logout`, `logout_under_attack`) with the knock-out source as the upstream cause, and
+  the public view prints the upstream ("Died after an infected attack."), never the logout.
   **⚠️ `verdictPhrase` must not defer to the raw cause for an `environmental` verdict.** That
   verdict used to be reachable only from a *stated* `drowned`/`environment` mechanism, where the
   raw cause was specific; inferred from a knockout it sits on a line naming nothing, so deferring
   printed "Unknown" and discarded the verdict. It now degrades to "Environment" rather than past it.
-  This is the same trap as the `ENTITY_VERDICTS`/`ENTITY_MECHANISMS` mirror above — the classifier
-  is right and the page still says Unknown.
+  This is the same trap as the `ENTITY_VERDICTS` list above — the classifier is right and the page
+  still says Unknown. (Legacy path only; a public death's `label` wins.)
   **⚠️⚠️ NEVER append an event to the log for a historical raw line — patch an existing one.**
   `events.id` IS the fold order, so an event appended today for a July line folds **last**, after
   every later event. `onDied` checks `getOpenLife` **before** its already-closed-life branch, so
@@ -292,6 +282,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   **`death_verdicts`** (migration `0040`), one row per life, with `death_verdict_queue` (lives seen
   but not yet written) and the durable **`death_verdict_overrides`**. Pages read them from plan
   step 7 on (see "The readers" below); the operator checks them with `verify-verdicts`.
+  The design as a whole (taxonomy, data model, sweep, the trap kill rule, runbook) is written up
+  for this repo in `docs/superpowers/specs/2026-11-10-death-verdicts-design.md`.
   - **Classifier version 2** (plan step 6, release R2b) ports the inferred rules (B09 to B23), so
     every death gets the reference's answer; the version bump makes the sweep rewrite every row in
     place. **⚠️ The newsdesk gate:** `findObituaryTargets` (`apps/newsdesk/src/pg-store.ts`) only
@@ -655,20 +647,24 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
 
 ## Mauled inference
 
-- **Mauled inference** ✅ (spec `docs/superpowers/specs/2026-07-29-mauled-inference-design.md`):
+- **Mauled inference** (historical; **the classifier it changed is deleted**; spec
+  `docs/superpowers/specs/2026-07-29-mauled-inference-design.md`). Death-verdict plan step 10
+  deleted the stage-1 classifier and `recentUnconscious`. The stored verdict (stage 4) reads
+  knock-outs from the raw lines, so **nothing reads `unconscious_events` any more**: the parser
+  and the fold still write it, and dropping the table is a separate decision. What follows is the
+  record of what stage 1 did, plus the two ⚠️ rules that still hold for the live parser and fold.
   DayZ logs some infected deaths with no `killed by` clause and `Bleed sources: 0` (the wounds
   close before the player expires) and kills a player outright for logging out unconscious, so
-  those deaths landed as `unknown`. The classifier's mauled rung is now
+  those deaths landed as `unknown`. The stage-1 classifier's mauled rung was
   **`hunted AND (bleeding OR wentUnconscious OR terminalHp <= 1)`** — `hunted` (any infected hit in
-  the 120s window) is the gate, the other three are interchangeable corroboration. The knockout
-  signal is new plumbing: `packages/adm-parser`'s `parseUnconscious`, a `player.unconscious` event,
+  the 120s window) was the gate, the other three interchangeable corroboration. The knockout
+  signal was new plumbing: `packages/adm-parser`'s `parseUnconscious`, a `player.unconscious` event,
   a projected `unconscious_events` table (migration `0031`), and `recentUnconscious` on
-  `LifeDossier`, forwarded by `dossierVerdict` as `classifyDeath`'s **required** third argument.
-  Verdicts stay lazy and are never materialized (stage 4's stored verdicts are re-derived by the
-  sweep on a version bump instead), so corrected lives fix themselves; already-published
+  `LifeDossier`, forwarded to `classifyDeath`. Stored verdicts are re-derived by the sweep on a version bump, so corrected
+  lives fix themselves; already-published
   obituary prose is frozen and is NOT regenerated automatically (the newsdesk's `regenerate`
   command rewrites it on the operator's say-so; see "Correcting old obituaries").
-  **⚠️ `terminalHp` reads INFECTED hits only, never all hits in the window.** `hunted` and the
+  *(Stage-1 rule, kept for the record; the code is gone.)* **`terminalHp` read INFECTED hits only, never all hits in the window.** `hunted` and the
   terminal-HP corroboration must rest on the SAME hits — otherwise a fire tick or a player's shot
   that left the victim at ~0 HP is corroborated by an unrelated infected scratch elsewhere in the
   window and the death publishes as `mauled` at HIGH confidence. Fire is a real recurring cause
@@ -684,12 +680,13 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `subIndex 0`; inserting ahead of position renumbers it to 1 and collides with
   `events_idempotency_uniq` on every one of them. The backfill appends at `subIndex: 1` for the
   same reason. Do not "restore" the convention.
-  **Deploy runbook:** migration `0031` creates a projection table but changes no existing
+  **Deploy runbook (historical):** migration `0031` created a projection table but changes no existing
   projection shape, so it is a plain `./deploy/deploy.sh`, **no `--rebuild`** — then, on the host,
   **`pnpm --filter @onelife/projector run backfill-unconscious`** (note **`run`** — a bare
   `pnpm --filter … backfill-unconscious` silently no-ops). The backfill re-parses `raw_lines` and
   appends only the new events; it is idempotent via `events_idempotency_uniq`, and the running
-  projector folds them forward on its normal cursor. **⚠️ Skipping the backfill is SILENTLY
-  PARTIAL** — new deaths classify correctly while every historical one stays `unknown` forever, and
-  nothing surfaces the omission. Verify with `select count(*) from unconscious_events` on the host.
+  projector folds them forward on its normal cursor. Under stage 1, skipping the backfill was
+  silently partial: historical deaths stayed `unknown`. **That no longer applies:** since
+  death-verdict plan step 10 the backfill only fills `unconscious_events`, which nothing reads, so
+  running it or skipping it has no effect on any verdict, page or obituary.
 

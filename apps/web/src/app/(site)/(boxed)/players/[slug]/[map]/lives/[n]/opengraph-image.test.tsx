@@ -21,7 +21,7 @@ const deadLife = {
   },
   sessions: [{}, {}],
   kills: [{}],
-  gamertag: "RonaldRaygun552",
+  gamertag: "TaggedSurvivor",
   map: "livonia",
 } as never;
 
@@ -35,7 +35,7 @@ const liveLife = {
   },
   sessions: [{}, {}],
   kills: [{}],
-  gamertag: "RonaldRaygun552",
+  gamertag: "TaggedSurvivor",
   map: "livonia",
 } as never;
 
@@ -53,7 +53,7 @@ const retiredLife = {
   },
   sessions: [{}, {}],
   kills: [],
-  gamertag: "RonaldRaygun552",
+  gamertag: "TaggedSurvivor",
   map: "enoch",
 } as never;
 
@@ -66,14 +66,14 @@ describe("life opengraph-image", () => {
 
   it("renders a PNG for a dead life", async () => {
     vi.mocked(getPlayerLife).mockResolvedValue(deadLife);
-    const res = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
+    const res = await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "livonia", n: "3" }) });
     expect(res.headers.get("content-type")).toContain("image/png");
     expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
   });
 
   it("renders a PNG for a live life", async () => {
     vi.mocked(getPlayerLife).mockResolvedValue(liveLife);
-    const res = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
+    const res = await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "livonia", n: "3" }) });
     expect(res.headers.get("content-type")).toContain("image/png");
     expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
   });
@@ -83,12 +83,12 @@ describe("life opengraph-image", () => {
 
     // Control: the same probe DOES find the cause line and a hot DEAD on a dead life.
     vi.mocked(getPlayerLife).mockResolvedValue(deadLife);
-    await (await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) })).arrayBuffer();
+    await (await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "livonia", n: "3" }) })).arrayBuffer();
     expect(lastShell().stats!.find((s) => s.label === "status")).toEqual({ label: "status", value: "DEAD", hot: true });
     expect(JSON.stringify(lastShell().children)).toContain("Gunshot");
 
     vi.mocked(getPlayerLife).mockResolvedValue(retiredLife);
-    const res = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "chernarus-1.29", n: "3" }) });
+    const res = await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "chernarus-1.29", n: "3" }) });
     expect(res.headers.get("content-type")).toContain("image/png");
     expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
     expect(lastShell().stats!.find((s) => s.label === "status")).toEqual({ label: "status", value: "RETIRED", hot: false });
@@ -97,14 +97,14 @@ describe("life opengraph-image", () => {
 
   it("renders the generic fallback PNG when the api is down", async () => {
     vi.mocked(getPlayerLife).mockRejectedValue(new Error("api down"));
-    const res = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
+    const res = await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "livonia", n: "3" }) });
     expect(res.headers.get("content-type")).toContain("image/png");
   });
 
   it("prints the public death's label", async () => {
     const lastShell = () => vi.mocked(CardShell).mock.calls.at(-1)![0];
     vi.mocked(getPlayerLife).mockResolvedValue({ ...(deadLife as object), verdict: { status: "final", label: "Likely starvation and thirst" } } as never);
-    await (await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) })).arrayBuffer();
+    await (await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "livonia", n: "3" }) })).arrayBuffer();
     expect(JSON.stringify(lastShell().children)).toContain("Likely starvation and thirst");
   });
 
@@ -114,7 +114,7 @@ describe("life opengraph-image", () => {
   const cacheOf = async (payload: unknown) => {
     if (payload instanceof Error) vi.mocked(getPlayerLife).mockRejectedValue(payload);
     else vi.mocked(getPlayerLife).mockResolvedValue(payload as never);
-    return (await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) })).headers.get("cache-control");
+    return (await OgImage({ params: Promise.resolve({ slug: "taggedsurvivor", map: "livonia", n: "3" }) })).headers.get("cache-control");
   };
   it("a final death is cached for a day, never a year", async () => {
     expect(await cacheOf({ ...(deadLife as object), verdict: { status: "final", label: "Fell" } })).toBe("public, max-age=86400");
