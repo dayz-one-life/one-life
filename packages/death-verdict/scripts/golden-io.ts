@@ -26,7 +26,8 @@ export interface Expected {
   coCauses: string[];
   weaponOrObject: string | null;
   attributedTo: { role: string; id: string; confidence: string } | null;
-  contributorIds: string[];
+  /** Everyone else the reference names for the operator: who, as what, how surely. */
+  contributors: { id: string; role: string; confidence: string }[];
   flags: string[];
   deathLines: { ref: LineRef; role: string }[];
   utc: string;
@@ -45,7 +46,7 @@ interface ClassifiedRow {
   uid: string; project: Project; server_id: number; cause: string; confidence: string; rule: string;
   mechanism_stated: boolean; upstream_cause: string | null; upstream_confidence: string | null; co_causes: string[];
   weapon_or_object: string | null; attributed_to: { role: string; id: string; confidence: string } | null;
-  contributors: { id: string }[]; flags: string[]; death_lines: { ref: string; role: string }[]; utc: string;
+  contributors: { id: string; role: string; confidence: string }[]; flags: string[]; death_lines: { ref: string; role: string }[]; utc: string;
 }
 
 export const parseRef = (s: string): LineRef => {
@@ -71,7 +72,7 @@ export function readClassified(path: string, project: Project): { uid: string; s
         upstreamCause: r.upstream_cause, upstreamConfidence: r.upstream_confidence, coCauses: r.co_causes,
         weaponOrObject: r.weapon_or_object,
         attributedTo: r.attributed_to ? { role: r.attributed_to.role, id: r.attributed_to.id, confidence: r.attributed_to.confidence } : null,
-        contributorIds: r.contributors.map((c) => c.id), flags: r.flags,
+        contributors: r.contributors.map((c) => ({ id: c.id, role: c.role, confidence: c.confidence })), flags: r.flags,
         deathLines: r.death_lines.map((d) => ({ ref: parseRef(d.ref), role: d.role })), utc: r.utc,
       },
     });

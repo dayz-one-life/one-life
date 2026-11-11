@@ -15,8 +15,11 @@ import { corpusOf, goldenReady, layout, olFixtures, report } from "./golden.js";
  * server restarted in between, and the flags. The One Life rows were checked by hand against the
  * design's table of the six cases. The Clan Wars rows are base rates.
  *
- * ⚠️ "credited" here is the evidence only. The kill itself also needs the two tests the database
- * decides, which no golden suite can run.
+ * ⚠️ `evidence_passes` is the evidence only, and the classifier never says more. The kill itself
+ * also needs the two tests the database decides, which no golden suite can run. No real trap death
+ * carries a flag for a shape the bar was not measured on (two trips, a fuse that is not 4 s, no
+ * blast line, several blasts or kill lines, a frag in the victim's hand, someone else's claymore):
+ * the reviewed answers hold exactly the flags the code gives.
  */
 const ready = goldenReady("credits-golden.test", layout?.classified, layout?.creditsExpected, layout?.olFixtures, layout?.ol.raw, layout?.cw.raw);
 const TRAP_RULES = new Set(["A06", "A07", "A09"]);
@@ -41,7 +44,7 @@ describe.skipIf(!ready)("trap-kill evidence on the real trap deaths (private dat
         const { rule, ...evidence } = expected;
         if (v.rule !== rule) failed.push({ uid: row.uid, why: "rule differs" });
         else if (JSON.stringify(got) !== JSON.stringify(evidence)) failed.push({ uid: row.uid, why: "evidence differs from the reviewed answer" });
-        else if (got!.outcome !== "credited" || got!.refusedBy != null) failed.push({ uid: row.uid, why: "refused a real trap death does not pass tests 1 to 5" });
+        else if (got!.outcome !== "evidence_passes" || got!.refusedBy != null) failed.push({ uid: row.uid, why: "refused a real trap death does not pass tests 1 to 5" });
         // the placer the bar names is the trap owner the reference names
         else if (got!.placerDayzId !== row.expected.attributedTo?.id || v.attribution?.basis !== "placement") failed.push({ uid: row.uid, why: "placer is not the reference's trap owner, or its basis is not placement" });
         else if (got!.distanceM == null || got!.ageHours == null || got!.boots == null || got!.placement == null) failed.push({ uid: row.uid, why: "figures missing" });
