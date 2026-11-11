@@ -10,7 +10,9 @@
       // WITHOUT RUNNING ANYTHING. That has happened here. A test task that can report
       // success it did not earn is worse than no cache at all — add any new env var a
       // suite reads to this list.
-      "env": ["TEST_DATABASE_URL", "DATABASE_URL", "NODE_ENV", "CI"]
+      // DEATH_GOLDEN_DIR points at private golden data; suites that read it skip when it is unset,
+      // so without it in the key a cached "skipped" PASS would be replayed as if the gate had run.
+      "env": ["TEST_DATABASE_URL", "DATABASE_URL", "NODE_ENV", "CI", "DEATH_GOLDEN_DIR"]
     },
     "typecheck": { "dependsOn": ["^build"], "env": ["NODE_ENV"] },
     "lint": {}
