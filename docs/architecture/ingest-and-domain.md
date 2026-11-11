@@ -599,18 +599,20 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
 
 ## Mauled inference
 
-- **Mauled inference** ✅ (spec `docs/superpowers/specs/2026-07-29-mauled-inference-design.md`):
+- **Mauled inference** (historical; **the classifier it changed is deleted**; spec
+  `docs/superpowers/specs/2026-07-29-mauled-inference-design.md`). Death-verdict plan step 10
+  deleted the stage-1 classifier and `recentUnconscious`. The stored verdict (stage 4) reads
+  knock-outs from the raw lines, so **nothing reads `unconscious_events` any more**: the parser
+  and the fold still write it, and dropping the table is a separate decision. What follows is the
+  record of what stage 1 did, plus the two ⚠️ rules that still hold for the live parser and fold.
   DayZ logs some infected deaths with no `killed by` clause and `Bleed sources: 0` (the wounds
   close before the player expires) and kills a player outright for logging out unconscious, so
-  those deaths landed as `unknown`. The classifier's mauled rung is now
+  those deaths landed as `unknown`. The stage-1 classifier's mauled rung was
   **`hunted AND (bleeding OR wentUnconscious OR terminalHp <= 1)`** — `hunted` (any infected hit in
-  the 120s window) is the gate, the other three are interchangeable corroboration. The knockout
-  signal is new plumbing: `packages/adm-parser`'s `parseUnconscious`, a `player.unconscious` event,
+  the 120s window) was the gate, the other three interchangeable corroboration. The knockout
+  signal was new plumbing: `packages/adm-parser`'s `parseUnconscious`, a `player.unconscious` event,
   a projected `unconscious_events` table (migration `0031`), and `recentUnconscious` on
-  `LifeDossier`, forwarded to `classifyDeath`. **Historical:** death-verdict plan step 10 deleted
-  that classifier and `recentUnconscious`; the stored verdict reads knock-outs from the raw lines,
-  so nothing reads `unconscious_events` any more (the fold still writes it; dropping the table is a
-  separate decision). Stored verdicts are re-derived by the sweep on a version bump, so corrected
+  `LifeDossier`, forwarded to `classifyDeath`. Stored verdicts are re-derived by the sweep on a version bump, so corrected
   lives fix themselves; already-published
   obituary prose is frozen and is NOT regenerated automatically (the newsdesk's `regenerate`
   command rewrites it on the operator's say-so; see "Correcting old obituaries").
@@ -630,12 +632,13 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `subIndex 0`; inserting ahead of position renumbers it to 1 and collides with
   `events_idempotency_uniq` on every one of them. The backfill appends at `subIndex: 1` for the
   same reason. Do not "restore" the convention.
-  **Deploy runbook:** migration `0031` creates a projection table but changes no existing
+  **Deploy runbook (historical):** migration `0031` created a projection table but changes no existing
   projection shape, so it is a plain `./deploy/deploy.sh`, **no `--rebuild`** — then, on the host,
   **`pnpm --filter @onelife/projector run backfill-unconscious`** (note **`run`** — a bare
   `pnpm --filter … backfill-unconscious` silently no-ops). The backfill re-parses `raw_lines` and
   appends only the new events; it is idempotent via `events_idempotency_uniq`, and the running
-  projector folds them forward on its normal cursor. **⚠️ Skipping the backfill is SILENTLY
-  PARTIAL** — new deaths classify correctly while every historical one stays `unknown` forever, and
-  nothing surfaces the omission. Verify with `select count(*) from unconscious_events` on the host.
+  projector folds them forward on its normal cursor. Under stage 1, skipping the backfill was
+  silently partial: historical deaths stayed `unknown`. **That no longer applies:** since
+  death-verdict plan step 10 the backfill only fills `unconscious_events`, which nothing reads, so
+  running it or skipping it has no effect on any verdict, page or obituary.
 

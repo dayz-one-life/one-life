@@ -1,7 +1,8 @@
 # Death verdicts
 
 Date: 2026-11-10 (written up for the repository on 2026-11-11, after the work was built).
-Status: built in ten steps (PRs #396 to #407 and the cleanup that adds this note). The working
+Status: built in ten steps (PRs #396–#404, #406 and #407, plus the side PRs #397 and #398, and
+the cleanup that adds this note). The working
 spec, plan and reviews stay in a private research folder: they quote real players, log lines and
 per-death tables, and this repository is public. **Every name in this note is invented.**
 
@@ -143,7 +144,11 @@ Later additive migrations: `0041` (`articles.verdict_version`), `0042` (`article
 - **The cluster.** Any line of a death is a valid seed; `resolveCluster` walks the victim's lines
   around it and picks the primary by the reference rule (the first `killed`, `died` or `drowned`
   line, a `killed by` line preferred; never a `committed suicide` line). The stored line, the
-  override key and the golden join all use this resolved primary.
+  override key and the golden join all use this resolved primary, with one exception: a held life
+  (one that cannot be loaded or classified) is stored by its override on the death-event line the
+  fold ended the life on (`deathSeedOf`), not on a resolved primary. After a classifier fix the
+  life is classified again and the override is looked up on the resolved primary, which can be a
+  different line (for a firearm suicide it is).
 - **The context.** `selectContextLines` is the one definition of what is loaded: the victim's whole
   life, the cluster and five minutes after, the whole server ten minutes either side, company along
   the life, lines that mention the victim, nearby placements, the credit ring around a trap, and
@@ -283,7 +288,7 @@ total silence or a map change.
   CONFIRMED heading for an inferred cause, directives for withheld and unknown deaths, and a
   deterministic cause check after generation (no logout words, no flat statement of an inferred
   cause, no unhedged family word, no named placer outside the credit sentence, no kill count in the
-  headline). A failed check retries once, then fails the article.
+  headline or lede). A failed check retries once, then fails the article.
 - Each article freezes its hedged strings (`facts.death`) and the verdict version it was written
   from. Readers serve the live final verdict, else the frozen strings, else the legacy fields.
 - **`regenerate`** (`apps/newsdesk`) rewrites old articles in place after a correction, keeping the
@@ -304,7 +309,10 @@ player names: read it there, never paste it anywhere public.
   (`server_id`, `death_file_id`, `death_line_index`, `cause`, `confidence`, `note`, `created_by`),
   taking the line from `death_verdicts` or, for a held life, from `--held`. The next pass rewrites
   the verdict with `source = 'override'`. Update or delete the row to change your mind.
-  `verify-verdicts` reports a mistyped cause or an override that matches nothing.
+  `verify-verdicts` reports a mistyped cause or an override that matches nothing. After a
+  classifier fix, a held life's override can stop matching: check 8 then names the override's old
+  line as matching no stored verdict. Re-key the override (`death_file_id`, `death_line_index`) to
+  the line now stored in `death_verdicts` for that life, or the classifier's verdict stands.
 - **A trap kill is wrong.** The same insert with `cause` and `confidence` null and
   `credit = 'deny'`. Once `--held` shows an empty queue:
   `pnpm --filter @onelife/newsdesk run regenerate -- --denied-credit` (dry run), read it, add
@@ -316,7 +324,7 @@ player names: read it there, never paste it anywhere public.
 - **Credit a trap kill the rule refused.** `credit = 'grant'` with `credit_dayz_id` set to the
   placer's id. Run `verify-verdicts --credits` first: it shows why the rule refused and which of the
   placer's lives the kill would fall in, including whether it would newly qualify that life (and so
-  create a ban and an obituary). A grant cannot pass tests 1, 4, 6 or 7.
+  create a ban and an obituary). A grant does not bypass tests 1, 4, 6 or 7: they are still applied to the granted id.
 - **A world wipe on a server that keeps its id.** Add it to `WIPES`, bump `CLASSIFIER_VERSION`, run
   the golden gate, deploy.
 - **A classifier fix.** Run the golden gate, commit the attestation, bump the version, deploy, run
@@ -340,5 +348,5 @@ player names: read it there, never paste it anywhere public.
 | Context loader, public death readers | `packages/read-models/src/death-context.ts`, `death-verdicts.ts`, `obituary-articles.ts` |
 | Sweep and operator check | `apps/projector/src/verdict-sweep.ts`, `verify-verdicts.ts` |
 | Obituary writer, cause check, regenerate | `apps/newsdesk/src/prompt.ts`, `cause-check.ts`, `regenerate.ts` |
-| Enforcer changes | `apps/enforcer/src/decide.ts`, `tick.ts`, `unqualified-bans.ts` |
+| Enforcer changes | `apps/enforcer/src/decide.ts`, `tick.ts`, `unqualified-bans.ts`, `pg-store.ts` (`namesToRemove`) |
 | Architecture notes | `docs/architecture/ingest-and-domain.md` (stage 4, the readers, newsdesk v4), `docs/architecture/web-surfaces.md` (deaths and trap kills on the page) |

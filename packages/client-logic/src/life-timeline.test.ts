@@ -22,7 +22,7 @@ const TRAPPED: DeathVerdictDto = {
 
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
-    gamertag: "YrJustBad",
+    gamertag: "FixtureWanderer",
     map: "sakhal",
     slug: "sakhal",
     lastSeenAt: null,

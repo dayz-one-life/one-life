@@ -36,6 +36,7 @@ const VERDICT_NOUN: Record<string, string> = {
 /**
  * Stage-2 mechanism tokens (mirrors ENTITY_MECHANISMS in @onelife/domain — apps/web has no
  * dependency on that package, so the list is duplicated deliberately rather than imported).
+ * (Frozen copy: ENTITY_MECHANISMS itself was deleted in death-verdict plan step 10.)
  *
  * These get no VERDICT_NOUN entry because causeLabel already words them, and for most of them the
  * verdict and the raw mechanism agree, so the fallback below reaches the same word either way.
