@@ -30,6 +30,18 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
       ]
     : [];
 
+  // The public death's label (death-verdict spec 7), hedged on the server. An old payload with no
+  // label keeps the coarse word.
+  const causeText = data?.verdict?.label || (data?.life.deathCause ? causeLabel(data.life.deathCause) : null);
+  // ⚠️ Next serves an `opengraph-image` as `public, immutable, max-age=31536000` — a YEAR — unless
+  // told otherwise, so every response here sets its own (death-verdict spec 6.2 item 5). A final
+  // label can still change (an operator override, a classifier fix, a switched-off inferred family
+  // turning "Likely exposure" into "Not recorded"), so it gets a day. Everything else gets a
+  // minute: a pending death ("Awaiting the record", or the bare coarse word) becomes its real cause
+  // a few minutes later, an old payload with no verdict or a live life changes as it is played,
+  // and a failure card must heal on the next scrape.
+  const cacheControl = data?.verdict?.status === "final" ? "public, max-age=86400" : "public, max-age=60, must-revalidate";
+
   return new ImageResponse(
     (
       <CardShell
@@ -46,14 +58,14 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: gtSize, fontWeight: 700, lineHeight: 1, letterSpacing: -1, color: PAPER }}>{gamertag}</div>
-          {data && !alive && !retired && data.life.deathCause && (
+          {data && !alive && !retired && causeText && (
             <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 22, color: DIM, marginTop: 26, textTransform: "uppercase" }}>
-              {causeLabel(data.life.deathCause)}
+              {causeText}
             </div>
           )}
         </div>
       </CardShell>
     ),
-    { ...size, fonts: assets.fonts },
+    { ...size, fonts: assets.fonts, headers: { "cache-control": cacheControl } },
   );
 }

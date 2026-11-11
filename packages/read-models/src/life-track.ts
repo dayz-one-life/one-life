@@ -118,6 +118,10 @@ export async function getLifeTrack(
     .where(and(
       eq(kills.serverId, serverId),
       eq(kills.killerPlayerId, row.playerId),
+      // ⚠️ Kill lines only. A marker pins the killer's own last fix; a trap kill (death-verdict
+      // spec 2.4) fires where the trap was set, usually with its placer far away or offline, so
+      // a marker for it would put a "kill" on the map where nothing happened.
+      eq(kills.basis, "kill_line"),
       killsInLifeWindow({ startedAt: row.startedAt, endedAt: row.endedAt, previousLifeEndedAt: previousEnd }),
       row.endedAt ? undefined : lte(kills.occurredAt, windowEnd),
     ))

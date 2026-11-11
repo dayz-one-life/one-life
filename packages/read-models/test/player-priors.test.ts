@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, kills } from "@onelife/db";
+import { servers, players, lives, kills, deathVerdicts } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
 import { getPlayerPriors } from "../src/player-priors.js";
+import { seedVerdict } from "./support/verdicts.js";
 
 const { db, sql } = getTestDb();
 const now = new Date("2026-07-14T12:00:00Z");
@@ -25,7 +26,7 @@ beforeAll(async () => {
   const [fp] = await db.insert(players).values({ gamertag: firstTag, firstSeenAt: hoursAgo(3), lastSeenAt: now }).returning();
   pids.push(fp!.id);
 
-  await db.insert(lives).values([
+  const priorRows = await db.insert(lives).values([
     // prior life 1 (chern): 1h playtime, pvp
     { serverId: chern, playerId: p!.id, lifeNumber: 1, startedAt: hoursAgo(100), endedAt: hoursAgo(96), playtimeSeconds: 3600, deathCause: "pvp" },
     // prior life 2 (sakh): 10h playtime — LONGEST → bestLifeMap = sakhal, pvp
@@ -36,7 +37,11 @@ beforeAll(async () => {
     { serverId: chern, playerId: p!.id, lifeNumber: 3, startedAt: currentLifeStart, endedAt: null, playtimeSeconds: 0 },
     // first-lifer: a single (only) life
     { serverId: chern, playerId: fp!.id, lifeNumber: 1, startedAt: hoursAgo(3), endedAt: null, playtimeSeconds: 0 },
-  ]);
+  ]).returning();
+  // Causes come from the stored verdicts (stage 4), not from lives.death_cause.
+  await seedVerdict(db, { lifeId: Number(priorRows[0]!.id), cause: "pvp", confidence: "definitive", attrBasis: "kill_line" });
+  await seedVerdict(db, { lifeId: Number(priorRows[1]!.id), cause: "pvp", confidence: "definitive", attrBasis: "kill_line" });
+  await seedVerdict(db, { lifeId: Number(priorRows[2]!.id), cause: "starvation", confidence: "strong" });
 
   await db.insert(kills).values([
     { serverId: sakh, killerGamertag: tag, killerPlayerId: p!.id, victimGamertag: "V1", weapon: "M4", distance: 40, occurredAt: hoursAgo(85) },   // prior
@@ -46,6 +51,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await db.delete(kills).where(inArray(kills.serverId, [chern, sakh]));
+  await db.delete(deathVerdicts).where(inArray(deathVerdicts.lifeId, db.select({ id: lives.id }).from(lives).where(inArray(lives.serverId, [chern, sakh]))));
   await db.delete(lives).where(inArray(lives.serverId, [chern, sakh]));
   await db.delete(players).where(inArray(players.id, pids));
   await db.delete(servers).where(inArray(servers.id, [chern, sakh]));
@@ -61,10 +67,10 @@ describe("getPlayerPriors", () => {
     expect(pr.totalKills).toBe(2);              // kills before the boundary only
   });
 
-  it("distinguishes the usual death cause from the last death cause", async () => {
+  it("distinguishes the usual death cause from the last death cause, as lower-case tag nouns", async () => {
     const pr = await getPlayerPriors(db, tag, currentLifeStart);
-    expect(pr.usualDeathCause).toBe("pvp");         // 2 pvp vs 1 starvation
-    expect(pr.lastDeathCause).toBe("starvation");   // most-recent prior death (life 3)
+    expect(pr.usualDeathCause).toBe("pvp");                 // 2 PvP vs 1 Hunger and Thirst
+    expect(pr.lastDeathCause).toBe("hunger and thirst");    // most-recent prior death (life 3)
   });
 
   it("returns zeros/nulls for a first-lifer (no prior lives)", async () => {
@@ -81,19 +87,55 @@ describe("getPlayerPriors", () => {
     expect(pr.bestLifeMap).toBeNull();
   });
 
-  it("usualDeathCause groups cause families so wolf+bear beats pvp", async () => {
-    const famTag = `familytest-${svcA}`;
-    const [famP] = await db.insert(players).values({ gamertag: famTag, firstSeenAt: hoursAgo(50), lastSeenAt: now }).returning();
+  async function famPlayer(name: string, deaths: { cause: string; confidence: string; deathCause?: string; by?: string; attrBasis?: string; attrGamertag?: string }[]) {
+    const [famP] = await db.insert(players).values({ gamertag: name, firstSeenAt: hoursAgo(50), lastSeenAt: now }).returning();
     pids.push(famP!.id);
-    await db.insert(lives).values([
-      // prior life 1 (chern): wolf
-      { serverId: chern, playerId: famP!.id, lifeNumber: 1, startedAt: hoursAgo(48), endedAt: hoursAgo(47), playtimeSeconds: 600, deathCause: "wolf" },
-      // prior life 2 (chern): bear
-      { serverId: chern, playerId: famP!.id, lifeNumber: 2, startedAt: hoursAgo(46), endedAt: hoursAgo(45), playtimeSeconds: 600, deathCause: "bear" },
-      // prior life 3 (chern): pvp
-      { serverId: chern, playerId: famP!.id, lifeNumber: 3, startedAt: hoursAgo(44), endedAt: hoursAgo(43), playtimeSeconds: 600, deathCause: "pvp" },
+    let n = 0;
+    for (const d of deaths) {
+      n++;
+      const [l] = await db.insert(lives).values({
+        serverId: chern, playerId: famP!.id, lifeNumber: n, startedAt: hoursAgo(48 - n * 2), endedAt: hoursAgo(47 - n * 2),
+        playtimeSeconds: 600, deathCause: d.deathCause ?? "died", deathByGamertag: d.by ?? null,
+      }).returning();
+      await seedVerdict(db, { lifeId: Number(l!.id), cause: d.cause, confidence: d.confidence, attrBasis: d.attrBasis ?? null, attrGamertag: d.attrGamertag ?? null });
+    }
+    return name;
+  }
+
+  it("usualDeathCause groups on the tag, so wolf and bear count as one family and beat pvp", async () => {
+    const name = await famPlayer(`familytest-${svcA}`, [
+      { cause: "animal_wolf", confidence: "definitive" }, { cause: "animal_bear", confidence: "definitive" },
+      { cause: "pvp", confidence: "definitive", deathCause: "pvp", by: "Someone", attrBasis: "kill_line" },
     ]);
-    const priors = await getPlayerPriors(db, famTag, now);
-    expect(priors.usualDeathCause).toBe("animal"); // wolf(1)+bear(1) family beats pvp(1)
+    expect((await getPlayerPriors(db, name, now)).usualDeathCause).toBe("wildlife");
+  });
+
+  it("three kills by three different players count as one usual cause", async () => {
+    const name = await famPlayer(`threekillers-${svcA}`, [
+      { cause: "pvp", confidence: "definitive", deathCause: "pvp", by: "Killer A", attrBasis: "kill_line", attrGamertag: "Killer A" },
+      { cause: "pvp", confidence: "definitive", deathCause: "pvp", by: "Killer B", attrBasis: "kill_line", attrGamertag: "Killer B" },
+      { cause: "pvp", confidence: "definitive", deathCause: "pvp", by: "Killer C", attrBasis: "kill_line", attrGamertag: "Killer C" },
+      { cause: "fall", confidence: "definitive" }, { cause: "fall", confidence: "definitive" },
+    ]);
+    expect((await getPlayerPriors(db, name, now)).usualDeathCause).toBe("pvp");
+  });
+
+  it("no gamertag appears in priors", async () => {
+    const name = await famPlayer(`nonames-${svcA}`, [
+      { cause: "pvp", confidence: "definitive", deathCause: "pvp", by: "Named Killer", attrBasis: "kill_line", attrGamertag: "Named Killer" },
+    ]);
+    const pr = await getPlayerPriors(db, name, now);
+    expect(pr.lastDeathCause).toBe("pvp");
+    expect(JSON.stringify(pr)).not.toContain("Named Killer");
+  });
+
+  it("only definitive and strong verdicts count; inferred and pending deaths are left out", async () => {
+    const name = await famPlayer(`inferredonly-${svcA}`, [
+      { cause: "fall", confidence: "definitive" },
+      { cause: "starvation", confidence: "inferred" }, { cause: "starvation", confidence: "inferred" },
+    ]);
+    const pr = await getPlayerPriors(db, name, now);
+    expect(pr.usualDeathCause).toBe("fall");
+    expect(pr.lastDeathCause).toBe("fall");
   });
 });

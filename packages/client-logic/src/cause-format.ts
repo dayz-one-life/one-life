@@ -1,4 +1,4 @@
-import type { DeathVerdictDto } from "@onelife/api-client";
+import type { LegacyVerdictDto } from "@onelife/api-client";
 
 /** Mechanism token -> display label. Shared by the life timeline and the funeral cards. */
 export function causeLabel(cause: string | null): string {
@@ -33,8 +33,14 @@ const ENTITY_VERDICTS = new Set(["wolf", "bear", "animal", "infected", "fall", "
  * Display phrase for a death: the classified verdict when present, the mechanism label otherwise.
  * Environmental/unknown verdicts fall back to the mechanism (keeps "Drowned"/"Environment"
  * specificity); low-confidence inferred nouns hedge with "Likely".
+ *
+ * A public death (stage 4) carries its own `label`, already hedged on the server, and that wins.
+ * Everything below it is the legacy path, for a payload that has only the legacy triple (an
+ * article's frozen `facts.verdict`, an old API). It stays until the mobile minimum-version gate is
+ * raised past the last build that reads those fields (death-verdict spec 7).
  */
-export function verdictPhrase(verdict: DeathVerdictDto | null | undefined, cause: string | null): string {
+export function verdictPhrase(verdict: (LegacyVerdictDto & { label?: string | null }) | null | undefined, cause: string | null): string {
+  if (verdict?.label) return verdict.label;
   if (!verdict) return causeLabel(cause);
   if (verdict.cause === "pvp") return "Killed";
   const noun = VERDICT_NOUN[verdict.cause];

@@ -89,6 +89,32 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
 - *(historical)* Device-based alt detection (RPT Feature A): the device signal
   is **cut** — DayZ removed the `[MAM]` device-hash log lines in 1.29; alts fall back to Nitrado's
   built-in Multi-Account Mitigation.
+- **Deaths and trap kills on the page (death-verdict plan step 7)** ✅. Every death string is
+  computed on the server (`PublicDeath`, `@onelife/death-verdict`; `apps/web` cannot import it).
+  `verdictPhrase` returns `verdict.label` first; its token branches are the legacy path for a payload
+  with only `cause`/`confidence`/`conditions` and stay until the mobile minimum-version gate moves.
+  - **The timeline's death row** prints "Killed by <link>" only when `killerGamertag` is set (the
+    kill line names the killer, final or pending); otherwise the `sentence`, then `detail` and the
+    vitals, then the `caption` ("Worked out from the log", the inferred hedge, or a trap credit's
+    caption). **⚠️ A trap credit's name is linked after the sentence ("Kill credited to <link>.");
+    the server's sentence ends in that suffix and `creditSentenceBody` strips it, so the name is
+    printed once.** A named driver is plain text in the sentence, never linked, never "Killed by".
+  - **A trap kill** (`basis === "trap_placement"`) is listed "VICTIM · Tripwire · by trap" in the
+    kill list and the timeline, and the list carries the footnote "By trap: credited from where the
+    trap was placed. The log names no killer." only when a SHOWN row is a trap kill. Counts are one
+    number ("Kills"), never split. The strings live in `@onelife/client-logic/trap-kill`, pinned
+    against the vocabulary by a test. A life a trap kill qualified reads "A trap kill credited. The
+    life counts from here." There is no web kill feed; `GET /servers/:id/kills` documents the
+    wording a renderer must use.
+  - **Article surfaces** (Rap Sheet, cards, Morgue, obituary OG) print `article.death.label` (live
+    final, else frozen) and fall back to `verdictPhrase(verdict, cause)`. The Rap Sheet prints the
+    death's caption under the sheet. Tag chips come from the read-model's REWRITTEN `tags`, not from
+    `death.tag`: for a v3 article over an inferred verdict the chip must stay "Unknown" (spec 6.2).
+  - **OG caching.** The life OG card is `max-age=60` while its death is pending; the obituary OG card
+    is `max-age=86400` with a final or frozen cause and `max-age=60` without one (and on the failure
+    path) — the Cause cell is live, so it is no longer cached for a year.
+  - The About page's five-minute grace rule names the trap case (residual question Q9).
+
 ## Tabloid redesign (R1–R4), sitemap, cross-linking
 
 - **Tabloid redesign** (R1+R2+R3+R4 shipped): a visual relaunch replacing the old

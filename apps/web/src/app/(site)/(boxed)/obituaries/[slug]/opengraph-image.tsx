@@ -61,15 +61,18 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
     {
       ...size,
       fonts: assets.fonts,
-      // ⚠️ Next serves an `opengraph-image` as `public, immutable, max-age=31536000` — a YEAR. For
-      // a real obituary that is correct (the death already happened; the card can never change)
-      // and is the entire point of making this route cacheable. For the FAILURE path it is a trap:
+      // ⚠️ Next serves an `opengraph-image` as `public, immutable, max-age=31536000` — a YEAR. Since
+      // stage 4 the Cause cell is the LIVE verdict (death-verdict spec 6.2), which an operator
+      // override, a classifier fix or a switched-off inferred family can still change, so a final
+      // or frozen cause is cached for a day (`max-age=86400`), and an article with neither (its
+      // verdict still pending) for a minute, like the failure path. For the FAILURE path a year is
+      // a trap:
       // if the very first scrape of a slug lands while the API is unreachable, the generic
       // fallback card is what gets frozen at the CDN and in Facebook's cache for a year, and no
       // amount of re-scraping fixes it. Capping the failure path at a minute lets the next scrape
       // heal it. Measured, not assumed: with the API down this route really did return
       // `immutable, max-age=31536000` before this override.
-      ...(a ? {} : { headers: { "cache-control": "public, max-age=60, must-revalidate" } }),
+      headers: { "cache-control": a?.death ? "public, max-age=86400" : "public, max-age=60, must-revalidate" },
     },
   );
 }

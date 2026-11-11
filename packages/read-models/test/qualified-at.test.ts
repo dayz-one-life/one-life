@@ -53,7 +53,37 @@ describe("lifeQualifiedAt", () => {
       lastSeenAt: min(30),
       playerKills: [{ occurredAt: min(2) }, { occurredAt: min(20) }],
     });
-    expect(q).toEqual({ at: min(2), by: "kill" });
+    expect(q).toEqual({ at: min(2), by: "kill", killBasis: "kill_line" });
+  });
+
+  it("a trap kill that qualifies the life says so in killBasis; when it qualifies is unchanged", () => {
+    const q = lifeQualifiedAt({
+      startedAt: T0, endedAt: null, deathCause: null,
+      sessions: [{ connectedAt: T0, disconnectedAt: min(1), durationSeconds: 60 }],
+      lastSeenAt: min(1),
+      playerKills: [{ occurredAt: min(30), basis: "trap_placement" }, { occurredAt: min(40), basis: "kill_line" }],
+    });
+    expect(q).toEqual({ at: min(30), by: "kill", killBasis: "trap_placement" });
+  });
+
+  it("the basis is that of the earliest kill in the window; a tie goes to the kill line", () => {
+    const q = lifeQualifiedAt({
+      startedAt: T0, endedAt: null, deathCause: null, sessions: [], lastSeenAt: null,
+      playerKills: [{ occurredAt: min(3), basis: "trap_placement" }, { occurredAt: min(3), basis: "kill_line" }],
+    });
+    expect(q).toEqual({ at: min(3), by: "kill", killBasis: "kill_line" });
+  });
+
+  it("a kill line in the grace after the death does not take the basis from a trap kill at the death", () => {
+    const d = min(2);
+    const q = lifeQualifiedAt({
+      startedAt: T0, endedAt: d, deathCause: "explosion", sessions: [], lastSeenAt: null,
+      playerKills: [
+        { occurredAt: new Date(d.getTime() + 1000), basis: "kill_line" }, // grace window, capped to d
+        { occurredAt: d, basis: "trap_placement" },
+      ],
+    });
+    expect(q).toEqual({ at: d, by: "kill", killBasis: "trap_placement" });
   });
 
   it("ignores kills outside the life window", () => {
@@ -122,8 +152,8 @@ describe("lifeQualifiedAt — a kill logged just after the killer's own death", 
 
   it("qualifies the ended life by kill, at the moment it ended", () => {
     // Never later than the death: the timeline has nowhere to put an instant after the last row.
-    expect(lifeQualifiedAt({ ...dead, playerKills: [{ occurredAt: sec(1) }] })).toEqual({ at: min(2), by: "kill" });
-    expect(lifeQualifiedAt({ ...dead, playerKills: [{ occurredAt: sec(2) }] })).toEqual({ at: min(2), by: "kill" });
+    expect(lifeQualifiedAt({ ...dead, playerKills: [{ occurredAt: sec(1) }] })).toEqual({ at: min(2), by: "kill", killBasis: "kill_line" });
+    expect(lifeQualifiedAt({ ...dead, playerKills: [{ occurredAt: sec(2) }] })).toEqual({ at: min(2), by: "kill", killBasis: "kill_line" });
   });
   it("does not for a kill past the two-second grace", () => {
     expect(lifeQualifiedAt({ ...dead, playerKills: [{ occurredAt: sec(3) }] })).toBeNull();
@@ -134,7 +164,7 @@ describe("lifeQualifiedAt — a kill logged just after the killer's own death", 
   it("the next life is not qualified by the previous life's posthumous kill", () => {
     const next = { startedAt: sec(1), endedAt: null, deathCause: null, sessions: [], lastSeenAt: null, previousLifeEndedAt: min(2) };
     expect(lifeQualifiedAt({ ...next, playerKills: [{ occurredAt: sec(2) }] })).toBeNull();
-    expect(lifeQualifiedAt({ ...next, playerKills: [{ occurredAt: sec(3) }] })).toEqual({ at: sec(3), by: "kill" });
+    expect(lifeQualifiedAt({ ...next, playerKills: [{ occurredAt: sec(3) }] })).toEqual({ at: sec(3), by: "kill", killBasis: "kill_line" });
   });
   it("agrees with isLifeQualified at every second around the death", () => {
     for (const n of [-1, 0, 1, 2, 3]) {

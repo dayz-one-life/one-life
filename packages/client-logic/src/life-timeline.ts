@@ -1,13 +1,25 @@
-import type { LifeTimelineData, PlayerKill, Session, DeathVerdictDto, EncounterDto } from "@onelife/api-client";
+import type { LifeTimelineData, PlayerKill, Session, DeathVerdictDto, EncounterDto, KillBasis } from "@onelife/api-client";
+import { TRAP_QUALIFIED_LINE, creditSentenceBody } from "./trap-kill";
 import { formatDuration } from "./player-format";
 
 export type Marker = "blue" | "red" | "gray" | "yellow";
 
 export type TimelineEvent =
   | { kind: "now"; at: Date; marker: "blue"; timeLabel: "NOW"; title: string; line: string }
-  | { kind: "death"; at: Date; marker: "red"; timeLabel: string; cause: string | null; byGamertag: string | null; weapon: string | null; distanceMeters: number | null; vitals: string | null; verdict: DeathVerdictDto | null }
+  | {
+      kind: "death"; at: Date; marker: "red"; timeLabel: string; cause: string | null; byGamertag: string | null; weapon: string | null;
+      distanceMeters: number | null; vitals: string | null; verdict: DeathVerdictDto | null;
+      /** From the public death (null on an old payload that has only the legacy triple). The
+       *  sentence has any "Kill credited to NAME." taken off, so a renderer can link the name. */
+      sentence: string | null; detail: string | null; caption: string | null;
+      /** Only when the kill line names the killer: the one name a renderer links as "Killed by". */
+      killerGamertag: string | null;
+      /** A named driver: plain text in the sentence, never linked, never "the killer". */
+      driverGamertag: string | null;
+      credit: DeathVerdictDto["credit"];
+    }
   | { kind: "retired"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
-  | { kind: "kill"; at: Date; marker: "red"; timeLabel: string; victimGamertag: string; weapon: string | null; distanceMeters: number | null; longestKill: boolean }
+  | { kind: "kill"; at: Date; marker: "red"; timeLabel: string; victimGamertag: string; weapon: string | null; distanceMeters: number | null; longestKill: boolean; basis: KillBasis }
   | { kind: "session"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "session-group"; at: Date; marker: "gray"; timeLabel: string; title: string; line: string }
   | { kind: "qualified"; at: Date; marker: "blue"; timeLabel: string; title: string; line: string }
@@ -99,8 +111,10 @@ function longestOf<T extends { distanceMeters: number | null; at: Date }>(kills:
   return best;
 }
 
-function qualifiedLine(by: "playtime" | "kill" | "pvp-death"): string {
-  if (by === "kill") return "First blood drawn. The life counts from here.";
+function qualifiedLine(by: "playtime" | "kill" | "pvp-death", killBasis?: KillBasis): string {
+  // A trap kill qualifies a life exactly as a kill line does; only the words differ, because the
+  // log names no killer for it (death-verdict spec 2.4). A missing basis is an old payload.
+  if (by === "kill") return killBasis === "trap_placement" ? TRAP_QUALIFIED_LINE : "First blood drawn. The life counts from here.";
   if (by === "pvp-death") return "Qualified at the moment of death — killed by a player.";
   return "Five minutes survived. The grace period ends; from here, death counts.";
 }
@@ -161,7 +175,7 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
   // Qualified
   if (data.qualifiedAt) {
     const qAt = new Date(data.qualifiedAt.at);
-    events.push({ kind: "qualified", at: qAt, marker: "blue", timeLabel: label(qAt), title: "Life qualified", line: qualifiedLine(data.qualifiedAt.by) });
+    events.push({ kind: "qualified", at: qAt, marker: "blue", timeLabel: label(qAt), title: "Life qualified", line: qualifiedLine(data.qualifiedAt.by, data.qualifiedAt.killBasis) });
   }
 
   // Sessions (skip session 1 = birth); group quiet consecutive runs
@@ -190,7 +204,7 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
 
   // Kills
   for (const k of killObjs) {
-    events.push({ kind: "kill", at: k.at, marker: "red", timeLabel: label(k.at), victimGamertag: k.victimGamertag, weapon: k.weapon, distanceMeters: k.distanceMeters, longestKill: longest !== null && k === longest });
+    events.push({ kind: "kill", at: k.at, marker: "red", timeLabel: label(k.at), victimGamertag: k.victimGamertag, weapon: k.weapon, distanceMeters: k.distanceMeters, longestKill: longest !== null && k === longest, basis: k.basis === "trap_placement" ? "trap_placement" : "kill_line" });
   }
 
   // Encounters
@@ -213,7 +227,13 @@ export function buildTimeline(data: LifeTimelineData, now: Date): LifeTimelineVi
     // stored total is what the hero band, the survivor board and the obituary all print, and the
     // last row of a life's timeline is precisely where a one-minute disagreement would be read as
     // a bug. The hero wins.
-    events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: `${elapsedLabel(timeAlive)} in`, cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life), verdict: data.verdict ?? null });
+    events.push({ kind: "death", at: endedAt, marker: "red", timeLabel: `${elapsedLabel(timeAlive)} in`, cause: data.life.deathCause, byGamertag: data.life.deathByGamertag, weapon: data.life.deathWeapon, distanceMeters: data.life.deathDistance, vitals: vitalsLine(data.life), verdict: data.verdict ?? null,
+      sentence: data.verdict?.sentence ? creditSentenceBody(data.verdict.sentence, data.verdict.credit) : null,
+      detail: data.verdict?.detail ?? null,
+      caption: data.verdict?.caption ?? null,
+      killerGamertag: data.verdict?.killerGamertag ?? null,
+      driverGamertag: data.verdict?.driverGamertag ?? null,
+      credit: data.verdict?.credit ?? null });
   }
 
   // Newest-first

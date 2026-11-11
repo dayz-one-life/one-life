@@ -13,13 +13,18 @@
     "./format": "./src/format.ts",
     "./player-format": "./src/player-format.ts",
     "./slug": "./src/slug.ts",
-    "./app-version": "./src/app-version.ts"
+    "./app-version": "./src/app-version.ts",
+    "./trap-kill": "./src/trap-kill.ts"
   },
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
     "@onelife/api-client": "workspace:*"
   },
   "devDependencies": {
+    "@onelife/death-verdict": "workspace:*",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

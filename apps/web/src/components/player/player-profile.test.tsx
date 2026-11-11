@@ -75,7 +75,7 @@ function page(overrides: Partial<PlayerPage> = {}): PlayerPage {
         timeAliveSeconds: 3600,
         kills: 0,
         longestKillMeters: null,
-        cause: "pvp",
+        cause: "pvp", death: null,
       },
     ],
     obituariesTotal: 1,

@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Every page now shows how a player died from the cause the projector has stored, instead of
+  guessing it each time the page loads. The life page says what happened in a sentence ("Killed by
+  a tripwire rigged with an M67 frag grenade.", "Died after an infected attack."), names the object
+  where the log does, and adds a short note when the cause was worked out rather than stated
+  ("Worked out from the log") or is only the best reading ("Likely starvation", with a note that
+  the server recorded no cause). About 90 deaths that read "Unknown" or "Environment" now read
+  their cause. A death whose cause has not been stored yet shows only what the log line itself
+  says, or "Awaiting the record", for the few minutes until it is. Cards, the Morgue, ban cards,
+  the Rap Sheet and both share images use the same wording, and an old obituary's cause chip
+  follows the stored cause unless its text said no cause was recorded. A life's share image is
+  kept by link previews for a day once its cause is stored, and for a minute before, so a corrected
+  cause reaches them; it used to be kept for a year. Switching off a "Likely" cause also takes it
+  off older obituaries whose stored cause is waiting for review. Kill counts never show
+  anyone the log does not name. No `--rebuild` and no backfill is needed.
+- A kill credited from a trap is shown as one. When the server operator turns trap kills on, a
+  kill credited to the player whose tripwire or land mine killed someone is marked "by trap" in
+  their kill list and life timeline with a note that the log names no killer, and a life that the trap kill qualified says "A trap kill credited. The life counts from
+  here." The victim's life page says "Kill credited to" that player. The life map shows no marker
+  for a trap kill, and the About page's grace rule now says that having a trap you set kill
+  another survivor qualifies the life. Nothing here turns trap kills on. No `--rebuild` and no
+  backfill is needed.
+- An obituary's "usual cause of death" now counts only causes the log states or nearly states,
+  grouped by kind ("hunger and thirst", "wildlife", "pvp"), so three deaths to three different
+  players count as one usual cause. No `--rebuild` and no backfill is needed.
+
 ## [0.83.0] - 2026-11-11
 
 ### Changed

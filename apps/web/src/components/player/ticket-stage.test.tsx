@@ -193,3 +193,16 @@ describe("<TicketStage />", () => {
     expect(screen.queryByRole("button", { name: /update your photo/i })).not.toBeInTheDocument();
   });
 });
+
+describe("<TicketStage /> ban card cause", () => {
+  it("prints the triggering death's label", () => {
+    const st = bannedStanding();
+    st.ban!.verdict = {
+      status: "final", key: "fuel_pump", tag: "Explosion", certainty: "definitive", label: "Fuel pump explosion", detail: null,
+      sentence: "Killed by an exploding fuel pump.", caption: null, killerGamertag: null, driverGamertag: null, credit: null,
+      trap: false, selfStated: false, cause: "explosion", confidence: "high", conditions: [],
+    };
+    render(<TicketStage page={makePage([st])} viewer="public" now={NOW} />);
+    expect(screen.getByText(/Fuel pump explosion · life 11/i)).toBeInTheDocument();
+  });
+});

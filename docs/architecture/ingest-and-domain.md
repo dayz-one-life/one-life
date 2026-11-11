@@ -148,8 +148,10 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
   (`starvation|dehydration|bled_out|mauled|…`, `high|low` confidence, conditions). Computed lazily —
   never materialized (no migration/rebuild; the `isLifeQualified` precedent; **superseded by stage 4**,
-  which stores the death-verdict classifier's answer in `death_verdicts` — this stage-1 verdict is
-  still what pages read until the readers move, death-verdict plan step 7) — by the new
+  which stores the death-verdict classifier's answer in `death_verdicts`; since death-verdict plan
+  step 7 no page reads this stage-1 verdict — `dossierVerdict` now returns the stored public death,
+  and the old classification survives only as `legacyDossierVerdict` for the suicide-wording parity
+  test until step 10) — by the new
   `life-dossier` read-model (`dossierForLife`/`getLifeDossier`/`dossierVerdict`, plus ordeals:
   encounter-collapsed infected/fire/pvp hits, hpLow, builds). Surfaces: `getLifeTimeline` +
   `getPlayerPage` visible slice → API → web (`verdictPhrase`, shared `@/lib/cause-format`) on the
@@ -288,8 +290,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
 - **Death-cause fidelity, stage 4 — stored verdicts** (death-verdict plan step 5; release R2).
   The `@onelife/death-verdict` classifier's answer for every ended life is stored in
   **`death_verdicts`** (migration `0040`), one row per life, with `death_verdict_queue` (lives seen
-  but not yet written) and the durable **`death_verdict_overrides`**. Nothing reads them on a page
-  yet (step 7); the operator checks them with `verify-verdicts`.
+  but not yet written) and the durable **`death_verdict_overrides`**. Pages read them from plan
+  step 7 on (see "The readers" below); the operator checks them with `verify-verdicts`.
   - **Classifier version 2** (plan step 6, release R2b) ports the inferred rules (B09 to B23), so
     every death gets the reference's answer; the version bump makes the sweep rewrite every row in
     place. **⚠️ The newsdesk gate:** `findObituaryTargets` (`apps/newsdesk/src/pg-store.ts`) only
@@ -394,6 +396,46 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     wildlife, a held grenade and the like have no family (the operator approved six), so B12's and
     B10's inferred fall or wildlife verdicts read "Not recorded" until the operator gives that row a
     family and a switch.
+  - **The readers** (plan step 7, release R3). **⚠️ `packages/read-models/src/death-verdicts.ts` is
+    the only reader of `death_verdicts` that serves a page.** It selects NAMED columns (never the
+    whole row, never `attr_gamertag`/`attr_dayz_id`/`object_text`/`evidence`; `rule` only to know
+    an A14 "Shot") and presents through `toPublicDeath`. A row at any classifier version is final
+    unless `needs_review`; no row, or a review-held row, is **pending**: the death line's own coarse
+    word ("Killed by NAME", "Suicide", "Infected", …) or "Awaiting the record" — never a read-time
+    classification. `getPublicDeath`/`getPublicDeathsForLives` return null for an open or retired
+    life. The timeline (`verdict`), past lives (`death.verdict`), the ban card (`ban.verdict`) are
+    all that shape, with the legacy `cause`/`confidence`/`conditions` still in today's vocabulary —
+    newsdesk's v3.1 prompt reads only those three, so it is unchanged until step 8.
+    - **A victim's trap credit** comes ONLY from its `kills` row with `basis = 'trap_placement'`
+      (`getTrapCreditForVictimLife`), with the placer's CURRENT gamertag joined on
+      `killer_player_id`. A placer who failed the bar has no row and appears nowhere. "Kill
+      credited to NAME." is the only phrasing; the web links the name after the sentence.
+    - **Kills carry `basis`** (`PlayerKill.basis`, required on the DTO; the kill feed returns whole
+      rows, so `basis` and `credit_source` are served). `lifeQualifiedAt` reports the qualifying
+      kill's basis (`killBasis`) and the timeline words it "A trap kill credited. The life counts
+      from here."; WHEN a life qualifies is unchanged. **⚠️ `life-track.ts` drops trap kills from
+      the map markers** (a marker pins the killer's own fix; a trap fires where it was placed).
+      most-kills orders level players by name, so ties (common with trap kills) are stable.
+    - **Articles** carry `death` = the live FINAL verdict (through `player_gamertags`, as the
+      timeline finds the article), else the frozen `facts.death` strings (`status: "frozen"`; for
+      a trap death every string is rebuilt from the row with no name, keeping only the key, the
+      certainty's caption and an object the row can hold, so a since-denied credit cannot survive;
+      a frozen inferred death whose family has no switch or is switched off is no frozen value),
+      else null and the reader falls back to `cause`/`verdict`. A pending verdict never replaces
+      frozen values. Share images: the life card is `max-age=86400` when its verdict is final and
+      `max-age=60` otherwise (pending, no verdict, failure); the obituary card is 86400 for a final
+      or frozen death, else 60. Next's own default is a year, so neither may leave it unset. **⚠️ The reserved cause tag (`tags[2]`) is rewritten at
+      read time** by spec 6.2's table (`articleTags`): definitive/strong → live tag; inferred with
+      its family on → the tag only under an `obituary-v4`+ prompt, else "Unknown"; family off,
+      unknown, withheld → "Unknown"; pending → stored. So the chip follows the prose it sits above.
+    - **Priors** (`player-priors.ts`) count definitive and strong verdicts only and aggregate on the
+      public TAG, never the label (a label can hold a killer's name); the prior prints the tag's
+      lower-case noun ("pvp", "hunger and thirst", "wildlife").
+    - **Renames and the grace.** A trap row is matched to its placer by `killer_player_id`
+      (kill-owner.ts) and read through kill-window.ts like any kill line: a rename loses it nowhere
+      and the boards print the placer's current name; one logged up to two seconds after the
+      placer's death belongs to the life that ended (its `qualifiedAt` capped at the death).
+      `trap-kill-parity.test.ts` pins both.
 ## Identity merge, content engine, obituaries
 
 - **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;

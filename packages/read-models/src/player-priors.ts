@@ -1,16 +1,18 @@
 import type { Database } from "@onelife/db";
 import { players, lives, servers, kills } from "@onelife/db";
 import { and, eq, lt, lte, or, sql } from "drizzle-orm";
-import { causeFamily } from "@onelife/domain";
+import { getPublicDeathsForLives } from "./death-verdicts.js";
 import { killWindowEnd } from "./kill-window.js";
 
 export interface PlayerPriors {
   livesLived: number;              // count of PRIOR lives (startedAt < beforeLifeStartedAt); excludes current
   longestLifeSeconds: number;      // best prior life; 0 if none
   totalKills: number;              // confirmed kills across all prior lives
-  usualDeathCause: string | null;  // most-common death cause across prior lives; null if none
-                                    // may be a cause-family token (e.g. "animal") since stage 2
-  lastDeathCause: string | null;   // cause of most-recent prior death; null if none
+  /** Most common cause FAMILY across prior deaths, as the lower-case noun of the public tag
+   *  ("pvp", "hunger and thirst", "wildlife"); null if none. Definitive and strong verdicts only. */
+  usualDeathCause: string | null;
+  /** The family of the most recent prior death with a definitive or strong verdict; null if none. */
+  lastDeathCause: string | null;
   bestLifeMap: string | null;      // servers.map of the longest prior life; null if none
 }
 
@@ -35,10 +37,14 @@ export async function getPlayerPriors(
   // All prior lives across all servers, oldest first (deterministic tie-breaks below).
   const priorLives = await db
     .select({
+      id: lives.id,
       serverId: lives.serverId,
       endedAt: lives.endedAt,
       playtimeSeconds: lives.playtimeSeconds,
       deathCause: lives.deathCause,
+      deathByGamertag: lives.deathByGamertag,
+      deathWeapon: lives.deathWeapon,
+      deathDistance: lives.deathDistance,
       map: servers.map,
     })
     .from(lives)
@@ -58,14 +64,22 @@ export async function getPlayerPriors(
     }
   }
 
-  // usual death cause = mode across non-null cause FAMILIES (wolf/bear/animal group as "animal";
-  // first-inserted wins on a tie -> oldest life)
+  // ⚠️ Causes come from the stored verdicts (death-verdict spec 2.1, 6.1) and aggregate on the
+  // TAG, never on the label: "Killed by A", "Killed by B" and "Killed by C" are one usual cause,
+  // and a label can hold a killer's name, which must never reach a prior. Definitive and strong
+  // only: an inferred reading is not a fact to build a reputation on, and a pending death has
+  // nothing to count yet. The prior prints the tag's lower-case noun.
+  const deaths = await getPublicDeathsForLives(db, priorLives.map((l) => ({ ...l, id: Number(l.id) })));
+  const familyOf = (id: number): string | null => {
+    const d = deaths.get(id);
+    if (!d || d.status !== "final" || (d.certainty !== "definitive" && d.certainty !== "strong")) return null;
+    return d.tag && d.tag !== "Unknown" ? d.tag.toLowerCase() : null;
+  };
+  // mode, first-inserted wins on a tie -> oldest life
   const counts = new Map<string, number>();
   for (const l of priorLives) {
-    if (l.deathCause) {
-      const fam = causeFamily(l.deathCause);
-      counts.set(fam, (counts.get(fam) ?? 0) + 1);
-    }
+    const fam = familyOf(Number(l.id));
+    if (fam) counts.set(fam, (counts.get(fam) ?? 0) + 1);
   }
   let usualDeathCause: string | null = null;
   let bestCount = 0;
@@ -73,10 +87,10 @@ export async function getPlayerPriors(
     if (c > bestCount) { bestCount = c; usualDeathCause = cause; }
   }
 
-  // last death cause = cause of the most-recently ended prior life
-  const ended = priorLives.filter((l) => l.endedAt !== null && l.deathCause !== null);
+  // last death cause = family of the most-recently ended prior death that has one
+  const ended = priorLives.filter((l) => l.endedAt !== null && familyOf(Number(l.id)) !== null);
   ended.sort((a, b) => b.endedAt!.getTime() - a.endedAt!.getTime());
-  const lastDeathCause = ended[0]?.deathCause ?? null;
+  const lastDeathCause = ended[0] ? familyOf(Number(ended[0].id)) : null;
 
   // confirmed kills across all prior lives = kills scored before the current life began (any
   // server), plus a kill logged inside a prior life's two seconds after its death (kill-window.ts)

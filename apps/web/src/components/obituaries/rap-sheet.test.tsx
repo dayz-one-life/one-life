@@ -9,7 +9,7 @@ const article: ObituaryArticle = {
   tags: ["Obituaries", "Chernarus"], timeAliveSeconds: 3456000, kills: 212, longestKillMeters: 410,
   cause: "pvp", deathAt: "2026-07-10T22:16:00Z", body: "He left 212 kills behind.",
   pullQuote: { text: "You do not get a second life.", attribution: "a rival" }, sessions: 30,
-  killerGamertag: "Chicken", weapon: "Reload", verdict: null,
+  killerGamertag: "Chicken", weapon: "Reload", verdict: null, death: null,
 };
 
 describe("RapSheet heading", () => {
@@ -39,5 +39,23 @@ describe("RapSheet dl reading order", () => {
       expect(children[1]!.tagName).toBe("DD");
       expect(group.className).toContain("flex-col-reverse");
     }
+  });
+});
+
+describe("RapSheet cause", () => {
+  test("prints the death's label and its caption under the sheet", () => {
+    render(<RapSheet article={{ ...article, cause: "died", death: {
+      status: "final", key: "starvation_and_thirst", tag: "Hunger and Thirst", certainty: "inferred", label: "Likely starvation and thirst",
+      detail: null, sentence: "Likely starved and dehydrated.", caption: "Best reading of the log. The server recorded no cause.",
+      killerGamertag: null, driverGamertag: null, credit: null, trap: false, selfStated: false, cause: "starvation", confidence: "low", conditions: [],
+    } }} />);
+    expect(screen.getByText("Likely starvation and thirst")).toBeInTheDocument();
+    expect(screen.getByText("Best reading of the log. The server recorded no cause.")).toBeInTheDocument();
+  });
+
+  test("an article with no death keeps the legacy wording and no caption", () => {
+    render(<RapSheet article={{ ...article, cause: "pvp" }} />);
+    expect(screen.getByText("Killed")).toBeInTheDocument();
+    expect(screen.queryByText(/Worked out|Best reading/)).not.toBeInTheDocument();
   });
 });

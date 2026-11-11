@@ -23,6 +23,17 @@ export function registerBoardRoutes(app: FastifyInstance, db: Database): void {
     return getLeaderboard(db, p.data.serverId, p.data.board, new Date(), q.data.limit);
   });
 
+  /**
+   * The kill feed: whole `kills` rows, newest first, including `basis` and `credit_source`.
+   *
+   * ⚠️ A row with `basis: "trap_placement"` is a TRAP KILL (death-verdict spec 2.4): the log names
+   * no killer, and `killerGamertag` is the player credited from where the tripwire or land mine was
+   * placed (`creditSource` is "classifier", or "override" for an operator grant). It counts like any
+   * kill. `basis` is the only marker and the server cannot enforce wording, so a renderer must use
+   * "VICTIM · killed by a tripwire · kill credited to PLACER" ("a land mine" for weapon "Land mine"),
+   * never "PLACER killed VICTIM", "PLACER's tripwire" or "confirmed kill". The type in
+   * `@onelife/api-client` (`Kill`) says the same.
+   */
   app.get("/servers/:serverId/kills", async (req, reply) => {
     const p = serverParam.safeParse(req.params);
     const q = feedQuery.safeParse(req.query);

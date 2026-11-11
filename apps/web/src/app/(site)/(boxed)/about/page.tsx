@@ -71,7 +71,7 @@ const RULES = [
   },
   {
     term: "The five-minute grace",
-    def: "Every life opens with five minutes of grace. Hate your spawn? Reset it, free — die and try again as often as you like. But throw a punch or take a shot at another survivor and the life qualifies early. Five minutes of play, or one act of violence, whichever comes first. After that, death is real.",
+    def: "Every life opens with five minutes of grace. Hate your spawn? Reset it, free — die and try again as often as you like. But kill another survivor, or have a trap you set kill one, and the life qualifies early. Five minutes of play, or one kill, whichever comes first. After that, death is real.",
   },
   {
     term: "One gamertag, proven",

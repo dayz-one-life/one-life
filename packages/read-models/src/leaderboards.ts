@@ -49,7 +49,8 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
         row.value += Number(g.value);
         if (!holder) byName.set(key, row);
       }
-      // Level players are ordered by name so the board does not reshuffle between requests.
+      // Level players are ordered by name so the board does not reshuffle between requests (trap
+      // kills make ties common; a trap kill counts here exactly as a kill line does).
       return [...byId.values(), ...byName.values()]
         .map(({ gamertag, value }) => ({ gamertag, value }))
         .sort((a, b) => b.value - a.value || (a.gamertag < b.gamertag ? -1 : a.gamertag > b.gamertag ? 1 : 0))

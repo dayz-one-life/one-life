@@ -47,6 +47,10 @@ describe("getLifeKills", () => {
     expect(rows.map((r) => r.victimGamertag)).toEqual(["b", "a"]);
     expect(rows[0]).toMatchObject({ weapon: "M4A1", distanceMeters: 45 });
   });
+  it("every row carries its basis", async () => {
+    const rows = await getLifeKills(db, serverId, sniperId, start, end);
+    expect(rows.map((r) => r.basis)).toEqual(["kill_line", "kill_line"]);
+  });
   it("treats a null endedAt as open-ended", async () => {
     const rows = await getLifeKills(db, serverId, sniperId, start, null);
     expect(rows.length).toBe(2);

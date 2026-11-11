@@ -571,6 +571,9 @@ importers:
         specifier: workspace:*
         version: link:../api-client
     devDependencies:
+      '@onelife/death-verdict':
+        specifier: workspace:*
+        version: link:../death-verdict
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

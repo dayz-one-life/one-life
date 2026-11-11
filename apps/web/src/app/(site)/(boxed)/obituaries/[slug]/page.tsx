@@ -24,8 +24,10 @@ type Props = { params: Promise<{ slug: string }> };
  * Kept in sync BY HAND with `OBITUARY_REVALIDATE_SECONDS` in `@/lib/api` and with the sibling
  * `opengraph-image.tsx`; Next requires this to be a statically analysable literal, so it cannot
  * import the constant. The window is short because the page carries relative timestamps ("2 hours
- * ago") rendered against a server-side `now` that freezes at generation time — the obituary text
- * itself never changes.
+ * ago") rendered against a server-side `now` that freezes at generation time. The prose never
+ * changes here, but the Rap Sheet's Cause and the cause tag are read LIVE from the stored verdict
+ * (death-verdict spec 6.2): an override or a classifier fix can move them, and this window is also
+ * how long such a correction takes to show.
  */
 export const revalidate = 300;
 
