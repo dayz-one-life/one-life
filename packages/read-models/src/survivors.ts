@@ -3,6 +3,8 @@ import { players, lives, servers, sessions, kills, gamertagLinks, avatars, avata
 import { and, eq, isNull, isNotNull, inArray, sql } from "drizzle-orm";
 import { livePlaytime } from "./playtime.js";
 import { isLifeQualified } from "./qualified.js";
+import { isKillInLife } from "./kill-window.js";
+import { loadPreviousLifeEnds } from "./kill-window-db.js";
 
 export const SURVIVORS_PAGE_SIZE = 25;
 
@@ -104,6 +106,8 @@ export async function getAliveSurvivors(
     .from(kills)
     .where(inArray(kills.serverId, serverIds));
 
+  const previousEnd = await loadPreviousLifeEnds(db, serverIds);
+
   const candidates: SurvivorCandidate[] = [];
   for (const r of openLives) {
     const upTo = r.lastSeenAt ?? r.connectedAt ?? now;
@@ -111,9 +115,12 @@ export async function getAliveSurvivors(
 
     // this-life kills: killer_player_id = player.id (the identity, not the name) AND
     // serverId = server.id AND occurredAt >= life.startedAt. A null killer_player_id never
-    // equals a real id, so orphan kills are correctly excluded.
+    // equals a real id, so orphan kills are correctly excluded. A kill logged inside the two
+    // seconds after this player's PREVIOUS death is that life's kill, not this one's
+    // (kill-window.ts), so it is neither counted here nor allowed to qualify this life.
+    const window = { startedAt: r.startedAt, endedAt: null, previousLifeEndedAt: previousEnd(r.serverId, r.playerId, r.startedAt, null) };
     const myKills = killRows.filter(
-      (k) => k.serverId === r.serverId && k.killerPlayerId === r.playerId && k.occurredAt.getTime() >= r.startedAt.getTime(),
+      (k) => k.serverId === r.serverId && k.killerPlayerId === r.playerId && isKillInLife(k.occurredAt, window),
     );
 
     const qualified = isLifeQualified({

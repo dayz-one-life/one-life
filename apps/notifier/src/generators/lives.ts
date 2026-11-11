@@ -1,5 +1,5 @@
 import { gamertagLinks, kills, lives, players, servers, sessions } from "@onelife/db";
-import { lifeQualifiedAt, type LifeSessionSlice } from "@onelife/read-models";
+import { isKillByPlayer, lifeQualifiedAt, loadPreviousLifeEnds, type LifeSessionSlice } from "@onelife/read-models";
 import { and, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import type { Generator, NotificationDraft } from "../types.js";
 import { windowStart } from "../types.js";
@@ -24,6 +24,7 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
     .select({
       lifeId: lives.id, lifeNumber: lives.lifeNumber, startedAt: lives.startedAt,
       deathCause: lives.deathCause, serverId: lives.serverId, lastSeenAt: players.lastSeenAt,
+      playerId: lives.playerId,
       userId: gamertagLinks.userId, gamertag: gamertagLinks.gamertag,
       serverSlug: servers.slug, serverName: servers.name,
     })
@@ -50,17 +51,26 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
     .where(inArray(sessions.lifeId, lifeIds));
 
   const killRows = await deps.db
-    .select({ serverId: kills.serverId, gamertag: kills.killerGamertag, occurredAt: kills.occurredAt })
+    .select({
+      serverId: kills.serverId, killerPlayerId: kills.killerPlayerId, killerGamertag: kills.killerGamertag,
+      occurredAt: kills.occurredAt,
+    })
     .from(kills)
     .where(inArray(kills.serverId, serverIds));
+
+  // A kill logged just after this player's previous death belongs to that life, not this one.
+  const previousEnd = await loadPreviousLifeEnds(deps.db, serverIds);
 
   const rows: Row[] = [];
   for (const c of candidates) {
     const lifeSessions: LifeSessionSlice[] = sessionRows
       .filter((s) => s.lifeId === c.lifeId)
       .map((s) => ({ connectedAt: s.connectedAt, disconnectedAt: s.disconnectedAt, durationSeconds: s.durationSeconds }));
+    // By player id, not by name (read-models kill-owner.ts): a kill logged under a name the
+    // player has since changed still counts, and one logged under his name by its previous
+    // holder does not.
     const playerKills = killRows.filter(
-      (k) => k.serverId === c.serverId && k.gamertag.toLowerCase() === c.gamertag.toLowerCase(),
+      (k) => k.serverId === c.serverId && isKillByPlayer(k, { playerId: c.playerId, gamertag: c.gamertag }),
     );
     const q = lifeQualifiedAt({
       startedAt: c.startedAt,
@@ -69,6 +79,7 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
       sessions: lifeSessions,
       lastSeenAt: c.lastSeenAt,
       playerKills,
+      previousLifeEndedAt: previousEnd(c.serverId, c.playerId, c.startedAt, null),
     });
     if (!q) continue;
     rows.push({
