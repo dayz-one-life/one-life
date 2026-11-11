@@ -4,16 +4,16 @@ import { KillList } from "./kill-list";
 
 describe("KillList", () => {
   it("renders victim links with weapon and distance", () => {
-    render(<KillList kills={[{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z", basis: "kill_line" as const }]} />);
-    const link = screen.getByRole("link", { name: "Tomahawked11" });
-    expect(link).toHaveAttribute("href", "/players/tomahawked11");
+    render(<KillList kills={[{ victimGamertag: "FixtureRaider", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z", basis: "kill_line" as const }]} />);
+    const link = screen.getByRole("link", { name: "FixtureRaider" });
+    expect(link).toHaveAttribute("href", "/players/fixtureraider");
     // The distance is now wrapped in its own span (rule #9), splitting this line across
     // elements — assert the row's full text rather than a single text node.
     expect(link.closest("li")).toHaveTextContent("VSS · 5 m");
   });
 
   it("the distance value is exempt from the row's uppercase (#9)", () => {
-    render(<KillList kills={[{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z", basis: "kill_line" as const }]} />);
+    render(<KillList kills={[{ victimGamertag: "FixtureRaider", weapon: "VSS", distanceMeters: 5, occurredAt: "2026-07-12T01:00:00Z", basis: "kill_line" as const }]} />);
     const value = screen.getByText("5 m");
     expect(value.className).toContain("normal-case");
   });

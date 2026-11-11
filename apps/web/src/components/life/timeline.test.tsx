@@ -17,7 +17,7 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
     gamertag: "YrJustBad", map: "sakhal", slug: "sakhal", lastSeenAt: null,
     life: { id: 1, serverId: 1, playerId: 1, lifeNumber: 4, startedAt: start, endedAt: null, deathCause: null, deathByGamertag: null, deathWeapon: null, deathDistance: null, energyAtDeath: null, waterAtDeath: null, bleedSourcesAtDeath: null, playtimeSeconds: 0, endReason: null },
     sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
-    kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90), basis: "kill_line" }],
+    kills: [{ victimGamertag: "FixtureRaider", weapon: "VSS", distanceMeters: 5, occurredAt: at(90), basis: "kill_line" }],
     qualifiedAt: { at: at(5), by: "playtime" },
     encounters: [],
     verdict: null,
@@ -39,7 +39,7 @@ describe("Timeline", () => {
   test("kill row links the victim and shows weapon · distance", () => {
     const now = new Date(Date.parse(start) + 200 * 60_000);
     render(<Timeline view={buildTimeline(data(), now)} />);
-    expect(screen.getByRole("link", { name: "Tomahawked11" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "FixtureRaider" })).toBeInTheDocument();
     expect(screen.getByText(/VSS · 5 m/)).toBeInTheDocument();
   });
 

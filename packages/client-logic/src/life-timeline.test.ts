@@ -40,8 +40,8 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
       { id: 3, serverId: 1, playerId: 1, lifeId: 1, connectedAt: at(400), disconnectedAt: null, durationSeconds: null, closeReason: null },
     ],
     kills: [
-      { victimGamertag: "Twhizzle4life", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(430), basis: "kill_line" },
-      { victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90), basis: "kill_line" },
+      { victimGamertag: "FixtureVictim", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(430), basis: "kill_line" },
+      { victimGamertag: "FixtureRaider", weapon: "VSS", distanceMeters: 5, occurredAt: at(90), basis: "kill_line" },
     ],
     qualifiedAt: { at: at(5), by: "playtime" },
     encounters: [],
@@ -86,7 +86,7 @@ describe("buildTimeline", () => {
     const v = buildTimeline(data(), now);
     const longest = v.events.filter((e) => e.kind === "kill" && e.longestKill);
     expect(longest).toHaveLength(1);
-    expect(longest[0] && "victimGamertag" in longest[0] ? longest[0].victimGamertag : "").toBe("Twhizzle4life"); // 25m > 5m
+    expect(longest[0] && "victimGamertag" in longest[0] ? longest[0].victimGamertag : "").toBe("FixtureVictim"); // 25m > 5m
     // Kill at wall-clock +430m, but only 3h 40m of it was PLAYED: session 1 (2h) + session 2
     // (1h 40m). The 3h 20m logged off does not count, and session 3 is open with NO heartbeat
     // (`lastSeenAt: null`), so it accrues nothing — the same floor `liveTimeAlive` applies.
@@ -189,7 +189,7 @@ describe("buildTimeline", () => {
       const v = buildTimeline(
         data({
           sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
-          kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(480), basis: "kill_line" }],
+          kills: [{ victimGamertag: "FixtureRaider", weapon: "VSS", distanceMeters: 5, occurredAt: at(480), basis: "kill_line" }],
           lastSeenAt: at(300),
         }),
         now,
