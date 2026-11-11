@@ -638,3 +638,93 @@ describe("trap kills", () => {
     expect(d2!.outcome).not.toBe("evidence_passes");
   });
 });
+
+describe("review and held lives (review of step 6)", () => {
+  it("a needs_review row is logged at error level on every pass, with the count", async () => {
+    const d = await trapDeath({ deathCause: "pvp" });
+    expect(await sweep()).toMatchObject({ written: 1, review: 1 });
+    expect(await verdict(d.lid)).toMatchObject({ needsReview: true });
+    expect(log.error).toHaveBeenCalledWith({ needsReview: 1 }, "verdict_sweep.needs_review");
+    log.error.mockClear();
+    expect(await sweep({ now: new Date(NOW.getTime() + 60_000) })).toMatchObject({ written: 0, review: 1 });
+    expect(log.error).toHaveBeenCalledWith({ needsReview: 1 }, "verdict_sweep.needs_review");
+  });
+
+  it("an override with a cause resolves review: the operator has decided", async () => {
+    const d = await trapDeath({ deathCause: "pvp" });
+    await sweep();
+    await override(d.f, d.deathLine, { cause: "explosive_trap", confidence: "definitive" });
+    expect(await sweep({ now: new Date(NOW.getTime() + 60_000) })).toMatchObject({ written: 1, review: 0 });
+    const v = (await verdict(d.lid))!;
+    expect(v).toMatchObject({ source: "override", needsReview: false, cause: "explosive_trap" });
+    expect((v.evidence as { reviewResolvedBy?: string }).reviewResolvedBy).toBe("override");
+    // the life is still pvp on its own row: no trap kill is written for it
+    expect(await trapRows()).toHaveLength(0);
+  });
+
+  it("a credit-only override does not resolve review", async () => {
+    const d = await trapDeath({ deathCause: "pvp" });
+    await sweep();
+    await override(d.f, d.deathLine, { credit: "deny" });
+    await sweep({ now: new Date(NOW.getTime() + 60_000) });
+    expect(await verdict(d.lid)).toMatchObject({ needsReview: true });
+  });
+
+  it("a life whose death_cause is corrected after its verdict is worked out again", async () => {
+    const a = await pvpDeath("died");
+    await sweep();
+    expect(await verdict(a.lid)).toMatchObject({ needsReview: true });
+    // no change: not worked out again
+    expect(await sweep({ now: new Date(NOW.getTime() + 30_000) })).toMatchObject({ written: 0 });
+    await db.update(lives).set({ deathCause: "pvp" }).where(eq(lives.id, a.lid));
+    expect(await sweep({ now: new Date(NOW.getTime() + 60_000) })).toMatchObject({ written: 1, review: 0 });
+    expect(await verdict(a.lid)).toMatchObject({ needsReview: false, attrBasis: "kill_line" });
+  });
+
+  it("an override with a cause and a confidence on the life's death event unblocks a held life", async () => {
+    const d = await plainDeath({ complete: true });
+    const spy = vi.spyOn(rm, "loadDeath").mockRejectedValue(new Error("boom"));
+    try {
+      let t = NOW;
+      for (let i = 0; i < 3; i++) { await sweep({ now: t }); t = new Date(t.getTime() + 7 * 3600_000); }
+      expect(await queueRow(d.lid)).toMatchObject({ attempts: 3, last_error: "boom" });
+      expect(await verdict(d.lid)).toBeUndefined();
+      // the life was folded from its suicide line: that is the death event the operator is shown
+      const seed = await rm.deathSeedOf(db, d.lid);
+      expect(seed).toEqual({ admFileId: d.f, lineIndex: d.log.idx(1) });
+      await override(d.f, seed!.lineIndex, { cause: "suicide", confidence: "definitive" });
+      expect(await sweep({ now: t })).toMatchObject({ written: 1, failed: 0, held: 0 });
+      expect(await verdict(d.lid)).toMatchObject({
+        source: "override", rule: "override", cause: "suicide", confidence: "definitive", mechanismStated: false,
+        needsReview: false, deathFileId: d.f, deathLineIndex: seed!.lineIndex, classifierVersion: CLASSIFIER_VERSION,
+      });
+      expect(await queueRow(d.lid)).toBeUndefined();
+      expect(log.warn).toHaveBeenCalledWith(expect.objectContaining({ lifeId: d.lid, err: "boom" }), "verdict_sweep.held_life_override");
+      // stored, and the override seen: not worked out again on the next pass
+      expect(await sweep({ now: new Date(t.getTime() + 60_000) })).toMatchObject({ written: 0, failed: 0 });
+    } finally { spy.mockRestore(); }
+  });
+
+  it("an override without a cause does not unblock a held life", async () => {
+    const d = await plainDeath({ complete: true });
+    const spy = vi.spyOn(rm, "loadDeath").mockRejectedValue(new Error("boom"));
+    try {
+      await override(d.f, d.log.idx(1), { cause: "suicide" });
+      expect(await sweep()).toMatchObject({ written: 0, failed: 1 });
+      expect(await verdict(d.lid)).toBeUndefined();
+    } finally { spy.mockRestore(); }
+  });
+
+  it("the first pass after start-up makes every backing-off life due at once", async () => {
+    const d = await plainDeath({ complete: true });
+    const spy = vi.spyOn(rm, "loadDeath").mockRejectedValue(new Error("boom"));
+    try { await sweep(); } finally { spy.mockRestore(); }
+    // backing off for hours (the cap is 6 h); the fix is deployed, and the projector restarts
+    await db.execute(dsql`UPDATE death_verdict_queue SET next_attempt_at = ${new Date(NOW.getTime() + 6 * 3600_000).toISOString()}::timestamptz`);
+    const soon = new Date(NOW.getTime() + 60_000);
+    expect(await sweep({ now: soon })).toMatchObject({ written: 0 });
+    expect(await sweep({ now: soon, resetBackoff: true })).toMatchObject({ written: 1 });
+    expect(await verdict(d.lid)).toMatchObject({ cause: "suicide" });
+    expect(log.info).toHaveBeenCalledWith({ reset: 1 }, "verdict_sweep.backoff_reset");
+  });
+});

@@ -14,7 +14,7 @@ export interface LoopDeps {
   cfg: Pick<Config, "batchSize">;
   log: LoopLogger;
   tick: () => Promise<{ applied: number; skipped: number }>;
-  sweep: () => Promise<{ written: number; failed: number; held: number; rederived: number }>;
+  sweep: () => Promise<{ written: number; failed: number; held: number; rederived: number; review?: number }>;
   /** Test seam: whether the cursor is below the newest event. Defaults to asking the database. */
   cursorBehind?: () => Promise<boolean>;
 }

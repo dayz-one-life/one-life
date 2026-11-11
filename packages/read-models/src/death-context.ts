@@ -101,6 +101,26 @@ async function findSeed(db: Database, serverId: number, endedAt: Date, dayzId: s
   return s ? { admFileId: num(s.adm_file_id), lineIndex: num(s.line_index) } : null;
 }
 
+/**
+ * The line of a life's death the fold ended it on (its `player.died` event), without reading any
+ * file: the key an operator's override uses for a life the sweep cannot load or classify (a held
+ * life has no stored verdict, so no resolved primary line). Null when no such event is found.
+ *
+ * ⚠️ This is the seed, not the resolved primary: for a firearm suicide it is the `committed
+ * suicide` line, not the `died.` line after it. An override on a classified life is matched on
+ * the primary only (spec 3.2); the seed is used for a held life and nowhere else.
+ */
+export async function deathSeedOf(db: Database, lifeId: number): Promise<{ admFileId: number; lineIndex: number } | null> {
+  const [life] = await rows<{ server_id: number; player_id: string; ended_at: string | null; dayz_id: string | null; gamertag: string }>(db, sql`
+    SELECT l.server_id, l.player_id, l.ended_at, p.dayz_id, p.gamertag FROM lives l JOIN players p ON p.id = l.player_id WHERE l.id = ${lifeId}`);
+  if (!life || !life.ended_at) return null;
+  const aliases = (await rows<{ gamertag: string }>(db, sql`
+    SELECT gamertag FROM player_gamertags WHERE player_id = ${num(life.player_id)}`)).map((a) => a.gamertag);
+  if (!aliases.some((a) => a.toLowerCase() === life.gamertag.toLowerCase())) aliases.push(life.gamertag);
+  // no id: matched by name only ("" is never an id on an event)
+  return findSeed(db, num(life.server_id), new Date(life.ended_at), life.dayz_id ?? "", aliases);
+}
+
 interface FileRow { id: number; name: string; logDate: number | null; isComplete: boolean }
 
 async function serverFiles(db: Database, serverId: number): Promise<FileRow[]> {
