@@ -1,5 +1,5 @@
 import type {
-  Condition, Grade, LifeDeathFacts, PublicCauseKey, PublicDeath, StoredVerdict, TrapCredit, WriterBrief,
+  Condition, Grade, InferredFamily, LifeDeathFacts, PublicCauseKey, PublicDeath, StoredVerdict, TrapCredit, WriterBrief,
 } from "./types.js";
 import {
   CAPTION, CAUSE_VOCAB, COARSE_TO_LEGACY, CREDIT_DIRECTIVE, CREDIT_TEXT, INFERRED_CAUSE_DIRECTIVE, LOGOUT_CAUSES,
@@ -68,6 +68,16 @@ function directivesOf(death: PublicDeath, grade: Grade): string[] {
   return out;
 }
 
+/**
+ * Whether an inferred cause of this family may be shown. ⚠️ A row with no family (fall, wildlife,
+ * a held grenade, a vehicle run-over, ...) is never shown inferred: spec 2.1 promises that every
+ * inferred cause has a switch that withdraws it, and the operator approved six families only.
+ * Giving such a row a family (and a `PUBLIC_INFERRED` switch) is the way to show it.
+ */
+function inferredShown(family: InferredFamily | null): boolean {
+  return family != null && PUBLIC_INFERRED[family] === true;
+}
+
 /** 1. A death that followed a knock-out prints the cause of the knock-out. */
 function presentAfterKnockOut(v: StoredVerdict, conditions: Condition[]): Presented {
   const up = v.upstream;
@@ -80,7 +90,7 @@ function presentAfterKnockOut(v: StoredVerdict, conditions: Condition[]): Presen
   const grade: Grade = stored === "definitive" ? "strong" : stored;
   const row = PUBLIC_ROWS[key];
   const inferred = grade === "inferred";
-  if (inferred && row.family && !PUBLIC_INFERRED[row.family]) return none("unknown");
+  if (inferred && !inferredShown(row.family)) return none("unknown");
   const death: PublicDeath = {
     status: "final", key, tag: row.tag, certainty: grade,
     label: inferred ? inferredOf(row).label : row.stated(EMPTY).label,
@@ -140,8 +150,9 @@ function present(v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | nu
   const grade: Grade = row.gradesWhatIsNotPrinted && v.mechanismStated === true && stored === "inferred" ? "strong" : stored;
   const inferred = grade === "inferred";
 
-  // 2. An inferred family that has been switched off reads "Not recorded".
-  if (inferred && row.family && !PUBLIC_INFERRED[row.family]) return none("unknown");
+  // 2. An inferred family that has been switched off reads "Not recorded", and so does an inferred
+  //    cause on a row with no family: it has no switch to withdraw it.
+  if (inferred && !inferredShown(row.family)) return none("unknown");
 
   // 3. Names. Only what the kill line names.
   const killerGamertag = key === "pvp" || key === "held_grenade" ? named : null;
