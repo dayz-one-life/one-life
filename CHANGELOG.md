@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.86.0] - 2026-11-11
+
 ### Changed
 
 - The old way of working out a cause of death when a page loaded is gone. Every page has read the
