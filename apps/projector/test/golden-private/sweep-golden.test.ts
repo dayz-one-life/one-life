@@ -20,8 +20,8 @@ import { seedCorpus } from "./seed-corpus.js";
  * - the loader selects for every death the lines the fixture builder selected from the whole log,
  *   except what lies after the death (see that test);
  * - every One Life death has a verdict at the current version, none is held, none needs review;
- * - every death the reference decides by a stated rule matches it on the ten parity checks, and
- *   every known gap (an inferred rule, not ported yet) is rule B00;
+ * - every death matches the reference on the ten parity checks, whichever rule decided it (plan
+ *   step 6: every rule is ported and `known-gaps.json` is empty);
  * - the trap-kill policy half (tests 6 and 7, the placer's life) gives the reviewed table:
  *   `credits.expected.json` → `policy`;
  * - most-kills and longest-killstreak with and without the trap rows give that table's boards.
@@ -112,7 +112,7 @@ describe.skipIf(!ready)("the verdict sweep on the One Life export (private data)
     expect({ same, differ: bad.length }).toEqual({ same: 280, differ: 0 });
   }, 600_000);
 
-  it("every stated death matches the reference on the ten checks, and every known gap is B00", async () => {
+  it("every death matches the reference on the ten checks, and there is no known gap", async () => {
     const rows = readFileSync(join(GOLD!, "classified.jsonl"), "utf8").split("\n").filter(Boolean)
       .map((l) => JSON.parse(l) as GoldenRow).filter((r) => r.project === "OL");
     const gaps = JSON.parse(readFileSync(join(GOLD!, "known-gaps.json"), "utf8")) as Record<string, unknown>;
@@ -124,7 +124,6 @@ describe.skipIf(!ready)("the verdict sweep on the One Life export (private data)
       const [, , f, l] = e.uid.split("-");
       const v = byLine.get(`${f}:${l}`);
       if (!v) { bad.push(`${e.uid} no verdict`); continue; }
-      if (Object.hasOwn(gaps, e.uid)) { if (v.rule !== "B00") bad.push(`${e.uid} gap not B00`); continue; }
       const checks = failedGoldenChecks(v, e as never);
       if (checks.length) {
         const ev = v.evidence as { flags: string[]; contributors: { dayzId: string; role: string; confidence: string }[] };
@@ -139,7 +138,8 @@ describe.skipIf(!ready)("the verdict sweep on the One Life export (private data)
     }
     debug("golden", bad);
     expect({ rows: rows.length, stored: stored.length, differ: bad.length }).toEqual({ rows: 280, stored: 280, differ: 0 });
-    expect(passed).toBe(280 - Object.keys(gaps).length);
+    expect(Object.keys(gaps)).toEqual([]);
+    expect(passed).toBe(280);
   });
 
   it("verify-verdicts passes on the swept export, re-derivation and credits included", async () => {
