@@ -56,6 +56,17 @@ describe("a stated line wins", () => {
     expect(v.evidence.flags).toContain("attacker_alive_at_suicide");
   });
 
+  it("the last attacker before a suicide is strong only within 60 s and when the hit downed the victim", () => {
+    const conf = (dt: number, hp: number): string => verdictOf([
+      [-400, `${V()} is connected`], [-5 + dt, `${V()}${SHOT(OTHER, hp)}`],
+      [-5, `${V()} performed EmoteSuicide with SteakKnife`], [0, `${D()} ${STATS()}`], [0, `${D()} committed suicide`],
+    ]).evidence.contributors[0]!.confidence;
+    expect(conf(-60, 25)).toBe("strong");
+    expect(conf(-61, 25)).toBe("inferred");
+    expect(conf(-31, 25)).toBe("strong");
+    expect(conf(-10, 26)).toBe("inferred");
+  });
+
   it("a death no stated rule claims is unknown, rule B00, with no post-pass", () => {
     const v = verdictOf([[-400, `${V()} is connected`], [-50, `${V()}${INFECTED(3)}`], [0, `${D()} ${STATS(0, 0)}`]]);
     expect(v).toMatchObject({ rule: "B00", cause: "unknown", confidence: "unknown", mechanismStated: false, attribution: null, upstream: null });
@@ -118,6 +129,71 @@ describe("explosives on the kill line", () => {
     const v = verdictOf([[-3000, `${V()} is connected`], [0, BLAST], [0, FRAG_KILL]]);
     expect(v.attribution).toEqual({ role: "self (probable)", basis: "not_stated", dayzId: VICTIM.id, gamertag: VICTIM.name, confidence: "inferred" });
     expect(v.evidence.flags).toEqual(["isolated_300m_300s"]);
+  });
+
+  // The leads of a frag kill with no trip line. ⚠️ Each names a person the log does not: basis
+  // `not_stated`, whatever the role says. A kill-line basis here would put the name on a page.
+  it("an improvised explosive placed nearby names its placer as an inferred device owner, basis not_stated", () => {
+    const ied = (p: typeof OTHER) => `${who(p, at(1010, 2000))} placed Improvised Explosive<ImprovisedExplosive>`;
+    const v = verdictOf([[-600, ied(OTHER)], [-300, `${V()} is connected`], [0, BLAST], [0, FRAG_KILL]]);
+    expect(v).toMatchObject({ rule: "A08", cause: "explosive_grenade", confidence: "definitive" });
+    expect(v.attribution).toEqual({ role: "device_owner (inferred)", basis: "not_stated", dayzId: OTHER.id, gamertag: OTHER.name, confidence: "inferred" });
+    expect(v.evidence.flags).toContain("improvised_explosive_within_25m_1h");
+    const own = verdictOf([[-600, ied(VICTIM)], [-300, `${V()} is connected`], [0, BLAST], [0, FRAG_KILL]]);
+    expect(own.attribution).toEqual({ role: "self (own device)", basis: "not_stated", dayzId: VICTIM.id, gamertag: VICTIM.name, confidence: "inferred" });
+    // older than an hour it is no lead
+    const old = verdictOf([[-3601, ied(OTHER)], [-300, `${V()} is connected`], [0, BLAST], [0, FRAG_KILL]]);
+    expect(old.attribution?.role).not.toBe("device_owner (inferred)");
+  });
+
+  it("the victim logged with a frag in hand is probably their own grenade, basis not_stated", () => {
+    const v = verdictOf([[-300, `${V()} is connected`], [-10, `${V()} performed EmoteGreeting with 6-M7 Frag Grenade`], [0, BLAST], [0, FRAG_KILL]]);
+    expect(v.rule).toBe("A08");
+    expect(v.attribution).toEqual({ role: "self (own held grenade)", basis: "not_stated", dayzId: VICTIM.id, gamertag: VICTIM.name, confidence: "inferred" });
+    expect(v.evidence.flags).toContain("held_frag_before_blast");
+  });
+
+  it("a blast a second after the victim killed someone beside them names that player as an inferred holder, basis not_stated", () => {
+    const v = verdictOf([
+      [-300, `${V()} is connected`],
+      [-1, `${who(OTHER, at(1001, 2000), true)} killed by ${who(VICTIM)} with M4-A1 from 1 meters`],
+      [0, BLAST], [0, FRAG_KILL],
+    ]);
+    expect(v.rule).toBe("A08");
+    expect(v.attribution).toEqual({ role: "grenade_holder (inferred)", basis: "not_stated", dayzId: OTHER.id, gamertag: OTHER.name, confidence: "inferred" });
+    expect(v.evidence.flags).toContain("dead_man_grenade");
+  });
+
+  it("a frag seconds after spawning with nobody near is probably their own, basis not_stated", () => {
+    // someone 200 m off: not isolated, so only the fresh spawn points at the victim
+    const v = verdictOf([
+      [-200, who(OTHER, at(1200, 2000))], [-100, `${D(900)} killed by ZmbM_CitizenASkinny`],
+      [-20, `${V()} is connected`], [0, BLAST], [0, FRAG_KILL],
+    ]);
+    expect(v.rule).toBe("A08");
+    expect(v.attribution).toEqual({ role: "self (spawn reset)", basis: "not_stated", dayzId: VICTIM.id, gamertag: VICTIM.name, confidence: "inferred" });
+    expect(v.evidence.flags).toContain("fresh_spawn_self_grenade");
+  });
+
+  it("a fatal punch with the item AND a fatal blast is the blast, not a player kill", () => {
+    const v = verdictOf([
+      [-3000, `${V()} is connected`],
+      [0, `${D()}[HP: 0] hit by ${who(OTHER, at(1001, 2000))} into Head(0) for 30 damage (MeleeFist) with 6-M7 Frag Grenade`],
+      [0, BLAST], [0, FRAG_KILL],
+    ]);
+    expect(v).toMatchObject({ rule: "A08", cause: "explosive_grenade" });
+    expect(v.attribution?.basis).not.toBe("kill_line");
+  });
+
+  it("a trap that wounded the victim before a tripwire death is not a co-cause of it", () => {
+    const v = verdictOf([
+      [-9000, `${who(THIRD, at(1001, 2000))} placed Bear Trap<BearTrap>`], [-90000, placedBy(OTHER)], [-300, `${V()} is connected`],
+      [-60, `${V()}[HP: 20] hit by BearTrap into LeftLeg(0) for 60 damage (BearTrapHit)`],
+      [-4, `${V()}${TRIP}`], [0, BLAST], [0, FRAG_KILL],
+    ]);
+    expect(v).toMatchObject({ rule: "A07", cause: "explosive_trap", coCauses: [] });
+    expect(v.evidence.flags).toEqual(["fuse_4s"]);
+    expect(v.evidence.contributors).toEqual([]);
   });
 
   it("a claymore with the victim's TripWireHit in the same second is the trap; without it the trigger is unknown", () => {
@@ -278,6 +354,25 @@ describe("the empty-killer forms and the things that are not players", () => {
   });
 });
 
+describe("a loose 40mm round: who set it off is never stated", () => {
+  const ROUND: [number, string][] = [[0, `${D()}[HP: 0] hit by explosion (Explosion_40mm_Ammo)`], [0, `${D()} killed by  with 40mm Explosive Grenade`]];
+
+  it("the victim's own improvised explosive nearby is their own device, basis not_stated", () => {
+    const v = verdictOf([[-600, `${V(1003)} placed Improvised Explosive<ImprovisedExplosive>`], [-300, `${V()} is connected`], ...ROUND]);
+    expect(v).toMatchObject({ rule: "A12", cause: "explosive_40mm", confidence: "definitive" });
+    expect(v.attribution).toEqual({ role: "self (own device)", basis: "not_stated", dayzId: VICTIM.id, gamertag: VICTIM.name, confidence: "strong" });
+    expect(v.evidence.flags).toContain("own_improvised_explosive");
+  });
+
+  it("with nobody logged for 300 m and five minutes it is probably the victim, basis not_stated", () => {
+    const v = verdictOf([[-3000, `${V()} is connected`], ...ROUND]);
+    expect(v.attribution).toEqual({ role: "self (probable)", basis: "not_stated", dayzId: VICTIM.id, gamertag: VICTIM.name, confidence: "inferred" });
+    // somebody else's device nearby names nobody at all
+    const other = verdictOf([[-300, `${V()} is connected`], [-200, `${who(OTHER, at(1010, 2000))} placed Improvised Explosive<ImprovisedExplosive>`], ...ROUND]);
+    expect(other).toMatchObject({ rule: "A12", attribution: null });
+  });
+});
+
 describe("a bare death line with a stated mechanism", () => {
   it("drowned is drowned; a fall just before the knock-out is upstream", () => {
     const v = verdictOf([
@@ -397,6 +492,16 @@ describe("a bare death line with a stated mechanism", () => {
     expect(v.attribution).toBeNull();
   });
 
+  it("a stated bleed-out wins over an HP-0 blow written before the died line", () => {
+    const v = verdictOf([
+      [-300, `${V()} is connected`], [-5, `${V()}${SHOT(OTHER, 30)}`],
+      [0, `${D()}[HP: 0] hit by ${who(OTHER, at(1040, 2000))} into Torso(0) for 40 damage (Bullet_556x45) with M4-A1 from 40 meters`],
+      [0, `${D()} ${STATS(500, 500, 2)}`], [0, `${D()} bled out`],
+    ]);
+    expect(v).toMatchObject({ rule: "B08a", cause: "pvp_bleedout", mechanismStated: true });
+    expect(v.attribution).toMatchObject({ role: "killer (inferred, bleed-out)", basis: "not_stated" });
+  });
+
   it("a bleed-out after one player's hits is pvp_bleedout, and that player is not a kill-line killer", () => {
     const v = verdictOf([
       [-600, `${V()} is connected`], [-100, `${V()}${SHOT(OTHER, 30)}`], [0, `${D()} ${STATS(500, 500, 2)}`], [0, `${D()} bled out`],
@@ -456,10 +561,62 @@ describe("the post-pass", () => {
     expect(unknown.evidence.flags).toEqual([]);
   });
 
+  it("faints 130 s apart are the heat cycle; 131 s or 54 s apart are not", () => {
+    const withGap = (gap: number): string[] => verdictOf([
+      [-3000, `${V()} is connected`],
+      [-100 - gap - 10, `${V()} is unconscious`], [-100 - gap, `${V()} regained consciousness`],
+      [-100, `${V()} is unconscious`], [-90, `${V()} regained consciousness`],
+      [0, `${D()}[HP: 0] hit by FallDamageHealth`], [0, `${D()} ${STATS()}`],
+    ]).coCauses;
+    expect(withGap(130)).toEqual(["heatstroke"]);
+    expect(withGap(131)).toEqual([]);
+    expect(withGap(55)).toEqual(["heatstroke"]);
+    expect(withGap(54)).toEqual([]);
+  });
+
+  it("a verdict keeps at most 14 evidence lines", () => {
+    // fifteen different things each leave the victim at HP 20 before the kill: fifteen co-causes
+    const wounds: [number, string][] = [];
+    for (let i = 0; i < 15; i++) {
+      wounds.push([-110 + i * 6, `${V()}[HP: 60] hit by Infected into Torso(0) for 0 damage (MeleeInfected)`]);   // a reading back up at 60
+      wounds.push([-108 + i * 6, `${V()}[HP: 20] hit by explosion (Invented${String(i).padStart(2, "0")}_Ammo)`]);
+    }
+    const v = verdictOf([[-300, `${V()} is connected`], ...wounds, [0, `${D()} killed by ${who(OTHER, at(1040, 2000))} with M4-A1 from 40 meters`]]);
+    expect(v.rule).toBe("A04");
+    expect(v.coCauses).toHaveLength(15);
+    expect(v.evidence.refs).toHaveLength(14);
+    expect(new Set(v.evidence.refs.map((r) => r.lineIndex)).size).toBe(14);
+  });
+
   it("evidence lines carry their role in the death, or the kind of line they are", () => {
     const v = verdictOf([[-300, `${V()} is connected`], [0, `${D()}[HP: 0] hit by FallDamageHealth`], [0, `${D()} ${STATS()}`]]);
     expect(v.evidence.refs).toEqual([{ admFileId: 7, lineIndex: 1, role: "hit" }, { admFileId: 7, lineIndex: 2, role: "primary" }]);
     expect(v.deathAt).toBe("2031-03-10T12:00:00Z");
+  });
+});
+
+describe("the state the victim was in", () => {
+  const suicideAfter = (dt: number, hit: string): string[] => verdictOf([
+    [-600, `${V()} is connected`], [dt, `${V()}${hit}`], [0, `${D()} ${STATS()}`], [0, `${D()} committed suicide`],
+  ]).conditions;
+
+  it("hunted is an infected hit in the last 120 s, not 121", () => {
+    expect(suicideAfter(-120, INFECTED(60))).toEqual(["hunted"]);
+    expect(suicideAfter(-121, INFECTED(60))).toEqual(["healthy"]);
+  });
+
+  it("a wolf, a fall or a player ten seconds before is not hunted", () => {
+    expect(suicideAfter(-10, "[HP: 60] hit by Animal_CanisLupus_Grey into Torso(0) for 20 damage (MeleeWolf)")).toEqual(["healthy"]);
+    expect(suicideAfter(-10, "[HP: 60] hit by FallDamageHealth")).toEqual(["healthy"]);
+    expect(suicideAfter(-10, SHOT(OTHER, 60))).toEqual(["healthy"]);
+  });
+
+  it("starving and dehydrated come from the death line: 1 or less", () => {
+    const dry = (water: number, energy: number): string[] => verdictOf([[-600, `${V()} is connected`], [0, `${D()} ${STATS(water, energy)}`], [0, `${D()} committed suicide`]]).conditions;
+    expect(dry(1, 500)).toEqual(["dehydrated"]);
+    expect(dry(1.1, 500)).toEqual(["healthy"]);
+    expect(dry(500, 1)).toEqual(["starving"]);
+    expect(dry(500, 1.1)).toEqual(["healthy"]);
   });
 });
 

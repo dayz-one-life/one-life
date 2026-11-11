@@ -29,10 +29,14 @@ const endsWithFrag = (s: string): boolean => FRAG_ITEMS.some((f) => s.trimEnd().
  * Who placed the device nearest a spot. A reading of proximity: the log never says which device
  * fired or who armed it. `strong` when one player has every placement in range, else `inferred`.
  * `basis` is what the attribution carries when the placer is not the victim.
+ *
+ * ⚠️ `beforeSeq` is the line the device went off on. Only placements written before it count: for
+ * a tripwire that is the victim's trip line, not the death — a wire placed during the fuse cannot
+ * be the one that was tripped.
  */
 export function trapOwner(c: DeathContext, anchor: Pos, classes: ReadonlySet<string>, radius: number, basis: AttributionBasis,
-  maxAgeS: number | null = null): { a: Draft["attribution"]; lines: StampedLine[]; notes: string[] } {
-  const cands = c.server.placedNear(anchor, classes, radius, c.firstSeq, maxAgeS, c.t0);
+  maxAgeS: number | null = null, beforeSeq: number = c.firstSeq): { a: Draft["attribution"]; lines: StampedLine[]; notes: string[] } {
+  const cands = c.server.placedNear(anchor, classes, radius, beforeSeq, maxAgeS, c.t0);
   if (cands.length === 0) return { a: null, lines: [], notes: [] };
   const { dist, line: po, className } = cands[0]!;
   const placers = new Set(cands.map((x) => x.line.subject!.id));
@@ -49,6 +53,31 @@ export function trapOwner(c: DeathContext, anchor: Pos, classes: ReadonlySet<str
     notes.push(`age caveat: the placement is ${f0(ageH)} h old, past the ${lt} h lifetime types.xml gives ${className}. Devices in the logs fire past it, so the attribution stands, but an unlogged later device at the same spot cannot be excluded`);
   }
   return { a, lines: [po], notes };
+}
+
+/** How long before the death the victim's own `TripWireHit` must be for the rule to fire, in
+ *  seconds: a claymore goes off at once, a frag grenade has a 4 s fuse. */
+export const TRIP_WINDOW_S = { A06: [0, 1], A07: [3, 5] } as const;
+export const FRAG_FUSE_S = 4;
+/** Every one of the victim's `TripWireHit` lines this close to the death belongs to the death. */
+export const OWN_TRIP_WINDOW_S = 6;
+
+/** The victim's own `TripWireHit` lines in the six seconds before the death, oldest first. */
+export function victimTrips(c: DeathContext): Hit[] {
+  return c.hits.filter((h) => h.cat === "trap" && h.det.source === "TripwireTrap" && c.t0 - h.ts >= 0 && c.t0 - h.ts <= OWN_TRIP_WINDOW_S);
+}
+
+/**
+ * The trip line a tripwire rule fires on, or null when none is in the rule's window. With several
+ * in the window, a frag death takes the one at exactly the fuse's 4 s — the only delay the
+ * measurements ever showed — and otherwise the last.
+ * ⚠️ `credit.ts` anchors the trap-kill bar on the same line. Keep it one function.
+ */
+export function fuseTrip(c: DeathContext, rule: "A06" | "A07", trips: readonly Hit[] = victimTrips(c)): Hit | null {
+  const [lo, hi] = TRIP_WINDOW_S[rule];
+  const tw = trips.filter((h) => c.t0 - h.ts >= lo && c.t0 - h.ts <= hi);
+  const exact = rule === "A07" ? tw.filter((h) => c.t0 - h.ts === FRAG_FUSE_S) : [];
+  return exact[exact.length - 1] ?? tw[tw.length - 1] ?? null;
 }
 
 /** The ammo classes among some explosion hits: how many classes, and "2 x M67 frag + 1 x 40mm round". */
@@ -201,20 +230,31 @@ function ruleClubbedWithExplosive({ c, kl, flags }: Killed, raw: string, meleeFa
   });
 }
 
+/** `placed Claymore` lines within this many metres of a tripped wire are "beside" it. */
+export const CLAYMORE_BESIDE_M = 10;
+/** The claymores placed beside a tripped wire before it was tripped, nearest first. */
+export function claymoresBeside(c: DeathContext, anchor: Pos, beforeSeq: number): ReturnType<DeathContext["server"]["placedNear"]> {
+  return c.server.placedNear(anchor, new Set(["ClaymoreMine"]), CLAYMORE_BESIDE_M, beforeSeq);
+}
+
 // ---- A06 / A06b: a claymore, with or without the victim's own TripWireHit
 function ruleClaymore({ c, kl, expl0, flags }: Killed, trips: Hit[]): Draft {
-  const tw = trips.filter((h) => c.t0 - h.ts <= 1);
-  if (tw.length === 0) {
+  const trip = fuseTrip(c, "A06", trips);
+  if (!trip) {
     return out("A06b", "explosive_claymore", "definitive", { weapon: "Claymore", className: "ClaymoreMine", evidence: [...expl0.slice(0, 1), kl], flags });
   }
-  const trip = tw[tw.length - 1]!;
   const anchor = pos(trip.o) ?? c.pos;
-  const owner = anchor ? trapOwner(c, anchor, new Set(["TripwireTrap"]), 5, "placement") : { a: null, lines: [], notes: [] };
+  const owner = anchor ? trapOwner(c, anchor, new Set(["TripwireTrap"]), 5, "placement", null, trip.o.seq) : { a: null, lines: [], notes: [] };
   if (owner.a && anchor) {
-    const same = c.server.placedNear(anchor, new Set(["ClaymoreMine"]), 10, c.firstSeq).find((x) => x.line.subject!.id === owner.a!.dayzId);
+    const clays = claymoresBeside(c, anchor, trip.o.seq);
+    const same = clays.find((x) => x.line.subject!.id === owner.a!.dayzId);
     if (same) {
       owner.notes.push(`the same player placed a Claymore ${f1(same.dist)} m away (${lineRef(same.line)})`);
       owner.lines.push(same.line);
+    }
+    const others = clays.filter((x) => x.line.subject!.id !== owner.a!.dayzId);
+    if (others.length) {
+      owner.notes.push(`a Claymore ${f1(others[0]!.dist)} m away was placed by ${names(others.map((x) => x.line.subject!.name))}, not by the wire's placer (${lineRef(others[0]!.line)}): whose charge the wire set off is not logged`);
     }
   }
   if (!owner.a) owner.notes.push("no tripwire placement line within 5 m; owner unknown");
@@ -225,12 +265,11 @@ function ruleClaymore({ c, kl, expl0, flags }: Killed, trips: Hit[]): Draft {
 }
 
 // ---- A07: a frag grenade 3 to 5 s after the victim's own TripWireHit (the fuse is 4 s)
-function ruleFragTrap({ c, kl, expl0, flags }: Killed, gname: string, tw: Hit[]): Draft {
-  const trip = tw[tw.length - 1]!;
+function ruleFragTrap({ c, kl, expl0, flags }: Killed, gname: string, trip: Hit): Draft {
   const anchor = pos(trip.o) ?? c.pos;
-  const owner = anchor ? trapOwner(c, anchor, new Set(["TripwireTrap"]), 5, "placement") : { a: null, lines: [], notes: [] };
+  const owner = anchor ? trapOwner(c, anchor, new Set(["TripwireTrap"]), 5, "placement", null, trip.o.seq) : { a: null, lines: [], notes: [] };
   if (!owner.a) owner.notes.push("no tripwire placement line within 5 m; owner unknown");
-  return out("A07", "explosive_trap", c.t0 - trip.ts === 4 ? "definitive" : "strong", {
+  return out("A07", "explosive_trap", c.t0 - trip.ts === FRAG_FUSE_S ? "definitive" : "strong", {
     weapon: `Tripwire + ${gname}`, className: "TripwireTrap", attributed: owner.a,
     evidence: [trip, ...expl0.slice(0, 1), kl, ...owner.lines], flags: [...flags, "fuse_4s"], notes: owner.notes,
   });
@@ -538,11 +577,11 @@ export function classifyKilled(c: DeathContext): Draft {
     if (raw.startsWith("Land_FuelStation")) return ruleFuelPump(K, raw);
     const meleeFatal = c.fatal.filter((h) => h.cat === "player" && (h.det.weapon ?? "") === raw);
     if (expl0.length === 0 && meleeFatal.length) return ruleClubbedWithExplosive(K, raw, meleeFatal);
-    const trips = c.hits.filter((h) => h.cat === "trap" && h.det.source === "TripwireTrap" && c.t0 - h.ts >= 0 && c.t0 - h.ts <= 6);
+    const trips = victimTrips(c);
     if (CLAY.has(raw)) return ruleClaymore(K, trips);
     if (Object.hasOwn(FRAG, raw)) {
-      const tw = trips.filter((h) => c.t0 - h.ts >= 3 && c.t0 - h.ts <= 5);
-      return tw.length ? ruleFragTrap(K, FRAG[raw]!, tw) : ruleFrag(K, raw, FRAG[raw]!);
+      const trip = fuseTrip(c, "A07", trips);
+      return trip ? ruleFragTrap(K, FRAG[raw]!, trip) : ruleFrag(K, raw, FRAG[raw]!);
     }
     if (raw === "LandMineTrap") return ruleLandMine(K);
     if (PLAS.has(raw)) return ruleCharge(K, raw);

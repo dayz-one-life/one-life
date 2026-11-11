@@ -170,10 +170,13 @@ function resolve(corpus: ServerCorpus, seed: LineRef, extraLines: readonly Extra
 export function trapAnchors(victimAlive: readonly StampedLine[], record: ReturnType<typeof buildRecord>): { cls: TrapClass; anchor: Pos }[] {
   const out: { cls: TrapClass; anchor: Pos }[] = [];
   if (!record.killer) return out;
+  // ⚠️ Every trip line of the last six seconds, not only the last: the rule anchors on the one
+  // 4 s before a frag death, and the selection must hold the ring of whichever it picks.
   const trips = victimAlive.filter((o) => o.hit?.label === "trap" && o.hit.source === "TripwireTrap" && record.t0 - o.ts >= 0 && record.t0 - o.ts <= 6);
-  const trip = trips[trips.length - 1];
-  const tripAnchor = trip ? trip.subject!.pos ?? record.pos : null;
-  if (tripAnchor) out.push({ cls: "TripwireTrap", anchor: tripAnchor });
+  for (let i = trips.length - 1; i >= 0; i--) {
+    const anchor = trips[i]!.subject!.pos ?? record.pos;
+    if (anchor && !out.some((x) => x.anchor[0] === anchor[0] && x.anchor[1] === anchor[1] && x.anchor[2] === anchor[2])) out.push({ cls: "TripwireTrap", anchor });
+  }
   if (record.killer.weapon === "LandMineTrap" && record.pos) out.push({ cls: "LandMineTrap", anchor: record.pos });
   return out;
 }
