@@ -108,12 +108,23 @@ describe("life opengraph-image", () => {
     expect(JSON.stringify(lastShell().children)).toContain("Likely starvation and thirst");
   });
 
-  it("a pending death is max-age=60; a final one keeps the default", async () => {
-    vi.mocked(getPlayerLife).mockResolvedValue({ ...(deadLife as object), verdict: { status: "pending", label: "Awaiting the record" } } as never);
-    const pending = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
-    expect(pending.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
-    vi.mocked(getPlayerLife).mockResolvedValue({ ...(deadLife as object), verdict: { status: "final", label: "Fell" } } as never);
-    const final = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
-    expect(final.headers.get("cache-control")).not.toBe("public, max-age=60, must-revalidate");
+  // ⚠️ Next's own default for an opengraph-image is `public, immutable, max-age=31536000`. The card
+  // prints the live label, which an override, a classifier fix or a switched-off inferred family
+  // can still change, so no response may keep that default (spec 6.2 item 5).
+  const cacheOf = async (payload: unknown) => {
+    if (payload instanceof Error) vi.mocked(getPlayerLife).mockRejectedValue(payload);
+    else vi.mocked(getPlayerLife).mockResolvedValue(payload as never);
+    return (await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) })).headers.get("cache-control");
+  };
+  it("a final death is cached for a day, never a year", async () => {
+    expect(await cacheOf({ ...(deadLife as object), verdict: { status: "final", label: "Fell" } })).toBe("public, max-age=86400");
+    expect(await cacheOf({ ...(deadLife as object), verdict: { status: "final", label: "Likely exposure" } })).toBe("public, max-age=86400");
+  });
+  it("a pending death, an old payload with no verdict and the failure path are cached for a minute", async () => {
+    const minute = "public, max-age=60, must-revalidate";
+    expect(await cacheOf({ ...(deadLife as object), verdict: { status: "pending", label: "Awaiting the record" } })).toBe(minute);
+    expect(await cacheOf(deadLife)).toBe(minute);
+    expect(await cacheOf(liveLife)).toBe(minute);
+    expect(await cacheOf(new Error("api down"))).toBe(minute);
   });
 });

@@ -33,10 +33,14 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
   // The public death's label (death-verdict spec 7), hedged on the server. An old payload with no
   // label keeps the coarse word.
   const causeText = data?.verdict?.label || (data?.life.deathCause ? causeLabel(data.life.deathCause) : null);
-  // ⚠️ A pending death ("Awaiting the record", or the bare coarse word) becomes its real cause a few
-  // minutes later. Next would cache this card for a year; a scraper that caught the pending one
-  // would keep it. A minute lets the next scrape pick up the verdict.
-  const pending = data?.verdict?.status === "pending";
+  // ⚠️ Next serves an `opengraph-image` as `public, immutable, max-age=31536000` — a YEAR — unless
+  // told otherwise, so every response here sets its own (death-verdict spec 6.2 item 5). A final
+  // label can still change (an operator override, a classifier fix, a switched-off inferred family
+  // turning "Likely exposure" into "Not recorded"), so it gets a day. Everything else gets a
+  // minute: a pending death ("Awaiting the record", or the bare coarse word) becomes its real cause
+  // a few minutes later, an old payload with no verdict or a live life changes as it is played,
+  // and a failure card must heal on the next scrape.
+  const cacheControl = data?.verdict?.status === "final" ? "public, max-age=86400" : "public, max-age=60, must-revalidate";
 
   return new ImageResponse(
     (
@@ -62,6 +66,6 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
         </div>
       </CardShell>
     ),
-    { ...size, fonts: assets.fonts, ...(pending ? { headers: { "cache-control": "public, max-age=60, must-revalidate" } } : {}) },
+    { ...size, fonts: assets.fonts, headers: { "cache-control": cacheControl } },
   );
 }
