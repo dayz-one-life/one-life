@@ -330,7 +330,7 @@ export async function selectInferredFamily(
  */
 async function liveTrapKills(db: Database, life: ArticleLife): Promise<{ life: number; prior: number }> {
   const [inLife, priors] = await Promise.all([
-    getLifeKills(db, life.serverId, life.currentGamertag, life.startedAt, life.endedAt),
+    getLifeKills(db, life.serverId, life.playerId, life.startedAt, life.endedAt),
     getPlayerPriors(db, life.currentGamertag, life.startedAt),
   ]);
   return { life: inLife.filter((k) => k.basis === "trap_placement").length, prior: priors.trapKills };

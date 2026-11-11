@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
 - A command for the operator to correct obituaries already published:
   `pnpm --filter @onelife/newsdesk run regenerate`. It rewrites an obituary in place, at the same
   web address, once the cause of death behind it has changed: obituaries filed with no cause, or
