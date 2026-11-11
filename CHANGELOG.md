@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The old way of working out a cause of death when a page loaded is gone. Every page has read the
+  stored cause since the readers changed, so nothing a player sees moves. The life dossier no longer
+  collects the hits and knock-outs of a death's last two minutes, which only that old code read.
+  The older cause words an old app or a rolled-back site reads are still sent, because no minimum
+  app version has been set. The architecture notes now describe the waiting state ("Awaiting the
+  record"), the captions, and how an obituary's cause is read live and falls back to the words
+  frozen into it; a new design note in `docs/superpowers/specs/` describes the whole design with
+  invented names. No `--rebuild` and no backfill is needed.
+
 ## [0.85.0] - 2026-11-11
 
 ### Added
@@ -95,14 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is switched off, even while the death is being re-checked. The tuning script now also drafts
   deaths with no cause and trap-setters, sends the same recent-prose block as the real run, and
   refuses any database whose name does not end in `_test`.
-- The old way of working out a cause of death when a page loaded is gone. Every page has read the
-  stored cause since the readers changed, so nothing a player sees moves. The life dossier no longer
-  collects the hits and knock-outs of a death's last two minutes, which only that old code read.
-  The older cause words an old app or a rolled-back site reads are still sent, because no minimum
-  app version has been set. The architecture notes now describe the waiting state ("Awaiting the
-  record"), the captions, and how an obituary's cause is read live and falls back to the words
-  frozen into it; a new design note in `docs/superpowers/specs/` describes the whole design with
-  invented names. No `--rebuild` and no backfill is needed.
 
 ## [0.83.0] - 2026-11-11
 
