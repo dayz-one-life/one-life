@@ -200,7 +200,7 @@ describe("parseDeath — named objects", () => {
     // With and without the `(DEAD)` marker on the killer half — both name the victim's own id.
     const dead = parseDeath(SHAPES.selfExplosive.line)!;
     expect(dead).toMatchObject({
-      victim: "Victim One", cause: "explosion", killer: null, weapon: "M79", distance: 4.5, deathEntity: "M79",
+      victim: "Victim One", cause: "explosion", killer: null, deathEntity: "M79",
     });
     const live = parseDeath(SHAPES.selfFirearm.line)!;
     expect(live.cause).not.toBe("pvp");
@@ -212,8 +212,37 @@ describe("parseDeath — named objects", () => {
 
   it("a self-kill with a non-explosive weapon is environment", () => {
     expect(parseDeath(SHAPES.selfFirearm.line)).toMatchObject({
-      cause: "environment", killer: null, weapon: "M4-A1", distance: 0.5, deathEntity: "M4-A1",
+      cause: "environment", killer: null, deathEntity: "M4-A1",
     });
+  });
+
+  // `weapon` and `distance` describe a player kill. The fold copies them onto the life whatever
+  // the cause and the web timeline prints them under every death, so a self-kill that kept them
+  // would read "Died - Explosion / M79 · 5 m". The thing is kept once, as the entity — the same
+  // way the empty-killer form keeps it.
+  it("a self-kill carries no weapon and no distance, only the entity", () => {
+    for (const line of [SHAPES.selfExplosive.line, SHAPES.selfFirearm.line]) {
+      expect(parseDeath(line)).toMatchObject({ killer: null, weapon: null, distance: null });
+    }
+  });
+
+  // DayZ can write a sentinel instead of an id (`id=ERROR`, `id=Unknown`). Two different players
+  // carrying the same sentinel are not one person: equal ids prove a self-kill only when the id
+  // is a real one, or when the names agree as well.
+  it.each(["Unknown", "ERROR"])("two players who both carry the placeholder id=%s are not a self-kill", (id) => {
+    const line = `12:00:00 | Player "Victim One" (DEAD) (id=${id}) killed by Player "Killer Two" (id=${id}) with M4-A1 from 10 meters`;
+    expect(parseDeath(line)).toMatchObject({ cause: "pvp", killer: "Killer Two", weapon: "M4-A1", distance: 10, deathEntity: null });
+  });
+
+  it("a placeholder id under the same name on both sides is still a self-kill", () => {
+    const line = `12:00:00 | Player "Victim One" (DEAD) (id=Unknown) killed by Player "Victim One" (DEAD) (id=Unknown) with M79 from 2 meters`;
+    expect(parseDeath(line)).toMatchObject({ cause: "explosion", killer: null, deathEntity: "M79" });
+  });
+
+  it("an empty-killer line that names nothing has no entity, not an empty one", () => {
+    for (const clause of [" with ", " with   "]) {
+      expect(parseDeath(killedBy(clause))).toMatchObject({ cause: "environment", killer: null, deathEntity: null });
+    }
   });
 
   it("a self-kill with a 40mm round or a held grenade is an explosion", () => {
@@ -224,10 +253,12 @@ describe("parseDeath — named objects", () => {
     expect(parseDeath(self("Plastic Explosive"))?.cause).toBe("explosion");
   });
 
-  // Operator decision (spec question 4, answered 2026-11-10): a mutual kill — each line names the
-  // other, already-dead player as the killer — counts as a player kill for both. Before this the
-  // `(DEAD)` on the killer made KILL_RE miss and the line fell through to an `environment` death
-  // whose killing entity was the literal word "Player".
+  // `(DEAD)` on the killer means only that he was already dead when the line was written. That is
+  // usually a mutual kill (each line names the other), but not always: the killer may have been
+  // killed by a third player first. Operator decision (spec question 4, answered 2026-11-10): the
+  // named killer is credited either way. Before this the `(DEAD)` on the killer made KILL_RE miss
+  // and the line fell through to an `environment` death whose killing entity was the literal word
+  // "Player".
   it("a (DEAD) killer who is another player is a player kill", () => {
     expect(MUTUAL_KILL_IS_PVP).toBe(true);
     expect(parseDeath(SHAPES.deadKiller.line)).toEqual({

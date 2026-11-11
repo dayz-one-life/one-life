@@ -8,19 +8,26 @@ import type { DeathCause } from "./types.js";
 // symmetry is what keeps it from mattering if one ever appears.
 // ⚠️ The KILLER half takes an optional `(DEAD)` too. DayZ marks the killer dead when he died
 // before the line was written — which is every death by one's own explosive (the line names the
-// victim as his own killer) and every mutual kill. Without it those lines missed this regex and
+// victim as his own killer), every mutual kill, and a kill by someone a third player had already
+// killed. Without it those lines missed this regex and
 // did exactly what the paragraph above warns about: `environment`, killing entity `Player`.
 // Matching them here is only safe together with the self-kill return in parseDeath — the killer
 // id (group 4) is read so a line naming the victim never reaches the `pvp` return.
 const KILL_RE = /Player "([^"]+)" (?:\(DEAD\) )?\(id=([^\s)]+)[^)]*\) killed by Player "([^"]+)" (?:\(DEAD\) )?\(id=([^\s)]+)[^)]*\)(.*)$/u;
 const KILLER_DEAD_RE = /killed by Player "[^"]+" \(DEAD\) /u;
 /**
- * A kill line whose killer is another player who was ALREADY DEAD when it was written — a mutual
- * kill (each line names the other). Operator decision, 2026-11-10: it counts as a player kill for
- * both, so the line takes the ordinary `pvp` return (killer named, a `kills` row, a qualifying
- * death). Set this to `false` to send such a line back to `environment` with no killer; nothing
- * else needs to change. A line naming the VICTIM as the killer is not governed by this — that is
- * never a player kill, whatever this says.
+ * A kill line whose killer is another player who was ALREADY DEAD when it was written. `(DEAD)`
+ * says only that — usually it is a mutual kill (each line names the other), but the killer may
+ * equally have been killed by a third player a moment earlier. Operator decision, 2026-11-10: it
+ * counts as a player kill, so the line takes the ordinary `pvp` return (killer named, a `kills`
+ * row, a qualifying death). Set this to `false` to send such a line back to `environment` with no
+ * killer; nothing else needs to change. A line naming the VICTIM as the killer is not governed by
+ * this — that is never a player kill, whatever this says.
+ *
+ * ⚠️ Known gap, left for a later step: the `kills` row takes the victim's timestamp, and DayZ can
+ * stamp this line a second after the killer's own death line. Per-life kill counting is a time
+ * window ending at `lives.ended_at`, so such a kill is in the killer's career total but in none
+ * of his lives. `packages/projections/test/fold-death.test.ts` pins it.
  */
 export const MUTUAL_KILL_IS_PVP: boolean = true;
 // ⚠️ The `(DEAD)` marker is OPTIONAL. Like a fatal fall, a suicide is logged twice and
@@ -43,7 +50,9 @@ const KILLED_BY_ENTITY_RE = /killed by (?!Player ")(\S.*?)(?: with .+)?\s*$/u;
 // The empty-killer form: DayZ names no killer at all, only what did it — `killed by  with <thing>`,
 // TWO spaces. A launched 40mm round, a fireplace, and (rarely) a firearm with no owner. The log
 // names no person on any of them, so `killer` stays null in every case.
-const EMPTY_KILLER_RE = /killed by  with (.+?)(?: from [\d.]+ meters)?\s*$/u;
+// ⚠️ The capture starts on a non-space: a line that names nothing after `with` must not match and
+// store the empty string as the entity — "no entity" is null everywhere else.
+const EMPTY_KILLER_RE = /killed by  with (\S.*?)(?: from [\d.]+ meters)?\s*$/u;
 // A vehicle with nobody in the seat: `killed by NO DRIVER (<class>)`. The class is the entity.
 const NO_DRIVER_RE = /killed by NO DRIVER \(([A-Za-z0-9_]+)\)/u;
 // Things that kill by exploding, as the kill line spells them. Anchored both ends on purpose: an
@@ -75,6 +84,17 @@ const ENTITY_CAUSES: readonly [RegExp, DeathCause][] = [
   [/^(CivilianSedan|Hatchback_|Sedan_|Offroad|Truck_|Boat_)/, "vehicle"],
   [/^Motorbike_/, "vehicle"],
 ];
+
+// A real player id as the log writes it: a long opaque token (40 characters in every death line
+// surveyed). DayZ also writes sentinels in the id slot — `id=ERROR`, `id=Unknown` — and two
+// different players can carry the same one.
+const REAL_ID_RE = /^[A-Za-z0-9+/_=-]{40,}$/u;
+/** True when a kill line names the victim as his own killer. Equal ids prove it only when the id
+ *  is a real one; on a sentinel id the names must agree as well. */
+function isSelfKill(victim: string, victimId: string, killer: string, killerId: string): boolean {
+  if (victimId !== killerId) return false;
+  return REAL_ID_RE.test(victimId) || victim === killer;
+}
 
 /** The cause a named non-player entity stands for, or null when nothing here recognises it. */
 function entityCauseOf(entity: string): DeathCause | null {
@@ -122,10 +142,14 @@ export function parseDeath(raw: string): {
     // ⚠️ A kill line that names the VICTIM as the killer (same id both sides) is a player dying
     // to his own device, never a player kill. This return must stay ABOVE the `pvp` one: below
     // it, the line would credit the victim with killing himself — a `pvp` death, which qualifies
-    // the life on its own. The id is compared, not the name; the name can differ.
-    if (k[2] === k[4]) {
+    // the life on its own. The id is compared, not the name; the name can differ (isSelfKill
+    // asks for the name too only when the id is a placeholder).
+    // `weapon` and `distance` are nulled on purpose: they describe a player kill, the fold copies
+    // them onto the life whatever the cause, and the web timeline prints them under every death.
+    // The thing is kept once, as the entity — as the empty-killer form keeps it.
+    if (isSelfKill(k[1]!, k[2]!, k[3]!, k[4]!)) {
       return { ...base, cause: isExplosiveWeapon(weapon) ? "explosion" : "environment",
-        killer: null, weapon, distance, deathEntity: weapon };
+        killer: null, weapon: null, distance: null, deathEntity: weapon };
     }
     if (!MUTUAL_KILL_IS_PVP && KILLER_DEAD_RE.test(raw)) {
       return { ...base, cause: "environment", killer: null, weapon: null, distance: null, deathEntity: "Player" };

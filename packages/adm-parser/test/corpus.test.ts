@@ -70,7 +70,8 @@ const EXPECT: Record<Exclude<Shape, "other">, (d: Death) => boolean> = {
   "empty-killer other": (d) => d.cause === "environment" && d.killer === null && d.weapon === null && d.deathEntity !== null,
   "no-driver vehicle": (d) => d.cause === "vehicle" && d.killer === null && d.weapon === null && d.deathEntity !== null,
   "motorbike entity": (d) => d.cause === "vehicle" && d.killer === null,
-  "self-kill": (d) => (d.cause === "explosion" || d.cause === "environment") && d.killer === null && d.deathEntity === d.weapon,
+  "self-kill": (d) => (d.cause === "explosion" || d.cause === "environment") && d.killer === null
+    && d.weapon === null && d.distance === null && d.deathEntity !== null,
   "dead killer, other player": (d) => d.cause === "pvp" && d.killer !== null && d.deathEntity === null,
 };
 
@@ -176,13 +177,7 @@ describe.skipIf(!ready)("parser corpus vs v0.80.0 (private data, manual gate)", 
   });
 
   it("death results differ only in cause, killer, weapon and deathEntity, and only on the listed shapes", () => {
-    // `distance` rides with `weapon` on a self-kill line (the line states both); it is reported
-    // separately so the exception is visible rather than folded into the allowed set.
-    const forbidden = new Map(run.forbiddenFieldDiffs);
-    const selfKillDistance = [...run.changes].filter(([k]) => k.startsWith("self-kill") && k.includes("distance"))
-      .reduce((n, [, v]) => n + v, 0);
-    if ((forbidden.get("distance") ?? 0) === selfKillDistance) forbidden.delete("distance");
-    expect(table(forbidden)).toEqual({});
+    expect(table(run.forbiddenFieldDiffs)).toEqual({});
     expect(run.unintendedShape).toBe(0);
     expect(table(run.wrongResult)).toEqual({});
     // Every line of a listed shape changed — none was left behind on the old parse.
