@@ -44,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   allow or refuse a trap kill, with a row in another new table that a rebuild keeps. A player
   whose tripwire or land mine kills another player can be credited with the kill, but only when
   `TRAP_KILLS_WRITE=true` is set, and it is off by default: with it off, nothing public changes
-  and any trap kill already written is removed. Deaths the log gives no cause for are stored as
+  and every trap kill already written is removed on the next pass. Turning it on credits the trap
+  kills of deaths already stored on the next pass too. Deaths the log gives no cause for are stored as
   unknown for now. Nothing on the site reads the stored causes yet, so no page, card or obituary
   changes. The deploy runs a database migration; no `--rebuild` and no backfill is needed.
 
@@ -73,7 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "24 hours", because a ban recorded late has less than a day left.
 - One unban token now lifts every active ban a player has on a server. A ban recorded late, for a
   death before a later one, no longer keeps them out after they have paid to come back, and when
-  one of two such bans ends the server keeps the player banned until the other ends too. No ban
+  one of two such bans ends the server keeps the player banned until the other ends too; a name
+  only the ended ban used, such as an old gamertag, is still taken off the server's list. No ban
   is recorded for a life whose ban would already be over. None of this changes a ban on the
   servers today.
 

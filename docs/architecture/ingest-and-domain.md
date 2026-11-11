@@ -282,8 +282,20 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     theirs in the life — never another trap kill) live in the sweep's `resolveCredit`; a grant
     replaces tests 2, 3 and 5 only. The stored `evidence.credit.outcome` is `credited`, `granted`,
     `denied`, `refused` (with the test) or `not_applicable`, never the classifier's `evidence_passes`.
-    **`TRAP_KILLS_WRITE`** (projector env, default off) gates the row: off, the outcome is stored
-    and any trap row is removed on the next pass — which is also the rollback.
+    An override that lowers the confidence below strong, or moves the cause to the other trap
+    device, is refused by test 1. A valid `deny` left on another line of the death's cluster (the
+    primary line can move on a re-derivation) still keeps the trap kill out; its other fields are
+    not applied, and check 8 lists it. An override whose `server_id` is not its death file's server
+    is invalid. **`TRAP_KILLS_WRITE`** (projector env, default off) gates the row, and is part of
+    what makes a life a candidate: off, every `trap_placement` row is deleted at the start of each
+    pass (the rollback); on, a stored `credited`/`granted` credit whose life has no row in `kills`
+    is re-derived and written on the next pass. A refusal by test 6 is re-derived once the placer
+    has a `players` row; a refusal by test 7 is decided once (its inputs are complete when the fold
+    has caught up), and only a version bump or a rebuild revisits it.
+  - **Second look.** A wall-settled row stores a cheap `settleProbe` (the server's newest file id,
+    the death file's last line, whether it is complete). It is worked out again only once one of
+    those has moved, or after 24 h, never on every pass; a second look that throws gets a queue row
+    with backoff like any other failure.
   - **Rebuild.** `death_verdicts` and the queue are NOT in `REBUILD_TRUNCATE_TABLES` (they are
     created in the release that ships them — the v0.42.1 rule); `TRUNCATE lives ... CASCADE`
     empties them and `kills` is truncated, so trap rows vanish until the sweep refills after the
@@ -292,8 +304,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     `getPlayerLives`, the survivors board and alive-longest now ends at `now`, not the last
     heartbeat (a trap fires while its placer is offline); playtime keeps the heartbeat cap. The
     enforcer's `planBans` takes `now` and skips a ban that would already have ended; expire and lift
-    keep the server's ban-list names while another real ban of the same player is running
-    (`hasActiveSibling`); one unban token lifts every active ban of that player on that server;
+    remove only the ban-list names no other running ban needs (`namesToRemove`: an old gamertag
+    after a rename comes off, a shared dayz id or gamertag stays); one unban token lifts every active ban of that player on that server;
     `ban_applied` says "banned until …" from `expires_at`.
   - `backfill-death-causes` is kept and is not needed for any of this.
   - **Verify** (`pnpm --filter @onelife/projector run verify-verdicts`, read-only): checks 1 to 10
