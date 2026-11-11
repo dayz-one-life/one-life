@@ -54,12 +54,30 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
       (await Promise.all(links.map((l) => playerIdForGamertag(tx, l.gamertag))))
         .filter((id): id is number => id !== null),
     );
-    const banIds = new Map<string, number | null>();
+    // ⚠️ A ban's owner is the player with its dayz id, when it has one. Resolving the ban's NAME
+    // to whoever holds that name now hands a recycled gamertag's old bans to the new holder: his
+    // token would lift (and the enforcer would unban) another player. The name is the fallback
+    // only for a ban with no dayz id, or one whose dayz id has no players row.
+    const byName = new Map<string, number | null>();
+    const byDayzId = new Map<string, number | null>();
+    const ownerOf = new Map<number, number | null>();
     for (const b of candidates) {
-      if (!banIds.has(b.gamertag)) banIds.set(b.gamertag, await playerIdForGamertag(tx, b.gamertag));
+      let id: number | null = null;
+      if (b.dayzId != null) {
+        if (!byDayzId.has(b.dayzId)) {
+          const [p] = await tx.select({ id: players.id }).from(players).where(eq(players.dayzId, b.dayzId)).limit(1);
+          byDayzId.set(b.dayzId, p?.id ?? null);
+        }
+        id = byDayzId.get(b.dayzId)!;
+      }
+      if (id === null) {
+        if (!byName.has(b.gamertag)) byName.set(b.gamertag, await playerIdForGamertag(tx, b.gamertag));
+        id = byName.get(b.gamertag)!;
+      }
+      ownerOf.set(b.id, id);
     }
     const owned = candidates.filter((b) => {
-      const id = banIds.get(b.gamertag);
+      const id = ownerOf.get(b.id);
       return id !== null && id !== undefined && linkIds.has(id);
     });
 
@@ -86,9 +104,12 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
     // The server's ban list holds names, shared by all of them: a late ban (a trap kill written
     // after the death it qualifies) can overlap a later one, and lifting only one would leave the
     // player locked out by the other while they have paid to come back.
-    const chosenId = banIds.get(ban.gamertag);
-    const siblings = owned.filter((b) => b.serverId === ban.serverId
-      && (b.id === ban.id || banIds.get(b.gamertag) === chosenId || (ban.dayzId != null && b.dayzId === ban.dayzId)));
+    // Two bans that both carry a dayz id are the same player only if the ids are equal; the
+    // resolved owner decides only when one of them has none.
+    const chosen = ban;
+    const chosenOwner = ownerOf.get(chosen.id);
+    const siblings = owned.filter((b) => b.serverId === chosen.serverId && (b.id === chosen.id
+      || (chosen.dayzId != null && b.dayzId != null ? b.dayzId === chosen.dayzId : ownerOf.get(b.id) === chosenOwner)));
     const at = new Date();
     for (const b of siblings) {
       const lifted = b.status !== "applied"; // 'pending' was never on Nitrado

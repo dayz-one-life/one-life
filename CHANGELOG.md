@@ -63,8 +63,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lifted with a token, like one that expires, now leaves the player on the server's list while
   another ban of theirs is still running or still waiting to be sent, and a gamertag is matched
   ignoring case. When a gamertag has passed to another player who is banned under it, the first
-  player's ban ends by taking off only their account id. None of this changes a ban on the
-  servers today.
+  player's ban ends by taking off only their account id, and their ban is no longer theirs to
+  lift with a token, nor lifted along with the new holder's: a ban belongs to the account id it
+  was recorded with. A ban with no end date keeps the player's names on the list for good. None
+  of this changes a ban on the servers today.
+- "You're back in" is no longer sent when a ban ends while another ban keeps the player out on
+  that server; the last one to end sends it.
+- A player renamed after his ban was recorded is no longer banned, and told so, a second time for
+  the same death under his new name.
+- A trap kill is credited when the victim's own kill, logged up to two seconds after the death,
+  is what made his life count, as it does on the boards and for bans; a kill that belongs to the
+  victim's previous life no longer does.
 
 ## [0.81.0] - 2026-11-11
 

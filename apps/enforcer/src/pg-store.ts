@@ -22,8 +22,15 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
       bans,
       and(
         eq(bans.serverId, lives.serverId),
-        eq(bans.gamertag, players.gamertag),
         eq(bans.lifeStartedAt, lives.startedAt),
+        // ⚠️ The ban belongs to the player with its dayz id, whatever he is called now: matching by
+        // the current gamertag alone made a rename after the ban look like an unbanned death, and
+        // the enforcer banned (and notified) it again under the new name. The name decides only
+        // when either side has no dayz id.
+        or(
+          eq(bans.dayzId, players.dayzId),
+          and(or(isNull(bans.dayzId), isNull(players.dayzId)), eq(bans.gamertag, players.gamertag)),
+        ),
       ),
     )
     .where(and(isNotNull(lives.endedAt), isNull(bans.id)))
@@ -156,7 +163,8 @@ export async function namesToRemove(db: Database, ban: BanRow, now: Date): Promi
     eq(bans.serverId, ban.serverId),
     eq(bans.dryRun, false),
     inArray(bans.status, ["pending", "applied"]),
-    gt(bans.expiresAt, now),
+    // A ban with no expiry never ends, so it keeps its names for good.
+    or(isNull(bans.expiresAt), gt(bans.expiresAt, now)),
     who,
   ));
   const kept = new Set(rows.flatMap((r) => banNames(r)).map((x) => x.toLowerCase()));
