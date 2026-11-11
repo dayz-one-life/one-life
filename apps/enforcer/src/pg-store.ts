@@ -1,5 +1,5 @@
 import { and, eq, isNull, isNotNull } from "drizzle-orm";
-import { killsInLifeWindow, previousLifeEndedAt } from "@onelife/read-models";
+import { killsByPlayer, killsInLifeWindow, previousLifeEndedAt } from "@onelife/read-models";
 import { type Database, lives, players, kills, bans, servers } from "@onelife/db";
 import type { EndedLife, BanPlan } from "./decide.js";
 
@@ -46,7 +46,9 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
       .where(
         and(
           eq(kills.serverId, r.serverId),
-          eq(kills.killerGamertag, r.gamertag),
+          // ⚠️ By player id, not by name (read-models kill-owner.ts): a kill logged under a name
+          // the killer has since changed still bans him, and never the name's next holder.
+          killsByPlayer(r.playerId, r.gamertag),
           killsInLifeWindow({ startedAt: r.startedAt, endedAt: r.endedAt, previousLifeEndedAt: previousEnd }),
         ),
       );

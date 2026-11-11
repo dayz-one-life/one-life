@@ -5,6 +5,7 @@ export * from "./global.js";
 export * from "./qualified.js";
 export * from "./kill-window.js";
 export * from "./kill-window-db.js";
+export * from "./kill-owner.js";
 export * from "./claimable.js";
 export * from "./survivors.js";
 export * from "./last-played.js";

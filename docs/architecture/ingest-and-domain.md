@@ -57,6 +57,20 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   ends at the last heartbeat where a reader caps it (`isLifeQualified`'s `windowEnd`), and the two
   seconds are added there too; that only brings a real kill forward by one heartbeat.
   `getPlayerPriors` counts a kill in a prior life's two seconds as a prior kill.
+  **⚠️ A kill belongs to a PLAYER by `kills.killer_player_id`, never by `killer_gamertag`**
+  (`packages/read-models/src/kill-owner.ts`: `isKillByPlayer`, `killsByPlayer`). The name on the
+  row is the name on the kill line; it does not move on a rename and a given-up name can be taken
+  by someone else. The enforcer (`pg-store.ts`), the notifier's lives generator and the
+  most-kills, longest-killstreak, alive-longest and alltime-longest boards matched by name until
+  this rule: a renamed killer's kills dropped out of his ban, his "counts now" notice and those
+  boards, and the name's next holder would have inherited them. **Ban effect:** a renamed
+  player's short life is banned "by kill" for a kill logged under his old name, and the new
+  holder of that name is not. Those six readers fall back to the name, ignoring case, ONLY for a
+  row whose id is null (the fold found no player under the killer's name at the kill); the
+  readers that always matched by id (`getLifeKills`, `qualifiedLifeCondition`, survivors, career
+  counts) have no fallback and do not see such a row. most-kills groups by player and prints the
+  current name; the three per-player boards key their maps by player id, since two players can
+  hold one name. Read-time only: no migration, no `--rebuild`, no backfill.
   **⚠️ Three enforcer rules follow from the Nitrado ban list holding NAMES, not bans** (removing
   a name lifts every ban that put it there), all in `apps/enforcer/src/decide.ts` + `tick.ts`:
   (1) `planBans` plans nothing for a death whose ban is already over at `now`, so a death judged

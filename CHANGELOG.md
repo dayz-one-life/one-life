@@ -41,6 +41,30 @@ No migration, `--rebuild` or backfill is needed: nothing stored changes, only wh
 is read as part of. None of the kills recorded on One Life up to 2026-11-10 is affected, so
 no existing life page, board or ban changes on deploy.
 
+### Fixed
+
+- A kill is now matched to its killer by the player, not by the name on the kill line, in the
+  six places that still matched by name: the enforcer, the "This life counts now" notification
+  and the most-kills, longest-killstreak, alive-longest and alltime-longest boards. A player who
+  changed gamertag lost every kill logged under the old name there, although the profile and
+  life pages kept them.
+- **This can ban a player who was not banned before.** A renamed player whose life counted only
+  because of a kill logged under the old name (the life was under five minutes and did not end
+  in a player kill) is now banned when that life ends, like anyone else. And a player who takes
+  a name someone else gave up is no longer banned, notified or ranked for the previous holder's
+  kills.
+- most-kills counts per player and shows the current gamertag, so a renamed killer is one row
+  and not one per name. Players level on kills are listed in name order; before, their order
+  was whatever the database returned.
+- A kill row with no player on it (the killer had never connected inside the ingested log) is
+  still matched by name, ignoring case, in those six places, as before. The longest-killstreak
+  board used to leave such rows out and now counts them the same way.
+
+No migration, `--rebuild` or backfill is needed. On the kills recorded on One Life up to
+2026-11-10: every row has a player on it, no life changes status and no ban changes. One renamed
+player's kills return to the boards of two retired servers: a streak of 2 on one and of 1 on the
+other, and their two most-kills rows now show the current name.
+
 ## [0.80.0] - 2026-10-16
 
 ### Added
