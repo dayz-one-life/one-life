@@ -42,6 +42,12 @@ export const APP_TABLES = [
   // Same class of hole, found by the same test: the syndication ledger deliberately joins
   // `articles` by slug with NO FK, so nothing cascades into it either.
   "syndications",
+  // Stored death verdicts (0040). The first two cascade from `lives` anyway; the overrides table
+  // has no foreign key at all (it is keyed on the death line so it survives a rebuild), so only
+  // this line cleans it.
+  "death_verdicts",
+  "death_verdict_queue",
+  "death_verdict_overrides",
 ];
 
 /** Vitest globalSetup: provision + migrate + truncate the guarded onelife_test database. */
