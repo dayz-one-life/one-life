@@ -6,10 +6,10 @@ import { servers, players, lives, kills, articles, playerGamertags, syndications
 import { findSyndicationTargets } from "../../crier/src/pg-store.js";
 import { eq, inArray } from "drizzle-orm";
 import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
-import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
 import { overdueObituaryLives, findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
 import { seedVerdict } from "./verdict.js";
-import { buildObituaryFacts, storedFacts } from "../src/facts.js";
+import { storedFacts } from "../src/facts.js";
+import { loadObituaryInputs } from "../src/inputs.js";
 import { factsFor } from "./facts-fixture.js";
 import { INTERNAL_CAUSES, type Confidence } from "@onelife/death-verdict";
 
@@ -274,8 +274,7 @@ describe("findObituaryTargets — a kill logged just after the killer's own deat
     const o = await seedShort(`nd-grace-${svc}`, 1000);
     const target = (await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since })).find((t) => t.lifeId === o.lifeId);
     expect(target).toBeDefined();
-    const timeline = await getLifeTimeline(db, target!.serverId, target!.gamertag, target!.lifeId);
-    const facts = buildObituaryFacts(target!, timeline!, await getPlayerPriors(db, target!.gamertag, target!.lifeStartedAt));
+    const facts = (await loadObituaryInputs(db, target!))!.facts;
     expect(facts.kills).toBe(1);
     expect(facts.longestKillMeters).toBe(4);
   });
