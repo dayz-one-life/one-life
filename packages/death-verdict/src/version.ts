@@ -5,5 +5,7 @@
  * 0: no rules — `classifyDeath` returned "unknown" for every death.
  * 1: the stated rules (a kill line; a stated mechanism on a bare death line), the post-pass and
  *    the trap-kill evidence. A death only an inferred rule answers is still "unknown".
+ * 2: the inferred rules (B09 to B23), the spawn-level table and the heat relabel on a sand map:
+ *    every rule of the reference.
  */
-export const CLASSIFIER_VERSION = 1;
+export const CLASSIFIER_VERSION = 2;

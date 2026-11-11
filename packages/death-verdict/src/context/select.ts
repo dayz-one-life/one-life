@@ -2,6 +2,7 @@ import {
   orderFiles, stampDetached, stampLines, zoneForServer, bootFromName, type LogFile, type ZoneRule,
 } from "../evidence/log-clock.js";
 import { dist2d, isDetonation, parseEvidenceLine, type Pos, type TrapClass } from "../evidence/parse.js";
+import type { SpawnBaseline } from "../classify/tables.js";
 import type { LineRef } from "../types.js";
 import { DeathContext, ownLinesOf, type ContextInput } from "./build.js";
 import { allClusters, buildRecord, CLUSTER_BEFORE_S, deathAnchors, resolveCluster, type DeathCluster } from "./cluster.js";
@@ -89,6 +90,8 @@ export interface SelectOptions {
    * has no number.
    */
   bootOrdinals?: ReadonlyMap<number, number>;
+  /** The server's spawn levels, when the caller has its own: copied to `ContextInput.spawnBaselines`. */
+  spawnBaselines?: readonly SpawnBaseline[];
 }
 
 /** The boot number of each file (see `SelectOptions.bootOrdinals`). */
@@ -275,6 +278,7 @@ export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLin
   const input: ContextInput = { serverId: corpus.serverId, map: corpus.map, deathRef: cluster.primary, cluster, files, placements, prevDeaths };
   const keptDetached = files.map((f) => f.admFileId).filter((id) => detached.has(id));
   if (keptDetached.length) input.detached = keptDetached;
+  if (opts.spawnBaselines) input.spawnBaselines = opts.spawnBaselines;
   return input;
 }
 
@@ -284,5 +288,7 @@ export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLin
  */
 export function wholeCorpusContext(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = [], opts: SelectOptions = {}): DeathContext {
   const { all, cluster, prevDeaths, detached } = resolve(corpus, seed, extraLines, opts);
-  return new DeathContext(all, { serverId: corpus.serverId, map: corpus.map, cluster, prevDeaths, detached: [...detached] }, bootsOf(corpus, opts));
+  return new DeathContext(all, {
+    serverId: corpus.serverId, map: corpus.map, cluster, prevDeaths, detached: [...detached], spawnBaselines: opts.spawnBaselines,
+  }, bootsOf(corpus, opts));
 }

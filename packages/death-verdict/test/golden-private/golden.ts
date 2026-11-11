@@ -4,7 +4,7 @@ import { gunzipSync } from "node:zlib";
 import { goldenLayout, loadCorpora, readFixtures, type Expected, type Fixture, type Project } from "../../scripts/golden-io.js";
 import {
   dist2d, isDetonation, lowerBound, objectKeyFromText, refKey, trapAnchors, upperBound,
-  type DeathContext, type Hit, type InternalVerdict, type ServerCorpus, type StampedLine,
+  type DeathContext, type Hit, type InternalVerdict, type ServerCorpus, type SpawnBaseline, type StampedLine,
 } from "../../src/index.js";
 import type { GoldenOutcome } from "../../scripts/golden-reporter.js";
 
@@ -44,6 +44,24 @@ export function corpusOf(project: Project): Map<number, ServerCorpus> {
   if (!c) { c = loadCorpora(project === "OL" ? layout!.ol : layout!.cw); corpora.set(project, c); }
   return c;
 }
+
+/**
+ * The spawn levels of a project's servers, from the reference's export (`spawn_baselines.json`).
+ * One Life's are checked in (`SPAWN_BASELINES`, compared with this file by `stated-golden`); Clan
+ * Wars' server ids collide with One Life's, so a Clan Wars death is classified with its own.
+ */
+export function spawnTableOf(project: Project, serverId: number): SpawnBaseline[] | undefined {
+  if (project === "OL") return undefined;
+  const d = JSON.parse(readFileSync(layout!.spawnBaselines, "utf8")) as { servers: Record<string, Record<string, { baselines: SpawnBaseline[] }>> };
+  return d.servers[project]?.[String(serverId)]?.baselines.map(({ from, water, energy }) => ({ from, water, energy }));
+}
+/** The options that make a whole-log context of `project` read what the fixture of the same death reads. */
+export const selectOptionsOf = (project: Project, serverId: number) => ({ spawnBaselines: spawnTableOf(project, serverId) });
+/** A fixture, with the spawn levels of its project when they are not One Life's checked-in ones. */
+export const withSpawn = (f: Fixture): Fixture => {
+  const t = spawnTableOf(f.project, f.serverId);
+  return t ? { ...f, spawnBaselines: t } : f;
+};
 
 let ol: Fixture[] | null = null, cw: Fixture[] | null = null;
 export const olFixtures = (): Fixture[] => (ol ??= readFixtures(layout!.olFixtures));

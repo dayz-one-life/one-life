@@ -2,8 +2,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, kills, articles, playerGamertags } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
+import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
-import { findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
+import { overdueObituaryLives, findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
+import { seedVerdict } from "./verdict.js";
 import { buildObituaryFacts } from "../src/facts.js";
 
 const { db, sql } = getTestDb();
@@ -14,7 +16,7 @@ let serverId: number;
 const pids: number[] = [];
 const lifeIds: number[] = [];
 
-async function seedLife(tag: string, over: Record<string, unknown>) {
+async function seedLife(tag: string, over: Record<string, unknown>, verdict = true) {
   const [p] = await db.insert(players).values({ gamertag: tag }).returning();
   pids.push(p!.id);
   // Mirrors the projector fold, which writes a player_gamertags row for every seen name — the
@@ -22,6 +24,7 @@ async function seedLife(tag: string, over: Record<string, unknown>) {
   await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(0), lastSeenAt: hrs(0) });
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(0), ...over }).returning();
   lifeIds.push(l!.id);
+  if (verdict && l!.endedAt) await seedVerdict(db, l!.id);
   return { lifeId: l!.id, playerId: p!.id, gamertag: tag, lifeStartedAt: hrs(0) };
 }
 
@@ -115,6 +118,55 @@ describe("findObituaryTargets", () => {
   });
 });
 
+describe("findObituaryTargets: the death-verdict gate", () => {
+  const all = () => findObituaryTargets(db, { limit: 500, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
+
+  it("a life with no verdict row is not a target", async () => {
+    const q = await seedLife(`nd-nv-${svc}`, { lifeNumber: 1, endedAt: hrs(8), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    expect((await all()).find((t) => t.lifeId === q.lifeId)).toBeUndefined();
+  });
+
+  it("it becomes a target when the row appears", async () => {
+    const q = await seedLife(`nd-late-${svc}`, { lifeNumber: 1, endedAt: hrs(9), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    expect((await all()).find((t) => t.lifeId === q.lifeId)).toBeUndefined();
+    await seedVerdict(db, q.lifeId);
+    expect((await all()).find((t) => t.lifeId === q.lifeId)).toBeDefined();
+  });
+
+  it("a row at an older version or flagged needs_review does not count", async () => {
+    const old = await seedLife(`nd-old-v-${svc}`, { lifeNumber: 1, endedAt: hrs(10), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    await seedVerdict(db, old.lifeId, { classifierVersion: CLASSIFIER_VERSION - 1 });
+    const review = await seedLife(`nd-rev-${svc}`, { lifeNumber: 1, endedAt: hrs(11), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    await seedVerdict(db, review.lifeId, { needsReview: true });
+    const targets = await all();
+    expect(targets.find((t) => t.lifeId === old.lifeId)).toBeUndefined();
+    expect(targets.find((t) => t.lifeId === review.lifeId)).toBeUndefined();
+  });
+});
+
+describe("overdueObituaryLives: the overdue alarm (review of step 6)", () => {
+  // Only this file's lives: the ids seeded in this describe.
+  const mine: number[] = [];
+  const overdue = async (now: Date) => (await overdueObituaryLives(db, {
+    since: new Date("2020-01-01T00:00:00Z"), now, maxAttempts: 3,
+  })).filter((l) => mine.includes(l));
+
+  it("counts a qualified death waiting over 45 minutes for a reviewable verdict, and nothing else", async () => {
+    const none = await seedLife(`nd-od-none-${svc}`, { lifeNumber: 1, endedAt: hrs(20), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    const review = await seedLife(`nd-od-rev-${svc}`, { lifeNumber: 1, endedAt: hrs(20), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    await seedVerdict(db, review.lifeId, { needsReview: true });
+    const old = await seedLife(`nd-od-old-${svc}`, { lifeNumber: 1, endedAt: hrs(20), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    await seedVerdict(db, old.lifeId, { classifierVersion: CLASSIFIER_VERSION - 1 });
+    const fine = await seedLife(`nd-od-ok-${svc}`, { lifeNumber: 1, endedAt: hrs(20), deathCause: "pvp", playtimeSeconds: 7200 });
+    const short = await seedLife(`nd-od-short-${svc}`, { lifeNumber: 1, endedAt: hrs(20), deathCause: "environment", playtimeSeconds: 60 }, false);
+    mine.push(none.lifeId, review.lifeId, old.lifeId, fine.lifeId, short.lifeId);
+    // 44 minutes after the deaths: not yet overdue
+    expect(await overdue(new Date(hrs(20).getTime() + 44 * 60_000))).toEqual([]);
+    const late = await overdue(new Date(hrs(20).getTime() + 46 * 60_000));
+    expect(late.sort()).toEqual([none.lifeId, review.lifeId, old.lifeId].sort());
+  });
+});
+
 // The two-second posthumous-kill grace (read-models kill-window.ts), end to end through the
 // newsdesk: a life under five minutes that ended in a non-player death becomes an obituary
 // target when its kill line is stamped just after the death, and the obituary counts that kill.
@@ -141,7 +193,7 @@ describe("findObituaryTargets — a kill logged just after the killer's own deat
   });
 
   it("does not target one whose kill was logged three seconds after", async () => {
-    const o = await seedShort(`nd-late-${svc}`, 3000);
+    const o = await seedShort(`nd-late3s-${svc}`, 3000);
     const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since });
     expect(targets.find((t) => t.lifeId === o.lifeId)).toBeUndefined();
   });

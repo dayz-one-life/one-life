@@ -28,11 +28,12 @@ import { CLASSIFIER_VERSION } from "../src/index.js";
  * What each step lowers or raises here, in the same commit as its golden run:
  */
 /** The most deaths that may still be known gaps. Step 3: 280, `classifyDeath` was a stub. Step 4:
- *  31, the deaths only an inferred rule answers.
+ *  31, the deaths only an inferred rule answers. Step 6: 0, every rule is ported — the release
+ *  gate of spec 8.1 (readers and the newsdesk may ship only at 0).
  *  ⚠️ Only ever lowered. A regression cannot be hidden by listing a death as a gap again. */
-const GAPS_CEILING = 31;
+const GAPS_CEILING = 0;
 /** The private suites and tests a golden run must have run. */
-const SUITES = 11, TESTS = 28;
+const SUITES = 11, TESTS = 30;
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const attest = JSON.parse(readFileSync(join(pkgRoot, "golden-attest.json"), "utf8")) as Attestation;
@@ -77,6 +78,12 @@ describe("golden-attest.json", () => {
     expect(attest.gaps).toBeLessThanOrEqual(GAPS_CEILING);
   });
 
+  it("every golden death passes", () => {
+    // The totals are checked by the private parity suite against `parity.expected.json`, which a
+    // run with no gaps must reach; they are not repeated here.
+    expect({ passed: attest.passed, gaps: attest.gaps }).toEqual({ passed: 280, gaps: 0 });
+  });
+
   it("holds counts, hashes and a signature only", () => {
     expect(Object.keys(attest).sort()).toEqual([
       "classifierVersion", "corpusSha", "gaps", "harnessHash", "passed", "rows", "signature", "sourceHash", "suites", "tests", "totals",
@@ -106,7 +113,8 @@ describe("the signature", () => {
     const forged: Partial<Attestation>[] = [
       { ...signed, sourceHash: "0".repeat(64) }, { ...signed, harnessHash: "0".repeat(64) }, { ...signed, corpusSha: "0".repeat(64) },
       { ...signed, classifierVersion: signed.classifierVersion + 1 }, { ...signed, suites: 1 }, { ...signed, tests: 1 },
-      { ...signed, rows: 0 }, { ...signed, passed: 280, gaps: 0 }, { ...signed, gaps: 0 },
+      // relative to the run, so each is a change whatever the run's own figures are
+      { ...signed, rows: 0 }, { ...signed, passed: signed.passed - 1, gaps: signed.gaps + 1 }, { ...signed, gaps: signed.gaps + 1 },
       // one more than the run really had: a fixed figure here would stop being a forgery the day a run reaches it
       { ...signed, totals: { ...signed.totals, definitive: signed.totals.definitive + 1 } }, { ...signed, totals: { ...signed.totals, strong: signed.totals.strong + 1 } },
       { ...signed, totals: { ...signed.totals, inferred: signed.totals.inferred + 1 } }, { ...signed, totals: { ...signed.totals, killLine: signed.totals.killLine + 1 } },
@@ -114,6 +122,6 @@ describe("the signature", () => {
     ];
     for (const f of forged) expect(verifyAttestation(f, pub)).toBe(false);
     // the same goes for the committed file against the committed key
-    expect(verifyAttestation({ ...attest, passed: 280, gaps: 0 }, publicKey)).toBe(false);
+    expect(verifyAttestation({ ...attest, passed: attest.passed - 1, gaps: attest.gaps + 1 }, publicKey)).toBe(false);
   });
 });

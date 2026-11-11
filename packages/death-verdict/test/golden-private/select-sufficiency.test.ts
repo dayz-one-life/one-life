@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildDeathContext, classifyDeath, wholeCorpusContext } from "../../src/index.js";
-import { contextDigest, corpusOf, cwFixtures, differences, goldenReady, layout, olFixtures, report, selectionProbe } from "./golden.js";
+import { contextDigest, corpusOf, cwFixtures, differences, goldenReady, layout, olFixtures, report, selectionProbe, selectOptionsOf, withSpawn } from "./golden.js";
 
 /**
  * Sufficiency of the selection — PRIVATE data.
@@ -9,15 +9,14 @@ import { contextDigest, corpusOf, cwFixtures, differences, goldenReady, layout, 
  * fixture), and from the whole server log with nothing left out. The verdicts must be deep-equal,
  * evidence and contributors included. A difference means a rule read a line the selection drops.
  *
- * The verdict comparison is real for every death a ported rule answers: the stated rules (a kill
- * line, or a stated mechanism on a bare death line), their post-pass and the trap-kill evidence.
- * ⚠️ For a death only an inferred rule would answer, `classifyDeath` still returns "unknown"
- * whatever the selection drops. Until those rules are ported, what stands in for them is:
+ * Every rule is ported (plan step 6), so the verdict comparison is real for every death: the
+ * stated rules, the inferred rules (which read the whole life's health bookkeeping, positions and
+ * faints), the post-pass and the trap-kill evidence. Two probes stand beside it:
  * - the whole context digest (everything the context computes — all of it within five minutes and
  *   150 m of the death), and
- * - `selectionProbe`: the life-long lines the later rules will read — company along the whole
- *   life, mentions for twenty minutes, placements near every hit, the credit ring — found
- *   independently in the whole log with the design's numbers and required to be in the selection.
+ * - `selectionProbe`: the life-long lines the rules may read — company along the whole life,
+ *   mentions for twenty minutes, placements near every hit, the credit ring — found independently
+ *   in the whole log with the design's numbers and required to be in the selection.
  *
  * ⚠️ What real data does NOT pin, measured by changing one constant at a time and rebuilding the
  * fixtures: the credit ring (no golden trap death has an earlier detonation at its spot) and the
@@ -39,8 +38,8 @@ describe.skipIf(!ready)("the selection is sufficient (private data)", () => {
   it("trimmed and whole-corpus contexts give deep-equal verdicts", () => {
     const failed: { uid: string; why: string }[] = [];
     for (const f of [...olFixtures(), ...cwFixtures()]) {
-      const trimmed = buildDeathContext(f);
-      const whole = wholeCorpusContext(corpusOf(f.project).get(f.serverId)!, f.deathRef);
+      const trimmed = buildDeathContext(withSpawn(f));
+      const whole = wholeCorpusContext(corpusOf(f.project).get(f.serverId)!, f.deathRef, [], selectOptionsOf(f.project, f.serverId));
       const verdicts = differences(classifyDeath(trimmed), classifyDeath(whole));
       const contexts = differences(comparable(contextDigest(trimmed)), comparable(contextDigest(whole)));
       const probes = differences(selectionProbe(trimmed), selectionProbe(whole));

@@ -4,6 +4,7 @@ import { dist2d, type Pos } from "../evidence/parse.js";
 import type { Confidence } from "../types.js";
 import { recentPlayerContrib } from "./killed.js";
 import { CREATURE, HEAT_BUILD_TS } from "./tables.js";
+import { classifyInferred } from "./bare-inferred.js";
 import { att, contributor, f0, f1, lineRef, out, type Draft } from "./verdict.js";
 
 /**
@@ -11,8 +12,8 @@ import { att, contributor, f0, f1, lineRef, out, type Draft } from "./verdict.js
  * log STATES something: B01 to B08. A port of the reference's `suicide`, `upstream_of_ko` and the
  * first half of `classify_bare`, in its order: the first rule that matches answers.
  *
- * ⚠️ Nothing below B08 is ported yet. A death no stated rule claims comes back as rule `B00`,
- * cause `unknown` — the reference goes on to read timing, speed and health bookkeeping there.
+ * Below B08 nothing is stated: the rest (B09 to B23, `classifyInferred` in `bare-inferred.ts`)
+ * reads timing, speed and health bookkeeping.
  *
  * ⚠️ Every person named by these rules has basis `not_stated`: there is no kill line.
  */
@@ -450,7 +451,5 @@ export function classifyBare(c: DeathContext): Draft {
   if (sh.has("bled_out")) return ruleBledOut(c);
 
   // ------------------------------------------------------------------ nothing below is stated
-  // The reference reads timing, speed and health bookkeeping from here on (B09 to B23). Those
-  // rules are not ported yet: the death is honestly unknown until they are.
-  return out("B00", "unknown", "unknown", { mech: false, evidence: [c.prim] });
+  return classifyInferred(c, lastDmg, sp, speed, speedNote);
 }

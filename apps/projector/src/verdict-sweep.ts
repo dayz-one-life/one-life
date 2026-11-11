@@ -4,7 +4,7 @@ import {
   CLASSIFIER_VERSION, INTERNAL_CAUSES, TRAP_DEVICE_OF_CAUSE, classifyDeath, isObjectKey,
   type Confidence, type CreditEvidence, type InternalVerdict, type ObjectKey,
 } from "@onelife/death-verdict";
-import { killsByPlayer, killsInLifeWindow, loadDeath, newFileCache, previousLifeEndedAt, type FileCache, type LoadedDeath } from "@onelife/read-models";
+import { deathSeedOf, killsByPlayer, killsInLifeWindow, loadDeath, newFileCache, previousLifeEndedAt, type FileCache, type LoadedDeath } from "@onelife/read-models";
 
 /**
  * The verdict sweep (death-verdict spec 4.4): classifies every ended life from its raw lines and
@@ -58,9 +58,19 @@ export interface SweepOptions {
   limit?: number;
   /** Test seam: the clock the time budget is measured with. */
   clock?: () => number;
+  /**
+   * Make every backing-off queue row due now. The projector passes it on its first pass after
+   * start-up: a deploy is how a classifier fix arrives, and a held life must not wait out a backoff
+   * of up to 6 h after it (the queue row records no classifier version).
+   */
+  resetBackoff?: boolean;
 }
 
-export interface SweepResult { written: number; failed: number; held: number; rederived: number }
+/**
+ * `held`: queue rows with 3 or more failed attempts. `review`: stored rows at this version that
+ * need review (no obituary is written from one). Both are logged at error level when above zero.
+ */
+export interface SweepResult { written: number; failed: number; held: number; rederived: number; review: number }
 
 /** A `death_verdict_overrides` row, as read. */
 export interface OverrideRow {
@@ -110,7 +120,13 @@ export function applyOverride(v: InternalVerdict, o: OverrideRow | null): { verd
   return { verdict: out, source: "override" };
 }
 
-/** Spec 4.4's invariant: a kill-line attribution exactly when the life row says pvp. */
+/**
+ * Spec 4.4's invariant: a kill-line attribution exactly when the life row says pvp. ⚠️ A mismatch
+ * on a verdict an operator's override set (cause, confidence, object or upstream) is not flagged:
+ * the override is the operator's decision on that death, and without this nothing could ever
+ * clear the flag (applyOverride leaves the attribution as it is). The row records it in
+ * `evidence.reviewResolvedBy`.
+ */
 export function needsReview(v: InternalVerdict, deathCause: string | null): boolean {
   const named = v.attribution?.basis === "kill_line" || v.attribution?.basis === "kill_line_driver";
   return named !== (deathCause === "pvp");
@@ -313,6 +329,8 @@ export interface Derivation {
   source: "classifier" | "override";
   override: OverrideRow | null;
   needsReview: boolean;
+  /** The invariant failed, but an override decided the death (so `needsReview` is false). */
+  reviewResolvedBy: "override" | null;
   credit: CreditEvidence | null;
   trapRow: TrapKillRow | null;
   /** A deny found on a cluster line other than the primary (applied to the credit only). */
@@ -327,13 +345,17 @@ export async function deriveLife(db: Database, lifeId: number, cache: FileCache)
   const classifier = classifyDeath(loaded.ctx);
   const override = await overrideFor(db, classifier.deathRef.admFileId, classifier.deathRef.lineIndex);
   const { verdict, source } = applyOverride(classifier, override);
-  const review = needsReview(verdict, life.deathCause);
+  const mismatch = needsReview(verdict, life.deathCause);
+  const review = mismatch && source !== "override";
   const stray = override && !overrideProblem(override) ? null : await offPrimaryDeny(db, classifier);
   const { credit, row } = await resolveCredit(db, {
     id: life.id, serverId: life.serverId, playerId: life.playerId, startedAt: life.startedAt, endedAt: life.endedAt,
     playtimeSeconds: life.playtimeSeconds, deathCause: life.deathCause, victimDayzId: life.dayzId ?? "", victimGamertag: life.gamertag,
   }, verdict, stray ?? override, classifier.cause);
-  return { life, loaded, classifier, verdict, source, override, needsReview: review, credit, trapRow: row, offPrimaryDeny: stray };
+  return {
+    life, loaded, classifier, verdict, source, override, needsReview: review, reviewResolvedBy: mismatch && !review ? "override" : null,
+    credit, trapRow: row, offPrimaryDeny: stray,
+  };
 }
 
 /** The `death_verdicts` row for a derivation. */
@@ -349,7 +371,12 @@ export function verdictRow(d: Derivation, settled: SettledBy, now: Date): typeof
     attrRole: v.attribution?.role ?? null, attrBasis: v.attribution?.basis ?? null, attrDayzId: v.attribution?.dayzId ?? null,
     attrGamertag: v.attribution?.gamertag ?? null, attrConfidence: v.attribution?.confidence ?? null,
     rule: v.rule,
-    evidence: { ...v.evidence, credit: d.credit, deathLines: v.deathLines },
+    // `lifeDeathCause`: the life row's coarse word the invariant was checked against. A later
+    // correction of it makes the life a candidate again (needs_review may change with it).
+    evidence: {
+      ...v.evidence, credit: d.credit, deathLines: v.deathLines, lifeDeathCause: d.life.deathCause,
+      ...(d.reviewResolvedBy ? { reviewResolvedBy: d.reviewResolvedBy } : {}),
+    },
     needsReview: d.needsReview,
     overrideSeenAt: d.override?.updatedAt ?? null,
     classifiedAt: now,
@@ -405,6 +432,50 @@ async function settleProbe(db: Database, serverId: number, deathFileId: number):
   return { maxFileId: Number(x.max_file_id), lastLine: Number(x.last_line), complete: x.complete === true };
 }
 
+/**
+ * A held life's way out without a deploy: when the life cannot be loaded or classified, a valid
+ * override with a cause AND a confidence on the life's death EVENT (`deathSeedOf`: the line the
+ * fold ended the life on, which `verify-verdicts --held` prints) is stored as the verdict on its
+ * own. Returns the row written, or null when there is no such override (the failure stands).
+ *
+ * ⚠️ Nothing of the classifier's is in the row: no rule (`override`), no attribution, no evidence,
+ * no credit (a trap kill needs the classifier's evidence half, so none is written). It stays until
+ * the override changes or a classifier version bump re-derives the life; a fixed classifier then
+ * keys the override on the resolved primary line, which for a firearm suicide is not the seed, and
+ * verify-verdicts check 8 lists the override as matching nothing.
+ */
+export async function writeHeldOverride(db: Database, lifeId: number, now: Date, err: unknown): Promise<typeof deathVerdicts.$inferInsert | null> {
+  const life = await lifeRow(db, lifeId);
+  if (!life) return null;
+  const seed = await deathSeedOf(db, lifeId);
+  if (!seed) return null;
+  const o = await overrideFor(db, seed.admFileId, seed.lineIndex);
+  if (!o || overrideProblem(o) || o.cause == null || o.confidence == null) return null;
+  const message = (err instanceof Error ? err.message : String(err)).slice(0, 2000);
+  const row: typeof deathVerdicts.$inferInsert = {
+    lifeId, classifierVersion: CLASSIFIER_VERSION, source: "override", settledBy: "wall",
+    deathFileId: seed.admFileId, deathLineIndex: seed.lineIndex, deathAt: life.endedAt,
+    cause: o.cause, confidence: o.confidence, mechanismStated: false,
+    objectKey: o.objectKey, objectClass: null, objectText: null,
+    upstreamCause: o.upstreamCause, upstreamConfidence: o.upstreamCause == null ? null : o.upstreamConfidence ?? "unknown",
+    coCauses: [], conditions: [],
+    attrRole: null, attrBasis: null, attrDayzId: null, attrGamertag: null, attrConfidence: null,
+    rule: "override",
+    evidence: { refs: [], flags: ["held_life_override"], contributors: [], notes: [], credit: null, deathLines: [], heldError: message, lifeDeathCause: life.deathCause },
+    // the operator decided this death: see needsReview
+    needsReview: false,
+    overrideSeenAt: o.updatedAt,
+    classifiedAt: now,
+  };
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`DELETE FROM kills WHERE victim_life_id = ${lifeId} AND basis = 'trap_placement'`);
+    const { lifeId: _l, ...set } = row;
+    await tx.insert(deathVerdicts).values(row).onConflictDoUpdate({ target: deathVerdicts.lifeId, set });
+    await tx.execute(sql`DELETE FROM death_verdict_queue WHERE life_id = ${lifeId}`);
+  });
+  return row;
+}
+
 async function recordFailure(db: Database, lifeId: number, err: unknown, now: Date): Promise<void> {
   const message = (err instanceof Error ? err.message : String(err)).slice(0, 2000);
   await db.execute(sql`
@@ -429,7 +500,7 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
   const trapKillsWrite = opts.trapKillsWrite ?? false;
   const cache = newFileCache();
   const nowIso = now.toISOString();
-  const res: SweepResult = { written: 0, failed: 0, held: 0, rederived: 0 };
+  const res: SweepResult = { written: 0, failed: 0, held: 0, rederived: 0, review: 0 };
   let started_n = 0;
   const overBudget = () => started_n >= limit || clock() - started >= budget;
 
@@ -440,12 +511,20 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
     if (gone.length) opts.log.info({ removed: gone.length }, "verdict_sweep.trap_rows_removed");
   }
 
+  if (opts.resetBackoff) {
+    const r = (await db.execute(sql`
+      UPDATE death_verdict_queue SET next_attempt_at = ${nowIso}::timestamptz WHERE next_attempt_at > ${nowIso}::timestamptz
+      RETURNING life_id`)) as unknown as unknown[];
+    if (r.length) opts.log.info({ reset: r.length }, "verdict_sweep.backoff_reset");
+  }
+
   // Candidates, not backing off, oldest death first:
   // - no verdict at this version, or an override changed since it was applied;
   // - the switch is on and a stored credit stands with no row in kills for its life (the switch was
   //   turned on after the verdict was written). A kill-line row for the life excludes it: that row
   //   wins, and re-deriving would only add the flag again;
-  // - a refusal by test 6 whose placer now has a players row.
+  // - a refusal by test 6 whose placer now has a players row;
+  // - the life row's coarse word changed since the verdict was checked against it (the invariant).
   // ⚠️ A refusal by test 7 is not reconsidered: its inputs (playtime, the life's kill-line kills)
   //    are complete once the fold has caught up, which is when the sweep runs. A rebuild or a
   //    version bump re-derives it; verify-verdicts --rederive lists a change.
@@ -466,7 +545,8 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
                AND NOT v.needs_review AND l.death_cause IS DISTINCT FROM 'pvp'
                AND NOT EXISTS (SELECT 1 FROM kills k WHERE k.victim_life_id = l.id))
            OR (v.evidence->'credit'->>'outcome' = 'refused' AND v.evidence->'credit'->>'refusedBy' = '6'
-               AND EXISTS (SELECT 1 FROM players p WHERE p.dayz_id = v.evidence->'credit'->>'placerDayzId')))
+               AND EXISTS (SELECT 1 FROM players p WHERE p.dayz_id = v.evidence->'credit'->>'placerDayzId'))
+           OR (v.evidence ? 'lifeDeathCause' AND v.evidence->>'lifeDeathCause' IS DISTINCT FROM l.death_cause))
       AND (q.life_id IS NULL OR q.next_attempt_at <= ${nowIso}::timestamptz)
     ORDER BY l.ended_at, l.id
     LIMIT ${limit * 4}`)) as unknown as { id: string; settled_by: string | null }[];
@@ -500,10 +580,19 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
       }
       await writeDerivation(db, d, settled, now, trapKillsWrite);
       res.written++;
+      if (d.needsReview) opts.log.warn({ lifeId, cause: d.verdict.cause, basis: d.verdict.attribution?.basis ?? null, deathCause: d.life.deathCause }, "verdict_sweep.needs_review_written");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      let rescued: typeof deathVerdicts.$inferInsert | null = null;
+      try { rescued = await writeHeldOverride(db, lifeId, now, err); } catch { rescued = null; }
+      if (rescued) {
+        res.written++;
+        opts.log.warn({ lifeId, err: msg, cause: rescued.cause }, "verdict_sweep.held_life_override");
+        continue;
+      }
       res.failed++;
       await recordFailure(db, lifeId, err, now);
-      opts.log.warn({ lifeId, err: err instanceof Error ? err.message : String(err) }, "verdict_sweep.failed");
+      opts.log.warn({ lifeId, err: msg }, "verdict_sweep.failed");
     }
   }
 
@@ -519,7 +608,8 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
       SELECT v.life_id, v.classified_at, l.server_id FROM death_verdicts v
       JOIN lives l ON l.id = v.life_id
       LEFT JOIN death_verdict_queue q ON q.life_id = v.life_id
-      WHERE v.settled_by = 'wall' AND v.classifier_version = ${CLASSIFIER_VERSION} AND NOT (v.evidence ? 'secondLookAt')
+      -- a held life's override row (rule 'override') has nothing of the classifier's to look at again
+      WHERE v.settled_by = 'wall' AND v.classifier_version = ${CLASSIFIER_VERSION} AND NOT (v.evidence ? 'secondLookAt') AND v.rule <> 'override'
         AND (q.life_id IS NULL OR q.next_attempt_at <= ${nowIso}::timestamptz)
         AND (v.classified_at <= ${dayAgo}::timestamptz
              OR NOT (v.evidence ? 'settleProbe')
@@ -562,5 +652,12 @@ export async function sweepVerdicts(db: Database, opts: SweepOptions): Promise<S
     SELECT count(*) AS n FROM death_verdict_queue WHERE attempts >= ${HELD_ATTEMPTS}`)) as unknown as { n: string }[];
   res.held = Number(held[0]?.n ?? 0);
   if (res.held > 0) opts.log.error({ held: res.held }, "verdict_sweep.held");
+  // ⚠️ A needs_review row blocks its obituary (the newsdesk gate) and its trap kill. It is logged
+  // on every pass until an override or a corrected life row clears it; `verify-verdicts --held`
+  // lists each one.
+  const review = (await db.execute<{ n: string }>(sql`
+    SELECT count(*) AS n FROM death_verdicts WHERE needs_review AND classifier_version = ${CLASSIFIER_VERSION}`)) as unknown as { n: string }[];
+  res.review = Number(review[0]?.n ?? 0);
+  if (res.review > 0) opts.log.error({ needsReview: res.review }, "verdict_sweep.needs_review");
   return res;
 }

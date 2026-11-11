@@ -238,6 +238,9 @@ importers:
       '@onelife/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@onelife/death-verdict':
+        specifier: workspace:*
+        version: link:../../packages/death-verdict
       '@onelife/read-models':
         specifier: workspace:*
         version: link:../../packages/read-models

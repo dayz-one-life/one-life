@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `@onelife/death-verdict` now also works out the deaths the log gives no cause for, from what
+  it does show: health readings, hunger and thirst, the faints of heatstroke, speed, altitude and
+  other deaths in the same moment. These answers are never shown as certain: starvation, cold,
+  heatstroke (on Nasdara "heatstroke or silicosis", which the log cannot tell apart), illness, a
+  vehicle crash, or a creature or player who wore the player down. A death nothing explains stays
+  unknown. The projector works every stored death out again on its next passes, in place. Nothing
+  on the site reads the stored causes yet. A worked-out fall or animal attack is not shown at all:
+  only the six kinds of worked-out cause that can each be switched off are ever shown.
+- Obituaries that are held back are no longer held silently: the newsdesk logs an error for every
+  qualified death still waiting for its cause 45 minutes after it, the projector logs an error
+  while any stored cause needs the operator's review, and `verify-verdicts --held` lists both.
+  An operator's correction of a death's cause now clears a review, and also releases a death the
+  projector cannot work out at all (`verify-verdicts --held` prints the line to correct). A death
+  the projector kept retrying is tried again as soon as the projector restarts after a fix.
+
+- New obituaries wait until the projector has stored how the player died, which takes a few
+  minutes after the death. The obituary itself is written as before. No `--rebuild` and no
+  backfill is needed.
+
 ## [0.82.0] - 2026-11-11
 
 ### Added

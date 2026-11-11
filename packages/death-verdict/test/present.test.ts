@@ -324,14 +324,17 @@ describe("toPublicDeath: names", () => {
     for (const cause of ["pvp", "explosive_held_grenade"] as const) {
       const p = toPublicDeath(verdict({ cause, confidence: "inferred", attrBasis: "kill_line" }), pvpLife);
       expect(p.killerGamertag, cause).toBeNull();
-      expect(p.label, cause).toBe("Likely killed");
+      // a held grenade has no inferred family, so it is not shown inferred at all
+      expect(p.label, cause).toBe(cause === "pvp" ? "Likely killed" : "Not recorded");
       expect(`${textOf(p)} ${promptLine(p)}`, cause).not.toMatch(/Killer One|M4-A1/);
     }
     const driver = toPublicDeath(verdict({ cause: "vehicle_run_over", confidence: "inferred", attrBasis: "kill_line_driver" }), pvpLife);
     expect(driver.driverGamertag).toBeNull();
     expect(textOf(driver)).not.toContain(KILLER);
     const own = toPublicDeath(verdict({ cause: "self_inflicted_explosive", confidence: "inferred", attrBasis: "kill_line_self" }), life());
-    expect(own).toMatchObject({ key: "explosion", selfStated: false });
+    expect(own).toMatchObject({ selfStated: false });
+    expect(toPublicDeath(verdict({ cause: "self_inflicted_explosive", confidence: "strong", attrBasis: "not_stated" }), life()))
+      .toMatchObject({ key: "explosion", selfStated: false });
     expect(textOf(own)).not.toMatch(/\bown\b/);
   });
 
@@ -368,6 +371,37 @@ describe("toPublicDeath: wording by cause and certainty", () => {
     }
   });
 
+  it("with every family switched off, no inferred cause prints anywhere", () => {
+    // ⚠️ Spec 2.1: every inferred cause can be withdrawn. A row with no family has no switch, so
+    // an inferred verdict on it (B12's fall or wildlife, B10's wildlife) reads "Not recorded".
+    for (const f of Object.keys(PUBLIC_INFERRED) as InferredFamily[]) PUBLIC_INFERRED[f] = false;
+    const ups = ["infected", "fall", "explosion", "vehicle", "vehicle_crash", "starvation_and_dehydration"];
+    const cases: StoredVerdict[] = [
+      ...INTERNAL_CAUSES.flatMap((cause) => [false, true].map((mechanismStated) =>
+        verdict({ cause, confidence: "inferred", mechanismStated, attrBasis: "not_stated" }))),
+      ...ups.map((up) => verdict({ cause: "unconscious_logout", upstream: { cause: up, confidence: "inferred" } })),
+    ];
+    for (const v of cases) {
+      const p = toPublicDeath(v, life());
+      const why = `${v.cause}/${v.upstream?.cause ?? ""}/${v.mechanismStated}`;
+      expect(p.certainty, why).not.toBe("inferred");
+      expect(`${p.label} ${p.sentence}`, why).not.toMatch(/likely/i);
+      expect(promptLine(p) ?? "", why).not.toMatch(/most likely/);
+    }
+  });
+
+  it("an inferred cause whose row has no family reads \"Not recorded\" even with every switch on", () => {
+    for (const cause of ["fall", "animal_wolf", "animal_bear", "animal_dog", "explosive_held_grenade", "vehicle_run_over"] as const) {
+      const p = toPublicDeath(verdict({ cause, confidence: "inferred", mechanismStated: false, attrBasis: "not_stated" }), life());
+      expect(p, cause).toMatchObject({ key: "unknown", label: "Not recorded", tag: "Unknown", certainty: "unknown" });
+      expect(promptLine(p), cause).toBeNull();
+      // the same cause stated, or worked out at strong, still prints
+      expect(toPublicDeath(verdict({ cause, confidence: "strong", mechanismStated: false }), life()).label, cause).not.toBe("Not recorded");
+    }
+    const fallKo = toPublicDeath(verdict({ cause: "unconscious_logout", upstream: { cause: "fall", confidence: "inferred" } }), life());
+    expect(fallKo).toMatchObject({ key: "unknown", label: "Not recorded" });
+  });
+
   it("every bled-out cause reads \"Bled out\" with no detail and no name", () => {
     for (const cause of ["bled_out_infected", "bled_out_barbed_wire", "bled_out_animal", "bled_out_other", "pvp_bleedout"] as const) {
       for (const confidence of ["definitive", "strong"] as Confidence[]) {
@@ -391,9 +425,10 @@ describe("toPublicDeath: wording by cause and certainty", () => {
       expect(directivesFor(p), cause).toEqual([STRONG_CAUSE_DIRECTIVE]);
       expect(`${textOf(p)} ${promptLine(p)}`, cause).not.toMatch(/likely|recorded no cause/i);
     }
-    // Only while the line states the bleed. A bleed that was itself worked out stays hedged.
+    // Only while the line states the bleed. A bleed that was itself worked out has no inferred
+    // family (no switch), so it is not shown.
     const read = toPublicDeath(verdict({ cause: "bled_out_other", confidence: "inferred", mechanismStated: false }), life());
-    expect(read).toMatchObject({ label: "Likely bled out", certainty: "inferred", caption: CAPTION.inferred, cause: "unknown", confidence: "low" });
+    expect(read).toMatchObject({ label: "Not recorded", certainty: "unknown", caption: null, cause: "unknown", confidence: "low" });
   });
 
   it("an ownerless firearm with no shooter worked out still reads \"Shot\": the kill line states the shot", () => {
@@ -518,13 +553,17 @@ describe("toPublicDeath: wording by cause and certainty", () => {
       writerBrief(verdict({ cause: "unconscious_logout", upstream: { cause: up, confidence } }), life());
     expect(brief("infected", "strong")).toEqual({ line: "died after being attacked by the infected", creditLine: null,
       directives: [STRONG_CAUSE_DIRECTIVE] });
-    expect(brief("fall", "inferred")).toEqual({ line: "most likely died after a fall", creditLine: null,
-      directives: [INFERRED_CAUSE_DIRECTIVE] });
+    expect(brief("fall", "strong")).toEqual({ line: "died after a fall", creditLine: null,
+      directives: [STRONG_CAUSE_DIRECTIVE] });
+    // a fall has no inferred family: an inferred fall is not told at all
+    expect(brief("fall", "inferred")).toEqual({ line: null, creditLine: null, directives: [] });
     // An explosion or a crash still names no person, knock-out or not. The directive says nothing
     // about how the player left, so it is no tell; leaving it out would let the writer guess at
     // a thrower in prose that cannot be recalled.
     for (const up of ["explosion", "vehicle", "vehicle_crash"]) {
       expect(brief(up, "strong").directives, up).toEqual([STRONG_CAUSE_DIRECTIVE, NAMES_NO_PERSON_DIRECTIVE]);
+    }
+    for (const up of ["vehicle", "vehicle_crash"]) {
       expect(brief(up, "inferred").directives, up).toEqual([INFERRED_CAUSE_DIRECTIVE, NAMES_NO_PERSON_DIRECTIVE]);
     }
     expect(brief("player", "strong")).toEqual({ line: null, creditLine: null, directives: [WITHHELD_DIRECTIVE] });

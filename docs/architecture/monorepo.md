@@ -30,7 +30,9 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `pySum`, `pyRound` — never `Math.hypot` or a plain `+` where the reference calls `hypot` or
   `sum`): rules compare them with round thresholds. `classify/` holds the rules, each a named
   function with the reference's rule id: `killed.ts` (a `killed by` line, A01 to A17), `bare.ts`
-  (a stated mechanism on a bare death line, B01 to B08), `finish.ts` (the post-pass: assists,
+  (a stated mechanism on a bare death line, B01 to B08), `bare-inferred.ts` (B09 to B23: what the
+  health bookkeeping, the Stats line, the spawn levels, the faints, speed and altitude imply;
+  never stated, never better than strong), `finish.ts` (the post-pass: assists,
   earlier attackers, co-causes, the heat faint cycle), `conditions.ts`, `tables.ts` (every
   constant a rule compares against — changing one is a `CLASSIFIER_VERSION` bump) and
   `credit.ts` (`creditEvidence`: tests 1 to 5 of the trap-kill bar, pure). ⚠️ Each rule sets the
@@ -45,10 +47,12 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   the death's own detonation, and two wires tripped in that time refuse (`ambiguous_trip`). Its
   other flags (`fuse_not_4s`, `no_explosion_line`, `multi_blast`, `kill_lines_xN`,
   `held_frag_before_blast`, `claymore_by_other_player`) mark shapes no real trap death has had;
-  they do not refuse, so whatever lists trap kills for the operator must show them. ⚠️ Only the stated rules are
-  ported: a death that needs an inferred rule comes back as rule `B00`, "unknown", and
-  `golden-attest.json`'s `gaps` counts them; the sweep stores them (as rule `B00`) for the
-  operator, and nothing may show a verdict while it is not 0. `ContextInput.files[].boot` is the file's number in the server's boot order over ALL
+  they do not refuse, so whatever lists trap kills for the operator must show them. Every rule
+  of the reference is ported (classifier version 2): `golden-attest.json`'s `gaps` is 0, and the
+  public `attest.test.ts` holds it there. `SPAWN_BASELINES` (`tables.ts`) is the spawn Water and
+  Energy per server over time; a new server gets an entry once `verify-verdicts` (check 7) shows
+  its observed levels — a version bump. `COLD_MAPS` and `SAND_MAPS` are keyed by `servers.map`
+  (`sakhal`, `nasdara`): a sand map turns every heat verdict into `heatstroke_or_silicosis`. `ContextInput.files[].boot` is the file's number in the server's boot order over ALL
   its files (it gives the restarts between a trap being set and going off); a loader that
   passes part of a log must pass `SelectOptions.bootOrdinals`. Its private
   golden suites need `DEATH_GOLDEN_DIR` and are skipped without it;

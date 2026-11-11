@@ -16,9 +16,9 @@ import { failedChecks, goldenReady, layout, olFixtures, report } from "./golden.
  * and it is the honest measure of how much of the classifier is ported. Readers and the newsdesk
  * may not ship while it is not empty.
  *
- * ⚠️ Only the stated rules are ported (a kill line, or a stated mechanism on a bare death line).
- * The deaths the reference decides by inference are the known gaps; `stated-golden` checks they
- * are exactly those, and that every stated death of both projects passes.
+ * Every rule is ported (plan step 6): `known-gaps.json` is `{}` and the totals are checked
+ * against `parity.expected.json`. `stated-golden` runs the same ten checks over every death of
+ * both projects; `EXCEPTIONS.md` must exist and be empty.
  *
  * This suite does not write the attestation and cannot make one happen on its own: it hands its
  * counts to the golden reporter (`scripts/golden-reporter.ts`), which records a run only when

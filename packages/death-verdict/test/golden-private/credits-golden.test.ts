@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { readClassified, refOfUid, type Project } from "../../scripts/golden-io.js";
 import { buildDeathContext, classifyDeath, wholeCorpusContext, type CreditEvidence } from "../../src/index.js";
-import { corpusOf, goldenReady, layout, olFixtures, report } from "./golden.js";
+import { corpusOf, goldenReady, layout, olFixtures, report, selectOptionsOf, withSpawn } from "./golden.js";
 
 /**
  * The evidence half of the trap-kill bar on every real trap death — PRIVATE data.
@@ -39,7 +39,7 @@ describe.skipIf(!ready)("trap-kill evidence on the real trap deaths (private dat
         seen[project] += 1;
         const expected = deaths[row.uid];
         if (!expected) { failed.push({ uid: row.uid, why: "missing from credits.expected.json" }); continue; }
-        const v = classifyDeath(wholeCorpusContext(corpusOf(project).get(row.serverId)!, refOfUid(row.uid)));
+        const v = classifyDeath(wholeCorpusContext(corpusOf(project).get(row.serverId)!, refOfUid(row.uid), [], selectOptionsOf(project, row.serverId)));
         const got = v.evidence.credit;
         const { rule, ...evidence } = expected;
         if (v.rule !== rule) failed.push({ uid: row.uid, why: "rule differs" });
@@ -64,7 +64,7 @@ describe.skipIf(!ready)("trap-kill evidence on the real trap deaths (private dat
     const failed: { uid: string; why: string }[] = [];
     let trap = 0;
     for (const f of olFixtures()) {
-      const credit = classifyDeath(buildDeathContext(f)).evidence.credit;
+      const credit = classifyDeath(buildDeathContext(withSpawn(f))).evidence.credit;
       if (!TRAP_RULES.has(f.expected.rule)) {
         if (credit != null) failed.push({ uid: f.uid, why: "scope credit evidence on a death that is not a trap death" });
         continue;

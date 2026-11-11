@@ -2,7 +2,7 @@ import { dist2d, parseEvidenceLine, type HitCategory, type HitInfo, type Pos } f
 import type { LineRef } from "../types.js";
 import { buildRecord, type DeathCluster, type DeathFeatures, type DeathRecord, type DeathRole } from "./cluster.js";
 import { indexOf, pyRound, pySum, refKey, type ServerIndex, type StampedLine } from "./server.js";
-import { CREATURE, NET_DRAIN, ZONE_F } from "../classify/tables.js";
+import { CREATURE, NET_DRAIN, ZONE_F, type SpawnBaseline } from "../classify/tables.js";
 
 export { NET_DRAIN, ZONE_F };
 
@@ -46,6 +46,12 @@ export interface ContextInput {
    * such a file is never one of the victim's own lines, whoever it names: see `ownLinesOf`.
    */
   detached?: number[];
+  /**
+   * The server's spawn levels, when the caller has its own (see `spawnAt`). Absent: the
+   * checked-in table for `serverId`. Not stored in a fixture: a replay of another project's log,
+   * whose server ids collide with One Life's, passes that project's table.
+   */
+  spawnBaselines?: readonly SpawnBaseline[];
 }
 
 /**
@@ -170,11 +176,14 @@ export class DeathContext {
   readonly fresh: boolean;
   /** How many of Water and Energy are at or below 300. */
   readonly nLow: number;
+  /** The spawn levels the caller handed over, or null for the checked-in table (see `spawnAt`). */
+  readonly spawnTable: readonly SpawnBaseline[] | null;
   private readonly boots: ReadonlyMap<number, number>;
 
-  constructor(lines: readonly StampedLine[], input: Pick<ContextInput, "serverId" | "map" | "cluster" | "prevDeaths" | "detached">,
+  constructor(lines: readonly StampedLine[], input: Pick<ContextInput, "serverId" | "map" | "cluster" | "prevDeaths" | "detached" | "spawnBaselines">,
     boots: ReadonlyMap<number, number> = new Map()) {
     this.boots = boots;
+    this.spawnTable = input.spawnBaselines ?? null;
     const S = indexOf(lines);
     const primary = S.line(input.cluster.primary);
     if (!primary?.subject) throw new Error(`DeathContext: the primary line ${refKey(input.cluster.primary)} is not among the lines`);
@@ -272,8 +281,12 @@ export class DeathContext {
    * twice its printed damage. Fire, hot food and wire: at most 10. Sources that print no figure
    * own the drop less what the low stats drain over the gap. The last reading to the death is
    * always silent: no line took it.
+   *
+   * `nLow` is the number of low stats the drain allowance counts. The bare-death rules pass their
+   * own count, which leaves out a stat that crossed 300 too recently to drain anything (the
+   * reference overwrites `c.n_low` before it measures the descent).
    */
-  descent(window: number | null = null): Descent {
+  descent(window: number | null = null, nLow: number = this.nLow): Descent {
     const pts: { ts: number; hp: number; h: Hit | null }[] = this.hpr.map((h) => ({ ts: h.ts, hp: h.hp!, h }));
     if (this.fresh && this.firstAliveTs != null) pts.unshift({ ts: this.firstAliveTs, hp: 100.0, h: null });
     const res: Descent = {
@@ -302,7 +315,7 @@ export class DeathContext {
         } else if (dt <= 5) lg = loss;
         else if (h.dmg != null) lg = Math.min(loss, 2 * h.dmg);
         else if (h.cat === "fire" || h.cat === "enviro" || h.cat === "barbed_wire" || h.cat === "heat") lg = Math.min(loss, 10.0);
-        else lg = Math.max(0.0, loss - NET_DRAIN[Math.min(this.nLow, 2)]! * dt);
+        else lg = Math.max(0.0, loss - NET_DRAIN[Math.min(nLow, 2)]! * dt);
         res.logged.set(h.cat, (res.logged.get(h.cat) ?? 0) + lg);
       }
       let sil = loss - lg;

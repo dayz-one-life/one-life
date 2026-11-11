@@ -67,10 +67,11 @@ describe("a stated line wins", () => {
     expect(conf(-10, 26)).toBe("inferred");
   });
 
-  it("a death no stated rule claims is unknown, rule B00, with no post-pass", () => {
+  it("a death no stated rule claims goes to the inferred rules, never as stated", () => {
     const v = verdictOf([[-400, `${V()} is connected`], [-50, `${V()}${INFECTED(3)}`], [0, `${D()} ${STATS(0, 0)}`]]);
-    expect(v).toMatchObject({ rule: "B00", cause: "unknown", confidence: "unknown", mechanismStated: false, attribution: null, upstream: null });
-    expect(v.evidence.contributors).toEqual([]);
+    expect(v.rule).toMatch(/^B(09|1\d|2\d)/);
+    expect(v).toMatchObject({ mechanismStated: false, attribution: null });
+    expect(v.confidence).not.toBe("definitive");
     expect(v.evidence.credit).toBeNull();
   });
 });
@@ -468,7 +469,7 @@ describe("a bare death line with a stated mechanism", () => {
     ]);
     expect(v.rule).not.toBe("B06");
     expect(v.cause).not.toBe("respawn_while_unconscious");
-    expect(v.rule).toBe("B00");
+    expect(v.mechanismStated).toBe(false);
   });
 
   it("an HP-0 blow before a bare died line is pvp with killer (inferred) and basis not_stated", () => {
@@ -488,7 +489,8 @@ describe("a bare death line with a stated mechanism", () => {
       [-300, `${V()} is connected`], [0, `${D()} ${STATS()}`],
       [0, `${D()}[HP: 0] hit by ${who(OTHER, at(1040, 2000))} into Torso(0) for 40 damage (Bullet_556x45) with M4-A1 from 40 meters`],
     ]);
-    expect(v.rule).toBe("B00");
+    expect(v.rule).not.toBe("B07");
+    expect(v.mechanismStated).toBe(false);
     expect(v.attribution).toBeNull();
   });
 
@@ -555,10 +557,10 @@ describe("the post-pass", () => {
     expect(verdictOf(faints).evidence.flags).toContain("heat_faint_cycle");
     const one = faints.filter(([dt]) => dt !== -200 && dt !== -190);
     expect(verdictOf(one).coCauses).toEqual([]);
-    // a death no rule has answered yet gets no post-pass: nothing is added to an unknown
-    const unknown = verdictOf(faints.filter(([, text]) => !text.includes("FallDamageHealth")));
-    expect(unknown).toMatchObject({ rule: "B00", coCauses: [] });
-    expect(unknown.evidence.flags).toEqual([]);
+    // with no stated mechanism the cycle is the cause itself (B13), never also its own co-cause
+    const heat = verdictOf(faints.filter(([, text]) => !text.includes("FallDamageHealth")));
+    expect(heat).toMatchObject({ rule: "B13", cause: "heatstroke", coCauses: [] });
+    expect(heat.evidence.flags).toEqual([]);
   });
 
   it("faints 130 s apart are the heat cycle; 131 s or 54 s apart are not", () => {

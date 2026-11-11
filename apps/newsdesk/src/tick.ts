@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { getLifeTimeline, getPlayerPriors } from "@onelife/read-models";
-import { findObituaryTargets, publishObituary, recordObituaryFailure } from "./pg-store.js";
+import { findObituaryTargets, overdueObituaryLives, publishObituary, recordObituaryFailure, OBITUARY_OVERDUE_MINUTES } from "./pg-store.js";
 import { recentProse } from "./prose-pg-store.js";
 import { buildObituaryFacts } from "./facts.js";
 import { composeTags } from "./prompt.js";
@@ -32,6 +32,14 @@ const RECENT_PROSE_LIMIT = 12;
 export async function newsdeskTick(db: Database, deps: NewsdeskDeps): Promise<NewsdeskResult> {
   // SINCE gate: unset means OFF — never a silent epoch default that would obituarize all history.
   if (deps.since === null) return { generated: 0, failed: 0, skipped: 0, dryRun: deps.dryRun };
+
+  // ⚠️ The overdue alarm. The death-verdict gate holds a death until its verdict is stored; a death
+  // held too long is logged here, at error level, whatever the reason (the projector's sweep may
+  // never have failed on it). Delayed, never silently lost.
+  const overdue = await overdueObituaryLives(db, { since: deps.since, now: deps.now, maxAttempts: deps.maxAttempts });
+  if (overdue.length) {
+    deps.log.error?.({ count: overdue.length, lifeIds: overdue.slice(0, 20), minutes: OBITUARY_OVERDUE_MINUTES }, "newsdesk.obituary_overdue");
+  }
 
   const targets = await findObituaryTargets(db, { limit: deps.batchCap, maxAttempts: deps.maxAttempts, since: deps.since });
   let generated = 0;

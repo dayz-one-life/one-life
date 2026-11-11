@@ -159,6 +159,10 @@ export function goldenLayout(gold: string) {
     contextExpected: join(gold, "context.expected.json.gz"),
     /** The evidence half of the trap-kill bar per trap death, reviewed (`tools/make-credits-expected.mts`). */
     creditsExpected: join(gold, "credits.expected.json"),
+    /** Spawn Water/Energy per server over time, exported from the reference run. */
+    spawnBaselines: join(gold, "spawn_baselines.json"),
+    /** Permanent, signed-off differences from the reference. Must exist; expected empty. */
+    exceptions: join(gold, "EXCEPTIONS.md"),
     records: join(corpus, "deaths.jsonl.gz"),
     /** The uids the Clan Wars rule fixtures were built from, one per line. */
     cwUids: join(gold, "cw-rules.uids.txt"),
@@ -176,7 +180,7 @@ export function goldenLayout(gold: string) {
  */
 export const GOLDEN_INPUTS: readonly string[] = [
   "classified.jsonl", "known-gaps.json", "parity.expected.json", "context.expected.json.gz", "credits.expected.json", "cw-rules.uids.txt",
-  "labels.snapshot.json", "labels.expected.json", "tokens.json",
+  "labels.snapshot.json", "labels.expected.json", "tokens.json", "spawn_baselines.json", "EXCEPTIONS.md",
   "corpus/ol_raw_lines.tsv", "corpus/ol_adm_files.csv", "corpus/ol_servers.csv", "corpus/ol_lives.csv", "corpus/ol_kills.csv",
   "corpus/cw_raw_lines.tsv", "corpus/cw_adm_files.csv",
   "ol/", "cw-rules/",
