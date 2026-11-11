@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- New deaths by grenade, land mine, claymore, tripwire, plastic explosive, 40mm round or an
+  exploding fuel pump are recorded as "Explosion", and deaths under a riderless motorbike or
+  another driverless vehicle as "Vehicle". They used to read "Environment". Deaths by fire are
+  unchanged.
+- The obituary writer no longer tells readers that an explosion or vehicle death was "not a
+  player kill". The log names no person on those lines, which is not the same as nobody being
+  involved, so the obituary now neither names anyone nor rules anyone out. The prompt version is
+  `obituary-v3.1`.
+- A kill by a player who was already dead when the log line was written now counts as a player
+  kill. This is usually a mutual kill, where two players kill each other and the log names each
+  as the other's killer; it can also be a kill by someone a third player had just killed. It was
+  recorded as an "Environment" death with no killer. None has happened on One Life yet. When the
+  log stamps such a kill a second after the killer's own death, it is in the killer's career
+  total but is not counted toward the life that had just ended.
+- `backfill-death-causes` never upgrades a stored death to a player kill. It patches the cause
+  only, so it would have produced a player-kill death with no killer and no kill credited.
 - A kill the log writes up to two seconds after the killer's own death now counts toward the
   life that had just ended. This happens when a grenade is already in the air, or when two
   players kill each other and the second line is stamped a second late. The kill was in the
@@ -43,6 +59,13 @@ no existing life page, board or ban changes on deploy.
 
 ### Fixed
 
+- A player killed by their own explosive is recorded as an "Explosion" death with no killer. The
+  log writes such a death as a kill line naming the victim as their own killer; it was stored as
+  "Environment", killed by something called "Player". No kill is credited for it, no weapon or
+  distance is shown under it, and who gets banned does not change.
+- The object named on a kill line is stored whole for new deaths. "6-M7 Frag Grenade" and
+  "EGD-5 Frag Grenade" were stored as "6" and "EGD", and a driverless vehicle as "NO". The object
+  names already stored on old deaths are not rewritten.
 - A kill is now matched to its killer by the player, not by the name on the kill line, in the
   six places that still matched by name: the enforcer, the "This life counts now" notification
   and the most-kills, longest-killstreak, alive-longest and alltime-longest boards. A player who
@@ -66,6 +89,11 @@ no existing life page, board or ban changes on deploy.
   belongs to, not looked up again by name. When two players hold the same gamertag (a given-up
   name taken by someone else before its previous holder reconnected), the name could resolve to
   the other one, and the life then showed no kills and could read as not counting.
+
+No `--rebuild` and no backfill is needed. Only deaths logged after this release are affected.
+The older ones were corrected by hand, up to a snapshot taken on 2026-11-10: before tagging,
+check for grenade, mine, 40mm, fuel-pump and driverless-vehicle deaths logged since then and
+correct them the same way, or they keep reading "Environment".
 
 No migration, `--rebuild` or backfill is needed. On the kills recorded on One Life up to
 2026-11-10: every row has a player on it, no life changes status and no ban changes. One renamed
