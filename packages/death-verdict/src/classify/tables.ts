@@ -83,20 +83,24 @@ export const SPAWN_DEFAULT: Readonly<{ water: number; energy: number }> = { wate
  * The Water and Energy a new character spawns with, per server id, as they changed over time.
  * Exported once from the reference run (`spawn_baselines.json` in the private golden data): the
  * levels measured on deaths within 120 s of the same player's previous death, each rounded up to a
- * spawn level. Every server's table starts at its first death, so the lookup agrees with the
- * reference on every golden death. A server not listed (and any instant before its first entry)
- * gets `SPAWN_DEFAULT`.
+ * spawn level. A server not listed (and any instant before its first entry) gets `SPAWN_DEFAULT`.
+ *
+ * ⚠️ Each `from` is the START OF THE UTC DAY of the reference's instant, not the instant: the
+ * reference dates each step to the second of a real death, and this repository is public. The
+ * private golden suite checks that every step lies between the reference's neighbouring steps and
+ * that every death the rounding moves onto another level is decided by a stated rule (which never
+ * reads the levels); the parity suites then confirm every verdict.
  *
  * ⚠️ Changing this table changes verdicts: bump `CLASSIFIER_VERSION`. `verify-verdicts` prints
  * the levels observed in production; a new server gets its entry once they show.
  */
 export const SPAWN_BASELINES: Readonly<Record<number, readonly SpawnBaseline[]>> = {
-  1: [{ from: "2026-07-11T22:51:42Z", water: 600, energy: 600 }],
+  1: [{ from: "2026-07-11T00:00:00Z", water: 600, energy: 600 }],
   2: [
-    { from: "2026-07-12T01:58:29Z", water: 600, energy: 600 },
-    { from: "2026-07-29T21:28:05Z", water: 750, energy: 1000 },
+    { from: "2026-07-12T00:00:00Z", water: 600, energy: 600 },
+    { from: "2026-07-29T00:00:00Z", water: 750, energy: 1000 },
   ],
-  3: [{ from: "2026-07-14T19:27:48Z", water: 600, energy: 600 }],
+  3: [{ from: "2026-07-14T00:00:00Z", water: 600, energy: 600 }],
 };
 
 /**

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { readClassified, refOfUid, type Expected, type Project } from "../../scripts/golden-io.js";
-import { buildDeathContext, classifyDeath, SPAWN_BASELINES, wholeCorpusContext } from "../../src/index.js";
-import { corpusOf, cwFixtures, failedChecks, goldenReady, layout, report, selectOptionsOf, withSpawn } from "./golden.js";
+import { buildDeathContext, classifyDeath, SPAWN_BASELINES, spawnAt, wholeCorpusContext } from "../../src/index.js";
+import { corpusOf, cwFixtures, failedChecks, goldenReady, isStatedRule, layout, report, selectOptionsOf, withSpawn } from "./golden.js";
 
 /**
  * Every rule against the reference, for EVERY death of both projects — PRIVATE data.
@@ -63,20 +63,41 @@ describe.skipIf(!ready)("every rule vs the reference, every death (private data)
     expect(report("Clan Wars rule fixtures", failed)).toBe("");
   });
 
-  it("the checked-in spawn levels are the reference's export for every One Life server", () => {
+  it("the checked-in spawn levels are the reference's export, dated to the day, for every One Life server", () => {
     const d = JSON.parse(readFileSync(layout!.spawnBaselines, "utf8")) as {
       default: { water: number; energy: number };
       servers: { OL: Record<string, { default: { water: number; energy: number }; baselines: { from: string; from_ts: number; water: number; energy: number }[] }> };
     };
     expect(d.default).toEqual({ water: 600, energy: 600 });
-    const want: Record<number, { from: string; water: number; energy: number }[]> = {};
+    const listed = new Set<number>();
     for (const [id, s] of Object.entries(d.servers.OL)) {
       // every server's default is the global one, so a server without entries needs no line
       expect(s.default).toEqual(d.default);
-      for (const x of s.baselines) expect(Date.parse(x.from) / 1000).toBe(x.from_ts);
-      if (s.baselines.length) want[Number(id)] = s.baselines.map(({ from, water, energy }) => ({ from, water, energy }));
+      if (!s.baselines.length) continue;
+      listed.add(Number(id));
+      const mine = SPAWN_BASELINES[Number(id)] ?? [];
+      expect(mine.map(({ water, energy }) => [water, energy]), `server ${id}`).toEqual(s.baselines.map(({ water, energy }) => [water, energy]));
+      s.baselines.forEach((x, i) => {
+        expect(Date.parse(x.from) / 1000).toBe(x.from_ts);
+        const at = Date.parse(mine[i]!.from) / 1000;
+        // the public instant is the start of the UTC day of the reference's, and still after the step before it
+        expect(at % 86400, `server ${id} step ${i}`).toBe(0);
+        expect(x.from_ts - at, `server ${id} step ${i}`).toBeGreaterThanOrEqual(0);
+        expect(x.from_ts - at, `server ${id} step ${i}`).toBeLessThan(86400);
+        if (i > 0) expect(at, `server ${id} step ${i}`).toBeGreaterThan(s.baselines[i - 1]!.from_ts);
+      });
     }
-    expect(SPAWN_BASELINES).toEqual(want);
+    expect(Object.keys(SPAWN_BASELINES).map(Number).sort()).toEqual([...listed].sort());
+    // A death the rounding moves onto other levels must be decided by a stated rule, which never
+    // reads them; every verdict is compared with the reference by the suites above.
+    const ref = (id: number) => d.servers.OL[String(id)]?.baselines.map(({ from, water, energy }) => ({ from, water, energy })) ?? [];
+    const moved: string[] = [];
+    for (const row of readClassified(layout!.classified, "OL")) {
+      const ts = Date.parse(row.expected.utc) / 1000;
+      const a = spawnAt(row.serverId, ts), b = spawnAt(row.serverId, ts, ref(row.serverId));
+      if ((a.water !== b.water || a.energy !== b.energy) && !isStatedRule(row.expected.rule)) moved.push(row.uid);
+    }
+    expect(moved).toEqual([]);
   });
 
   it("EXCEPTIONS.md exists and lists no exception", () => {
