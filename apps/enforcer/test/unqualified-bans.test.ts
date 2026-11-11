@@ -77,6 +77,32 @@ describe("unqualified-bans", () => {
     expect(out.join("\n")).toContain("dry-run");
   });
 
+  it("judges a life by the player's kills, not the name: a rename after the ban does not list it", async () => {
+    const stands = await shortLifeBan({ trapKill: true });
+    expect((await findUnqualifiedBans(db)).map((b) => b.id)).not.toContain(stands.banId);
+    const newName = `Renamed ${svc}-${k}`;
+    await db.update(players).set({ gamertag: newName }).where(eq(players.id, stands.playerId));
+    await db.insert(playerGamertags).values({ playerId: stands.playerId, gamertag: newName, firstSeenAt: hrs(1), lastSeenAt: hrs(1) });
+    expect((await findUnqualifiedBans(db)).map((b) => b.id)).not.toContain(stands.banId);
+    await runUnqualifiedBans(db, { lift: true }, { now: NOW, out: () => {}, sweepBacklog: caughtUp });
+    expect((await ban(stands.banId)).status).toBe("applied");
+  });
+
+  it("a kill row with no player id is matched by the name on it, ignoring case; never another player's kill", async () => {
+    const byName = await shortLifeBan({ startH: 6 });
+    await db.insert(kills).values({ serverId, killerGamertag: byName.tag.toUpperCase(), killerPlayerId: null, victimGamertag: `V ${svc}-${k}`,
+      occurredAt: hrs(6.01), weapon: "M4A1", basis: "kill_line" });
+    const other = await shortLifeBan({ startH: 7 });
+    // Another player's kill logged under this player's name: the id decides.
+    const [x] = await db.insert(players).values({ gamertag: `Other ${svc}-${k}` }).returning();
+    pids.push(x!.id);
+    await db.insert(kills).values({ serverId, killerGamertag: other.tag, killerPlayerId: x!.id, victimGamertag: `W ${svc}-${k}`,
+      occurredAt: hrs(7.01), weapon: "M4A1", basis: "kill_line" });
+    const listed = (await findUnqualifiedBans(db)).map((b) => b.id);
+    expect(listed).not.toContain(byName.banId);
+    expect(listed).toContain(other.banId);
+  });
+
   it("--lift sets an applied ban to lift_pending and a pending one to lifted, with lift_reason operator", async () => {
     const applied = await shortLifeBan();
     const pending = await shortLifeBan({ status: "pending" });

@@ -7,6 +7,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const rows = await db
     .select({
       serverId: lives.serverId,
+      playerId: players.id,
       gamertag: players.gamertag,
       dayzId: players.dayzId,
       startedAt: lives.startedAt,
@@ -34,7 +35,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const out: EndedLife[] = [];
   for (const r of rows) {
     if (!r.endedAt) continue;
-    out.push(await endedLifeOf(db, { ...r, endedAt: r.endedAt }));
+    out.push(await endedLifeOf(db, { ...r, playerId: Number(r.playerId), endedAt: r.endedAt }));
   }
   return out;
 }
@@ -42,10 +43,16 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
 /**
  * One ended life with its in-life kills, as `planBans` reads it. ⚠️ Shared by
  * `findEndedUnbannedLives` and `unqualified-bans`, so both judge a life on the same kills.
+ *
+ * ⚠️ Kills are the player's by `killer_player_id`, never by the name on the kill line: that name
+ * does not move when the killer renames, and `unqualified-bans` runs long after the death, often
+ * after a rename (matching by the current name listed a ban the life still earned, and `--lift`
+ * let the player back in). The name is consulted only for a row with no id (the killer had not
+ * connected inside the ingested log), ignoring case. Same rule as #398's `killsByPlayer`.
  */
 export async function endedLifeOf(
   db: Database,
-  r: { serverId: number; gamertag: string; dayzId: string | null; startedAt: Date; endedAt: Date; deathCause: string | null; playtimeSeconds: number },
+  r: { serverId: number; playerId: number; gamertag: string; dayzId: string | null; startedAt: Date; endedAt: Date; deathCause: string | null; playtimeSeconds: number },
 ): Promise<EndedLife> {
   const krows = await db
     .select({ occurredAt: kills.occurredAt })
@@ -53,7 +60,10 @@ export async function endedLifeOf(
     .where(
       and(
         eq(kills.serverId, r.serverId),
-        eq(kills.killerGamertag, r.gamertag),
+        or(
+          eq(kills.killerPlayerId, r.playerId),
+          and(isNull(kills.killerPlayerId), sql`lower(${kills.killerGamertag}) = lower(${r.gamertag})`),
+        ),
         gte(kills.occurredAt, r.startedAt),
         lte(kills.occurredAt, r.endedAt),
       ),

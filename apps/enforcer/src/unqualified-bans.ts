@@ -54,7 +54,7 @@ export async function findUnqualifiedBans(db: Database): Promise<UnqualifiedBan[
       : sql`${players.id} IN (SELECT pg.player_id FROM player_gamertags pg WHERE lower(pg.gamertag) = lower(${b.gamertag}))`;
     const [l] = await db
       .select({
-        serverId: lives.serverId, gamertag: players.gamertag, dayzId: players.dayzId, startedAt: lives.startedAt, endedAt: lives.endedAt,
+        serverId: lives.serverId, playerId: players.id, gamertag: players.gamertag, dayzId: players.dayzId, startedAt: lives.startedAt, endedAt: lives.endedAt,
         deathCause: lives.deathCause, playtimeSeconds: lives.playtimeSeconds,
       })
       .from(lives)
@@ -62,7 +62,9 @@ export async function findUnqualifiedBans(db: Database): Promise<UnqualifiedBan[
       .where(and(eq(lives.serverId, b.serverId), eq(lives.startedAt, b.lifeStartedAt), who))
       .limit(1);
     if (!l || !l.endedAt) continue;
-    if (lifeQualifies(await endedLifeOf(db, { ...l, endedAt: l.endedAt }))) continue;
+    // Kills by player id (`endedLifeOf`): `players.gamertag` is the CURRENT name, and the name on
+    // a kill line is the one at the kill.
+    if (lifeQualifies(await endedLifeOf(db, { ...l, playerId: Number(l.playerId), endedAt: l.endedAt }))) continue;
     out.push({ ...b, id: Number(b.id) });
   }
   return out;
