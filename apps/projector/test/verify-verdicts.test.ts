@@ -43,6 +43,8 @@ describe("verifyVerdicts", () => {
     expect(r.failures).toEqual([]);
     expect(r.ok).toBe(true);
     expect(r.lines.join("\n")).toContain("credited");
+    // check 7 prints the classifier's spawn table beside what production observed
+    expect(r.lines.some((l) => /^7\. server \d+: table water \d+, energy \d+; /.test(l))).toBe(true);
   });
 
   it("fails while a life has no verdict, and on a needs_review row", async () => {

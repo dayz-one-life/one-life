@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import pino from "pino";
 import { getDb, type Database } from "@onelife/db";
-import { CLASSIFIER_VERSION, objectKeyFromText, type CreditEvidence } from "@onelife/death-verdict";
+import { CLASSIFIER_VERSION, objectKeyFromText, spawnAt, type CreditEvidence } from "@onelife/death-verdict";
 import { newFileCache } from "@onelife/read-models";
 import {
   deriveLife, lifeCountsOnItsOwn, overrideOf, overrideProblem, verdictRow, HELD_ATTEMPTS,
@@ -180,7 +180,8 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
     if (n(c.raw) !== n(c.ev)) fail(`check 6: server ${n(c.id)} placed lines and events differ`);
   }
 
-  // 7. Observed spawn levels (the baseline table arrives with the inferred rules).
+  // 7. Observed spawn levels next to the classifier's table (SPAWN_BASELINES, as it applies now).
+  // A server whose observed median sits above its table level needs a new entry: a version bump.
   const spawn = await q(db, sql`
     SELECT l.server_id, percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.payload->>'water')::float8) AS water,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY (e.payload->>'energy')::float8) AS energy, count(*) AS n
@@ -189,7 +190,14 @@ export async function verifyVerdicts(db: Database, o: VerifyOptions = {}): Promi
       AND e.payload->>'water' IS NOT NULL
     WHERE l.ended_at IS NOT NULL AND l.ended_at - l.started_at < interval '120 seconds'
     GROUP BY l.server_id ORDER BY l.server_id`);
-  for (const s of spawn) say(`7. server ${n(s.server_id)}: deaths within 120 s of spawn ${n(s.n)}, median water ${Number(s.water).toFixed(0)}, energy ${Number(s.energy).toFixed(0)}`);
+  const observed = new Map(spawn.map((s) => [n(s.server_id), s]));
+  const nowTs = Math.floor(Date.now() / 1000);
+  for (const sv of await q(db, sql`SELECT id FROM servers ORDER BY id`)) {
+    const id = n(sv.id), t = spawnAt(id, nowTs), s = observed.get(id);
+    say(`7. server ${id}: table water ${t.water}, energy ${t.energy}; ${s
+      ? `deaths within 120 s of spawn ${n(s.n)}, median water ${Number(s.water).toFixed(0)}, energy ${Number(s.energy).toFixed(0)}`
+      : "no death within 120 s of spawn observed"}`);
+  }
 
   // 8. Overrides.
   const ovs = await q(db, sql`
