@@ -79,19 +79,19 @@ afterAll(async () => {
 
 describe("getLifeKills — the two-second grace", () => {
   it("includes a kill logged a second after the killer's death", async () => {
-    const rows = await getLifeKills(db, serverId, "KW Bomber", T("10:00:00"), T("10:03:00"));
+    const rows = await getLifeKills(db, serverId, ids["KW Bomber"]!, T("10:00:00"), T("10:03:00"));
     expect(rows.map((r) => r.victimGamertag)).toEqual(["one"]);
   });
   it("includes a kill logged exactly two seconds after", async () => {
-    const rows = await getLifeKills(db, serverId, "KW Trader", T("10:00:00"), T("10:03:00"));
+    const rows = await getLifeKills(db, serverId, ids["KW Trader"]!, T("10:00:00"), T("10:03:00"));
     expect(rows.map((r) => r.victimGamertag)).toEqual(["three"]);
   });
   it("excludes a kill logged three seconds after", async () => {
-    expect(await getLifeKills(db, serverId, "KW Late", T("10:00:00"), T("10:03:00"))).toEqual([]);
+    expect(await getLifeKills(db, serverId, ids["KW Late"]!, T("10:00:00"), T("10:03:00"))).toEqual([]);
   });
   it("does not also count the kill toward the life the killer started inside the grace", async () => {
-    expect(await getLifeKills(db, serverId, "KW Bomber", T("10:03:01"), T("10:04:00"))).toEqual([]);
-    expect(await getLifeKills(db, serverId, "KW Bomber", T("10:03:01"), null)).toEqual([]);
+    expect(await getLifeKills(db, serverId, ids["KW Bomber"]!, T("10:03:01"), T("10:04:00"))).toEqual([]);
+    expect(await getLifeKills(db, serverId, ids["KW Bomber"]!, T("10:03:01"), null)).toEqual([]);
   });
 });
 
@@ -171,8 +171,8 @@ describe("two lives with the same start", () => {
     expect(previousEnd(serverId, id, T("10:00:03"), T("10:00:03"))).toBeNull();
   });
   it("getLifeKills gives the kill to the zero-length life only", async () => {
-    expect((await getLifeKills(db, serverId, "KW Instant", T("10:00:03"), T("10:00:03"))).map((r) => r.victimGamertag)).toEqual(["five"]);
-    expect(await getLifeKills(db, serverId, "KW Instant", T("10:00:03"), T("10:00:07"))).toEqual([]);
+    expect((await getLifeKills(db, serverId, ids["KW Instant"]!, T("10:00:03"), T("10:00:03"))).map((r) => r.victimGamertag)).toEqual(["five"]);
+    expect(await getLifeKills(db, serverId, ids["KW Instant"]!, T("10:00:03"), T("10:00:07"))).toEqual([]);
   });
   it("qualifiedLifeCondition qualifies that life only", async () => {
     const rows = await db

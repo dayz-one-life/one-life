@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { kills, players } from "@onelife/db";
+import { kills } from "@onelife/db";
 import { and, eq, desc } from "drizzle-orm";
 import { killsInLifeWindow, previousLifeEndedAt } from "./kill-window-db.js";
 
@@ -10,21 +10,22 @@ export interface PlayerKill {
   occurredAt: Date;
 }
 
-/** Kills scored by `killerGamertag` on `serverId` during the life [startedAt, endedAt] (endedAt
+/** Kills scored by player `playerId` on `serverId` during the life [startedAt, endedAt] (endedAt
  *  null = open). Newest first. The window is kill-window.ts's: a kill logged up to two seconds
- *  after the death is included, and one that belongs to the previous life's two seconds is not. */
+ *  after the death is included, and one that belongs to the previous life's two seconds is not.
+ *
+ *  ⚠️ Takes the player's id, never a gamertag. Pass the `playerId` on the life row whose kills
+ *  these are. Two players can hold one name at once (a recycled gamertag whose previous holder
+ *  has not reconnected), so a name looked up here could pick the other one and return his kills,
+ *  or none, for a life the enforcer and the boards count by id. */
 export async function getLifeKills(
   db: Database,
   serverId: number,
-  killerGamertag: string,
+  playerId: number,
   startedAt: Date,
   endedAt: Date | null,
 ): Promise<PlayerKill[]> {
-  // Match on the player FK (the identity), not the name: a kill scored under a former gamertag
-  // still counts. Resolve the id once from the caller's gamertag; a miss means no kills.
-  const p = (await db.select({ id: players.id }).from(players).where(eq(players.gamertag, killerGamertag)))[0];
-  if (!p) return [];
-  const previousEnd = await previousLifeEndedAt(db, serverId, p.id, startedAt, endedAt);
+  const previousEnd = await previousLifeEndedAt(db, serverId, playerId, startedAt, endedAt);
   const rows = await db
     .select({
       victimGamertag: kills.victimGamertag,
@@ -36,7 +37,7 @@ export async function getLifeKills(
     .where(
       and(
         eq(kills.serverId, serverId),
-        eq(kills.killerPlayerId, p.id),
+        eq(kills.killerPlayerId, playerId),
         killsInLifeWindow({ startedAt, endedAt, previousLifeEndedAt: previousEnd }),
       ),
     )

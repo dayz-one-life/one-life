@@ -59,6 +59,13 @@ no existing life page, board or ban changes on deploy.
 - A kill row with no player on it (the killer had never connected inside the ingested log) is
   still matched by name, ignoring case, in those six places, as before. The longest-killstreak
   board used to leave such rows out and now counts them the same way.
+- The longest-kills board shows the killer's current gamertag too. It printed the name on the
+  kill line, so a renamed killer appeared under the old name there and the new one on
+  most-kills.
+- A life's kill list on the life page and the player page is read by the player the life
+  belongs to, not looked up again by name. When two players hold the same gamertag (a given-up
+  name taken by someone else before its previous holder reconnected), the name could resolve to
+  the other one, and the life then showed no kills and could read as not counting.
 
 No migration, `--rebuild` or backfill is needed. On the kills recorded on One Life up to
 2026-11-10: every row has a player on it, no life changes status and no ban changes. One renamed

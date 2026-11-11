@@ -42,11 +42,11 @@ beforeAll(async () => {
   }
   await db.insert(kills).values([
     { serverId, killerGamertag: "KB Oldname", killerPlayerId: renamed.id, victimGamertag: "one", occurredAt: T("10:02:00") },
-    { serverId, killerGamertag: "KB Oldname", killerPlayerId: renamed.id, victimGamertag: "two", occurredAt: T("10:02:30") },
+    { serverId, killerGamertag: "KB Oldname", killerPlayerId: renamed.id, victimGamertag: "two", weapon: "Mosin", distance: 300, occurredAt: T("10:02:30") },
     { serverId, killerGamertag: "KB Stale", killerPlayerId: fresh.id, victimGamertag: "three", occurredAt: T("10:02:00") },
     { serverId, killerGamertag: "KB Ghost", killerPlayerId: ghost.id, victimGamertag: "four", occurredAt: T("10:01:00") },
     { serverId, killerGamertag: "kb ghost", killerPlayerId: null, victimGamertag: "five", occurredAt: T("10:02:00") },
-    { serverId, killerGamertag: "KB Nobody", killerPlayerId: null, victimGamertag: "six", occurredAt: T("10:02:00") },
+    { serverId, killerGamertag: "KB Nobody", killerPlayerId: null, victimGamertag: "six", weapon: "SVD", distance: 120, occurredAt: T("10:02:00") },
   ]);
 });
 afterAll(async () => {
@@ -71,6 +71,13 @@ describe("leaderboards — a renamed killer's kill still counts on each board", 
   it("most-kills applies the limit after merging", async () => {
     const rows = await getLeaderboard(db, serverId, "most-kills", now, 2);
     expect(rows.map((r) => r.gamertag)).toEqual(["KB Ghost", "KB Newname"]);
+  });
+  it("longest-kills prints the killer's current name, and the stored name on a row with no id", async () => {
+    const rows = await getLeaderboard(db, serverId, "longest-kills", now, 10);
+    expect(rows).toEqual([
+      { gamertag: "KB Newname", value: 300, detail: { victim: "two", weapon: "Mosin" } }, // logged as "KB Oldname"
+      { gamertag: "KB Nobody", value: 120, detail: { victim: "six", weapon: "SVD" } },
+    ]);
   });
   it("longest-killstreak gives the streak to the renamed killer, not to the name's new holder", async () => {
     const rows = await getLeaderboard(db, serverId, "longest-killstreak", now, 10);

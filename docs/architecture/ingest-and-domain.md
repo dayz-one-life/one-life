@@ -69,8 +69,11 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   row whose id is null (the fold found no player under the killer's name at the kill); the
   readers that always matched by id (`getLifeKills`, `qualifiedLifeCondition`, survivors, career
   counts) have no fallback and do not see such a row. most-kills groups by player and prints the
-  current name; the three per-player boards key their maps by player id, since two players can
-  hold one name. Read-time only: no migration, no `--rebuild`, no backfill.
+  current name, and longest-kills prints the current name too (the stored one on an id-less
+  row); the three per-player boards key their maps by player id, since two players can hold one
+  name, so they can return two rows with the same `gamertag` (`LeaderRow` carries no id).
+  `getLifeKills` takes the life row's `playerId`, not a gamertag: a name lookup could pick the
+  other holder of a shared name. Read-time only: no migration, no `--rebuild`, no backfill.
   **⚠️ Three enforcer rules follow from the Nitrado ban list holding NAMES, not bans** (removing
   a name lifts every ban that put it there), all in `apps/enforcer/src/decide.ts` + `tick.ts`:
   (1) `planBans` plans nothing for a death whose ban is already over at `now`, so a death judged

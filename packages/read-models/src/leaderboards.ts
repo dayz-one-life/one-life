@@ -11,6 +11,9 @@ export const LEADERBOARDS = [
   "longest-kills",
 ] as const;
 export type Leaderboard = (typeof LEADERBOARDS)[number];
+// ⚠️ A row carries no player id. The per-player boards (most-kills, alltime-longest,
+// longest-killstreak) are keyed by player, so two players who hold the same gamertag at once
+// come back as two rows with the same `gamertag`. Do not key a list by `gamertag` alone.
 export type LeaderRow = { gamertag: string; value: number; detail?: Record<string, unknown> };
 
 export async function getLeaderboard(db: Database, serverId: number, board: Leaderboard, now: Date, limit: number): Promise<LeaderRow[]> {
@@ -54,11 +57,14 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
     }
     // kill-based: a kill implies the killer's life is qualified — inherently over qualified lives
     case "longest-kills": {
+      // Printed under the killer's current name, as most-kills is (kill-owner.ts); a row with no
+      // player id keeps the name on it. The id breaks a tie in distance so the order is stable.
       const rows = await db.select({
-        gamertag: kills.killerGamertag, value: kills.distance, victim: kills.victimGamertag, weapon: kills.weapon,
-      }).from(kills).where(and(eq(kills.serverId, serverId), isNotNull(kills.distance)))
-        .orderBy(desc(kills.distance)).limit(limit);
-      return rows.map((r) => ({ gamertag: r.gamertag, value: Number(r.value ?? 0), detail: { victim: r.victim, weapon: r.weapon } }));
+        current: players.gamertag, stored: kills.killerGamertag, value: kills.distance, victim: kills.victimGamertag, weapon: kills.weapon,
+      }).from(kills).leftJoin(players, eq(players.id, kills.killerPlayerId))
+        .where(and(eq(kills.serverId, serverId), isNotNull(kills.distance)))
+        .orderBy(desc(kills.distance), kills.id).limit(limit);
+      return rows.map((r) => ({ gamertag: r.current ?? r.stored, value: Number(r.value ?? 0), detail: { victim: r.victim, weapon: r.weapon } }));
     }
     // Qualifies/ranks on stored playtimeSeconds (closed sessions only) — a still-open life that's
     // qualified only via live livePlaytime accrual may be absent here, but it's covered by alive-longest.
