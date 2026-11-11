@@ -438,16 +438,22 @@ export function buildRecord(cluster: DeathCluster, victimLines: readonly Stamped
   };
 }
 
-/** The time and place of a death, which is all a later death needs to know about an earlier one. */
-export function deathAnchor(cluster: DeathCluster, victimLines: readonly StampedLine[]): { ts: number; pos: Pos | null } {
-  const byKey = new Map(victimLines.map((o) => [refKey(o), o]));
-  const primary = byKey.get(refKey(cluster.primary))!;
-  let pos = primary.subject!.pos;
-  if (!pos) {
-    const first = byKey.get(refKey(cluster.lines[0]!.ref))!;
-    for (let i = victimLines.indexOf(first) - 1; i >= 0; i--) {
-      if (victimLines[i]!.subject!.pos) { pos = victimLines[i]!.subject!.pos; break; }
+/**
+ * The time and place of each of some deaths of one player, which is all a later death needs to
+ * know about an earlier one. The place is the primary line's, else the victim's last readable
+ * position before the death's first line.
+ */
+export function deathAnchors(clusters: readonly DeathCluster[], victimLines: readonly StampedLine[]): { ts: number; pos: Pos | null }[] {
+  if (clusters.length === 0) return [];
+  const at = new Map(victimLines.map((o, i) => [refKey(o), i]));
+  return clusters.map((cluster) => {
+    const primary = victimLines[at.get(refKey(cluster.primary))!]!;
+    let pos = primary.subject!.pos;
+    if (!pos) {
+      for (let i = at.get(refKey(cluster.lines[0]!.ref))! - 1; i >= 0; i--) {
+        if (victimLines[i]!.subject!.pos) { pos = victimLines[i]!.subject!.pos; break; }
+      }
     }
-  }
-  return { ts: primary.ts, pos };
+    return { ts: primary.ts, pos };
+  });
 }

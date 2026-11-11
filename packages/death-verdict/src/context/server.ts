@@ -180,3 +180,19 @@ export function pyRound(x: number, digits: number): number {
   }
   return neg ? -r : r;
 }
+
+/**
+ * Adds floats the way the reference's `sum()` does: with a running compensation for the rounding
+ * of each step (Neumaier), applied once at the end. CPython has summed floats like this since
+ * 3.12, so a plain `a + b + c` can differ from the reference in the last place.
+ * ⚠️ Use it wherever the reference calls `sum(...)` over floats.
+ */
+export function pySum(xs: Iterable<number>): number {
+  let total = 0.0, c = 0.0;
+  for (const x of xs) {
+    const t = total + x;
+    c += Math.abs(total) >= Math.abs(x) ? (total - t) + x : (x - t) + total;
+    total = t;
+  }
+  return c !== 0 && Number.isFinite(c) ? total + c : total;
+}

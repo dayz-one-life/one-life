@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { allClusters, DeathContext, indexOf, pyRound, resolveCluster, type StampedLine } from "../src/index.js";
+import { allClusters, DeathContext, dist2d, indexOf, pyHypot, pyRound, pySum, resolveCluster, type StampedLine } from "../src/index.js";
 import { at, ID, OTHER, ref, stamped, T0, THIRD, VICTIM, who } from "./lines.js";
 
 const V = (x = 1000, z = 2000) => who(VICTIM, at(x, z));
@@ -165,6 +165,86 @@ describe("DeathContext: health bookkeeping", () => {
   });
 });
 
+describe("DeathContext: the edges of the thresholds", () => {
+  const INF = (hp: number, dmg: number, shot = "MeleeInfected") => `${V()}[HP: ${hp}] hit by Infected into Torso(0) for ${dmg} damage (${shot})`;
+
+  it("a same-second drop is the hit's own up to 1.3 times its damage plus a half, and split above that", () => {
+    const logged = (hp: number) => contextOf(stamped([[-100, INF(100, 0, "Dummy_Light")], [-100, INF(hp, 20)], [0, `${D()} ${STATS()}`]])).descent();
+    // 20 damage to the torso removes 20: a drop of up to 26.5 in the same second is all the hit's
+    expect(logged(73.6).logged.get("infected")).toBeCloseTo(26.4, 9);
+    expect(logged(73.6).segs).toEqual([]);
+    // 26.6: something else took the rest
+    expect(logged(73.4).logged.get("infected")).toBe(20);
+    expect(logged(73.4).segs).toEqual([[6.6, 0, T0 - 100]]);
+  });
+
+  it("a reading of exactly 30 does not end the low run, 31 does", () => {
+    const run = (hp: number) => contextOf(stamped([
+      [-900, `${V()}[HP: 10] hit by ${who(OTHER)} into Torso(0) for 50 damage (MeleeFist)`],
+      [-800, INF(hp, 0, "Dummy_Light")],
+      [-300, INF(12, 25)],
+      [0, `${D()} ${STATS()}`],
+    ])).lowOrigin()?.o.lineIndex;
+    expect(run(30)).toBe(0);
+    expect(run(31)).toBe(2);
+  });
+
+  it("a hit that leaves exactly 15 is a low origin, 16 is not", () => {
+    const low = (hp: number) => contextOf(stamped([[-300, INF(hp, 25)], [0, `${D()} ${STATS()}`]])).lowOrigin();
+    expect(low(15)?.o.lineIndex).toBe(0);
+    expect(low(16)).toBeNull();
+  });
+
+  const BLAST = (x: number) => `${D(x, 2000)}[HP: 0] hit by explosion (M67Grenade_Ammo)`;
+  const blasts = (x: number, prev: { ts: number; pos: [number, number, number] | null }[] = []) =>
+    contextOf(stamped([[-50, `${V()} is connected`], [0, BLAST(x)], [0, `${D()} ${STATS()}`]]), prev).bodyBlasts();
+
+  it("a blast line on a body up to 1 m from the death is this body's, further off it is another's", () => {
+    expect(blasts(1000.3)).toMatchObject({ otherBodies: 0, mine: [expect.anything()] });
+    expect(blasts(1000.9)).toMatchObject({ otherBodies: 0, mine: [expect.anything()] });
+    expect(blasts(1001.1)).toMatchObject({ otherBodies: 1, mine: [] });
+  });
+
+  it("... unless an earlier death of the same player lies within 1 m of the line, in the last six hours", () => {
+    const earlier = (dx: number, ago: number) => [{ ts: T0 - ago, pos: [1000.9 + dx, 2000, 10] as [number, number, number] }];
+    expect(blasts(1000.9, earlier(0.9, 3600))).toMatchObject({ otherBodies: 1, mine: [] });     // an older corpse lies there
+    expect(blasts(1000.9, earlier(1.1, 3600))).toMatchObject({ otherBodies: 0 });               // 1.1 m: not that corpse
+    expect(blasts(1000.9, earlier(0.9, 6 * 3600))).toMatchObject({ otherBodies: 1 });           // six hours to the second
+    expect(blasts(1000.9, earlier(0.9, 6 * 3600 + 1))).toMatchObject({ otherBodies: 0 });       // older: the body is gone
+    // a line within 0.35 m is this body whatever lies near
+    expect(blasts(1000.3, earlier(0, 3600))).toMatchObject({ otherBodies: 0, mine: [expect.anything()] });
+  });
+
+  it("a knock-out with no hit in its own seconds is put down to the last hit up to 30 s before it", () => {
+    const source = (ago: number) => {
+      const c = contextOf(stamped([[-100 - ago, INF(60, 30)], [-100, `${V()} is unconscious`], [0, `${D()} ${STATS()}`]]));
+      return c.koSource(c.eps[0]!);
+    };
+    expect(source(3)).toMatchObject({ label: "infected", confidence: "strong" });       // within 3 s: the hit itself
+    expect(source(4)).toMatchObject({ label: "infected", confidence: "inferred" });
+    expect(source(30)).toMatchObject({ label: "infected", confidence: "inferred" });
+    expect(source(31)).toMatchObject({ label: null, confidence: "unknown" });
+  });
+
+  it("a (DEAD) line up to 2 m from the death is this body, further off an older corpse", () => {
+    const c = contextOf(stamped([[0, `${D()} ${STATS()}`], [1, D(1002, 2000)], [1, D(1002.1, 2000)]]));
+    expect(c.corpse.map((l) => l.lineIndex)).toEqual([0, 1]);
+  });
+
+  it("the speed into the death looks back 900 s and no further", () => {
+    const speed = (ago: number) => contextOf(stamped([[-ago, V(100, 2000)], [0, `${D()} ${STATS()}`]])).finalSpeed();
+    expect(speed(900)).toMatchObject({ speed: 1, secs: 900, dist: 900 });
+    expect(speed(901)).toBeNull();
+  });
+
+  it("a 2 s jump is replaced by the longer segment only when that is faster and at most 45 m/s", () => {
+    const speed = (x: number) => contextOf(stamped([[-10, V(x, 2000)], [-2, V(970, 2000)], [0, `${D()} ${STATS()}`]])).finalSpeed();
+    expect(speed(550)).toMatchObject({ speed: 45, secs: 10 });      // 450 m in 10 s: believable, and faster than the jump
+    expect(speed(549)).toMatchObject({ speed: 15, secs: 2 });       // 45.1 m/s: no player moves like that, the jump stands
+    expect(speed(900)).toMatchObject({ speed: 15, secs: 2 });       // 10 m/s: slower than the jump
+  });
+});
+
 describe("DeathContext: movement", () => {
   it("measures the speed into the death from the last own position at least 3 s earlier", () => {
     const c = contextOf(stamped([[-20, V(800, 2000)], [-10, V(900, 2000)], [-1, V(999, 2000)], [0, `${D()} ${STATS()}`]]));
@@ -222,6 +302,19 @@ describe("ServerIndex", () => {
     expect(S.diedBetween(THIRD.id, 4, 6)?.lineIndex).toBe(5);
     expect(S.aliveAgain(THIRD.id, 5, lines.length)).toBe(false);
     expect(resolveCluster(S.ownLines(VICTIM.id), ref(6)).primary).toEqual(ref(6));
+  });
+
+  it("adds floats with the reference's compensated sum, and measures a distance to its last bit", () => {
+    expect(0.1 + 0.1 + 0.1 + 0.1 + 0.1 + 0.1 + 0.1 + 0.1 + 0.1 + 0.1).toBe(0.9999999999999999);
+    expect(pySum(Array.from({ length: 10 }, () => 0.1))).toBe(1);
+    expect(pySum([1, 1e100, 1, -1e100])).toBe(2);
+    expect(pySum([])).toBe(0);
+    // the reference's hypot: exact on a 3-4-5 triangle scaled to a threshold, where Math.hypot is not
+    expect(pyHypot(18, 24)).toBe(30);
+    expect(pyHypot(0, 0)).toBe(0);
+    expect(pyHypot(-3, 4)).toBe(5);
+    expect(pyHypot(1036.6 - 1000, 2000 - 2048.8)).toBe(61.00000000000009);   // as Python prints it; Math.hypot gives ...085
+    expect(dist2d([1000, 2000, 5], [1003, 2004, 99])).toBe(5);               // altitude is ignored
   });
 
   it("rounds a tie to the even neighbour, as the reference does", () => {

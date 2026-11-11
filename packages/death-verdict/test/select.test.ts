@@ -92,6 +92,22 @@ describe("selectContextLines", () => {
     expect(ctx.server.placedNear([5000, 5000, 10], new Set(["BearTrap"]), 30, ctx.firstSeq).map((p) => p.line.subject!.id)).toEqual([OTHER.id]);
   });
 
+  it("a placement 29 m from a zero-damage TripWireHit on the victim, far from the death, is kept", () => {
+    // The tripwire's own line takes no health, and it is the line a trap's owner is looked for around.
+    const old = logFile(10, "2031-02-01", "09:00:00", [
+      ["09:10:00", `${who(OTHER, at(5029, 5000))} placed Tripwire<TripwireTrap>`],
+      ["09:11:00", `${who(THIRD, at(5031, 5000))} placed Tripwire<TripwireTrap>`],
+    ]);
+    const f = logFile(30, "2031-03-10", "10:00:00", [
+      ["10:00:05", `${V(5000, 5000)} is connected`],
+      ["10:30:00", `${V(5000, 5000)}[HP: 100] hit by TripwireTrap into (0) for 0 damage (TripWireHit)`],
+      ["12:00:00", `${D()} ${STATS}`],
+    ]);
+    const input = selectContextLines(corpus(old, f), seedOf(f));
+    expect(kept(input)).toEqual(["10:2", "30:2", "30:3", "30:4"]);
+    expect(input.placements).toEqual([{ admFileId: 10, lineIndex: 2 }]);
+  });
+
   const TRIP = "hit by TripwireTrap into (0) for 0 damage (TripWireHit)";
   const tripDeath: [string, string][] = [
     ["11:59:56", `${V()}[HP: 100] ${TRIP}`],
@@ -197,6 +213,104 @@ describe("selectContextLines", () => {
     expect(isoSeconds(input.files[0]!.lines[0]![1])).toBe("2031-01-05T13:10:00Z");
     const ctx = buildDeathContext(input);
     expect(ctx.server.placedNear(ctx.pos!, new Set(["TripwireTrap"]), 5, ctx.firstSeq).map((p) => p.line.subject!.id)).toEqual([OTHER.id]);
+  });
+
+  it("earlier trips from files outside the corpus: kept after a candidate placement and near it, in log order", () => {
+    const f = logFile(30, "2031-03-10", "11:55:00", tripDeath);
+    const jan = "DayZServer_X1_x64_2031-01-05_08-00-00.ADM", feb = "DayZServer_X1_x64_2031-02-01_08-00-00.ADM";
+    const trip = (x: number) => `${who(FOURTH, at(x, 2000))}[HP: 100] ${TRIP}`;
+    // handed over newest first, as a query might return them
+    const extra = [
+      { admFileId: 6, fileName: feb, lineIndex: 10, text: `08:30:00 | ${trip(1003)}` },                                             // a later file: kept
+      { admFileId: 5, fileName: jan, lineIndex: 70, text: `09:40:00 | ${trip(1090)}` },                                             // 90 m away: some other wire
+      { admFileId: 5, fileName: jan, lineIndex: 60, text: `09:30:00 | ${trip(1001)}` },                                             // after the placement, at the spot: kept
+      { admFileId: 5, fileName: jan, lineIndex: 40, text: `09:10:00 | ${who(OTHER, at(1002, 2000))} placed Tripwire<TripwireTrap>` },
+      { admFileId: 5, fileName: jan, lineIndex: 30, text: `09:05:00 | ${trip(1001)}` },                                             // before any placement: an earlier wire
+    ];
+    const input = selectContextLines(corpus(f), seedOf2(f), extra);
+    expect(kept(input)).toEqual(["5:40", "5:60", "6:10", "30:0", "30:1", "30:2", "30:3", "30:4"]);
+    expect(input.files.map((x) => x.admFileId)).toEqual([5, 6, 30]);
+    expect(input.placements).toEqual([{ admFileId: 5, lineIndex: 40 }]);
+    expect(input.detached).toEqual([5, 6]);
+    // the rules see the trips as lines written before the death, in order
+    const ctx = buildDeathContext(input);
+    expect(ctx.server.lines.filter((l) => l.hit?.ammo === "TripWireHit" && l.subject!.id === FOURTH.id).map((l) => [l.admFileId, isoSeconds(l.ts)]))
+      .toEqual([[5, "2031-01-05T13:30:00Z"], [6, "2031-02-01T12:30:00Z"]]);
+  });
+
+  it("an extra line that cannot be dated is refused, not dropped", () => {
+    // Dropping it would fail open: a second placer's wire that vanishes leaves "exactly one placer".
+    const f = logFile(30, "2031-03-10", "11:55:00", tripDeath);
+    const placed = `09:10:00 | ${who(THIRD, at(1001, 2000))} placed Tripwire<TripwireTrap>`;
+    const rough = Date.UTC(2031, 0, 5, 13, 10, 0) / 1000;
+    for (const fileName of ["", "DayZServer_PS4_x64_2031-01-05_08-00-00.ADM"]) {
+      expect(() => selectContextLines(corpus(f), seedOf2(f), [{ admFileId: 5, fileName, lineIndex: 40, text: placed, approxTs: rough }])).toThrow(/cannot be dated/);
+    }
+    const name = "DayZServer_X1_x64_2031-01-05_08-00-00.ADM";
+    expect(() => selectContextLines(corpus(f), seedOf2(f), [{ admFileId: 5, fileName: name, lineIndex: 40, text: "no clock on this line" }])).toThrow(/cannot be dated/);
+  });
+
+  it("an extra line can carry its exact second, from a caller that stamped its whole file", () => {
+    const f = logFile(30, "2031-03-10", "11:55:00", tripDeath);
+    const name = "DayZServer_X1_x64_2031-01-05_08-00-00.ADM";
+    const ts = Date.UTC(2031, 0, 7, 13, 10, 0) / 1000;        // two days into a long-running file
+    const input = selectContextLines(corpus(f), seedOf2(f), [
+      { admFileId: 5, fileName: name, lineIndex: 40, text: `09:10:00 | ${who(OTHER, at(1002, 2000))} placed Tripwire<TripwireTrap>`, ts },
+    ]);
+    expect(input.files[0]!.lines).toEqual([[40, ts, expect.stringContaining("placed Tripwire")]]);
+  });
+
+  it("the victim's own lines from outside the corpus never join the life", () => {
+    // A first life in the loaded files. Two months earlier the same player set a wire here and tripped one.
+    const f = logFile(30, "2031-03-10", "11:55:00", [["11:56:00", `${V()} is connected`], ...tripDeath]);
+    const name = "DayZServer_X1_x64_2031-01-05_08-00-00.ADM";
+    const extra = [
+      { admFileId: 5, fileName: name, lineIndex: 40, text: `09:10:00 | ${V(1002, 2000)} placed Tripwire<TripwireTrap>` },
+      { admFileId: 5, fileName: name, lineIndex: 50, text: `09:20:00 | ${V(1001, 2000)}[HP: 37] ${TRIP}` },
+    ];
+    const c = corpus(f), seed = seedOf2(f);
+    const input = selectContextLines(c, seed, extra);
+    expect(kept(input).slice(0, 2)).toEqual(["5:40", "5:50"]);         // still selected: the wire and the trip that may have spent it
+    expect(input.detached).toEqual([5]);
+    for (const ctx of [buildDeathContext(input), wholeCorpusContext(c, seed, extra)]) {
+      expect(ctx.life.map((l) => l.admFileId)).not.toContain(5);
+      expect(isoSeconds(ctx.firstAliveTs!)).toBe("2031-03-10T15:56:00Z");
+      expect(ctx.onlineLife()).toBe(240);
+      expect(ctx.hpr.map((h) => h.hp)).toEqual([100]);                 // not the stale 37
+      expect(ctx.server.placedNear(ctx.pos!, new Set(["TripwireTrap"]), 5, ctx.firstSeq).map((p) => p.line.subject!.id)).toEqual([VICTIM.id]);
+    }
+    // nothing is marked when no line from outside was kept
+    expect(selectContextLines(c, seed).detached).toBeUndefined();
+  });
+
+  it("deaths older than the corpus are handed over and join the earlier deaths, oldest first", () => {
+    const old = logFile(10, "2031-03-08", "09:00:00", [["09:00:05", `${V(100, 100)} is connected`], ["09:20:00", `${D(100, 100)} ${STATS}`], ["09:21:00", `${V(300, 300)} is connected`]]);
+    const f = logFile(30, "2031-03-10", "11:00:00", [["11:00:05", `${V()} is connected`], ["12:00:00", `${D()} ${STATS}`]]);
+    const inCorpus = { ts: Date.UTC(2031, 2, 8, 13, 20, 0) / 1000, pos: [100, 100, 10] as [number, number, number] };
+    const older = { ts: Date.UTC(2031, 2, 1, 13, 0, 0) / 1000, pos: [50, 50, 10] as [number, number, number] };
+    const oldest = { ts: Date.UTC(2031, 1, 1, 13, 0, 0) / 1000, pos: null };
+    // the caller's list may repeat a death the corpus holds: the corpus's own reading of it wins
+    const earlierDeaths = [older, { ts: inCorpus.ts, pos: [1, 1, 1] as [number, number, number] }, oldest];
+    const c = corpus(old, f);
+    expect(selectContextLines(c, seedOf(f), [], { earlierDeaths }).prevDeaths).toEqual([oldest, older, inCorpus]);
+    expect(wholeCorpusContext(c, seedOf(f), [], { earlierDeaths }).prevDeaths).toEqual([oldest, older, inCorpus]);
+    // with no earlier death in the corpus, everything before this death counts
+    expect(selectContextLines(corpus(f), seedOf(f), [], { earlierDeaths: [older, { ts: Date.UTC(2031, 2, 10, 16, 0, 0) / 1000, pos: null }] }).prevDeaths).toEqual([older]);
+    // and never more than sixty, the newest kept
+    const many = Array.from({ length: 70 }, (_, i) => ({ ts: older.ts - i * 86400, pos: null }));
+    const got = selectContextLines(c, seedOf(f), [], { earlierDeaths: many }).prevDeaths;
+    expect(got).toHaveLength(60);
+    expect(got[59]).toEqual(inCorpus);
+    expect(got[58]).toEqual({ ts: older.ts, pos: null });
+  });
+
+  it("a server the zone table does not know is stamped from its stored clock offset", () => {
+    const f = logFile(30, "2031-03-10", "11:00:00", [["12:00:00", `${D()} ${STATS}`]]);
+    const unknown = (clockOffsetMs?: number): ServerCorpus => ({ serverId: 99, map: null, files: [f], clockOffsetMs });
+    const t0 = (c: ServerCorpus) => isoSeconds(buildDeathContext(selectContextLines(c, seedOf(f))).t0);
+    expect(t0(unknown(3 * 3_600_000))).toBe("2031-03-10T15:00:00Z");
+    expect(t0(unknown())).toBe("2031-03-10T19:00:00Z");               // Pacific daylight time
+    expect(t0({ ...unknown(3 * 3_600_000), zone: { mode: "fixed", utcOffsetHours: 0 } })).toBe("2031-03-10T12:00:00Z");   // a stated zone wins
   });
 
   it("the selection and the whole corpus give the same context", () => {

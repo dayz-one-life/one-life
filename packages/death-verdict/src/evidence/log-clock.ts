@@ -35,16 +35,28 @@ export const SERVER_ZONES: Readonly<Record<number, ZoneRule>> = {
   7: DEFAULT_ZONE,
 };
 
+/** True when the zone table names this server. ⚠️ A loader should LOG when it is false: the server
+ *  is being stamped by the fallback below and wants a line in `SERVER_ZONES`. */
+export const isKnownServer = (serverId: number): boolean => Object.hasOwn(SERVER_ZONES, serverId);
+
 /**
- * The zone rule for a server. A server the table does not know falls back to the stored clock
- * offset when the caller has one (`servers.clock_offset_ms`, milliseconds to ADD to the wall
- * clock), and to Pacific time otherwise.
+ * The zone rule for a server. A server the table does not know is taken to keep Pacific time, as
+ * every current host does, unless the stored clock offset (`servers.clock_offset_ms`, milliseconds
+ * to ADD to the wall clock) says it is somewhere else.
+ *
+ * ⚠️ The stored offset only CHOOSES a rule; it is never used as the offset. It is re-measured on
+ * every ingest tick as a minimum, so it is noisy (7 h 45 min has been stored for a Pacific host),
+ * it lags a clock change by days, and it knows no daylight saving. So: seven or eight hours, to
+ * the nearest hour, is Pacific time with its daylight saving; anything else is a fixed offset of
+ * that many whole hours.
  */
 export function zoneForServer(serverId: number, fallbackClockOffsetMs?: number | null): ZoneRule {
   const known = SERVER_ZONES[serverId];
   if (known) return known;
-  if (fallbackClockOffsetMs != null) return { mode: "fixed", utcOffsetHours: -fallbackClockOffsetMs / 3_600_000 };
-  return DEFAULT_ZONE;
+  if (fallbackClockOffsetMs == null || !Number.isFinite(fallbackClockOffsetMs)) return DEFAULT_ZONE;
+  const hours = Math.round(fallbackClockOffsetMs / 3_600_000);
+  if (hours === 7 || hours === 8) return DEFAULT_ZONE;
+  return { mode: "fixed", utcOffsetHours: 0 - hours };
 }
 
 export interface LogFile { admFileId: number; name: string; lines: [lineIndex: number, text: string][] }
@@ -138,16 +150,30 @@ function toUtc(zone: ZoneRule, local: number, repeated: boolean): number {
   return local - (repeated && o.second != null ? o.second : o.first);
 }
 
+/** True when a wall-clock second is in the hour a zone writes twice. */
+const isRepeatedHour = (zone: ZoneRule, local: number): boolean => zone.mode === "zone" && offsetsFor(zone.zone, local).second != null;
+
 /**
  * Stamps every line of one file with its UTC second.
  *
  * - **Midnight.** The clock stepping back by more than twelve hours is the next day. The header
  *   time seeds the check, so a file whose first line is already past midnight is dated right.
  * - **The night the clocks go back** (a zone rule only). The hour from 01:00 to 02:00 is written
- *   twice. The first pass is daylight time; a step back of 30 to 90 minutes that lands in that
- *   hour starts the second pass, which lasts until the clock leaves the hour.
+ *   twice. The first pass is daylight time. The second pass starts
+ *   - at any step back of the clock that lands in that hour, or
+ *   - at the file's first timed line, when read as the first pass it would be EARLIER than the
+ *     last line of the file before it (`previousTs`): a server that restarted in the second pass.
+ *   It lasts until the clock leaves the hour.
  * - **A line with no time** (the header, a banner) takes the time of the line before it — the
  *   last line of the previous file when `previousTs` is given — and the file's start otherwise.
+ *
+ * ⚠️ Two deliberate differences from the reference, which stamps both cases an hour EARLY (its
+ * times then run backwards). The reference wants a step back of 30 to 90 minutes, so it misses a
+ * server that wrote nothing for more than half an hour across the change; and it never looks at
+ * the file before. Neither case occurs in the golden corpora — the clock steps back exactly once
+ * in some 5,000 files, at the one clock change, and never by a second otherwise — so the golden
+ * times are unaffected. What stays undecidable: a file with no line from the first pass and no
+ * file before it. That is read as the first pass.
  */
 export function stampLines(file: OrderedFile, zone: ZoneRule, previousTs: number | null = null): StampedText[] {
   const out: StampedText[] = [];
@@ -155,6 +181,7 @@ export function stampLines(file: OrderedFile, zone: ZoneRule, previousTs: number
   let prev = file.bootLocal - day;
   let repeated = false;
   let last = previousTs;
+  let firstTimed = true;
   for (const [lineIndex, text] of file.lines) {
     const m = TIME_RE.exec(text);
     if (!m) {
@@ -168,10 +195,14 @@ export function stampLines(file: OrderedFile, zone: ZoneRule, previousTs: number
     if (back > 12 * 3600) {
       day += 86400;
       local = day + sec;
-    } else if (zone.mode === "zone" && !repeated && back >= 1800 && back <= 5400 && offsetsFor(zone.zone, local).second != null) {
+    } else if (!repeated && back > 0 && back <= 5400 && isRepeatedHour(zone, local)) {
+      repeated = true;
+    } else if (!repeated && firstTimed && previousTs != null && isRepeatedHour(zone, local)
+      && toUtc(zone, local, false) < previousTs && toUtc(zone, local, true) >= previousTs) {
       repeated = true;
     }
-    if (repeated && (zone.mode !== "zone" || offsetsFor(zone.zone, local).second == null)) repeated = false;
+    if (repeated && !isRepeatedHour(zone, local)) repeated = false;
+    firstTimed = false;
     prev = sec;
     last = toUtc(zone, local, repeated);
     out.push({ lineIndex, text, ts: last });
@@ -182,14 +213,8 @@ export function stampLines(file: OrderedFile, zone: ZoneRule, previousTs: number
 /** `2031-03-10T16:00:05Z`: the form the verdict stores, to the second. */
 export const isoSeconds = (ts: number): string => new Date(ts * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-/**
- * Stamps ONE line of a file that is not in hand, from the file's name and the line's own clock.
- * For the rare old line a death needs from outside the files loaded for it (a trap set weeks
- * earlier). The date cannot be walked, so it is taken from `approxTs` when the caller has a rough
- * time for the line (to the nearest day is enough), and otherwise assumed to be within a day of
- * the file's start. Null when the name carries no date or the line no time.
- */
-export function stampDetached(fileName: string, text: string, zone: ZoneRule, approxTs: number | null = null): number | null {
+/** The wall-clock second of one line of a file that is not in hand; null when it cannot be dated. */
+function detachedLocal(fileName: string, text: string, zone: ZoneRule, approxTs: number | null): number | null {
   const boot = bootFromName(fileName);
   const m = TIME_RE.exec(text);
   if (boot == null || !m) return null;
@@ -197,5 +222,33 @@ export function stampDetached(fileName: string, text: string, zone: ZoneRule, ap
   const day = Math.floor(boot / 86400) * 86400;
   let local = day + sec + (sec < boot - day ? 86400 : 0);
   if (approxTs != null) local += Math.round((approxTs - toUtc(zone, local, false)) / 86400) * 86400;
-  return toUtc(zone, local, false);
+  return local;
+}
+
+/**
+ * Stamps ONE line of a file that is not in hand, from the file's name and the line's own clock.
+ * For the rare old line a death needs from outside the files loaded for it (a trap set weeks
+ * earlier). The date cannot be walked, so it is taken from `approxTs` when the caller has a rough
+ * time for the line (to the nearest day is enough), and otherwise assumed to be within a day of
+ * the file's start. Null when the name carries no date or the line no time.
+ *
+ * ⚠️ In the hour written twice when the clocks go back the answer is AMBIGUOUS: one line alone
+ * does not say which pass it is in. The pass nearer `approxTs` is taken, the first pass when
+ * there is none — and `raw_lines.occurred_at` is not a safe hint there, it was stored an hour
+ * early in the days after a clock change. `detachedIsAmbiguous` says when a line is in that hour;
+ * the caller should then stamp the whole file with `stampLines` and pass the exact second.
+ */
+export function stampDetached(fileName: string, text: string, zone: ZoneRule, approxTs: number | null = null): number | null {
+  const local = detachedLocal(fileName, text, zone, approxTs);
+  if (local == null) return null;
+  const first = toUtc(zone, local, false);
+  if (approxTs == null) return first;
+  const second = toUtc(zone, local, true);
+  return Math.abs(second - approxTs) < Math.abs(first - approxTs) ? second : first;
+}
+
+/** True when `stampDetached` cannot know the hour of this line: it is in the hour a zone writes twice. */
+export function detachedIsAmbiguous(fileName: string, text: string, zone: ZoneRule, approxTs: number | null = null): boolean {
+  const local = detachedLocal(fileName, text, zone, approxTs);
+  return local != null && isRepeatedHour(zone, local);
 }

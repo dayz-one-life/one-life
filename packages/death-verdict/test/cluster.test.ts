@@ -42,6 +42,17 @@ describe("resolveCluster", () => {
     expect(allClusters(joined).map(roles)).toEqual([["0:primary", "1:primary_extra"]]);
   });
 
+  it("a second death line, a bled out and a dead-form suicide join at 30 s and do not at 31 s", () => {
+    const after = (dt: number, rest: string) => stamped([[0, `${D} ${STATS}`], [dt, `${D} ${rest}`]]);
+    expect(allClusters(after(30, STATS)).map(roles)).toEqual([["0:primary", "1:primary_extra"]]);
+    expect(allClusters(after(31, STATS)).map(roles)).toEqual([["0:primary"], ["1:primary"]]);
+    expect(allClusters(after(30, "bled out")).map(roles)).toEqual([["0:primary", "1:bled_out"]]);
+    expect(allClusters(after(31, "bled out")).map(roles)).toEqual([["0:primary"]]);
+    expect(() => resolveCluster(after(31, "bled out"), ref(1))).toThrow(/not part of a death/);
+    expect(allClusters(after(30, "committed suicide")).map(roles)).toEqual([["0:primary", "1:suicide_after"]]);
+    expect(allClusters(after(31, "committed suicide")).map(roles)).toEqual([["0:primary"]]);
+  });
+
   it("a connect between a marker and a death line drops the marker", () => {
     const lines = stamped([[-20, `${V} committed suicide`], [-10, `${V} is connected`], [0, `${D} ${STATS}`]]);
     expect(roles(resolveCluster(lines, ref(2)))).toEqual(["2:primary"]);

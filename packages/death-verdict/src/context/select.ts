@@ -3,8 +3,8 @@ import {
 } from "../evidence/log-clock.js";
 import { dist2d, isDetonation, parseEvidenceLine, type Pos, type TrapClass } from "../evidence/parse.js";
 import type { LineRef } from "../types.js";
-import { DeathContext, type ContextInput } from "./build.js";
-import { allClusters, buildRecord, CLUSTER_BEFORE_S, deathAnchor, resolveCluster, type DeathCluster } from "./cluster.js";
+import { DeathContext, ownLinesOf, type ContextInput } from "./build.js";
+import { allClusters, buildRecord, CLUSTER_BEFORE_S, deathAnchors, resolveCluster, type DeathCluster } from "./cluster.js";
 import { indexOf, lowerBound, refKey, refOf, upperBound, type StampedLine } from "./server.js";
 
 /**
@@ -46,16 +46,42 @@ export interface ServerCorpus {
   map: string | null;
   /** The zone the log's clock is in. Defaults to the table in log-clock.ts, by server id. */
   zone?: ZoneRule;
+  /**
+   * `servers.clock_offset_ms`, when the caller has it. Read ONLY for a server the zone table does
+   * not know, and only to choose a zone rule (see `zoneForServer`). ⚠️ A loader should pass it,
+   * and log when `isKnownServer(serverId)` is false, so a new server gets a line in the table.
+   */
+  clockOffsetMs?: number | null;
   files: LogFile[];
 }
 
 /**
  * A line from a file that is NOT in the corpus: an old `placed` line, or an old line of a trap
  * going off. Traps outlive restarts by weeks, so the loader finds these by position and hands
- * them over one by one. `approxTs` is any rough time for the line (a day's accuracy is enough);
- * the second comes from the line itself.
+ * them over one by one, in any order. `approxTs` is any rough time for the line (a day's accuracy
+ * is enough); the second comes from the line itself.
+ *
+ * - `fileName` must carry the file's start date (`DayZServer_X1_x64_<date>_<time>.ADM`): it is how
+ *   the file is placed among the others. ⚠️ A line that cannot be dated is REFUSED with an error,
+ *   never dropped: a second placer's wire that silently vanished would leave "exactly one placer".
+ * - `ts` is the line's exact UTC second, for a caller that stamped the line's whole file with
+ *   `stampLines`. Needed only when `detachedIsAmbiguous` says the line is in the hour written
+ *   twice on a clock-change night; without it such a line may be stamped an hour early.
+ * - A line whose subject is the victim is kept as a placement or a detonation like any other,
+ *   but it never joins the victim's life (see `ContextInput.detached`).
  */
-export interface ExtraLine { admFileId: number; fileName: string; lineIndex: number; text: string; approxTs?: number | null }
+export interface ExtraLine { admFileId: number; fileName: string; lineIndex: number; text: string; approxTs?: number | null; ts?: number | null }
+
+/** What only the caller can know about a death. */
+export interface SelectOptions {
+  /**
+   * Earlier deaths of the same player from BEFORE the files in the corpus, in any order. The
+   * corpus only yields the deaths written in its own files; a loader that starts at the previous
+   * death's file must pass the older ones here (sixty are enough), or the older-corpse test of
+   * `bodyBlasts` loses them. One the corpus also holds is ignored: the corpus's reading wins.
+   */
+  earlierDeaths?: readonly { ts: number; pos: Pos | null }[];
+}
 
 const stamped = new WeakMap<ServerCorpus, StampedLine[]>();
 
@@ -65,15 +91,18 @@ export function stampCorpus(corpus: ServerCorpus, extraLines: readonly ExtraLine
     const hit = stamped.get(corpus);
     if (hit) return hit;
   }
-  const zone = corpus.zone ?? zoneForServer(corpus.serverId);
+  const zone = corpus.zone ?? zoneForServer(corpus.serverId, corpus.clockOffsetMs);
   const have = new Set(corpus.files.map((f) => f.admFileId));
   // Files only known through an extra line: placed among the others by the date in their name.
   const detached = new Map<number, { boot: number; lines: { lineIndex: number; text: string; ts: number }[] }>();
   for (const x of extraLines) {
     if (have.has(x.admFileId)) continue;
-    const ts = stampDetached(x.fileName, x.text, zone, x.approxTs ?? null);
-    if (ts == null) continue;
-    if (!detached.has(x.admFileId)) detached.set(x.admFileId, { boot: bootFromName(x.fileName)!, lines: [] });
+    const boot = bootFromName(x.fileName);
+    const ts = boot == null ? null : x.ts ?? stampDetached(x.fileName, x.text, zone, x.approxTs ?? null);
+    if (boot == null || ts == null) {
+      throw new Error(`stampCorpus: the extra line ${x.admFileId}:${x.lineIndex} cannot be dated (its file name has no start date, or the line no clock)`);
+    }
+    if (!detached.has(x.admFileId)) detached.set(x.admFileId, { boot, lines: [] });
     const f = detached.get(x.admFileId)!;
     if (!f.lines.some((l) => l.lineIndex === x.lineIndex)) f.lines.push({ lineIndex: x.lineIndex, text: x.text, ts });
   }
@@ -95,24 +124,37 @@ export function stampCorpus(corpus: ServerCorpus, extraLines: readonly ExtraLine
 interface Resolved {
   all: StampedLine[]; own: StampedLine[]; pid: string; cluster: DeathCluster;
   previous: DeathCluster | null; prevDeaths: { ts: number; pos: Pos | null }[];
+  /** The ids of the files known only through an extra line. */
+  detached: Set<number>;
 }
 
-function resolve(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[]): Resolved {
+function resolve(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[], opts: SelectOptions): Resolved {
   const all = stampCorpus(corpus, extraLines);
   const S = indexOf(all);
   const seedLine = S.line(seed);
   if (!seedLine?.subject) throw new Error(`selectContextLines: line ${refKey(seed)} is not in the corpus or names no player`);
   const pid = seedLine.subject.id;
-  const own = S.ownLines(pid);
+  const have = new Set(corpus.files.map((f) => f.admFileId));
+  const detached = new Set(extraLines.map((x) => x.admFileId).filter((id) => !have.has(id)));
+  // ⚠️ The victim's OWN lines come from the corpus only. A stray old line of theirs from outside
+  // (their own trap, a wire they tripped in another life) is evidence about the place, not a
+  // piece of this life: it must not move the life's start or add a stale health reading.
+  const own = ownLinesOf(S, pid, detached);
   const cluster = resolveCluster(own, seed);
   const clusters = allClusters(own);
   const at = clusters.findIndex((c) => refKey(c.primary) === refKey(cluster.primary));
-  const prevDeaths = clusters.slice(Math.max(0, at - PREV_DEATHS_MAX), at).map((c) => deathAnchor(c, own));
-  return { all, own, pid, cluster, previous: at > 0 ? clusters[at - 1]! : null, prevDeaths };
+  const inCorpus = deathAnchors(clusters.slice(Math.max(0, at - PREV_DEATHS_MAX), at), own);
+  // Handed-over deaths count only when they are older than every death the corpus itself holds.
+  const before = deathAnchors([clusters[0]!], own)[0]!.ts;
+  const older = [...(opts.earlierDeaths ?? [])].filter((d) => d.ts < before).sort((a, b) => a.ts - b.ts)
+    .map((d) => ({ ts: d.ts, pos: d.pos }));
+  const prevDeaths = [...older, ...inCorpus].slice(-PREV_DEATHS_MAX);
+  return { all, own, pid, cluster, previous: at > 0 ? clusters[at - 1]! : null, prevDeaths, detached };
 }
 
-/** What the death's own lines say could have been a trap, and where it went off. */
-function trapAnchors(victimAlive: readonly StampedLine[], record: ReturnType<typeof buildRecord>): { cls: TrapClass; anchor: Pos }[] {
+/** What the death's own lines say could have been a trap, and where it went off. `victimAlive` are
+ *  the victim's living-form lines of this life, before the primary line. */
+export function trapAnchors(victimAlive: readonly StampedLine[], record: ReturnType<typeof buildRecord>): { cls: TrapClass; anchor: Pos }[] {
   const out: { cls: TrapClass; anchor: Pos }[] = [];
   if (!record.killer) return out;
   const trips = victimAlive.filter((o) => o.hit?.label === "trap" && o.hit.source === "TripwireTrap" && record.t0 - o.ts >= 0 && record.t0 - o.ts <= 6);
@@ -127,9 +169,15 @@ function trapAnchors(victimAlive: readonly StampedLine[], record: ReturnType<typ
  * Selects the lines one death needs. `seed` is any line of the death's cluster. `extraLines` are
  * lines from files outside the corpus that may matter (see `ExtraLine`); they go through the same
  * distance tests as everything else.
+ *
+ * ⚠️ What a database loader must hand over, because the corpus cannot know it:
+ * - `opts.earlierDeaths`: the player's deaths from before the first file loaded;
+ * - `corpus.clockOffsetMs` (or `corpus.zone`) for a server the zone table does not name;
+ * - `extraLines` for placements and detonations in files it did not load, each with a dated file
+ *   name, and with `ts` when `detachedIsAmbiguous` is true for it.
  */
-export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = []): ContextInput {
-  const { all, own, pid, cluster, previous, prevDeaths } = resolve(corpus, seed, extraLines);
+export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = [], opts: SelectOptions = {}): ContextInput {
+  const { all, own, pid, cluster, previous, prevDeaths, detached } = resolve(corpus, seed, extraLines, opts);
   const S = indexOf(all);
   const record = buildRecord(cluster, own, all);
   const { t0, pos, firstSeq, prevEndSeq } = record;
@@ -202,14 +250,17 @@ export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLin
     f.lines.push([o.lineIndex, o.ts, o.text]);
   }
   placements.sort((a, b) => S.idx.get(refKey(a))! - S.idx.get(refKey(b))!);
-  return { serverId: corpus.serverId, map: corpus.map, deathRef: cluster.primary, cluster, files, placements, prevDeaths };
+  const input: ContextInput = { serverId: corpus.serverId, map: corpus.map, deathRef: cluster.primary, cluster, files, placements, prevDeaths };
+  const keptDetached = files.map((f) => f.admFileId).filter((id) => detached.has(id));
+  if (keptDetached.length) input.detached = keptDetached;
+  return input;
 }
 
 /**
  * The same death read from the WHOLE corpus, with nothing left out. Only for checking that the
  * selection is sufficient: the two contexts must give the same verdict.
  */
-export function wholeCorpusContext(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = []): DeathContext {
-  const { all, cluster, prevDeaths } = resolve(corpus, seed, extraLines);
-  return new DeathContext(all, { serverId: corpus.serverId, map: corpus.map, cluster, prevDeaths });
+export function wholeCorpusContext(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = [], opts: SelectOptions = {}): DeathContext {
+  const { all, cluster, prevDeaths, detached } = resolve(corpus, seed, extraLines, opts);
+  return new DeathContext(all, { serverId: corpus.serverId, map: corpus.map, cluster, prevDeaths, detached: [...detached] });
 }

@@ -1,7 +1,7 @@
 import { dist2d, parseEvidenceLine, type HitCategory, type HitInfo, type Pos } from "../evidence/parse.js";
 import type { LineRef } from "../types.js";
 import { buildRecord, type DeathCluster, type DeathFeatures, type DeathRecord, type DeathRole } from "./cluster.js";
-import { indexOf, pyRound, refKey, type ServerIndex, type StampedLine } from "./server.js";
+import { indexOf, pyRound, pySum, refKey, type ServerIndex, type StampedLine } from "./server.js";
 
 /**
  * The death context: one death and the timeline of the life it ended, as the rules read it.
@@ -29,6 +29,23 @@ export interface ContextInput {
   placements: LineRef[];
   /** Up to 60 earlier deaths of the same player on the server, oldest first. */
   prevDeaths: { ts: number; pos: Pos | null }[];
+  /**
+   * The ids of the files that are in `files` only through a line handed over from outside the
+   * loaded log (an old placement, an old detonation). Absent when there is none. ⚠️ A line of
+   * such a file is never one of the victim's own lines, whoever it names: see `ownLinesOf`.
+   */
+  detached?: number[];
+}
+
+/**
+ * The victim's own lines: the lines they are the subject of, without those from detached files.
+ * A detached line is a stray from weeks earlier; spliced into the life it would move the life's
+ * start and add a stale health reading.
+ */
+export function ownLinesOf(S: ServerIndex, pid: string, detached: Iterable<number> | null | undefined): StampedLine[] {
+  const own = S.ownLines(pid);
+  const skip = new Set(detached ?? []);
+  return skip.size === 0 ? own : own.filter((o) => !skip.has(o.admFileId));
 }
 
 const CREATURE: readonly HitCategory[] = ["infected", "animal"];
@@ -152,12 +169,12 @@ export class DeathContext {
   /** How many of Water and Energy are at or below 300. */
   readonly nLow: number;
 
-  constructor(lines: readonly StampedLine[], input: Pick<ContextInput, "serverId" | "map" | "cluster" | "prevDeaths">) {
+  constructor(lines: readonly StampedLine[], input: Pick<ContextInput, "serverId" | "map" | "cluster" | "prevDeaths" | "detached">) {
     const S = indexOf(lines);
     const primary = S.line(input.cluster.primary);
     if (!primary?.subject) throw new Error(`DeathContext: the primary line ${refKey(input.cluster.primary)} is not among the lines`);
     const pid = primary.subject.id;
-    const own = S.ownLines(pid);
+    const own = ownLinesOf(S, pid, input.detached);
     const r = buildRecord(input.cluster, own, lines);
     this.serverId = input.serverId; this.map = input.map; this.server = S; this.record = r; this.cluster = input.cluster;
     this.pid = pid; this.victimName = r.victimName; this.prim = r.prim; this.t0 = r.t0; this.pos = r.pos; this.dl = r.dl;
@@ -302,9 +319,7 @@ export class DeathContext {
       return res;
     }
     res.silent = silent;
-    let logged = 0;
-    for (const v of res.logged.values()) logged += v;
-    res.total = silent + logged;
+    res.total = silent + pySum(res.logged.values());
     return res;
   }
 
