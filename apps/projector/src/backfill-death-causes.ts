@@ -7,8 +7,25 @@ import { parseDeath } from "@onelife/adm-parser";
 const UPGRADEABLE = new Set(["environment", "died", "unknown"]);
 
 /**
+ * Whether the backfill may replace a stored cause with the one the parser reads today: only a
+ * vague stored cause, only for a specific mechanism — and never `pvp`.
+ *
+ * ⚠️ `pvp` is excluded because this tool patches `cause` and `deathEntity` and nothing else. The
+ * parser now reads a kill line whose killer carries `(DEAD)` as a player kill; the parser of the
+ * day stored it as `environment`. Upgrading that to `pvp` would leave `killer`, `weapon` and
+ * `distance` null — after the rebuild, a qualifying player-kill death (so a ban, and `bans` is
+ * durable) reading "Killed by unknown", with no kills row. Correcting such a death means
+ * re-deriving the whole payload, which is a different tool from this one.
+ */
+export function mayUpgradeCause(stored: unknown, parsed: string): boolean {
+  return typeof stored === "string" && UPGRADEABLE.has(stored)
+    && !UPGRADEABLE.has(parsed) && parsed !== "pvp";
+}
+
+/**
  * Re-derives death causes for historical player.died events from their lossless raw lines using
- * the CURRENT parser (stage-2 entity dict). Upgrade-only + fill-only, idempotent. `unmapped`
+ * the CURRENT parser (stage-2 entity dict). Upgrade-only + fill-only, idempotent, and never to
+ * `pvp` (see mayUpgradeCause). A stored `deathEntity` is never rewritten, only filled. `unmapped`
  * counts entities that still fall back to "environment" — the survey that grows the entity dict.
  * Follow with a full projection rebuild so lives pick up the patched payloads.
  */
@@ -28,9 +45,7 @@ export async function backfillDeathCauses(db: Database): Promise<{ patched: numb
       unmapped[d.deathEntity] = (unmapped[d.deathEntity] ?? 0) + 1;
     }
 
-    const upgradeCause =
-      typeof payload.cause === "string" && UPGRADEABLE.has(payload.cause) &&
-      d.cause !== payload.cause && !UPGRADEABLE.has(d.cause) && d.cause !== "died" && d.cause !== "unknown";
+    const upgradeCause = mayUpgradeCause(payload.cause, d.cause);
     const addEntity = d.deathEntity != null && payload.deathEntity == null;
     if (!upgradeCause && !addEntity) continue;
 
@@ -88,7 +103,9 @@ async function recoverMissedDeaths(db: Database): Promise<{ recovered: number; u
   for (const line of candidates) {
     const d = parseDeath(line.text);
     if (!d) continue;
-    if (UPGRADEABLE.has(d.cause)) continue;   // nothing more specific to contribute
+    // Nothing more specific to contribute — or a player kill, which this cause-only patch cannot
+    // carry onto the companion (see mayUpgradeCause).
+    if (UPGRADEABLE.has(d.cause) || d.cause === "pvp") continue;
 
     const at = line.occurredAt!.getTime();
     const companions = await db.select().from(events).where(and(
@@ -102,7 +119,7 @@ async function recoverMissedDeaths(db: Database): Promise<{ recovered: number; u
     if (!companion) { unpaired++; continue; }
 
     const payload = companion.payload as Record<string, unknown>;
-    if (typeof payload.cause !== "string" || !UPGRADEABLE.has(payload.cause)) continue;
+    if (!mayUpgradeCause(payload.cause, d.cause)) continue;
 
     await db.update(events).set({ payload: { ...payload, cause: d.cause } })
       .where(eq(events.id, companion.id));

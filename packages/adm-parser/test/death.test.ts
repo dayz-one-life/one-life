@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDeath } from "../src/index.js";
+import { parseDeath, parseLine, MUTUAL_KILL_IS_PVP } from "../src/index.js";
 
 describe("parseDeath", () => {
   it("parses pvp with weapon and distance", () => {
@@ -119,5 +119,175 @@ describe("parseDeath — named non-player killers (stage 2)", () => {
     expect(parseDeath('10:00:00 | Player "V" (DEAD) (id=V=) killed by Player "K" (id=K=) with M4A1 from 10 meters')?.deathEntity).toBeNull();
     expect(parseDeath('10:00:00 | Player "A" (DEAD) (id=A=) died.')?.deathEntity).toBeNull();
     expect(parseDeath('10:00:00 | Player "A" (DEAD) (id=A=) bled out')?.deathEntity).toBeNull();
+  });
+});
+
+// Every line below is INVENTED — made-up callsigns, ids of one repeated digit, round coordinates.
+// The repo is public; no production line belongs in this file.
+describe("parseDeath — named objects", () => {
+  const V = "1111111111111111111111111111111111111111";
+  const K = "2222222222222222222222222222222222222222";
+  const victim = `Player "Victim One" (DEAD) (id=${V} pos=<1000.0, 2000.0, 30.0>)`;
+  const killedBy = (clause: string) => `12:00:00 | ${victim} killed by ${clause}`;
+
+  // One line per shape. `results` is how many ParsedLines `parseLine` returned for the same line
+  // at v0.80.0 (measured there, written down here) — see the subIndex guard at the bottom.
+  const SHAPES = {
+    m67: { line: killedBy("M67Grenade"), results: 2 },
+    sixM7: { line: killedBy("6-M7 Frag Grenade"), results: 2 },
+    egd5: { line: killedBy("EGD-5 Frag Grenade"), results: 2 },
+    landMine: { line: killedBy("LandMineTrap"), results: 2 },
+    claymore: { line: killedBy("Claymore"), results: 2 },
+    fuelPump: { line: killedBy("Land_FuelStation_Feed"), results: 2 },
+    // The empty-killer form really does carry two spaces: `killed by  with <thing>`.
+    empty40mm: { line: killedBy(" with 40mm Explosive Grenade"), results: 2 },
+    emptyFireplace: { line: killedBy(" with Fireplace"), results: 2 },
+    emptyFirearm: { line: killedBy(" with M4-A1 from 61.5 meters"), results: 2 },
+    noDriver: { line: killedBy("NO DRIVER (Motorbike_02_Red)"), results: 2 },
+    selfExplosive: { line: killedBy(`Player "Victim One" (DEAD) (id=${V} pos=<1000.0, 2000.0, 30.0>) with M79 from 4.5 meters`), results: 2 },
+    selfFirearm: { line: killedBy(`Player "Victim One" (id=${V} pos=<1000.0, 2000.0, 30.0>) with M4-A1 from 0.5 meters`), results: 2 },
+    deadKiller: { line: killedBy(`Player "Killer Two" (DEAD) (id=${K} pos=<1010.0, 2010.0, 30.0>) with M4-A1 from 14.5 meters`), results: 2 },
+    pvp: { line: killedBy(`Player "Killer Two" (id=${K} pos=<1010.0, 2010.0, 30.0>) with M4-A1 from 14.5 meters`), results: 2 },
+    infected: { line: killedBy("ZmbM_PatrolNormal_Autumn"), results: 2 },
+  } as const;
+
+  it.each([
+    ["M67", SHAPES.m67.line, "M67Grenade"],
+    ["6-M7 Frag Grenade", SHAPES.sixM7.line, "6-M7 Frag Grenade"],
+    ["EGD-5 Frag Grenade", SHAPES.egd5.line, "EGD-5 Frag Grenade"],
+    ["LandMineTrap", SHAPES.landMine.line, "LandMineTrap"],
+    ["Claymore", SHAPES.claymore.line, "Claymore"],
+    ["Land_FuelStation_Feed", SHAPES.fuelPump.line, "Land_FuelStation_Feed"],
+    ["RGD5Grenade", killedBy("RGD5Grenade"), "RGD5Grenade"],
+    ["ClaymoreMine", killedBy("ClaymoreMine"), "ClaymoreMine"],
+    ["Plastic Explosive", killedBy("Plastic Explosive"), "Plastic Explosive"],
+  ])("%s is an explosion that names the whole object and no person", (_name, line, entity) => {
+    expect(parseDeath(line)).toEqual({
+      victim: "Victim One", dayzId: V, cause: "explosion", killer: null, weapon: null, distance: null,
+      energy: null, water: null, bleedSources: null, deathEntity: entity,
+    });
+  });
+
+  it("empty-killer 40mm is explosion with no killer", () => {
+    expect(parseDeath(SHAPES.empty40mm.line)).toMatchObject({
+      cause: "explosion", killer: null, weapon: null, distance: null, deathEntity: "40mm Explosive Grenade",
+    });
+  });
+
+  it("empty-killer Fireplace stays environment", () => {
+    expect(parseDeath(SHAPES.emptyFireplace.line)).toMatchObject({
+      cause: "environment", killer: null, weapon: null, deathEntity: "Fireplace",
+    });
+  });
+
+  it("an ownerless firearm stays environment with no killer", () => {
+    expect(parseDeath(SHAPES.emptyFirearm.line)).toMatchObject({
+      cause: "environment", killer: null, weapon: null, distance: null, deathEntity: "M4-A1",
+    });
+  });
+
+  it("NO DRIVER (Motorbike_02_Red) is vehicle", () => {
+    expect(parseDeath(SHAPES.noDriver.line)).toMatchObject({
+      cause: "vehicle", killer: null, deathEntity: "Motorbike_02_Red",
+    });
+  });
+
+  it("a motorbike named directly is a vehicle too", () => {
+    expect(parseDeath(killedBy("Motorbike_01_Blue"))).toMatchObject({ cause: "vehicle", deathEntity: "Motorbike_01_Blue" });
+  });
+
+  it("a kill line naming the victim is never pvp", () => {
+    // With and without the `(DEAD)` marker on the killer half — both name the victim's own id.
+    const dead = parseDeath(SHAPES.selfExplosive.line)!;
+    expect(dead).toMatchObject({
+      victim: "Victim One", cause: "explosion", killer: null, deathEntity: "M79",
+    });
+    const live = parseDeath(SHAPES.selfFirearm.line)!;
+    expect(live.cause).not.toBe("pvp");
+    expect(live.killer).toBeNull();
+    // Identity is the id, not the name: the same id under a different callsign is still a self-kill.
+    const renamed = parseDeath(killedBy(`Player "Someone Else" (id=${V} pos=<1.0, 2.0, 3.0>) with M79 from 2 meters`))!;
+    expect(renamed).toMatchObject({ cause: "explosion", killer: null });
+  });
+
+  it("a self-kill with a non-explosive weapon is environment", () => {
+    expect(parseDeath(SHAPES.selfFirearm.line)).toMatchObject({
+      cause: "environment", killer: null, deathEntity: "M4-A1",
+    });
+  });
+
+  // `weapon` and `distance` describe a player kill. The fold copies them onto the life whatever
+  // the cause and the web timeline prints them under every death, so a self-kill that kept them
+  // would read "Died - Explosion / M79 · 5 m". The thing is kept once, as the entity — the same
+  // way the empty-killer form keeps it.
+  it("a self-kill carries no weapon and no distance, only the entity", () => {
+    for (const line of [SHAPES.selfExplosive.line, SHAPES.selfFirearm.line]) {
+      expect(parseDeath(line)).toMatchObject({ killer: null, weapon: null, distance: null });
+    }
+  });
+
+  // DayZ can write a sentinel instead of an id (`id=ERROR`, `id=Unknown`). Two different players
+  // carrying the same sentinel are not one person: equal ids prove a self-kill only when the id
+  // is a real one, or when the names agree as well.
+  it.each(["Unknown", "ERROR"])("two players who both carry the placeholder id=%s are not a self-kill", (id) => {
+    const line = `12:00:00 | Player "Victim One" (DEAD) (id=${id}) killed by Player "Killer Two" (id=${id}) with M4-A1 from 10 meters`;
+    expect(parseDeath(line)).toMatchObject({ cause: "pvp", killer: "Killer Two", weapon: "M4-A1", distance: 10, deathEntity: null });
+  });
+
+  it("a placeholder id under the same name on both sides is still a self-kill", () => {
+    const line = `12:00:00 | Player "Victim One" (DEAD) (id=Unknown) killed by Player "Victim One" (DEAD) (id=Unknown) with M79 from 2 meters`;
+    expect(parseDeath(line)).toMatchObject({ cause: "explosion", killer: null, deathEntity: "M79" });
+  });
+
+  it("an empty-killer line that names nothing has no entity, not an empty one", () => {
+    for (const clause of [" with ", " with   "]) {
+      expect(parseDeath(killedBy(clause))).toMatchObject({ cause: "environment", killer: null, deathEntity: null });
+    }
+  });
+
+  it("a self-kill with a 40mm round or a held grenade is an explosion", () => {
+    const self = (weapon: string) => killedBy(`Player "Victim One" (DEAD) (id=${V} pos=<1.0, 2.0, 3.0>) with ${weapon}`);
+    expect(parseDeath(self("40mm Explosive Grenade"))?.cause).toBe("explosion");
+    expect(parseDeath(self("M67Grenade"))?.cause).toBe("explosion");
+    expect(parseDeath(self("Claymore"))?.cause).toBe("explosion");
+    expect(parseDeath(self("Plastic Explosive"))?.cause).toBe("explosion");
+  });
+
+  // `(DEAD)` on the killer means only that he was already dead when the line was written. That is
+  // usually a mutual kill (each line names the other), but not always: the killer may have been
+  // killed by a third player first. Operator decision (spec question 4, answered 2026-11-10): the
+  // named killer is credited either way. Before this the `(DEAD)` on the killer made KILL_RE miss
+  // and the line fell through to an `environment` death whose killing entity was the literal word
+  // "Player".
+  it("a (DEAD) killer who is another player is a player kill", () => {
+    expect(MUTUAL_KILL_IS_PVP).toBe(true);
+    expect(parseDeath(SHAPES.deadKiller.line)).toEqual({
+      victim: "Victim One", dayzId: V, cause: "pvp", killer: "Killer Two", weapon: "M4-A1", distance: 14.5,
+      energy: null, water: null, bleedSources: null, deathEntity: null,
+    });
+  });
+
+  it("never captures a fragment of the clause as the entity", () => {
+    for (const { line } of Object.values(SHAPES)) {
+      expect(["6", "EGD", "NO", "Player"]).not.toContain(parseDeath(line)!.deathEntity);
+    }
+  });
+
+  it("an entity with a trailing weapon clause keeps only the entity", () => {
+    expect(parseDeath(killedBy("ZmbM_PatrolNormal_Autumn with Claws"))).toMatchObject({
+      cause: "infected", deathEntity: "ZmbM_PatrolNormal_Autumn",
+    });
+  });
+
+  // ⚠️ The subIndex guard. `events` rows are keyed on (raw line, subIndex) and subIndex is the
+  // position in parseLine's array. A change here may alter what a death SAYS, never how many
+  // results a line yields or their order — that would renumber stored events and collide with
+  // events_idempotency_uniq on the next ingest of the same line.
+  it("every shape returns the same number of results as before", () => {
+    for (const [name, { line, results }] of Object.entries(SHAPES)) {
+      const parsed = parseLine(line);
+      expect(parsed.length, name).toBe(results);
+      expect(parsed.map((p) => p.kind), name).toEqual(["death", "position"]);
+    }
   });
 });

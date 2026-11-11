@@ -5,7 +5,9 @@ import { OBITUARY_SYSTEM } from "./voice.js";
 import type { RecentProse } from "./prose-pg-store.js";
 import { recentProseBlock } from "./prose-block.js";
 
-export const OBITUARY_PROMPT_VERSION = "obituary-v3";
+// v3.1: `explosion` and `vehicle` lose the "(not a player kill)" suffix and gain
+// NAMES_NO_PERSON_DIRECTIVE (see below). Nothing else differs from v3.
+export const OBITUARY_PROMPT_VERSION = "obituary-v3.1";
 
 export interface Obituary {
   headline: string;
@@ -29,12 +31,62 @@ export const NO_MECHANISM_DIRECTIVE =
   `THE CAUSE OF DEATH IS NOT RECORDED. Do NOT name or imply a mechanism — no fall, no terrain, no exposure, no animal, no infected, no starvation, no thirst, no weather, no ambush. Do not guess, hedge toward, or hint at one, and do not dress the blank up as a cause. The paper does not know. Say so: the ABSENCE of a cause IS the story — the record simply stops, and a life ends with nothing written next to it. Write the gap, not a mechanism.`;
 
 /**
+ * ⚠️ Causes the kill line pins on an OBJECT — a grenade, a mine, a tripwire, a 40mm round, a fuel
+ * pump, a vehicle with nobody in the seat. The log names no person on those lines, which is not
+ * the same as there being none: somebody may have thrown it, placed it or been driving. The prose
+ * is posted to Discord and Facebook where it cannot be edited, so for these causes the prompt
+ * must not assert "(not a player kill)" — and must not invite the opposite guess either.
+ */
+const NAMES_NO_PERSON_CAUSES = new Set(["explosion", "vehicle"]);
+
+export const NAMES_NO_PERSON_DIRECTIVE =
+  "The record names no person behind this. Do not name, hint at or speculate about anyone, and do not say that no one was involved.";
+
+/** The cause the prompt actually describes: the verdict's when it names one, else the recorded one. */
+function describedCause(facts: ObituaryFacts): string | null {
+  const v = facts.verdict?.cause ?? null;
+  return isUnrecordedCause(v) ? facts.cause : v;
+}
+
+/** True when the death is described as an explosion or a vehicle and no player is named for it. */
+export function namesNoPerson(facts: ObituaryFacts): boolean {
+  if (facts.causeCategory === "pvp" || facts.killerGamertag) return false;
+  return NAMES_NO_PERSON_CAUSES.has((describedCause(facts) ?? "").trim().toLowerCase());
+}
+
+/**
  * True when nothing in the record names a mechanism for this death. A player kill is never
  * unrecorded (the killer IS the mechanism), so pvp short-circuits to false.
  */
 export function causeUnrecorded(facts: ObituaryFacts): boolean {
   if (facts.causeCategory === "pvp" || facts.killerGamertag) return false;
   return isUnrecordedCause(facts.cause) && isUnrecordedCause(facts.verdict?.cause ?? null);
+}
+
+/** How a cause is worded for the model. A cause not listed is sent as its token, spaced. */
+const CAUSE_PHRASE: Record<string, string> = {
+  suicide: "died by their own hand",
+  starvation: "starvation — they ran out of food",
+  dehydration: "dehydration — they ran out of water",
+  bled_out: "bled out",
+  mauled: "mauled — bleeding out after an animal or infected attack",
+  wolf: "killed by a wolf",
+  bear: "killed by a bear",
+  animal: "killed by a wild animal",
+  infected: "killed by the infected",
+  fall: "died in a fall",
+  vehicle: "killed by a vehicle",
+  explosion: "killed in an explosion",
+};
+/**
+ * The recorded cause as words, for the two paths with no verdict to word it. Explosion and vehicle
+ * drop the "(not a player kill)" suffix, and a bare "explosion." / "vehicle." is not something to
+ * hand the model — so those two take their phrase. Every other cause keeps its token: it still
+ * carries the suffix, which is what makes it read as a statement.
+ */
+function recordedCausePhrase(cause: string): string {
+  const key = cause.trim().toLowerCase();
+  return NAMES_NO_PERSON_CAUSES.has(key) ? CAUSE_PHRASE[key]! : cause.replace(/_/g, " ");
 }
 
 /** Deterministic, qualitative death sentence for the prompt — words, never raw stat values. */
@@ -46,13 +98,16 @@ export function describeDeath(facts: ObituaryFacts): string {
     return `killed by another player${killer}${weapon}${dist}.`;
   }
   const v = facts.verdict;
+  // Everything that is not a player kill says so — except the causes that name an object and no
+  // person, where that claim is more than the record supports (NAMES_NO_PERSON_CAUSES).
+  const notPlayer = namesNoPerson(facts) ? "." : " (not a player kill).";
   if (!v) {
     // The bare "suicide" token must never reach the model as a raw word — it is the one cause
     // whose phrasing carries a duty of care, so phrase it here exactly as the verdict path does.
     if (facts.cause === "suicide") return "died by their own hand (not a player kill).";
     // D4: no verdict and no mechanism token — say so plainly rather than emitting a bare word.
     if (isUnrecordedCause(facts.cause)) return UNKNOWN_DEATH_PHRASE;
-    return `${facts.cause!.replace(/_/g, " ")} (not a player kill).`;
+    return `${recordedCausePhrase(facts.cause!)}${notPlayer}`;
   }
   const conds = v.conditions.filter((c) => c !== "healthy");
   const state = conds.length
@@ -63,24 +118,10 @@ export function describeDeath(facts: ObituaryFacts): string {
   // mechanism when there is one; otherwise it is an explicit unknown, plus the factual state.
   if (isUnrecordedCause(v.cause)) {
     if (isUnrecordedCause(facts.cause)) return `${UNKNOWN_DEATH_PHRASE}${state}`;
-    return `${hedge}${facts.cause!.replace(/_/g, " ")} (not a player kill).${state}`;
+    return `${hedge}${recordedCausePhrase(facts.cause!)}${notPlayer}${state}`;
   }
-  const noun: Record<string, string> = {
-    suicide: "died by their own hand",
-    starvation: "starvation — they ran out of food",
-    dehydration: "dehydration — they ran out of water",
-    bled_out: "bled out",
-    mauled: "mauled — bleeding out after an animal or infected attack",
-    wolf: "killed by a wolf",
-    bear: "killed by a bear",
-    animal: "killed by a wild animal",
-    infected: "killed by the infected",
-    fall: "died in a fall",
-    vehicle: "killed by a vehicle",
-    explosion: "killed in an explosion",
-  };
-  const base = noun[v.cause] ?? v.cause.replace(/_/g, " ");
-  return `${hedge}${base} (not a player kill).${state}`;
+  const base = CAUSE_PHRASE[v.cause] ?? v.cause.replace(/_/g, " ");
+  return `${hedge}${base}${notPlayer}${state}`;
 }
 
 /**
@@ -144,6 +185,7 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   } else if (facts.verdict?.confidence === "low") {
     lines.push(`The cause of death is an inference from the record, not a certainty — hedge it in-voice ("the record is murky", "the island isn't saying").`);
   }
+  if (namesNoPerson(facts)) lines.push(NAMES_NO_PERSON_DIRECTIVE);
   lines.push("");
   lines.push(...recentProseBlock(recent));
   lines.push("");

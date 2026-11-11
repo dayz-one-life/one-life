@@ -1,7 +1,8 @@
 export type DeathCause =
   | "pvp" | "bled_out" | "drowned" | "suicide" | "environment" | "died" | "unknown"
-  // Stage 2 — named non-player killers. `vehicle`/`explosion` are reserved in the type; the
-  // entity dict emits them only once real class names are confirmed by the backfill survey.
+  // Stage 2 — named non-player killers. `explosion` is emitted for the explosives a kill line
+  // names (grenades, mines, claymores, plastic explosive, 40mm rounds, fuel pumps) and `vehicle`
+  // for car, truck, boat and motorbike classes, including the driverless `NO DRIVER (<class>)` form.
   | "wolf" | "bear" | "animal" | "infected" | "fall" | "vehicle" | "explosion";
 
 export type BuildAction = "placed" | "built" | "dismantled" | "packed" | "repaired";

@@ -64,6 +64,34 @@ describe("planBans", () => {
   });
 });
 
+// A kill line naming the victim's own id (a player caught by his own explosive) used to be stored
+// as `environment`; the parser now stores `explosion`. Neither word is `pvp`, so the ban decision
+// for such a life must be exactly what it was — playtime or an earlier kill, never "pvp-death".
+describe("planBans — the self-kill line", () => {
+  const plan = (deathCause: string, over: Partial<EndedLife> = {}) =>
+    planBans([{ ...base, deathCause, ...over }], 24);
+
+  it("decisions are unchanged for the self-kill line", () => {
+    const cases: Partial<EndedLife>[] = [
+      { effectivePlaytimeSeconds: 120 },                                    // unqualified
+      { effectivePlaytimeSeconds: 400 },                                    // playtime
+      { effectivePlaytimeSeconds: 10, playerKills: [{ occurredAt: new Date("2026-07-11T11:00:00Z") }] }, // kill
+    ];
+    for (const over of cases) {
+      expect(plan("explosion", over)).toEqual(plan("environment", over));
+    }
+    expect(plan("explosion", cases[0])).toEqual([]);
+    expect(plan("explosion", cases[1])[0]!.qualifiedBy).toBe("playtime");
+    expect(plan("explosion", cases[2])[0]!.qualifiedBy).toBe("kill");
+  });
+
+  it("a short life ended by one's own explosive is not a pvp death", () => {
+    // Had the line been read as a player kill, this 10-second life would qualify on its own.
+    expect(plan("pvp", { effectivePlaytimeSeconds: 10 })).toHaveLength(1);
+    expect(plan("explosion", { effectivePlaytimeSeconds: 10 })).toEqual([]);
+  });
+});
+
 describe("planExpiries", () => {
   const now = new Date("2026-07-12T12:00:00Z");
   it("returns only ids whose expiresAt is at or before now", () => {
