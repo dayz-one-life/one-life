@@ -70,7 +70,8 @@ const CONFLICT = [articles.kind, articles.serverId, articles.gamertag, articles.
 // alongside `target` — omitting it raises 42P10 and kills publishing on the next tick.
 const CONFLICT_WHERE = inArray(articles.kind, ["obituary", "birth_notice"]);
 
-/** Qualified dead lives that need an obituary: no published article and no exhausted failed stub.
+/** Qualified dead lives that need an obituary: no published or retracted article and no exhausted
+ *  failed stub.
  *  Anti-joins `articles` on the natural key (server + gamertag + life_started_at). */
 export async function findObituaryTargets(
   db: Database,
@@ -120,7 +121,10 @@ export async function findObituaryTargets(
                 // ever held) rather than the current players.gamertag alone.
                 sql`lower(${articles.gamertag}) IN (SELECT lower(pg.gamertag) FROM player_gamertags pg WHERE pg.player_id = ${lives.playerId})`,
                 eq(articles.lifeStartedAt, lives.startedAt),
-                sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+                // ⚠️ A retracted obituary blocks too (spec 6.4): its life stopped qualifying when a
+                // trap kill was denied, and if it qualifies again the next tick must not regenerate
+                // and re-post it with a paid model call. `regenerate --restore <slug>` puts one back.
+                sql`(${articles.status} IN ('published', 'retracted') OR ${articles.attempts} >= ${opts.maxAttempts})`,
               ),
             ),
         ),
@@ -172,7 +176,7 @@ export async function overdueObituaryLives(
             eq(articles.serverId, lives.serverId),
             sql`lower(${articles.gamertag}) IN (SELECT lower(pg.gamertag) FROM player_gamertags pg WHERE pg.player_id = ${lives.playerId})`,
             eq(articles.lifeStartedAt, lives.startedAt),
-            sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+            sql`(${articles.status} IN ('published', 'retracted') OR ${articles.attempts} >= ${opts.maxAttempts})`,
           )),
         ),
       ),
