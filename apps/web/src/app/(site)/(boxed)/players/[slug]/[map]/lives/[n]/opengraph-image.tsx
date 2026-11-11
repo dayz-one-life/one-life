@@ -30,6 +30,14 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
       ]
     : [];
 
+  // The public death's label (death-verdict spec 7), hedged on the server. An old payload with no
+  // label keeps the coarse word.
+  const causeText = data?.verdict?.label || (data?.life.deathCause ? causeLabel(data.life.deathCause) : null);
+  // ⚠️ A pending death ("Awaiting the record", or the bare coarse word) becomes its real cause a few
+  // minutes later. Next would cache this card for a year; a scraper that caught the pending one
+  // would keep it. A minute lets the next scrape pick up the verdict.
+  const pending = data?.verdict?.status === "pending";
+
   return new ImageResponse(
     (
       <CardShell
@@ -46,14 +54,14 @@ export default async function OgImage({ params }: { params: Promise<{ slug: stri
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: gtSize, fontWeight: 700, lineHeight: 1, letterSpacing: -1, color: PAPER }}>{gamertag}</div>
-          {data && !alive && !retired && data.life.deathCause && (
+          {data && !alive && !retired && causeText && (
             <div style={{ display: "flex", fontFamily: "IBM Plex Mono", fontSize: 22, color: DIM, marginTop: 26, textTransform: "uppercase" }}>
-              {causeLabel(data.life.deathCause)}
+              {causeText}
             </div>
           )}
         </div>
       </CardShell>
     ),
-    { ...size, fonts: assets.fonts },
+    { ...size, fonts: assets.fonts, ...(pending ? { headers: { "cache-control": "public, max-age=60, must-revalidate" } } : {}) },
   );
 }

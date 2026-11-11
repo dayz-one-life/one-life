@@ -18,6 +18,7 @@ const TWO: ObituaryEntry[] = [
     kills: 6,
     longestKillMeters: 214,
     cause: "mauled",
+    death: null,
   },
   {
     slug: "manicdote-chernarus-6",
@@ -31,6 +32,7 @@ const TWO: ObituaryEntry[] = [
     kills: 2,
     longestKillMeters: null,
     cause: "pvp",
+    death: null,
   },
 ];
 
@@ -90,5 +92,13 @@ describe("<Morgue />", () => {
   it("addresses the public viewer in the third person", () => {
     render(<Morgue entries={[]} total={0} viewer="public" state="ready" playerSlug="m" now={NOW} />);
     expect(screen.getByText(/this survivor/i)).toBeInTheDocument();
+  });
+});
+
+describe("Morgue cause", () => {
+  it("prints the entry's death label when it has one", () => {
+    const withDeath: ObituaryEntry = { ...TWO[0]!, cause: "unknown", death: { status: "frozen", key: "tripwire", tag: "Trap", certainty: "definitive", label: "Tripwire", detail: "M67 frag grenade", sentence: "Killed by a tripwire rigged with an M67 frag grenade.", caption: null } };
+    render(<Morgue entries={[withDeath]} total={1} viewer="public" state="ready" playerSlug="manicdote" now={NOW} />);
+    expect(screen.getByText("Tripwire")).toBeInTheDocument();
   });
 });

@@ -10,7 +10,7 @@ const article: ObituaryArticle = {
   headline: "RonaldRaygun552's Seventh Sakhal File Closes With No Cause Given",
   lede: "l", tags: [], timeAliveSeconds: 3532, kills: 0, longestKillMeters: 412.3,
   cause: "died", deathAt: "2026-07-30T22:27:32.000Z",
-  body: "", bodyBlocks: null, pullQuote: null, sessions: 4, killerGamertag: null, weapon: null, verdict: null,
+  body: "", bodyBlocks: null, pullQuote: null, sessions: 4, killerGamertag: null, weapon: null, verdict: null, death: null,
 };
 
 describe("obituary opengraph-image", () => {
@@ -43,10 +43,17 @@ describe("obituary opengraph-image", () => {
     expect(res.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
   });
 
-  it("leaves a real obituary card on Next's long-lived default", async () => {
+  it("caches a card with a final or frozen cause for a day", async () => {
+    const frozen = { status: "frozen" as const, key: "fall", tag: "Fall", certainty: "definitive", label: "Fell", detail: null, sentence: "Fell to their death.", caption: null };
+    vi.mocked(getObituaryCached).mockResolvedValue({ ...article, death: frozen });
+    const res = await OgImage({ params: Promise.resolve({ slug: "s" }) });
+    expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+  });
+
+  it("a card whose cause is still pending is max-age=60", async () => {
     vi.mocked(getObituaryCached).mockResolvedValue(article);
     const res = await OgImage({ params: Promise.resolve({ slug: "s" }) });
-    expect(res.headers.get("cache-control")).not.toBe("public, max-age=60, must-revalidate");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
   });
 
   // ⚠️ This route is what a social crawler actually fetches, and rendering it costs an API

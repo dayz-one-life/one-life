@@ -6,7 +6,8 @@ import type { ObituaryArticle } from "@/lib/types";
 export function RapSheet({ article }: { article: ObituaryArticle }) {
   const facts = rapSheetFacts(article);
   const sessions = { label: "Sessions", value: String(article.sessions), hot: false };
-  const all = [...facts.slice(0, facts.length - 1), sessions, facts[facts.length - 1]!]; // Cause last
+  const cause = facts[facts.length - 1]!;
+  const all = [...facts.slice(0, facts.length - 1), sessions, cause]; // Cause last
   return (
     <section className="border-2 border-ink bg-bone p-5" aria-labelledby="rap-sheet-heading">
       <h2 id="rap-sheet-heading" className="font-display text-xs font-bold uppercase tracking-[.16em] text-ink">The Rap Sheet · Deceased</h2>
@@ -18,6 +19,7 @@ export function RapSheet({ article }: { article: ObituaryArticle }) {
           </div>
         ))}
       </dl>
+      {cause.caption && <p className="mt-3 font-mono text-[11px] italic leading-relaxed text-ink-muted">{cause.caption}</p>}
     </section>
   );
 }

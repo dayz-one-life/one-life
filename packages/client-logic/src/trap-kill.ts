@@ -16,9 +16,12 @@ export const TRAP_LIST_FOOTNOTE = "By trap: credited from where the trap was pla
 /** The qualifying line of a life that a trap kill qualified (instead of "First blood drawn."). */
 export const TRAP_QUALIFIED_LINE = "A trap kill credited. The life counts from here.";
 
+/** The words before the credited name; a renderer links the name after them. */
+export const CREDIT_PREFIX = "Kill credited to";
+
 /** The suffix the server appends to a credited trap death's sentence. */
 export function creditSuffix(gamertag: string): string {
-  return `Kill credited to ${gamertag}.`;
+  return `${CREDIT_PREFIX} ${gamertag}.`;
 }
 
 /**

@@ -100,4 +100,20 @@ describe("life opengraph-image", () => {
     const res = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
     expect(res.headers.get("content-type")).toContain("image/png");
   });
+
+  it("prints the public death's label", async () => {
+    const lastShell = () => vi.mocked(CardShell).mock.calls.at(-1)![0];
+    vi.mocked(getPlayerLife).mockResolvedValue({ ...(deadLife as object), verdict: { status: "final", label: "Likely starvation and thirst" } } as never);
+    await (await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) })).arrayBuffer();
+    expect(JSON.stringify(lastShell().children)).toContain("Likely starvation and thirst");
+  });
+
+  it("a pending death is max-age=60; a final one keeps the default", async () => {
+    vi.mocked(getPlayerLife).mockResolvedValue({ ...(deadLife as object), verdict: { status: "pending", label: "Awaiting the record" } } as never);
+    const pending = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
+    expect(pending.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
+    vi.mocked(getPlayerLife).mockResolvedValue({ ...(deadLife as object), verdict: { status: "final", label: "Fell" } } as never);
+    const final = await OgImage({ params: Promise.resolve({ slug: "ronaldraygun552", map: "livonia", n: "3" }) });
+    expect(final.headers.get("cache-control")).not.toBe("public, max-age=60, must-revalidate");
+  });
 });

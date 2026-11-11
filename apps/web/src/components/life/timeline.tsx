@@ -2,6 +2,8 @@ import type { LifeTimelineView, TimelineEvent } from "@/lib/life-timeline";
 import { GamertagLink } from "@/components/gamertag-link";
 import { verdictPhrase } from "@/lib/cause-format";
 import { formatMeters } from "@/components/player/format";
+import { TrapFootnote } from "@/components/player/kill-list";
+import { CREDIT_PREFIX, TRAP_LIST_LABEL } from "@/lib/trap-kill";
 
 const DOT: Record<TimelineEvent["marker"], string> = {
   blue: "bg-blue",
@@ -14,8 +16,51 @@ function meters(d: number | null): string | null {
   return d == null ? null : formatMeters(d);
 }
 
-function killDetail(weapon: string | null, distanceMeters: number | null): string {
-  return [weapon, meters(distanceMeters)].filter(Boolean).join(" · ");
+function killDetail(weapon: string | null, distanceMeters: number | null, trap = false): string {
+  return [weapon, meters(distanceMeters), trap ? TRAP_LIST_LABEL : null].filter(Boolean).join(" · ");
+}
+
+/**
+ * The death row. A public death (stage 4) prints "Killed by <link>" only when the kill line names
+ * the killer; otherwise its sentence, with a trap credit's name linked after it; then the detail
+ * and the vitals; then the caption. ⚠️ A driver stays plain text inside the sentence, never a link,
+ * never "Killed by". An old payload with only the legacy triple keeps the old rendering.
+ */
+function DeathRow({ e }: { e: Extract<TimelineEvent, { kind: "death" }> }) {
+  if (!e.sentence) {
+    return (
+      <>
+        <p className="font-display text-xl font-bold uppercase leading-none text-ink">
+          {e.cause === "pvp" ? (
+            <>Killed by {e.byGamertag ? <GamertagLink gamertag={e.byGamertag} /> : "unknown"}</>
+          ) : (
+            <>Died — {verdictPhrase(e.verdict, e.cause)}</>
+          )}
+        </p>
+        <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">
+          {[killDetail(e.weapon, e.distanceMeters) || null, e.vitals].filter(Boolean).join(" · ") || "—"}
+        </p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="font-display text-xl font-bold uppercase leading-none text-ink">
+        {e.killerGamertag ? <>Killed by <GamertagLink gamertag={e.killerGamertag} /></> : e.sentence}
+        {e.credit && !e.killerGamertag && (
+          <>
+            {" "}
+            {CREDIT_PREFIX}{" "}
+            <GamertagLink gamertag={e.credit.gamertag} />.
+          </>
+        )}
+      </p>
+      <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">
+        {[e.detail, e.vitals].filter(Boolean).join(" · ") || "—"}
+      </p>
+      {e.caption && <p className="mt-1 font-mono text-[11px] italic leading-relaxed text-ink-muted">{e.caption}</p>}
+    </>
+  );
 }
 
 export function WithheldBar() {
@@ -46,21 +91,10 @@ function EventRow({ e }: { e: TimelineEvent }) {
                 <span className="-skew-x-[5deg] bg-yellow px-2 pb-0.5 pt-1 font-display text-[10px] font-bold uppercase tracking-[.08em] text-ink">Longest kill</span>
               )}
             </div>
-            <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">{killDetail(e.weapon, e.distanceMeters)}</p>
+            <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">{killDetail(e.weapon, e.distanceMeters, e.basis === "trap_placement")}</p>
           </>
         ) : e.kind === "death" ? (
-          <>
-            <p className="font-display text-xl font-bold uppercase leading-none text-ink">
-              {e.cause === "pvp" ? (
-                <>Killed by {e.byGamertag ? <GamertagLink gamertag={e.byGamertag} /> : "unknown"}</>
-              ) : (
-                <>Died — {verdictPhrase(e.verdict, e.cause)}</>
-              )}
-            </p>
-            <p className="mt-1.5 font-mono text-xs leading-relaxed text-ink-soft">
-              {[killDetail(e.weapon, e.distanceMeters) || null, e.vitals].filter(Boolean).join(" · ") || "—"}
-            </p>
-          </>
+          <DeathRow e={e} />
         ) : e.kind === "encounter" ? (
           <>
             <p className="font-display text-xl font-bold uppercase leading-none text-ink">
@@ -105,6 +139,7 @@ export function Timeline({
           </li>
         ))}
       </ol>
+      {view.events.some((e) => e.kind === "kill" && e.basis === "trap_placement") && <TrapFootnote className="mt-1" />}
     </div>
   );
 }

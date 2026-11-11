@@ -12,7 +12,7 @@ const card: Card = {
   slug: "the-king-is-dead-9", gamertag: "xX_Sn1per_Xx", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 4, headline: "The King Is Dead. A Chicken Is Wanted.", lede: "He arrived with a flare.",
   tags: ["Obituaries", "Chernarus"], timeAliveSeconds: 3456000, kills: 212, longestKillMeters: 410,
-  cause: "pvp", deathAt: "2026-07-10T22:16:00Z",
+  cause: "pvp", deathAt: "2026-07-10T22:16:00Z", death: null,
 };
 
 describe("ObituaryCard", () => {
@@ -32,5 +32,10 @@ describe("ObituaryCard", () => {
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector(".flex.gap-4")).toBeNull();
     expect(document.querySelector("article")?.firstElementChild?.tagName).toBe("P");
+  });
+  test("frozen values win over the legacy cause (the read-model never sends a pending verdict)", () => {
+    render(<ObituaryCard card={{ ...card, cause: "died", death: { status: "frozen", key: "fall", tag: "Fall", certainty: "definitive", label: "Fell", detail: null, sentence: "Fell to their death.", caption: null } }} now={new Date("2026-07-12T00:00:00Z")} />);
+    expect(screen.getByText("Fell")).toBeInTheDocument();
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
   });
 });

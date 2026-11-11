@@ -8,7 +8,7 @@ const obit = (over: Partial<ObituaryCard>): ObituaryCard => ({
   slug: "yrjustbad-life-3", gamertag: "YrJustBad", map: "chernarusplus", mapSlug: "chernarus",
   lifeNumber: 3, headline: "Shot in the back on the Topolka dam", lede: "He had outlasted forty-one others.",
   tags: [], timeAliveSeconds: 112320, kills: 4, longestKillMeters: 210, cause: "pvp",
-  deathAt: "2026-07-27T20:00:00Z", ...over,
+  deathAt: "2026-07-27T20:00:00Z", death: null, ...over,
 });
 
 describe("Fallen", () => {
