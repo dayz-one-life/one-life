@@ -3,6 +3,8 @@ export * from "./leaderboards.js";
 export * from "./player-aggregate.js";
 export * from "./global.js";
 export * from "./qualified.js";
+export * from "./kill-window.js";
+export * from "./kill-window-db.js";
 export * from "./claimable.js";
 export * from "./survivors.js";
 export * from "./last-played.js";

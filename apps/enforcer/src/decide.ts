@@ -1,4 +1,4 @@
-import { isLifeQualified, type QualificationInput } from "@onelife/read-models";
+import { isLifeQualified, isKillInLife, type QualificationInput } from "@onelife/read-models";
 
 export type EndedLife = {
   serverId: number;
@@ -9,6 +9,9 @@ export type EndedLife = {
   deathCause: string | null;
   effectivePlaytimeSeconds: number;
   playerKills: { occurredAt: Date }[];
+  /** End of this player's previous life on this server; keeps that life's posthumous kill out of
+   *  this one (read-models kill-window.ts). */
+  previousLifeEndedAt?: Date | null;
 };
 
 export type QualifiedBy = "playtime" | "kill" | "pvp-death";
@@ -26,9 +29,9 @@ export type BanPlan = {
 /** Why this life qualified — same precedence isLifeQualified evaluates in (pvp > kill > playtime). */
 function qualifiedBy(life: EndedLife): QualifiedBy {
   if (life.deathCause === "pvp") return "pvp-death";
-  const s = life.startedAt.getTime();
-  const e = life.endedAt.getTime();
-  if (life.playerKills.some((k) => { const t = k.occurredAt.getTime(); return t >= s && t <= e; })) {
+  // Same window isLifeQualified uses, two-second grace included, or a life banned for a kill
+  // logged just after the death would be recorded as qualified by playtime it never had.
+  if (life.playerKills.some((k) => isKillInLife(k.occurredAt, life))) {
     return "kill";
   }
   return "playtime";
@@ -44,6 +47,7 @@ export function planBans(lives: EndedLife[], banDurationHours: number): BanPlan[
       startedAt: life.startedAt,
       windowEnd: life.endedAt,
       playerKills: life.playerKills,
+      previousLifeEndedAt: life.previousLifeEndedAt,
     };
     if (!isLifeQualified(input)) continue;
     plans.push({

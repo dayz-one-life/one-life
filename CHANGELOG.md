@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A kill the log writes up to two seconds after the killer's own death now counts toward the
+  life that had just ended. This happens when a grenade is already in the air, or when two
+  players kill each other and the second line is stamped a second late. The kill was in the
+  killer's career total but in none of their lives, so that life's page, kill streak and
+  obituary showed one kill fewer than the victim's page credited.
+- **This can ban a player who was not banned before.** If such a kill is the only thing that
+  makes a life count (the life was under five minutes and did not end in a player kill), the
+  life now qualifies "by kill" and its death draws the 24-hour ban. A life that ended in a player
+  kill, or lasted five minutes, was banned already and is not affected.
+- The kill is never counted twice. If the killer is back within those two seconds, it still
+  belongs to the life that died and not to the new one.
+
+No migration, `--rebuild` or backfill is needed: nothing stored changes, only which life a kill
+is read as part of. None of the kills recorded on One Life up to 2026-11-10 is affected, so
+no existing life page, board or ban changes on deploy.
+
 ## [0.80.0] - 2026-10-16
 
 ### Added

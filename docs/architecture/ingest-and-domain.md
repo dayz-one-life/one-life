@@ -39,6 +39,19 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
   (never rebuilt).
+  **⚠️ A kill belongs to a life by ONE rule, `packages/read-models/src/kill-window.ts`, and every
+  reader must use it.** A `kills` row carries the victim's death time, and DayZ can stamp that
+  line a second after the killer's own death line (a grenade in the air, a mutual kill). So a
+  life's kill window is `[started_at, ended_at + 2 s]` (`POSTHUMOUS_KILL_GRACE_MS`), and a kill
+  inside the PREVIOUS life's two seconds is that life's and never this one's, even if the player
+  was already back. The rule exists three ways and they must stay identical: `isKillInLife`
+  (pure; `isLifeQualified`, `lifeQualifiedAt`, the boards, the enforcer's `decide.ts`),
+  `killsInLifeWindow` + `previousLifeEndedAt` (queries holding the life's bounds:
+  `getLifeKills`, the life track, the enforcer's `pg-store.ts`), and the correlated SQL in
+  `qualifiedLifeCondition` (which deaths get an obituary). **Ban effect:** a life under five
+  minutes that ended in a non-player death is banned "by kill" when its kill line is logged up to
+  two seconds after the death. It is read-time only: stored timestamps are as logged, so there is
+  no migration, no `--rebuild` and no backfill, and a rebuild cannot change the answer.
   **⚠️ Bans are placed against `bans.dayz_id` (the stable DayZ account hash) AND the gamertag,
   via the batched `addBans`/`removeBans` — never the single-entry `addBan`/`removeBan`, which
   would be one whole-field read-modify-write of the Nitrado ban list per entry, with a
