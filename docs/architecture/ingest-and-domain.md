@@ -371,9 +371,13 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
       most-kills has a second sort key (the name) so level players come back in a stable order.
     - **Articles** carry `death` = the live FINAL verdict (through `player_gamertags`, as the
       timeline finds the article), else the frozen `facts.death` strings (`status: "frozen"`; for
-      a trap death the frozen sentence and caption are replaced by the plain row so a since-denied
-      credit cannot survive), else null and the reader falls back to `cause`/`verdict`. A pending
-      verdict never replaces frozen values. **⚠️ The reserved cause tag (`tags[2]`) is rewritten at
+      a trap death every string is rebuilt from the row with no name, keeping only the key, the
+      certainty's caption and an object the row can hold, so a since-denied credit cannot survive;
+      a frozen inferred death whose family has no switch or is switched off is no frozen value),
+      else null and the reader falls back to `cause`/`verdict`. A pending verdict never replaces
+      frozen values. Share images: the life card is `max-age=86400` when its verdict is final and
+      `max-age=60` otherwise (pending, no verdict, failure); the obituary card is 86400 for a final
+      or frozen death, else 60. Next's own default is a year, so neither may leave it unset. **⚠️ The reserved cause tag (`tags[2]`) is rewritten at
       read time** by spec 6.2's table (`articleTags`): definitive/strong → live tag; inferred with
       its family on → the tag only under an `obituary-v4`+ prompt, else "Unknown"; family off,
       unknown, withheld → "Unknown"; pending → stored. So the chip follows the prose it sits above.

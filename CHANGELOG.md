@@ -74,7 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   their cause. A death whose cause has not been stored yet shows only what the log line itself
   says, or "Awaiting the record", for the few minutes until it is. Cards, the Morgue, ban cards,
   the Rap Sheet and both share images use the same wording, and an old obituary's cause chip
-  follows the stored cause unless its text said no cause was recorded. Kill counts never show
+  follows the stored cause unless its text said no cause was recorded. A life's share image is
+  kept by link previews for a day once its cause is stored, and for a minute before, so a corrected
+  cause reaches them; it used to be kept for a year. Switching off a "Likely" cause also takes it
+  off older obituaries whose stored cause is waiting for review. Kill counts never show
   anyone the log does not name. No `--rebuild` and no backfill is needed.
 - A kill credited from a trap is shown as one. When the server operator turns trap kills on, the
   player whose tripwire or land mine killed someone has the kill in their "Kills" count like any
