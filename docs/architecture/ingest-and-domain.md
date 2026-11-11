@@ -148,24 +148,46 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     entities.
   - **The empty-killer form, `killed by  with <thing>` (two spaces)** — `40mm*` → `explosion`;
     `Fireplace`, an ownerless firearm and anything else stay `environment`. `killer` and `weapon`
-    are null in every case; the thing is kept as `deathEntity`.
+    are null in every case; the thing is kept as `deathEntity` (null, never `""`, when the line
+    names nothing).
   - **`killed by NO DRIVER (<class>)`** and a `Motorbike_*` entity → `vehicle`, `deathEntity` the class.
   - **A kill line whose killer id equals the victim id** (a player caught by his own explosive;
     DayZ marks the killer `(DEAD)`) → `explosion` when the weapon explodes, else `environment`,
-    **`killer: null`**. **⚠️ This return sits above the `pvp` return and must stay there**:
+    **`killer: null`, and `weapon` and `distance` null too** — the fold copies those onto the life
+    whatever the cause and the web timeline prints them under every death, so the thing is kept
+    only as `deathEntity`. **⚠️ This return sits above the `pvp` return and must stay there**:
     `KILL_RE` now accepts `(DEAD)` on the killer half, so without it the line is a `pvp` death,
     which qualifies the life by itself. The fold's own `killer !== victim` check compares
-    gamertags and is not a substitute — the parser compares ids.
-  - **A `(DEAD)` killer who is a different player is a mutual kill and IS `pvp`** (operator
-    decision, 2026-11-10): both lives end `pvp`, each player is credited with the other. The
-    switch is `MUTUAL_KILL_IS_PVP` in `death.ts`.
+    gamertags and is not a substitute — the parser compares ids. **Equal ids count only when the
+    id is a real one** (a long opaque token): DayZ also writes sentinels (`id=ERROR`,
+    `id=Unknown`), and on one of those the names must match as well, or two different players
+    would be read as one.
+  - **A `(DEAD)` killer who is a different player IS `pvp`** (operator decision, 2026-11-10).
+    `(DEAD)` means only that the killer was already dead when the line was written — usually a
+    mutual kill (both lives end `pvp`, each player is credited with the other), sometimes a
+    killer a third player had already killed. The switch is `MUTUAL_KILL_IS_PVP` in `death.ts`.
+    **⚠️ Known gap**: the `kills` row takes the victim's timestamp and DayZ can stamp this line a
+    second after the killer's own death. Per-life kill counting is a window ending at
+    `lives.ended_at` (`qualified*.ts`, `player-kills.ts`, the enforcer's `pg-store.ts`), so such
+    a kill is in the career total but in none of the killer's lives — it does not qualify the
+    life that just ended. `fold-death.test.ts` pins it; whether it should count is undecided.
+  - **A trap names no placer, so a trap death credits no kill — for now.** The operator decided
+    (2026-11-10) that a player whose placed trap kills another player gets the kill. The kill
+    line cannot supply that; it is the work of a later step, which attributes the trap from its
+    placement record. The fold test that pins "no kill" is marked temporary.
   **⚠️ None of this may change how many results `parseLine` returns for a line** — `subIndex` is
   the array index and `events_idempotency_uniq` is keyed on it. The shape test pins the counts.
   **The obituary prompt moved with it (`obituary-v3.1`)**: for `explosion` and `vehicle` the
   "(not a player kill)" suffix is dropped and `NAMES_NO_PERSON_DIRECTIVE` is added — the log
   naming no person is not evidence that there was none, and published prose cannot be recalled.
-  **No backfill**: history was patched by hand before this shipped; a `backfill-death-causes` run
-  changes no cause. The private corpus gate (`packages/adm-parser/test/corpus.test.ts`, skipped
+  **No backfill**: history was patched by hand up to the 2026-11-10 corpus snapshot; a
+  `backfill-death-causes` run changes no cause in that corpus (the gate checks causes only — a
+  run would still fill `deathEntity` where it is null, and never rewrites a stored fragment such
+  as `6` or `NO`). **⚠️ A named-object death ingested between the snapshot and the deploy is
+  stored `environment` and nothing here corrects it** — re-check before tagging.
+  **`backfill-death-causes` never upgrades to `pvp`** (`mayUpgradeCause`): it patches `cause`
+  alone, so a stored dead-killer line would become a qualifying `pvp` death with no killer and no
+  kills row, and bans are durable. The private corpus gate (`packages/adm-parser/test/corpus.test.ts`, skipped
   unless `DEATH_GOLDEN_DIR` is set) replays every production line against a v0.80.0 baseline.
 - **Death-cause fidelity, stage 3 — the unnamed deaths** ✅. A survey of every ended life
   (169) found **19 rendering "Unknown"**: 10 dropped suicides, 1 knockout, 8 with genuinely no

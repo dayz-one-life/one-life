@@ -103,7 +103,7 @@ describe("death + kills + reboot fold", () => {
     await applyEvent(s, connect(1, "Victim One", "2026-07-06T12:00:00Z"));
     await applyEvent(s, { id: 2, serverId: 1, type: "player.died", occurredAt: new Date("2026-07-06T12:30:00Z"),
       payload: { victim: "Victim One", dayzId: "1111111111111111111111111111111111111111", cause: "explosion",
-        killer: null, weapon: "M79", distance: 4.5, energy: null, water: null, bleedSources: null, deathEntity: "M79" } });
+        killer: null, weapon: null, distance: null, energy: null, water: null, bleedSources: null, deathEntity: "M79" } });
 
     expect(s.kills).toEqual([]);
     const victim = await s.getPlayer("Victim One");
@@ -111,9 +111,17 @@ describe("death + kills + reboot fold", () => {
     expect(life.endedAt).not.toBeNull();
     expect(life.deathCause).toBe("explosion");
     expect(life.deathByGamertag).toBeNull();
+    // The parser sends no weapon or distance on a self-kill, so the timeline has nothing to print
+    // under "Died - Explosion".
+    expect(life.deathWeapon ?? null).toBeNull();
+    expect(life.deathDistance ?? null).toBeNull();
   });
 
-  it("a trap death names nobody on the life and credits no kill", async () => {
+  // ⚠️ TEMPORARY — the step 1 state, not the intended one. Operator decision 2026-11-10 (spec
+  // question 3): a player whose placed trap kills another player IS to be credited with the kill.
+  // The kill line names no placer, so the parser cannot do it; a later step attributes the trap
+  // from the placement record. When that lands this test changes to expect the placer's kill.
+  it("step 1, pending trap attribution: a trap death names nobody on the life and credits no kill", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "Victim One", "2026-07-06T12:00:00Z"));
     await applyEvent(s, { id: 2, serverId: 1, type: "player.died", occurredAt: new Date("2026-07-06T12:30:00Z"),
@@ -125,8 +133,9 @@ describe("death + kills + reboot fold", () => {
     expect(s.kills).toEqual([]);
   });
 
-  // Operator decision 2026-11-10: a mutual kill counts as a player kill for both sides. Each of
-  // the two lines names the other, already-dead player; each ends one life and credits one kill.
+  // Operator decision 2026-11-10: a kill by a player who was already dead when the line was
+  // written counts as a player kill. The usual case is a mutual kill: each of the two lines names
+  // the other player; each ends one life and credits one kill.
   it("a mutual kill ends both lives as pvp and credits each player with the other", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "Victim One", "2026-07-06T12:00:00Z"));
@@ -139,5 +148,33 @@ describe("death + kills + reboot fold", () => {
     expect(s.lives.filter((l) => (l as any).endedAt !== null).length).toBe(2);
     expect(s.lives.every((l) => (l as any).deathCause === "pvp")).toBe(true);
     expect(s.kills.map((k) => [k.killerGamertag, k.victimGamertag])).toEqual([["Killer Two", "Victim One"], ["Victim One", "Killer Two"]]);
+  });
+
+  // ⚠️ Pins CURRENT behaviour, not a decision. DayZ sometimes stamps the second line a second
+  // after the first. The kills row takes the VICTIM's timestamp, and per-life kill attribution
+  // (read-models `qualified*.ts`, `player-kills.ts`, the enforcer's pg-store) is a time window,
+  // `kills.occurred_at <= lives.ended_at`. So a kill logged after the killer's own death is in his
+  // career total but inside none of his lives: it neither qualifies the life that just ended nor
+  // shows in its kill count. Whether it should is a question for a later step.
+  it("a kill logged a second after the killer's own death is credited, but falls after his life", async () => {
+    const s = new MemoryStore();
+    await applyEvent(s, connect(1, "Victim One", "2026-07-06T12:00:00Z"));
+    await applyEvent(s, connect(2, "Killer Two", "2026-07-06T12:00:00Z"));
+    const first = new Date("2026-07-06T12:30:00Z");
+    const second = new Date("2026-07-06T12:30:01Z");
+    await applyEvent(s, { id: 3, serverId: 1, type: "player.died", occurredAt: first,
+      payload: { victim: "Killer Two", dayzId: "2222222222222222222222222222222222222222", cause: "pvp", killer: "Victim One", weapon: "M4-A1", distance: 14.5, deathEntity: null } });
+    await applyEvent(s, { id: 4, serverId: 1, type: "player.died", occurredAt: second,
+      payload: { victim: "Victim One", dayzId: "1111111111111111111111111111111111111111", cause: "pvp", killer: "Killer Two", weapon: "M4-A1", distance: 14.5, deathEntity: null } });
+
+    const posthumous = s.kills.find((k) => k.killerGamertag === "Killer Two")! as any;
+    expect(posthumous.victimGamertag).toBe("Victim One");
+    expect(posthumous.occurredAt).toEqual(second);
+
+    const killer = await s.getPlayer("Killer Two");
+    const killerLives = s.lives.filter((l) => l.playerId === killer!.id) as any[];
+    expect(killerLives).toHaveLength(1);                      // crediting the kill opens no new life
+    expect(killerLives[0].endedAt).toEqual(first);
+    expect(posthumous.occurredAt.getTime()).toBeGreaterThan(killerLives[0].endedAt.getTime());
   });
 });

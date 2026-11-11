@@ -16,21 +16,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   player kill". The log names no person on those lines, which is not the same as nobody being
   involved, so the obituary now neither names anyone nor rules anyone out. The prompt version is
   `obituary-v3.1`.
-- A mutual kill, where two players kill each other and the log names each as the other's killer,
-  now counts as a player kill for both. It was recorded as an "Environment" death with no killer.
-  None has happened on One Life yet.
+- A kill by a player who was already dead when the log line was written now counts as a player
+  kill. This is usually a mutual kill, where two players kill each other and the log names each
+  as the other's killer; it can also be a kill by someone a third player had just killed. It was
+  recorded as an "Environment" death with no killer. None has happened on One Life yet. When the
+  log stamps such a kill a second after the killer's own death, it is in the killer's career
+  total but is not counted toward the life that had just ended.
+- `backfill-death-causes` never upgrades a stored death to a player kill. It patches the cause
+  only, so it would have produced a player-kill death with no killer and no kill credited.
 
 ### Fixed
 
 - A player killed by their own explosive is recorded as an "Explosion" death with no killer. The
   log writes such a death as a kill line naming the victim as their own killer; it was stored as
-  "Environment", killed by something called "Player". No kill is credited for it and who gets
-  banned does not change.
-- The object named on a kill line is stored whole. "6-M7 Frag Grenade" and "EGD-5 Frag Grenade"
-  were stored as "6" and "EGD", and a driverless vehicle as "NO".
+  "Environment", killed by something called "Player". No kill is credited for it, no weapon or
+  distance is shown under it, and who gets banned does not change.
+- The object named on a kill line is stored whole for new deaths. "6-M7 Frag Grenade" and
+  "EGD-5 Frag Grenade" were stored as "6" and "EGD", and a driverless vehicle as "NO". The object
+  names already stored on old deaths are not rewritten.
 
-No `--rebuild` and no backfill is needed. Only deaths logged after this release are affected;
-the older ones were already corrected by hand.
+No `--rebuild` and no backfill is needed. Only deaths logged after this release are affected.
+The older ones were corrected by hand, up to a snapshot taken on 2026-11-10: before tagging,
+check for grenade, mine, 40mm, fuel-pump and driverless-vehicle deaths logged since then and
+correct them the same way, or they keep reading "Environment".
 
 ## [0.80.0] - 2026-10-16
 
