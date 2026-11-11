@@ -50,7 +50,9 @@ export async function getPlayerProfile(db: Database, serverId: number, gamertag:
     effectivePlaytimeSeconds: l.endedAt ? l.playtimeSeconds
       : livePlaytime(l.playtimeSeconds, openSession ? { connectedAt: openSession.connectedAt } : null, upTo),
     startedAt: l.startedAt,
-    windowEnd: l.endedAt ?? upTo,
+    // ⚠️ An open life's kill window ends NOW, not at the last heartbeat: a trap kill is scored
+    // while its placer is offline (spec 2.4). Playtime above keeps the heartbeat cap.
+    windowEnd: l.endedAt ?? now,
     playerKills: pk,
   }));
 
@@ -85,7 +87,9 @@ export async function getPlayerLives(db: Database, serverId: number, gamertag: s
     effectivePlaytimeSeconds: l.endedAt ? l.playtimeSeconds
       : livePlaytime(l.playtimeSeconds, openSession ? { connectedAt: openSession.connectedAt } : null, upTo),
     startedAt: l.startedAt,
-    windowEnd: l.endedAt ?? upTo,
+    // ⚠️ An open life's kill window ends NOW, not at the last heartbeat: a trap kill is scored
+    // while its placer is offline (spec 2.4). Playtime above keeps the heartbeat cap.
+    windowEnd: l.endedAt ?? new Date(),
     playerKills: pk,
   }));
 }

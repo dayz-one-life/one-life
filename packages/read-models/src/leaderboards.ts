@@ -63,7 +63,8 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
           const upTo = r.lastSeenAt ?? r.connectedAt ?? now;
           const value = livePlaytime(r.stored, r.connectedAt ? { connectedAt: r.connectedAt } : null, upTo);
           const qualified = isLifeQualified({
-            deathCause: r.deathCause, effectivePlaytimeSeconds: value, startedAt: r.startedAt, windowEnd: upTo,
+            // ⚠️ kill window to now, not the last heartbeat: a trap kill lands while its placer is offline
+            deathCause: r.deathCause, effectivePlaytimeSeconds: value, startedAt: r.startedAt, windowEnd: now,
             playerKills: killRows.filter((k) => k.gamertag === r.gamertag),
           });
           return { gamertag: r.gamertag, value, qualified };
