@@ -177,7 +177,9 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
             written by an AI model (right now, Anthropic&rsquo;s Claude), reached through
             OpenRouter. To write one, we send your full gameplay record for this life and your
             earlier ones — your gamertag, your killer&rsquo;s gamertag, map, time survived, cause,
-            weapon, distance, and your record going in. Some of what goes over is detail the site
+            weapon, distance, and your record going in; the object involved and how certain the
+            record is; a cause we worked out when the server recorded none; and, when a trap you
+            set is credited with a kill, your gamertag. Some of what goes over is detail the site
             itself never shows anywhere: how low your health got, and how many close calls you had
             with infected, fire, or other players. We also send the headlines, attributions and
             opening lines of recently published obituaries as style context, which can include

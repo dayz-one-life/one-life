@@ -27,6 +27,15 @@ describe("load-bearing disclosures", () => {
     expect(t).toMatch(/Your account, email and IP address are not sent/i);
   });
 
+  // Death-verdict plan step 8 (obituary-v4): the writer is also told how certain the cause is,
+  // a cause the paper worked out, and the gamertag of a player credited with a trap kill.
+  it("discloses the cause certainty, a worked-out cause and a credited trap-setter's gamertag", () => {
+    const t = section("who-else");
+    expect(t).toMatch(/the object involved and how certain the\s+record is/);
+    expect(t).toMatch(/a cause we worked out when the server recorded none/);
+    expect(t).toMatch(/when a trap you\s+set is credited with a kill, your gamertag/);
+  });
+
   it("discloses that recent obituary prose is sent as style context and may name other players", () => {
     const t = section("who-else");
     expect(t).toMatch(/recently published obituaries as style context/i);
