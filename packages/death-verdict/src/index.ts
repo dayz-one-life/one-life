@@ -9,4 +9,7 @@ export * from "./context/cluster.js";
 export * from "./context/build.js";
 export * from "./context/select.js";
 export { classifyDeath } from "./classify/index.js";
+export * from "./classify/tables.js";
+export { conditions } from "./classify/conditions.js";
+export { creditEvidence, inCreditScope, OTHERS_RADIUS_M, OTHERS_WINDOW_S, OWN_BLAST_WINDOW_S, type CreditOptions } from "./classify/credit.js";
 export { CLASSIFIER_VERSION } from "./version.js";

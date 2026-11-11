@@ -81,6 +81,19 @@ export interface SelectOptions {
    * `bodyBlasts` loses them. One the corpus also holds is ignored: the corpus's reading wins.
    */
   earlierDeaths?: readonly { ts: number; pos: Pos | null }[];
+  /**
+   * Each file's number in the order the server booted, counted over ALL the server's files: file
+   * id -> number. Pass it when the corpus is only part of the server's log (a loader), and include
+   * the files of the extra lines. Left out, the files of the corpus are numbered in their own
+   * order — right when the corpus is the whole log — and a file known only through an extra line
+   * has no number.
+   */
+  bootOrdinals?: ReadonlyMap<number, number>;
+}
+
+/** The boot number of each file (see `SelectOptions.bootOrdinals`). */
+function bootsOf(corpus: ServerCorpus, opts: SelectOptions): ReadonlyMap<number, number> {
+  return opts.bootOrdinals ?? new Map(orderFiles(corpus.files).map((f, i) => [f.admFileId, i]));
 }
 
 const stamped = new WeakMap<ServerCorpus, StampedLine[]>();
@@ -174,7 +187,9 @@ export function trapAnchors(victimAlive: readonly StampedLine[], record: ReturnT
  * - `opts.earlierDeaths`: the player's deaths from before the first file loaded;
  * - `corpus.clockOffsetMs` (or `corpus.zone`) for a server the zone table does not name;
  * - `extraLines` for placements and detonations in files it did not load, each with a dated file
- *   name, and with `ts` when `detachedIsAmbiguous` is true for it.
+ *   name, and with `ts` when `detachedIsAmbiguous` is true for it;
+ * - `opts.bootOrdinals` when the corpus is only part of the server's log, or the restarts between
+ *   a trap being set and going off cannot be counted.
  */
 export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = [], opts: SelectOptions = {}): ContextInput {
   const { all, own, pid, cluster, previous, prevDeaths, detached } = resolve(corpus, seed, extraLines, opts);
@@ -242,11 +257,15 @@ export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLin
   // Back to files, in the order the server wrote them.
   const names = new Map(corpus.files.map((f) => [f.admFileId, f.name]));
   for (const x of extraLines) if (!names.has(x.admFileId)) names.set(x.admFileId, x.fileName);
+  const boots = bootsOf(corpus, opts);
   const files: ContextInput["files"] = [];
   for (const s of [...keep].sort((a, b) => a - b)) {
     const o = all[s]!;
     let f = files[files.length - 1];
-    if (!f || f.admFileId !== o.admFileId) { f = { admFileId: o.admFileId, name: names.get(o.admFileId) ?? "", lines: [] }; files.push(f); }
+    if (!f || f.admFileId !== o.admFileId) {
+      f = { admFileId: o.admFileId, name: names.get(o.admFileId) ?? "", lines: [], boot: boots.get(o.admFileId) ?? null };
+      files.push(f);
+    }
     f.lines.push([o.lineIndex, o.ts, o.text]);
   }
   placements.sort((a, b) => S.idx.get(refKey(a))! - S.idx.get(refKey(b))!);
@@ -262,5 +281,5 @@ export function selectContextLines(corpus: ServerCorpus, seed: LineRef, extraLin
  */
 export function wholeCorpusContext(corpus: ServerCorpus, seed: LineRef, extraLines: readonly ExtraLine[] = [], opts: SelectOptions = {}): DeathContext {
   const { all, cluster, prevDeaths, detached } = resolve(corpus, seed, extraLines, opts);
-  return new DeathContext(all, { serverId: corpus.serverId, map: corpus.map, cluster, prevDeaths, detached: [...detached] });
+  return new DeathContext(all, { serverId: corpus.serverId, map: corpus.map, cluster, prevDeaths, detached: [...detached] }, bootsOf(corpus, opts));
 }
