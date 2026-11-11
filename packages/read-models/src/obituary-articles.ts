@@ -1,7 +1,9 @@
 import type { Database } from "@onelife/db";
 import { articles } from "@onelife/db";
 import { and, eq, desc, sql } from "drizzle-orm";
-import { PUBLIC_ROWS, type PublicCauseKey, type PublicDeath } from "@onelife/death-verdict";
+import {
+  CAPTION, OBJECT_LABEL, PUBLIC_INFERRED, PUBLIC_ROWS, type ObjectLabel, type PublicCauseKey, type PublicDeath,
+} from "@onelife/death-verdict";
 import { articleKey, getPublicDeathsForArticles, type ArticleLifeKey } from "./death-verdicts.js";
 
 export const OBITUARIES_FEED_PAGE_SIZE = 20;
@@ -116,16 +118,39 @@ const TRAP_KEYS: ReadonlySet<string> = new Set(["tripwire", "land_mine"]);
 
 /**
  * The frozen strings of an article, checked field by field (they are jsonb). Anything malformed is
- * no frozen value at all. ⚠️ For a trap death the frozen sentence and caption are replaced by the
- * plain wording of the row: written while a credit stood, they may name the player credited, and a
- * credit can be denied afterwards. Only the live read may name a trap-setter.
+ * no frozen value at all, and the reader falls back to the article's legacy fields.
+ *
+ * ⚠️ Two things are checked against the live vocabulary, not trusted from the jsonb:
+ *   - An inferred death is shown only while its row has a family and that family's switch
+ *     (`PUBLIC_INFERRED`) is on. Spec 2.1: the switch retracts label, sentence, caption and tag
+ *     at once, and a frozen value is no exception (it is served whenever the live verdict is
+ *     pending: held for review, mid-rebuild, or the life no longer resolving).
+ *   - A trap death keeps only its key, its certainty and an object its row can hold; every string
+ *     is rebuilt from the row, with no name. Written while a credit stood, the frozen strings may
+ *     name the player credited, and a credit can be denied afterwards. Only the live read may
+ *     name a trap-setter. The caption is the certainty's own, so a strong trap death keeps "Worked
+ *     out from the log".
  */
 export function frozenDeathOf(raw: unknown): FrozenDeath | null {
   if (raw == null || typeof raw !== "object") return null;
   const d = raw as Record<string, unknown>;
   if (!str(d.key) || !str(d.label) || !str(d.sentence) || !str(d.certainty)) return null;
-  const trap = TRAP_KEYS.has(d.key) && Object.hasOwn(PUBLIC_ROWS, d.key);
-  const plain = trap ? PUBLIC_ROWS[d.key as PublicCauseKey].stated({ name: null, weapon: null, distance: null, object: null, conditions: [] }) : null;
+  const known = Object.hasOwn(PUBLIC_ROWS, d.key);
+  const row = known ? PUBLIC_ROWS[d.key as PublicCauseKey] : null;
+  if (d.certainty === "inferred") {
+    const family = row?.family ?? null;
+    if (family == null || PUBLIC_INFERRED[family] !== true) return null;
+  }
+  if (row && TRAP_KEYS.has(d.key)) {
+    const object: ObjectLabel | null = row.detail === "object" && str(d.detail)
+      ? (row.objects ?? []).map((k) => OBJECT_LABEL[k]).find((o) => o.short === d.detail) ?? null : null;
+    const words = row.stated({ name: null, weapon: null, distance: null, object, conditions: [] });
+    return {
+      status: "frozen", key: d.key, tag: row.tag, certainty: d.certainty, label: words.label,
+      detail: object?.short ?? null, sentence: words.sentence,
+      caption: Object.hasOwn(CAPTION, d.certainty) ? CAPTION[d.certainty as keyof typeof CAPTION] : null,
+    };
+  }
   return {
     status: "frozen",
     key: d.key,
@@ -133,8 +158,8 @@ export function frozenDeathOf(raw: unknown): FrozenDeath | null {
     certainty: d.certainty,
     label: d.label,
     detail: str(d.detail) ? d.detail : null,
-    sentence: plain ? plain.sentence : d.sentence,
-    caption: trap ? null : str(d.caption) ? d.caption : null,
+    sentence: d.sentence,
+    caption: str(d.caption) ? d.caption : null,
   };
 }
 

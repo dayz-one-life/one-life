@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { inArray, eq } from "drizzle-orm";
 import { servers, players, lives, articles, deathVerdicts, playerGamertags } from "@onelife/db";
 import { getTestDb } from "@onelife/test-support";
-import { PUBLIC_INFERRED } from "@onelife/death-verdict";
+import { PUBLIC_INFERRED, toPublicDeath, type StoredVerdict } from "@onelife/death-verdict";
 import { getObituaryBySlug, getPublishedObituaries, articleTags, frozenDeathOf } from "../src/obituary-articles.js";
 import { seedVerdict } from "./support/verdicts.js";
 
@@ -45,7 +45,7 @@ beforeAll(async () => {
   pid = Number(p!.id);
   await db.insert(playerGamertags).values({ playerId: pid, gamertag: NAME, firstSeenAt: T0, lastSeenAt: T0 });
 });
-afterEach(() => { PUBLIC_INFERRED.hunger_thirst = true; });
+afterEach(() => { PUBLIC_INFERRED.hunger_thirst = true; PUBLIC_INFERRED.exposure = true; });
 afterAll(async () => {
   await db.delete(articles).where(inArray(articles.slug, slugs));
   await db.delete(deathVerdicts).where(inArray(deathVerdicts.lifeId, lifeIds));
@@ -103,6 +103,19 @@ describe("the reserved cause tag (spec 6.2, the five rows)", () => {
     expect((await getObituaryBySlug(db, held))!.death).toMatchObject({ status: "frozen", label: "Fell" });
   });
 
+  it("a switched-off family retracts a frozen inferred death too, in the article, the feed and while the verdict is held", async () => {
+    const frozen = { key: "exposure", tag: "Exposure", certainty: "inferred", label: "Likely exposure", detail: null,
+      sentence: "Likely died of exposure.", caption: "Best reading of the log. The server recorded no cause." };
+    const held = await obituary(9, { promptVersion: "obituary-v4", storedTag: "Exposure", facts: { death: frozen },
+      verdict: { cause: "cold_exposure", confidence: "inferred", mechanismStated: false, needsReview: true } });
+    expect((await getObituaryBySlug(db, held))!.death).toMatchObject({ status: "frozen", label: "Likely exposure" });
+    PUBLIC_INFERRED.exposure = false;
+    const a = (await getObituaryBySlug(db, held))!;
+    expect(a.death).toBeNull();
+    const feed = await getPublishedObituaries(db, { page: 1, pageSize: 200 });
+    expect(feed.rows.find((r) => r.slug === held)!.death).toBeNull();
+  });
+
   it("a v3 article with nothing frozen and no verdict has no death: the reader uses its legacy fields", async () => {
     const slug = await obituary(8, { promptVersion: "obituary-v3", storedTag: "Unknown" });
     const a = (await getObituaryBySlug(db, slug))!;
@@ -125,6 +138,40 @@ describe("pure parts", () => {
       sentence: "Killed by a tripwire rigged with an M67 frag grenade. Kill credited to Placer Person.", caption: "Placer Person placed the only tripwire." })!;
     expect(JSON.stringify(f)).not.toContain("Placer Person");
     expect(f).toMatchObject({ label: "Tripwire", detail: "M67 frag grenade", caption: null });
+  });
+  it("a frozen trap death's label and detail are rebuilt too: a name written into any field never comes back", () => {
+    const f = frozenDeathOf({ key: "tripwire", tag: "Trap", certainty: "definitive", label: "Tripwire by Placer Person",
+      detail: "set by Placer Person", sentence: "Killed by Placer Person's tripwire.", caption: "Placer Person set it." })!;
+    expect(JSON.stringify(f)).not.toContain("Placer Person");
+    expect(f).toMatchObject({ key: "tripwire", tag: "Trap", label: "Tripwire", detail: null, sentence: "Killed by a tripwire.", caption: null });
+    const mine = frozenDeathOf({ key: "land_mine", tag: "Trap", certainty: "definitive", label: "Placer Person's mine",
+      detail: "Placer Person", sentence: "Placer Person.", caption: null })!;
+    expect(mine).toMatchObject({ label: "Land mine", detail: null, sentence: "Killed by a land mine.", caption: null });
+  });
+  it("a frozen trap death keeps what the live read would print without the credit: object, strong caption", () => {
+    const v: StoredVerdict = { cause: "explosive_trap", confidence: "strong", mechanismStated: true, objectKey: "m67_grenade",
+      upstream: null, attrBasis: null, ownerlessFirearm: false, conditions: [] };
+    const life = { deathCause: "explosion", deathByGamertag: null, deathWeapon: null, deathDistance: null };
+    const plain = toPublicDeath(v, life);
+    const credited = toPublicDeath(v, life, { gamertag: "Placer Person", device: "tripwire", byOperator: false });
+    // frozen while the credit stood
+    const f = frozenDeathOf({ key: credited.key, tag: credited.tag, certainty: credited.certainty, label: credited.label,
+      detail: credited.detail, sentence: credited.sentence, caption: credited.caption })!;
+    expect(JSON.stringify(f)).not.toContain("Placer Person");
+    expect(f).toEqual({ status: "frozen", key: plain.key, tag: plain.tag, certainty: plain.certainty, label: plain.label,
+      detail: plain.detail, sentence: plain.sentence, caption: plain.caption });
+    expect(f).toMatchObject({ sentence: "Killed by a tripwire rigged with an M67 frag grenade.", caption: "Worked out from the log" });
+  });
+  it("a frozen inferred death is shown only while its family is switched on", () => {
+    const frozen = { key: "exposure", tag: "Exposure", certainty: "inferred", label: "Likely exposure", detail: null,
+      sentence: "Likely died of exposure.", caption: "Best reading of the log. The server recorded no cause." };
+    expect(frozenDeathOf(frozen)).toMatchObject({ label: "Likely exposure" });
+    PUBLIC_INFERRED.exposure = false;
+    expect(frozenDeathOf(frozen)).toBeNull();
+    // a row with no family has no switch, so it is never shown inferred; nor is a key this release does not know
+    expect(frozenDeathOf({ ...frozen, key: "fall", label: "Likely fell" })).toBeNull();
+    expect(frozenDeathOf({ ...frozen, key: "toString" })).toBeNull();
+    expect(frozenDeathOf({ ...frozen, key: "no_such_key" })).toBeNull();
   });
   it("malformed frozen values are no frozen value", () => {
     expect(frozenDeathOf({ key: 3 })).toBeNull();
