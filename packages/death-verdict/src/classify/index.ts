@@ -14,8 +14,9 @@ import { toVerdict, type Draft } from "./verdict.js";
  * ⚠️ ONLY THE STATED RULES ARE PORTED. A death with a kill line (A01 to A17) or with a stated
  * mechanism on a bare death line (B01 to B08) gets the reference's answer. Every other death
  * comes back as rule `B00`, cause `unknown`: the rules that read timing, speed and health
- * bookkeeping are not ported yet. Nothing may store or show a verdict until they are — the
- * golden attestation's `gaps` says how many deaths that is.
+ * bookkeeping are not ported yet. The projector's sweep stores verdicts from version 1 on, for the
+ * operator to verify; nothing may SHOW one until they are — the golden attestation's `gaps` says
+ * how many deaths that is.
  *
  * ⚠️ Not ported, on purpose: the reference's last pass over a player's NEXT death (a chain of
  * grenade deaths seconds after respawning raises `self (spawn reset)` to strong). A verdict that
