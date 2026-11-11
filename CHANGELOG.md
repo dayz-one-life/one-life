@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-11-11
+
 ### Changed
 
 - `@onelife/death-verdict` now also works out the deaths the log gives no cause for, from what
