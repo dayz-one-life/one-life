@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- New deaths by grenade, land mine, claymore, tripwire, plastic explosive, 40mm round or an
+  exploding fuel pump are recorded as "Explosion", and deaths under a riderless motorbike or
+  another driverless vehicle as "Vehicle". They used to read "Environment". Deaths by fire are
+  unchanged.
+- The obituary writer no longer tells readers that an explosion or vehicle death was "not a
+  player kill". The log names no person on those lines, which is not the same as nobody being
+  involved, so the obituary now neither names anyone nor rules anyone out. The prompt version is
+  `obituary-v3.1`.
+- A mutual kill, where two players kill each other and the log names each as the other's killer,
+  now counts as a player kill for both. It was recorded as an "Environment" death with no killer.
+  None has happened on One Life yet.
+
+### Fixed
+
+- A player killed by their own explosive is recorded as an "Explosion" death with no killer. The
+  log writes such a death as a kill line naming the victim as their own killer; it was stored as
+  "Environment", killed by something called "Player". No kill is credited for it and who gets
+  banned does not change.
+- The object named on a kill line is stored whole. "6-M7 Frag Grenade" and "EGD-5 Frag Grenade"
+  were stored as "6" and "EGD", and a driverless vehicle as "NO".
+
+No `--rebuild` and no backfill is needed. Only deaths logged after this release are affected;
+the older ones were already corrected by hand.
+
 ## [0.80.0] - 2026-10-16
 
 ### Added

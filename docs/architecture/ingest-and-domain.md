@@ -137,6 +137,36 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   unmapped-entity survey — feed it back into the dict) → projection rebuild
   (`./deploy/deploy.sh --rebuild`, or `pnpm --filter @onelife/projector run rebuild` directly on
   the host). Lives, priors and web surfaces update retroactively.
+- **Death-cause fidelity — what the kill line names (parser, `death.ts`)** ✅. The parser now
+  emits `explosion` and `vehicle` for the objects a kill line names, so `explosion` is no longer
+  "reserved" (the stage-2 text above predates this). Four line shapes, each with a public test
+  on an invented line in `packages/adm-parser/test/death.test.ts`:
+  - **A named explosive** (`M67Grenade`, `RGD5Grenade`, `6-M7 Frag Grenade`, `EGD-5 Frag Grenade`,
+    `LandMineTrap`, `Claymore`/`ClaymoreMine`, `Plastic Explosive`, `Land_FuelStation_Feed*`) →
+    `explosion`. **⚠️ The entity regex captures to the end of the clause** — class names carry
+    spaces and hyphens, and the old single-token capture stored `6`, `EGD`, `NO` and `Player` as
+    entities.
+  - **The empty-killer form, `killed by  with <thing>` (two spaces)** — `40mm*` → `explosion`;
+    `Fireplace`, an ownerless firearm and anything else stay `environment`. `killer` and `weapon`
+    are null in every case; the thing is kept as `deathEntity`.
+  - **`killed by NO DRIVER (<class>)`** and a `Motorbike_*` entity → `vehicle`, `deathEntity` the class.
+  - **A kill line whose killer id equals the victim id** (a player caught by his own explosive;
+    DayZ marks the killer `(DEAD)`) → `explosion` when the weapon explodes, else `environment`,
+    **`killer: null`**. **⚠️ This return sits above the `pvp` return and must stay there**:
+    `KILL_RE` now accepts `(DEAD)` on the killer half, so without it the line is a `pvp` death,
+    which qualifies the life by itself. The fold's own `killer !== victim` check compares
+    gamertags and is not a substitute — the parser compares ids.
+  - **A `(DEAD)` killer who is a different player is a mutual kill and IS `pvp`** (operator
+    decision, 2026-11-10): both lives end `pvp`, each player is credited with the other. The
+    switch is `MUTUAL_KILL_IS_PVP` in `death.ts`.
+  **⚠️ None of this may change how many results `parseLine` returns for a line** — `subIndex` is
+  the array index and `events_idempotency_uniq` is keyed on it. The shape test pins the counts.
+  **The obituary prompt moved with it (`obituary-v3.1`)**: for `explosion` and `vehicle` the
+  "(not a player kill)" suffix is dropped and `NAMES_NO_PERSON_DIRECTIVE` is added — the log
+  naming no person is not evidence that there was none, and published prose cannot be recalled.
+  **No backfill**: history was patched by hand before this shipped; a `backfill-death-causes` run
+  changes no cause. The private corpus gate (`packages/adm-parser/test/corpus.test.ts`, skipped
+  unless `DEATH_GOLDEN_DIR` is set) replays every production line against a v0.80.0 baseline.
 - **Death-cause fidelity, stage 3 — the unnamed deaths** ✅. A survey of every ended life
   (169) found **19 rendering "Unknown"**: 10 dropped suicides, 1 knockout, 8 with genuinely no
   signal in the ADM. Two root causes, both the "logged twice and inconsistently" pattern the fall
