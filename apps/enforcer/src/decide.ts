@@ -1,4 +1,4 @@
-import { isLifeQualified, type QualificationInput } from "@onelife/read-models";
+import { isLifeQualified, isKillInLife, type QualificationInput } from "@onelife/read-models";
 
 export type EndedLife = {
   serverId: number;
@@ -9,6 +9,9 @@ export type EndedLife = {
   deathCause: string | null;
   effectivePlaytimeSeconds: number;
   playerKills: { occurredAt: Date }[];
+  /** End of this player's previous life on this server; keeps that life's posthumous kill out of
+   *  this one (read-models kill-window.ts). */
+  previousLifeEndedAt?: Date | null;
 };
 
 export type QualifiedBy = "playtime" | "kill" | "pvp-death";
@@ -26,9 +29,9 @@ export type BanPlan = {
 /** Why this life qualified — same precedence isLifeQualified evaluates in (pvp > kill > playtime). */
 function qualifiedBy(life: EndedLife): QualifiedBy {
   if (life.deathCause === "pvp") return "pvp-death";
-  const s = life.startedAt.getTime();
-  const e = life.endedAt.getTime();
-  if (life.playerKills.some((k) => { const t = k.occurredAt.getTime(); return t >= s && t <= e; })) {
+  // Same window isLifeQualified uses, two-second grace included, or a life banned for a kill
+  // logged just after the death would be recorded as qualified by playtime it never had.
+  if (life.playerKills.some((k) => isKillInLife(k.occurredAt, life))) {
     return "kill";
   }
   return "playtime";
@@ -37,22 +40,28 @@ function qualifiedBy(life: EndedLife): QualifiedBy {
 /**
  * Which ended (already-unbanned) lives are qualified and therefore need a ban. Pure.
  *
- * ⚠️ A life whose ban would already have ended by `now` gets none. A kill can arrive long after the
- * life it qualifies has ended (a trap kill is written minutes after the death it scores, an
- * operator grant weeks later, and an enforcer outage of over a day does the same), and a ban
- * dated at that old death would be added and expired in one tick: a pointless add-then-remove on
- * the server, and one that can lift another, still-running ban sharing the same name entry.
+ * ⚠️ A death whose ban would already be over at `now` gets NO plan, so no `bans` row. Such a
+ * death is found late: the enforcer was down for longer than the ban, or a `kills` row that
+ * qualifies an old life only appeared afterwards (a trap kill is written minutes after the death
+ * it scores, an operator grant weeks later, a rebuild; the two-second grace in read-models
+ * kill-window.ts is what lets a late-stamped kill count). Recording it would add the player to
+ * the Nitrado list and remove them in the same tick, which can lift another, still-running ban
+ * sharing the same name entry, and the notifier, which windows on `bans.created_at`, would tell
+ * them they were banned for a death that may be weeks old. The life simply stays in
+ * `findEndedUnbannedLives`, like every unqualified one.
  */
 export function planBans(lives: EndedLife[], banDurationHours: number, now: Date): BanPlan[] {
   const plans: BanPlan[] = [];
   for (const life of lives) {
-    if (life.endedAt.getTime() + banDurationHours * 3600_000 <= now.getTime()) continue;
+    const expiresAt = new Date(life.endedAt.getTime() + banDurationHours * 3600_000);
+    if (expiresAt.getTime() <= now.getTime()) continue; // same instant planExpiries calls due
     const input: QualificationInput = {
       deathCause: life.deathCause,
       effectivePlaytimeSeconds: life.effectivePlaytimeSeconds,
       startedAt: life.startedAt,
       windowEnd: life.endedAt,
       playerKills: life.playerKills,
+      previousLifeEndedAt: life.previousLifeEndedAt,
     };
     if (!isLifeQualified(input)) continue;
     plans.push({
@@ -61,7 +70,7 @@ export function planBans(lives: EndedLife[], banDurationHours: number, now: Date
       dayzId: life.dayzId,
       lifeStartedAt: life.startedAt,
       bannedAt: life.endedAt,
-      expiresAt: new Date(life.endedAt.getTime() + banDurationHours * 3600_000),
+      expiresAt,
       qualifiedBy: qualifiedBy(life),
     });
   }

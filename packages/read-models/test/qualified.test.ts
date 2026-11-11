@@ -34,3 +34,25 @@ describe("isLifeQualified", () => {
     expect(isLifeQualified({ ...base, effectivePlaytimeSeconds: 120 })).toBe(false);
   });
 });
+
+// A kill line can be stamped a second after its killer's own death line. It counts toward the
+// life that just ended (kill-window.ts), so that life qualifies "by kill" whatever its playtime.
+describe("isLifeQualified — a kill logged just after the killer's own death", () => {
+  const died = t("2026-07-11T00:02:00Z");
+  const short = { deathCause: "explosion" as string | null, effectivePlaytimeSeconds: 120, startedAt: t("2026-07-11T00:00:00Z"), windowEnd: died, playerKills: [] as { occurredAt: Date }[] };
+
+  it("qualifies a life under five minutes by a kill one or two seconds after its end", () => {
+    expect(isLifeQualified({ ...short })).toBe(false);
+    expect(isLifeQualified({ ...short, playerKills: [{ occurredAt: t("2026-07-11T00:02:01Z") }] })).toBe(true);
+    expect(isLifeQualified({ ...short, playerKills: [{ occurredAt: t("2026-07-11T00:02:02Z") }] })).toBe(true);
+  });
+  it("does not by a kill three seconds after its end", () => {
+    expect(isLifeQualified({ ...short, playerKills: [{ occurredAt: t("2026-07-11T00:02:03Z") }] })).toBe(false);
+  });
+  it("does not let the previous life's posthumous kill qualify the next life", () => {
+    const next = { deathCause: null, effectivePlaytimeSeconds: 0, startedAt: t("2026-07-11T00:02:01Z"), windowEnd: t("2026-07-11T00:04:00Z"), previousLifeEndedAt: died };
+    expect(isLifeQualified({ ...next, playerKills: [{ occurredAt: t("2026-07-11T00:02:01Z") }] })).toBe(false);
+    expect(isLifeQualified({ ...next, playerKills: [{ occurredAt: t("2026-07-11T00:02:02Z") }] })).toBe(false);
+    expect(isLifeQualified({ ...next, playerKills: [{ occurredAt: t("2026-07-11T00:02:03Z") }] })).toBe(true);
+  });
+});

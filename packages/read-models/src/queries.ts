@@ -2,6 +2,7 @@ import type { Database } from "@onelife/db";
 import { servers, players, lives, sessions, kills } from "@onelife/db";
 import { and, eq, isNull, desc } from "drizzle-orm";
 import { livePlaytime, isLifeQualified } from "./qualified.js";
+import { previousLifeEnd } from "./kill-window.js";
 import { applyRetirement, closeSessionsAt } from "./retirement.js";
 
 export type RosterEntry = { gamertag: string; sessionSeconds: number; lifeSeconds: number };
@@ -54,6 +55,7 @@ export async function getPlayerProfile(db: Database, serverId: number, gamertag:
     // while its placer is offline (spec 2.4). Playtime above keeps the heartbeat cap.
     windowEnd: l.endedAt ?? now,
     playerKills: pk,
+    previousLifeEndedAt: previousLifeEnd(lifeRows, l),
   }));
 
   const openLife = qualified.find((l) => l.endedAt === null) ?? null;   // qualified current life only
@@ -91,6 +93,7 @@ export async function getPlayerLives(db: Database, serverId: number, gamertag: s
     // while its placer is offline (spec 2.4). Playtime above keeps the heartbeat cap.
     windowEnd: l.endedAt ?? new Date(),
     playerKills: pk,
+    previousLifeEndedAt: previousLifeEnd(rows, l),
   }));
 }
 

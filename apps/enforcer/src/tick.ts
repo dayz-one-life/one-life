@@ -32,9 +32,18 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
 
   // ── apply ──
   let applied = 0;
+  let expired = 0;
   for (const b of await pendingBans(db)) {
     if (deps.dryRun) {
       deps.log.info({ gamertag: b.gamertag, serverId: b.serverId }, "DRY RUN: would ban");
+      continue;
+    }
+    // A ban still pending when its time is up (Nitrado kept failing, or old rows met a switch
+    // from dry-run to enforcing) is never sent: adding the player only to remove them below would
+    // also take them off the list for any other ban they are serving.
+    if (planExpiries([b], deps.now).length > 0) {
+      await markExpired(db, b.id, deps.now);
+      expired++;
       continue;
     }
     try {
@@ -49,7 +58,6 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
   }
 
   // ── expire ──
-  let expired = 0;
   const active = await appliedBans(db);
   const dueIds = new Set(planExpiries(active.map((b) => ({ id: b.id, expiresAt: b.expiresAt })), deps.now));
   for (const b of active.filter((b) => dueIds.has(b.id))) {
@@ -60,7 +68,8 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
     }
     try {
       // ⚠️ The ban list holds names, shared by every ban of this player: a name another running
-      // ban still needs stays. The row is marked as usual.
+      // ban still needs stays (pg-store.ts namesToRemove; a ban due in this same pass does not
+      // count as running). The row is marked as usual.
       const names = await namesToRemove(db, b, deps.now);
       if (names.length < banNames(b).length) deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id, removed: names.length }, "ban expired; names kept for a later ban");
       if (names.length) {
