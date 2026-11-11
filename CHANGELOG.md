@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.81.0] - 2026-11-11
+
 ### Changed
 
 - New deaths by grenade, land mine, claymore, tripwire, plastic explosive, 40mm round or an
