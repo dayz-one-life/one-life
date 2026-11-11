@@ -47,14 +47,7 @@ export function planBans(lives: EndedLife[], banDurationHours: number, now: Date
   const plans: BanPlan[] = [];
   for (const life of lives) {
     if (life.endedAt.getTime() + banDurationHours * 3600_000 <= now.getTime()) continue;
-    const input: QualificationInput = {
-      deathCause: life.deathCause,
-      effectivePlaytimeSeconds: life.effectivePlaytimeSeconds,
-      startedAt: life.startedAt,
-      windowEnd: life.endedAt,
-      playerKills: life.playerKills,
-    };
-    if (!isLifeQualified(input)) continue;
+    if (!lifeQualifies(life)) continue;
     plans.push({
       serverId: life.serverId,
       gamertag: life.gamertag,
@@ -66,6 +59,22 @@ export function planBans(lives: EndedLife[], banDurationHours: number, now: Date
     });
   }
   return plans;
+}
+
+/**
+ * Whether an ended life qualifies for a ban. Pure. ⚠️ The one predicate both `planBans` (a ban is
+ * created) and `unqualified-bans` (a ban whose life no longer qualifies is listed) use: if they
+ * differed, the operator command would lift bans the enforcer would create again, or miss some.
+ */
+export function lifeQualifies(life: EndedLife): boolean {
+  const input: QualificationInput = {
+    deathCause: life.deathCause,
+    effectivePlaytimeSeconds: life.effectivePlaytimeSeconds,
+    startedAt: life.startedAt,
+    windowEnd: life.endedAt,
+    playerKills: life.playerKills,
+  };
+  return isLifeQualified(input);
 }
 
 /** Ids of applied bans whose expiry is due at `now`. Pure. */

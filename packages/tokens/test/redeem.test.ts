@@ -43,6 +43,7 @@ describe("redeem", () => {
     expect(await getBalance(db, "rd1")).toBe(0);
     const [b] = await db.select().from(bans).where(eq(bans.id, r.banId));
     expect(b!.status).toBe("lift_pending");
+    expect(b!.liftReason).toBe("token"); // the notifier says a token was spent only for this
   });
 
   it("throws no_active_ban when nothing is liftable", async () => {
@@ -65,6 +66,7 @@ describe("redeem", () => {
     const r = await redeem(db, { userId: "rd1" });
     const [b] = await db.select().from(bans).where(eq(bans.id, r.banId));
     expect(b!.status).toBe("lifted");
+    expect(b!.liftReason).toBe("token");
     expect(await getBalance(db, "rd1")).toBe(before - 1);
   });
 

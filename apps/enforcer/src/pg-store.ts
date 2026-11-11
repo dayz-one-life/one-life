@@ -34,29 +34,40 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const out: EndedLife[] = [];
   for (const r of rows) {
     if (!r.endedAt) continue;
-    const krows = await db
-      .select({ occurredAt: kills.occurredAt })
-      .from(kills)
-      .where(
-        and(
-          eq(kills.serverId, r.serverId),
-          eq(kills.killerGamertag, r.gamertag),
-          gte(kills.occurredAt, r.startedAt),
-          lte(kills.occurredAt, r.endedAt),
-        ),
-      );
-    out.push({
-      serverId: r.serverId,
-      gamertag: r.gamertag,
-      dayzId: r.dayzId,
-      startedAt: r.startedAt,
-      endedAt: r.endedAt,
-      deathCause: r.deathCause,
-      effectivePlaytimeSeconds: r.playtimeSeconds,
-      playerKills: krows.map((k) => ({ occurredAt: k.occurredAt })),
-    });
+    out.push(await endedLifeOf(db, { ...r, endedAt: r.endedAt }));
   }
   return out;
+}
+
+/**
+ * One ended life with its in-life kills, as `planBans` reads it. ⚠️ Shared by
+ * `findEndedUnbannedLives` and `unqualified-bans`, so both judge a life on the same kills.
+ */
+export async function endedLifeOf(
+  db: Database,
+  r: { serverId: number; gamertag: string; dayzId: string | null; startedAt: Date; endedAt: Date; deathCause: string | null; playtimeSeconds: number },
+): Promise<EndedLife> {
+  const krows = await db
+    .select({ occurredAt: kills.occurredAt })
+    .from(kills)
+    .where(
+      and(
+        eq(kills.serverId, r.serverId),
+        eq(kills.killerGamertag, r.gamertag),
+        gte(kills.occurredAt, r.startedAt),
+        lte(kills.occurredAt, r.endedAt),
+      ),
+    );
+  return {
+    serverId: r.serverId,
+    gamertag: r.gamertag,
+    dayzId: r.dayzId,
+    startedAt: r.startedAt,
+    endedAt: r.endedAt,
+    deathCause: r.deathCause,
+    effectivePlaytimeSeconds: r.playtimeSeconds,
+    playerKills: krows.map((k) => ({ occurredAt: k.occurredAt })),
+  };
 }
 
 /** Insert a planned ban (idempotent on the durable death key). */
