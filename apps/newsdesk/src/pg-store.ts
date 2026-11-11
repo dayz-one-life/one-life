@@ -1,5 +1,6 @@
 import type { Database } from "@onelife/db";
-import { articles, lives, players, servers } from "@onelife/db";
+import { articles, deathVerdicts, lives, players, servers } from "@onelife/db";
+import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import { and, eq, desc, gte, inArray, isNotNull, notExists, sql } from "drizzle-orm";
 import { qualifiedLifeCondition } from "@onelife/read-models";
 
@@ -82,6 +83,16 @@ export async function findObituaryTargets(
     .from(lives)
     .innerJoin(players, eq(players.id, lives.playerId))
     .innerJoin(servers, eq(servers.id, lives.serverId))
+    // ⚠️ The death-verdict gate (plan step 6): a life is a target only once the projector's sweep
+    // has stored its verdict at the CURRENT classifier version and the verdict does not need
+    // review. Until then the obituary waits (a few minutes: the sweep settles a death 5 minutes
+    // of log after it, or 30 minutes after first seeing it). Nothing else here reads the verdict
+    // yet; the prompt still reads the life's own fields.
+    .innerJoin(deathVerdicts, and(
+      eq(deathVerdicts.lifeId, lives.id),
+      eq(deathVerdicts.classifierVersion, CLASSIFIER_VERSION),
+      eq(deathVerdicts.needsReview, false),
+    ))
     .where(
       and(
         isNotNull(lives.endedAt),

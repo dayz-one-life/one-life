@@ -2,7 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { servers, players, lives, articles, playerGamertags } from "@onelife/db";
 import { eq, inArray } from "drizzle-orm";
+import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import { findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
+import { seedVerdict } from "./verdict.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
@@ -12,7 +14,7 @@ let serverId: number;
 const pids: number[] = [];
 const lifeIds: number[] = [];
 
-async function seedLife(tag: string, over: Record<string, unknown>) {
+async function seedLife(tag: string, over: Record<string, unknown>, verdict = true) {
   const [p] = await db.insert(players).values({ gamertag: tag }).returning();
   pids.push(p!.id);
   // Mirrors the projector fold, which writes a player_gamertags row for every seen name — the
@@ -20,6 +22,7 @@ async function seedLife(tag: string, over: Record<string, unknown>) {
   await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(0), lastSeenAt: hrs(0) });
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(0), ...over }).returning();
   lifeIds.push(l!.id);
+  if (verdict && l!.endedAt) await seedVerdict(db, l!.id);
   return { lifeId: l!.id, playerId: p!.id, gamertag: tag, lifeStartedAt: hrs(0) };
 }
 
@@ -109,5 +112,31 @@ describe("findObituaryTargets", () => {
     targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     expect(targets.find((t) => t.lifeId === q2.lifeId)).toBeUndefined(); // attempts 3 >= 3
     void un;
+  });
+});
+
+describe("findObituaryTargets: the death-verdict gate", () => {
+  const all = () => findObituaryTargets(db, { limit: 500, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
+
+  it("a life with no verdict row is not a target", async () => {
+    const q = await seedLife(`nd-nv-${svc}`, { lifeNumber: 1, endedAt: hrs(8), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    expect((await all()).find((t) => t.lifeId === q.lifeId)).toBeUndefined();
+  });
+
+  it("it becomes a target when the row appears", async () => {
+    const q = await seedLife(`nd-late-${svc}`, { lifeNumber: 1, endedAt: hrs(9), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    expect((await all()).find((t) => t.lifeId === q.lifeId)).toBeUndefined();
+    await seedVerdict(db, q.lifeId);
+    expect((await all()).find((t) => t.lifeId === q.lifeId)).toBeDefined();
+  });
+
+  it("a row at an older version or flagged needs_review does not count", async () => {
+    const old = await seedLife(`nd-old-v-${svc}`, { lifeNumber: 1, endedAt: hrs(10), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    await seedVerdict(db, old.lifeId, { classifierVersion: CLASSIFIER_VERSION - 1 });
+    const review = await seedLife(`nd-rev-${svc}`, { lifeNumber: 1, endedAt: hrs(11), deathCause: "pvp", playtimeSeconds: 7200 }, false);
+    await seedVerdict(db, review.lifeId, { needsReview: true });
+    const targets = await all();
+    expect(targets.find((t) => t.lifeId === old.lifeId)).toBeUndefined();
+    expect(targets.find((t) => t.lifeId === review.lifeId)).toBeUndefined();
   });
 });

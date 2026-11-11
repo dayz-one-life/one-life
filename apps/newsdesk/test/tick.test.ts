@@ -4,6 +4,7 @@ import { servers, players, lives, articles, playerGamertags } from "@onelife/db"
 import { eq, inArray, and } from "drizzle-orm";
 import { newsdeskTick } from "../src/tick.js";
 import type { CompletionClient } from "../src/generate.js";
+import { seedVerdict } from "./verdict.js";
 
 const { db, sql } = getTestDb();
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
@@ -22,6 +23,7 @@ async function seedQualifiedDeath(tag: string, endH: number) {
   await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(endH - 2), lastSeenAt: hrs(endH - 2) });
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(endH - 2), endedAt: hrs(endH), deathCause: "pvp", deathByGamertag: "Killer", deathWeapon: "M4", deathDistance: 100, playtimeSeconds: 7200 }).returning();
   lifeIds.push(l!.id);
+  await seedVerdict(db, l!.id);
   return l!.id;
 }
 
@@ -150,6 +152,7 @@ describe("newsdeskTick", () => {
         deathCause: "bled_out", playtimeSeconds: 7200,
       }).returning();
       lifeIds.push(prior!.id);
+      await seedVerdict(db, prior!.id);
     }
     const [cur] = await db.insert(lives).values({
       serverId, playerId: p!.id, lifeNumber: 3,
@@ -158,6 +161,7 @@ describe("newsdeskTick", () => {
       playtimeSeconds: 7200,
     }).returning();
     lifeIds.push(cur!.id);
+    await seedVerdict(db, cur!.id);
 
     await newsdeskTick(db, deps({ batchCap: 50 }));
 
