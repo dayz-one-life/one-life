@@ -23,6 +23,10 @@ const COMPANION_DIED_LINE = 'Player "N" (DEAD) (id=6 pos=<1.0, 2.0, 3.0>) died. 
 // fold — so it must be left alone and reported, never recovered.
 const ORPHAN_NO_DEAD_LINE = 'Player "O" (id=7 pos=<9.0, 9.0, 9.0>) committed suicide';
 
+// A kill line whose killer was already dead. The pre-R1 parser missed it as a kill and stored an
+// `environment` death killed by something called "Player"; today's parser reads it as `pvp`.
+const DEAD_KILLER_LINE = 'Player "D" (DEAD) (id=8) killed by Player "E" (DEAD) (id=9) with M4A1 from 10 meters';
+
 async function seed(lineIndex: number, text: string, payload: Record<string, unknown>) {
   const occurredAt = new Date("2026-07-10T12:00:00Z");
   const [rl] = await db.insert(rawLines).values({ serverId, admFileId, lineIndex, text, occurredAt }).returning();
@@ -45,6 +49,7 @@ let suicideRawLineId: number;
 let noDeadRawLineId: number;
 let companionRawLineId: number;
 let orphanRawLineId: number;
+let deadKillerRawLineId: number;
 
 beforeAll(async () => {
   const [s] = await db.insert(servers).values({ nitradoServiceId: svc, name: "backfill-death-causes-test" }).returning();
@@ -60,6 +65,8 @@ beforeAll(async () => {
   companionRawLineId = await seed(15, COMPANION_DIED_LINE,
     { victim: "N", cause: "died", killer: null, weapon: null, distance: null, energy: 400, water: 500, bleedSources: 1 });
   orphanRawLineId = await seedPositionOnly(16, ORPHAN_NO_DEAD_LINE, { gamertag: "O", x: 9, y: 9, z: 9 });
+  deadKillerRawLineId = await seed(17, DEAD_KILLER_LINE,
+    { victim: "D", cause: "environment", killer: null, weapon: null, distance: null, deathEntity: "Player" });
 });
 
 afterAll(async () => {
@@ -93,6 +100,15 @@ describe("backfillDeathCauses", () => {
     const suicide = (await db.select().from(events).where(eq(events.rawLineId, suicideRawLineId)))[0]!;
     expect((suicide.payload as any).cause).toBe("suicide");
     expect((suicide.payload as any).deathEntity).toBeUndefined();
+  });
+
+  // ⚠️ The backfill writes `cause` and `deathEntity` and nothing else. Turning this stored death
+  // into `pvp` would leave killer, weapon and distance null: after the rebuild the life would
+  // qualify as a player-kill death (a ban, which is durable) with no kills row behind it.
+  it("leaves a stored dead-killer death exactly as it is — never a pvp death with no killer", async () => {
+    const row = (await db.select().from(events).where(eq(events.rawLineId, deadKillerRawLineId)))[0]!;
+    expect(row.payload).toEqual(
+      { victim: "D", cause: "environment", killer: null, weapon: null, distance: null, deathEntity: "Player" });
   });
 
   it("recovers a dropped death by patching its COMPANION died event, not by inserting one", async () => {
