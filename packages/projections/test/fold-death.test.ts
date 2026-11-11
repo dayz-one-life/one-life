@@ -149,12 +149,10 @@ describe("death + kills + reboot fold", () => {
     expect(s.kills.map((k) => [k.killerGamertag, k.victimGamertag])).toEqual([["Killer Two", "Victim One"], ["Victim One", "Killer Two"]]);
   });
 
-  // ⚠️ Pins CURRENT behaviour, not a decision. DayZ sometimes stamps the second line a second
-  // after the first. The kills row takes the VICTIM's timestamp, and per-life kill attribution
-  // (read-models `qualified*.ts`, `player-kills.ts`, the enforcer's pg-store) is a time window,
-  // `kills.occurred_at <= lives.ended_at`. So a kill logged after the killer's own death is in his
-  // career total but inside none of his lives: it neither qualifies the life that just ended nor
-  // shows in its kill count. Whether it should is a question for a later step.
+  // ⚠️ The fold stores the kill at the VICTIM's timestamp, which DayZ sometimes stamps a second
+  // after the killer's own death. The fold does not move it: the readers' kill window ends
+  // KILL_WINDOW_GRACE_SECONDS (2 s) after lives.ended_at, so the kill still counts toward the life
+  // that just ended (read-models kill-window.ts, the enforcer's pg-store, the notifier).
   it("a kill logged a second after the killer's own death is credited, but falls after his life", async () => {
     const s = new MemoryStore();
     await applyEvent(s, connect(1, "Victim One", "2026-07-06T12:00:00Z"));
