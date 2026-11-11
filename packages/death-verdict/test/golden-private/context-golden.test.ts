@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildDeathContext } from "../../src/index.js";
-import { contextDigest, cwFixtures, differences, goldenReady, layout, olFixtures, readGz, report } from "./golden.js";
+import { readClassified, refOfUid, type Project } from "../../scripts/golden-io.js";
+import { buildDeathContext, wholeCorpusContext } from "../../src/index.js";
+import { contextDigest, corpusOf, cwFixtures, differences, goldenReady, layout, olFixtures, readGz, report } from "./golden.js";
 
 /**
  * The death record and the death context against the reference's — PRIVATE data.
@@ -13,8 +14,13 @@ import { contextDigest, cwFixtures, differences, goldenReady, layout, olFixtures
  *
  * So it checks two things at once: that the port computes what the reference computes, and that
  * the selection kept every line those computations read.
+ *
+ * Then the same digest is built for EVERY death of both projects from the whole logs and compared
+ * with nothing left out. The fixtures are a few hundred deaths; the thresholds of the context
+ * (how near, how long ago, how fast) are only pinned by many.
  */
-const ready = goldenReady("context-golden.test", layout?.contextExpected, layout?.olFixtures, layout?.cwFixtures);
+const ready = goldenReady("context-golden.test", layout?.contextExpected, layout?.olFixtures, layout?.cwFixtures,
+  layout?.classified, layout?.ol.raw, layout?.cw.raw);
 
 /** The corpse's `is choosing to respawn` can come any time before the next connect; the selection
  *  stops five minutes after the death. No rule reads it. */
@@ -38,4 +44,21 @@ describe.skipIf(!ready)("the death context vs the reference (private data)", () 
     expect(cwFixtures().length).toBeGreaterThan(0);
     expect(report("context", failed)).toBe("");
   }, 120_000);
+
+  for (const project of ["OL", "CW"] as Project[]) {
+    it(`record and context equal the reference for every ${project} death, from the whole log`, () => {
+      const want = readGz<Record<string, Record<string, unknown>>>(layout!.contextExpected);
+      const rows = readClassified(layout!.classified, project);
+      const failed: { uid: string; why: string }[] = [];
+      for (const row of rows) {
+        const expected = want[row.uid];
+        if (!expected) { failed.push({ uid: row.uid, why: "missing from context.expected.json.gz — run tools/dump_context.py" }); continue; }
+        const diff = differences(contextDigest(wholeCorpusContext(corpusOf(project).get(row.serverId)!, refOfUid(row.uid))), expected);
+        if (diff.length) failed.push({ uid: row.uid, why: [...new Set(diff)].slice(0, 6).join(" ") });
+      }
+      expect(rows.length).toBeGreaterThan(0);
+      expect(Object.keys(want).filter((uid) => uid.startsWith(`${project}-`)).length).toBe(rows.length);
+      expect(report(`whole-log context (${project})`, failed)).toBe("");
+    }, 600_000);
+  }
 });

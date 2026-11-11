@@ -1,7 +1,10 @@
 {
-  "sourceHash": "1dc8c0352d881afda97ae62789dda303e43f1c8480e96bf28018c66ed04477b4",
-  "corpusSha": "09effb6a3bb289515efe8e0539ddcece7322e9b7b1f618e4c4615a75a41c97ff",
+  "sourceHash": "a00abcfa31f0ce4bb96879e9da9bcfeff3e2dce168191fd36ba7a541116d7df3",
+  "harnessHash": "44ee1942f88ace8e9597b5e54ee25c17280e88d4342d7f5684fc2b954ef95002",
+  "corpusSha": "d29360cf464e409d8a86d8c44e0d6eced8215440b00ac818f177c4a080b027e7",
   "classifierVersion": 0,
+  "suites": 9,
+  "tests": 23,
   "rows": 280,
   "passed": 0,
   "gaps": 280,
@@ -10,5 +13,6 @@
     "strong": 0,
     "inferred": 0,
     "killLine": 0
-  }
+  },
+  "signature": "2ZQKmunoMQbIujhlMS9BllwNHCQcVDjm7XAznuobiHcto4NuG4PnKNgPtYW+p25/YjVJo9HXpvTgRm02/bHwDA=="
 }

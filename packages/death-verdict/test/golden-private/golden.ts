@@ -2,7 +2,18 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { goldenLayout, loadCorpora, readFixtures, type Fixture, type Project } from "../../scripts/golden-io.js";
-import { refKey, type DeathContext, type Hit, type ServerCorpus, type StampedLine } from "../../src/index.js";
+import {
+  dist2d, isDetonation, lowerBound, refKey, trapAnchors, upperBound,
+  type DeathContext, type Hit, type ServerCorpus, type StampedLine,
+} from "../../src/index.js";
+import type { GoldenOutcome } from "../../scripts/golden-reporter.js";
+
+declare module "vitest" {
+  interface TaskMeta {
+    /** Set by the parity test; the golden reporter carries it into the run file. Counts only. */
+    goldenOutcome?: GoldenOutcome;
+  }
+}
 
 /**
  * Shared by the private suites of the evidence port: where the golden data is, how it is loaded,
@@ -122,12 +133,64 @@ export function contextDigest(c: DeathContext): Record<string, unknown> {
   return JSON.parse(JSON.stringify(out)) as Record<string, unknown>;
 }
 
-/** The paths at which two JSON values differ. Numbers are equal within a part in a billion: the
- *  two languages do not round a square root identically in the last place. */
-export function differences(a: unknown, b: unknown, path = ""): string[] {
-  if (typeof a === "number" && typeof b === "number") {
-    return Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b)) ? [] : [path];
+/**
+ * What the SELECTION exists to keep, read straight off a context: the lines the rules of the later
+ * steps will ask for along the whole life, not only around the death. The sufficiency suite
+ * compares it between the selected lines and the whole log.
+ *
+ * ⚠️ The numbers are written out here on purpose (20 m and 60 s, 1200 s, 30 m, 15 m and 5 m, 600 s) and
+ * NOT imported from select.ts: they are what the design says the rules may read. Narrow a window
+ * in select.ts and this probe finds lines in the whole log that the selection no longer holds.
+ * `contextDigest` cannot see that: everything it probes lies within five minutes of the death.
+ */
+export function selectionProbe(c: DeathContext): Record<string, unknown> {
+  const S = c.server, pid = c.pid, t0 = c.t0;
+  const lived = [...c.life, ...c.around];
+  // company: another player's line within 20 m and 60 s of one of the victim's own, anywhere in the life
+  const pts = lived.filter((o) => o.subject!.pos).map((o) => ({ ts: o.ts, pos: o.subject!.pos! })).sort((a, b) => a.ts - b.ts);
+  const ptTs = pts.map((p) => p.ts);
+  const company: string[] = [];
+  if (pts.length) {
+    for (const o of S.window(ptTs[0]! - 60, t0 + 60)) {
+      if (o.positions.length === 0 || o.subject?.id === pid) continue;
+      const lo = lowerBound(ptTs, o.ts - 60), hi = upperBound(ptTs, o.ts + 60);
+      let near = false;
+      for (let i = lo; i < hi && !near; i++) near = o.positions.some((p) => dist2d(p, pts[i]!.pos) <= 20);
+      if (near) company.push(refKey(o));
+    }
   }
+  // mentions: lines that name the victim without being about them, twenty minutes back
+  const mentions = (S.any.get(pid) ?? []).map((s) => S.lines[s]!)
+    .filter((o) => o.subject?.id !== pid && o.ts >= t0 - 1200 && o.ts <= t0 + 300).map(refKey);
+  // placements of any age within 30 m of the death or of any hit line on the victim
+  const anchors = [...(c.pos ? [c.pos] : []), ...lived.filter((o) => o.kind === "hit" && o.subject!.pos).map((o) => o.subject!.pos!)];
+  const placements = S.placed.filter((p) => anchors.some((a) => dist2d(a, p.line.subject!.pos!) <= 30)).map((p) => refKey(p.line));
+  // the credit ring of a trap death: that kind of device within 15 m, and every time one went off within 5 m since
+  const ring: Record<string, unknown> = {};
+  const victimAlive = c.life.filter((o) => !o.subject!.dead && o.seq < c.prim.seq);
+  for (const { cls, anchor } of trapAnchors(victimAlive, c.record)) {
+    const placed = S.placed.filter((p) => p.className === cls && p.line.seq < c.firstSeq && dist2d(p.line.subject!.pos!, anchor) <= 15);
+    const spots = [anchor, ...placed.map((p) => p.line.subject!.pos!)];
+    const since = placed.length ? Math.min(...placed.map((p) => p.line.seq)) : c.firstSeq;
+    const spent: string[] = [];
+    for (let s = since; s < c.firstSeq; s++) {
+      const o = S.lines[s]!, at = o.subject?.pos;
+      if (at && isDetonation(o, cls) && spots.some((sp) => dist2d(sp, at) <= 5)) spent.push(refKey(o));
+    }
+    ring[cls] = { placed: placed.map((p) => refKey(p.line)), spent };
+  }
+  // the whole server, whoever the line is about, from ten minutes before the death to five after
+  const server = S.window(t0 - 600, t0 + 300).map(refKey);
+  return { company, mentions, placements, ring, server };
+}
+
+/**
+ * The paths at which two JSON values differ. ⚠️ Numbers are compared EXACTLY, floats included: the
+ * port's arithmetic is the reference's to the last bit (see `pyHypot`), and the rules compare
+ * distances with thresholds, so "nearly equal" would hide a different verdict.
+ */
+export function differences(a: unknown, b: unknown, path = ""): string[] {
+  if (typeof a === "number" && typeof b === "number") return a === b ? [] : [path];
   if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return a === b ? [] : [path];
   if (Array.isArray(a) !== Array.isArray(b)) return [path];
   if (Array.isArray(a) && Array.isArray(b)) {

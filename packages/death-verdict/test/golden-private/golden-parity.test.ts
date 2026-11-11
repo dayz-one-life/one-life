@@ -1,8 +1,6 @@
-import { afterAll, describe, it, expect } from "vitest";
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { sha256, sourceHash, type Fixture } from "../../scripts/golden-io.js";
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import type { Fixture } from "../../scripts/golden-io.js";
 import { buildDeathContext, classifyDeath, CLASSIFIER_VERSION, objectKeyFromText, refKey, type InternalVerdict } from "../../src/index.js";
 import { goldenReady, layout, olFixtures, report } from "./golden.js";
 
@@ -22,11 +20,12 @@ import { goldenReady, layout, olFixtures, report } from "./golden.js";
  * ⚠️ `classifyDeath` is a stub in this step: every death is a known gap. Two of the ten checks
  * already bite — the death time and the death lines come from the context, not from a rule.
  *
- * When every golden suite has passed, `pnpm run golden` records the outcome in
- * `golden-attest.json` (counts and hashes only).
+ * This suite does not write the attestation and cannot make one happen on its own: it hands its
+ * counts to the golden reporter (`scripts/golden-reporter.ts`), which records a run only when
+ * EVERY golden suite passed. `fixtures-golden` is what ties each fixture's `expected` to the
+ * reference's answer file.
  */
-const ready = goldenReady("golden-parity.test", layout?.classified, layout?.olFixtures, layout?.knownGaps, layout?.parityExpected, layout?.ol.raw);
-const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const ready = goldenReady("golden-parity.test", layout?.classified, layout?.olFixtures, layout?.knownGaps, layout?.parityExpected);
 const sameSet = (a: readonly string[], b: readonly string[]) => JSON.stringify([...new Set(a)].sort()) === JSON.stringify([...new Set(b)].sort());
 
 /** The numbers of the checks a verdict fails, 1 to 10 as the design numbers them. */
@@ -49,9 +48,7 @@ function failedChecks(v: InternalVerdict, f: Fixture): number[] {
 }
 
 describe.skipIf(!ready)("parity with the reference classifier (private data, the gate)", () => {
-  let outcome: { rows: number; passed: number; gaps: number; totals: Record<"definitive" | "strong" | "inferred" | "killLine", number> } | null = null;
-
-  it("every death passes the ten checks, except the known gaps — and every known gap still fails", () => {
+  it("every death passes the ten checks, except the known gaps — and every known gap still fails", ({ task }) => {
     const gaps = JSON.parse(readFileSync(layout!.knownGaps, "utf8")) as Record<string, string>;
     const fixtures = olFixtures();
     const failed: { uid: string; why: string }[] = [];
@@ -82,13 +79,7 @@ describe.skipIf(!ready)("parity with the reference classifier (private data, the
       const want = JSON.parse(readFileSync(layout!.parityExpected, "utf8")) as typeof totals & { rows: number };
       expect({ rows: fixtures.length, ...totals }).toEqual(want);
     }
-    outcome = { rows: fixtures.length, passed, gaps: nGaps, totals };
+    task.meta.goldenOutcome = { classifierVersion: CLASSIFIER_VERSION, rows: fixtures.length, passed, gaps: nGaps, totals };
   }, 120_000);
-
-  afterAll(() => {
-    if (!outcome || !layout) return;
-    const corpusSha = sha256(sha256(readFileSync(layout.ol.raw)) + sha256(readFileSync(layout.classified)));
-    writeFileSync(layout.lastRun, JSON.stringify({ sourceHash: sourceHash(pkgRoot), corpusSha, classifierVersion: CLASSIFIER_VERSION, ...outcome }) + "\n");
-  });
 });
 

@@ -9,7 +9,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "golden": "DEATH_GOLDEN_REQUIRED=1 vitest run --dir test/golden-private && tsx scripts/write-attest.ts"
+    "golden": "DEATH_GOLDEN_REQUIRED=1 vitest run --config vitest.golden.config.ts && tsx scripts/write-attest.ts"
   },
   "devDependencies": {
     "@onelife/adm-parser": "workspace:*",

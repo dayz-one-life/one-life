@@ -157,10 +157,35 @@ export function goldenLayout(gold: string) {
     parityExpected: join(gold, "parity.expected.json"),
     contextExpected: join(gold, "context.expected.json.gz"),
     records: join(corpus, "deaths.jsonl.gz"),
-    /** Written by the parity suite, read by `write-attest.ts`. Never committed. */
+    /** The uids the Clan Wars rule fixtures were built from, one per line. */
+    cwUids: join(gold, "cw-rules.uids.txt"),
+    /** Written by the golden reporter when a WHOLE run passed, read by `write-attest.ts`. Never committed. */
     lastRun: join(gold, ".golden-run.json"),
+    /** The key the attestation is signed with. ⚠️ Private: it lives with the golden data and nowhere else. */
+    attestKey: join(gold, "attest-key", "ed25519-private.pem"),
   };
 }
+
+/**
+ * Every private file a golden suite reads its inputs or its ANSWERS from, relative to the golden
+ * directory. `corpusHash` covers all of them, so an attestation names exactly the data it was
+ * earned on. ⚠️ A suite that starts reading another private file must add it here.
+ */
+export const GOLDEN_INPUTS: readonly string[] = [
+  "classified.jsonl", "known-gaps.json", "parity.expected.json", "context.expected.json.gz", "cw-rules.uids.txt",
+  "labels.snapshot.json", "labels.expected.json", "tokens.json",
+  "corpus/ol_raw_lines.tsv", "corpus/ol_adm_files.csv", "corpus/ol_servers.csv", "corpus/ol_lives.csv", "corpus/ol_kills.csv",
+  "corpus/cw_raw_lines.tsv", "corpus/cw_adm_files.csv",
+  "ol/", "cw-rules/",
+];
+
+/** The private suites a golden run must have run, by file name. ⚠️ Adding or removing a suite
+ *  changes this list, the pinned counts in `test/attest.test.ts`, and needs a fresh golden run. */
+export const GOLDEN_SUITES: readonly string[] = [
+  "cluster-golden.test.ts", "cluster-seed.test.ts", "context-golden.test.ts", "fixtures-golden.test.ts",
+  "golden-labels.test.ts", "golden-parity.test.ts", "log-clock-golden.test.ts", "select-sufficiency.test.ts",
+  "tokens-golden.test.ts",
+];
 
 export function readFixtures(dir: string): Fixture[] {
   if (!existsSync(dir)) return [];
@@ -170,19 +195,68 @@ export function readFixtures(dir: string): Fixture[] {
 
 export const sha256 = (data: string | Buffer): string => createHash("sha256").update(data).digest("hex");
 
-/** SHA-256 over the package's source: every `src/**\/*.ts`, by sorted path, path and content. */
-export function sourceHash(pkgRoot: string): string {
+/** Every `.ts` file under a directory, as sorted paths relative to it. */
+function tsFiles(dir: string): string[] {
   const files: string[] = [];
-  const walk = (dir: string, rel: string) => {
-    for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
-      if (e.isDirectory()) walk(join(dir, e.name), `${rel}${e.name}/`);
+  const walk = (at: string, rel: string) => {
+    for (const e of readdirSync(at, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(at, e.name), `${rel}${e.name}/`);
       else if (e.name.endsWith(".ts")) files.push(`${rel}${e.name}`);
     }
   };
-  walk(join(pkgRoot, "src"), "");
-  files.sort();
+  if (existsSync(dir)) walk(dir, "");
+  return files.sort();
+}
+
+// Line endings are normalised so a checkout with CRLF hashes the same.
+const text = (path: string): string => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+/** SHA-256 over the package's source: every `src/**\/*.ts`, by sorted path, path and content. */
+export function sourceHash(pkgRoot: string): string {
   const h = createHash("sha256");
-  // Line endings are normalised so a checkout with CRLF hashes the same.
-  for (const f of files) h.update(`${f}\n`).update(readFileSync(join(pkgRoot, "src", f), "utf8").replace(/\r\n/g, "\n")).update("\0");
+  for (const f of tsFiles(join(pkgRoot, "src"))) h.update(`${f}\n`).update(text(join(pkgRoot, "src", f))).update("\0");
+  return h.digest("hex");
+}
+
+/**
+ * SHA-256 over the golden HARNESS: everything that decides what "the golden suites passed" means
+ * and is not the classifier itself — the private suites and their helpers
+ * (`test/golden-private/**`), the scripts (`scripts/**`), the golden vitest config and the
+ * `golden` command of package.json. Gutting a suite, weakening the comparator or dropping the
+ * reporter moves it, and the attestation is then no longer valid.
+ */
+export function harnessHash(pkgRoot: string): string {
+  const h = createHash("sha256");
+  for (const dir of ["scripts", "test/golden-private"]) {
+    for (const f of tsFiles(join(pkgRoot, dir))) h.update(`${dir}/${f}\n`).update(text(join(pkgRoot, dir, f))).update("\0");
+  }
+  h.update("vitest.golden.config.ts\n").update(text(join(pkgRoot, "vitest.golden.config.ts"))).update("\0");
+  const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf8")) as { scripts?: Record<string, string> };
+  h.update("package.json#scripts.golden\n").update(pkg.scripts?.golden ?? "").update("\0");
+  return h.digest("hex");
+}
+
+/** The private suite files that exist, by name. */
+export const goldenSuiteFiles = (pkgRoot: string): string[] =>
+  readdirSync(join(pkgRoot, "test", "golden-private")).filter((f) => f.endsWith(".test.ts")).sort();
+
+/**
+ * SHA-256 over the private golden data: every file of `GOLDEN_INPUTS`, by name and content hash
+ * (a directory by the name and hash of each fixture in it). A missing file hashes as missing, so
+ * removing one moves the hash too. ⚠️ Prints nothing and returns only the digest.
+ */
+export function corpusHash(gold: string): string {
+  const h = createHash("sha256");
+  const one = (rel: string) => {
+    const path = join(gold, rel);
+    h.update(`${rel}\n`).update(existsSync(path) ? sha256(readFileSync(path)) : "missing").update("\0");
+  };
+  for (const rel of GOLDEN_INPUTS) {
+    if (!rel.endsWith("/")) { one(rel); continue; }
+    const dir = join(gold, rel);
+    const names = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".json.gz")).sort() : [];
+    h.update(`${rel}\n${names.length}\n`);
+    for (const name of names) one(`${rel}${name}`);
+  }
   return h.digest("hex");
 }
