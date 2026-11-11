@@ -1,18 +1,18 @@
 {
-  "sourceHash": "a00abcfa31f0ce4bb96879e9da9bcfeff3e2dce168191fd36ba7a541116d7df3",
-  "harnessHash": "44ee1942f88ace8e9597b5e54ee25c17280e88d4342d7f5684fc2b954ef95002",
-  "corpusSha": "d29360cf464e409d8a86d8c44e0d6eced8215440b00ac818f177c4a080b027e7",
-  "classifierVersion": 0,
-  "suites": 9,
-  "tests": 23,
+  "sourceHash": "08c75838d0c9f76ec8fe7142d4ceb98c25a7f9eb95ffaab42d4e59ce346e16b2",
+  "harnessHash": "39af71f8f772023880e19e4570e74b96a481fd00e3fa1933b73798e844c0d145",
+  "corpusSha": "8121c826567066ec33b460ffd70625a05ccf55f71b49ab49f71d87f17e89088b",
+  "classifierVersion": 1,
+  "suites": 11,
+  "tests": 28,
   "rows": 280,
-  "passed": 0,
-  "gaps": 280,
+  "passed": 249,
+  "gaps": 31,
   "totals": {
-    "definitive": 0,
-    "strong": 0,
+    "definitive": 227,
+    "strong": 22,
     "inferred": 0,
-    "killLine": 0
+    "killLine": 14
   },
-  "signature": "2ZQKmunoMQbIujhlMS9BllwNHCQcVDjm7XAznuobiHcto4NuG4PnKNgPtYW+p25/YjVJo9HXpvTgRm02/bHwDA=="
+  "signature": "uXXN5Eu6IFJWio1gTqTn+zljik0z4v3wXFZegmRQGBylVYaz0q4v+Pog5tjo529q2vY4Ed9CZbMFRGIBboCXAA=="
 }

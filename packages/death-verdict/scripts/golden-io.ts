@@ -156,6 +156,8 @@ export function goldenLayout(gold: string) {
     knownGaps: join(gold, "known-gaps.json"),
     parityExpected: join(gold, "parity.expected.json"),
     contextExpected: join(gold, "context.expected.json.gz"),
+    /** The evidence half of the trap-kill bar per trap death, reviewed (`tools/make-credits-expected.mts`). */
+    creditsExpected: join(gold, "credits.expected.json"),
     records: join(corpus, "deaths.jsonl.gz"),
     /** The uids the Clan Wars rule fixtures were built from, one per line. */
     cwUids: join(gold, "cw-rules.uids.txt"),
@@ -172,7 +174,7 @@ export function goldenLayout(gold: string) {
  * earned on. ⚠️ A suite that starts reading another private file must add it here.
  */
 export const GOLDEN_INPUTS: readonly string[] = [
-  "classified.jsonl", "known-gaps.json", "parity.expected.json", "context.expected.json.gz", "cw-rules.uids.txt",
+  "classified.jsonl", "known-gaps.json", "parity.expected.json", "context.expected.json.gz", "credits.expected.json", "cw-rules.uids.txt",
   "labels.snapshot.json", "labels.expected.json", "tokens.json",
   "corpus/ol_raw_lines.tsv", "corpus/ol_adm_files.csv", "corpus/ol_servers.csv", "corpus/ol_lives.csv", "corpus/ol_kills.csv",
   "corpus/cw_raw_lines.tsv", "corpus/cw_adm_files.csv",
@@ -182,9 +184,9 @@ export const GOLDEN_INPUTS: readonly string[] = [
 /** The private suites a golden run must have run, by file name. ⚠️ Adding or removing a suite
  *  changes this list, the pinned counts in `test/attest.test.ts`, and needs a fresh golden run. */
 export const GOLDEN_SUITES: readonly string[] = [
-  "cluster-golden.test.ts", "cluster-seed.test.ts", "context-golden.test.ts", "fixtures-golden.test.ts",
+  "cluster-golden.test.ts", "cluster-seed.test.ts", "context-golden.test.ts", "credits-golden.test.ts", "fixtures-golden.test.ts",
   "golden-labels.test.ts", "golden-parity.test.ts", "log-clock-golden.test.ts", "select-sufficiency.test.ts",
-  "tokens-golden.test.ts",
+  "stated-golden.test.ts", "tokens-golden.test.ts",
 ];
 
 export function readFixtures(dir: string): Fixture[] {

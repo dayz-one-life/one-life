@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { goldenLayout, loadCorpora, readFixtures, type Fixture, type Project } from "../../scripts/golden-io.js";
+import { goldenLayout, loadCorpora, readFixtures, type Expected, type Fixture, type Project } from "../../scripts/golden-io.js";
 import {
-  dist2d, isDetonation, lowerBound, refKey, trapAnchors, upperBound,
-  type DeathContext, type Hit, type ServerCorpus, type StampedLine,
+  dist2d, isDetonation, lowerBound, objectKeyFromText, refKey, trapAnchors, upperBound,
+  type DeathContext, type Hit, type InternalVerdict, type ServerCorpus, type StampedLine,
 } from "../../src/index.js";
 import type { GoldenOutcome } from "../../scripts/golden-reporter.js";
 
@@ -200,4 +200,34 @@ export function differences(a: unknown, b: unknown, path = ""): string[] {
   const ka = Object.keys(a as object), kb = Object.keys(b as object);
   const keys = [...new Set([...ka, ...kb])];
   return keys.flatMap((key) => differences((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key], `${path ? `${path}.` : ""}${/^[0-9A-F]{40}$/.test(key) ? "*" : key}`));
+}
+
+const sameSet = (a: readonly string[], b: readonly string[]) => JSON.stringify([...new Set(a)].sort()) === JSON.stringify([...new Set(b)].sort());
+
+/** The reference's rules that answer from a stated line: a kill line (A), or a stated mechanism on
+ *  a bare death line (B01 to B08). Everything else it decides by inference. */
+export const isStatedRule = (rule: string): boolean => /^(A|B0[1-8])/.test(rule);
+
+/**
+ * The numbers of the parity checks a verdict fails against the reference's answer, 1 to 10 as the
+ * design numbers them. `uid` names the death (`OL-<server>-<file>-<line>`): check 9 requires the
+ * verdict to be keyed on that line.
+ */
+export function failedChecks(v: InternalVerdict, e: Expected, uid: string): number[] {
+  const bad: number[] = [];
+  if (v.cause !== e.cause) bad.push(1);
+  if (v.confidence !== e.confidence || v.mechanismStated !== e.mechanismStated) bad.push(2);
+  if (v.rule !== e.rule) bad.push(3);
+  if ((v.upstream?.cause ?? null) !== e.upstreamCause || (v.upstream?.confidence ?? null) !== e.upstreamConfidence) bad.push(4);
+  if (!sameSet(v.coCauses, e.coCauses)) bad.push(5);
+  const text = v.object?.text ?? null;
+  if (text !== e.weaponOrObject || (v.object?.key ?? null) !== (text == null ? null : objectKeyFromText(text))) bad.push(6);
+  const a = v.attribution, ea = e.attributedTo;
+  if ((a == null) !== (ea == null) || (a && ea && (a.role !== ea.role || a.dayzId !== ea.id || a.confidence !== ea.confidence))) bad.push(7);
+  if (v.deathAt !== e.utc) bad.push(8);
+  const lines = (xs: { admFileId: number; lineIndex: number; role: string }[]) => xs.map((l) => `${refKey(l)}=${l.role}`).join(" ");
+  const [project, server] = uid.split("-");
+  if (lines(v.deathLines) !== lines(e.deathLines.map((l) => ({ ...l.ref, role: l.role }))) || `${project}-${server}-${v.deathRef.admFileId}-${v.deathRef.lineIndex}` !== uid) bad.push(9);
+  if (!sameSet(v.evidence.flags, e.flags) || !sameSet(v.evidence.contributors.map((c) => c.dayzId), e.contributorIds)) bad.push(10);
+  return bad;
 }

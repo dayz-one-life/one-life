@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import type { Fixture } from "../../scripts/golden-io.js";
-import { buildDeathContext, classifyDeath, CLASSIFIER_VERSION, objectKeyFromText, refKey, type InternalVerdict } from "../../src/index.js";
-import { goldenReady, layout, olFixtures, report } from "./golden.js";
+import { buildDeathContext, classifyDeath, CLASSIFIER_VERSION } from "../../src/index.js";
+import { failedChecks, goldenReady, layout, olFixtures, report } from "./golden.js";
 
 /**
  * The parity gate — PRIVATE data. The classifier against the reference's answer for every One
@@ -17,8 +16,9 @@ import { goldenReady, layout, olFixtures, report } from "./golden.js";
  * and it is the honest measure of how much of the classifier is ported. Readers and the newsdesk
  * may not ship while it is not empty.
  *
- * ⚠️ `classifyDeath` is a stub in this step: every death is a known gap. Two of the ten checks
- * already bite — the death time and the death lines come from the context, not from a rule.
+ * ⚠️ Only the stated rules are ported (a kill line, or a stated mechanism on a bare death line).
+ * The deaths the reference decides by inference are the known gaps; `stated-golden` checks they
+ * are exactly those, and that every stated death of both projects passes.
  *
  * This suite does not write the attestation and cannot make one happen on its own: it hands its
  * counts to the golden reporter (`scripts/golden-reporter.ts`), which records a run only when
@@ -26,27 +26,6 @@ import { goldenReady, layout, olFixtures, report } from "./golden.js";
  * reference's answer file.
  */
 const ready = goldenReady("golden-parity.test", layout?.classified, layout?.olFixtures, layout?.knownGaps, layout?.parityExpected);
-const sameSet = (a: readonly string[], b: readonly string[]) => JSON.stringify([...new Set(a)].sort()) === JSON.stringify([...new Set(b)].sort());
-
-/** The numbers of the checks a verdict fails, 1 to 10 as the design numbers them. */
-function failedChecks(v: InternalVerdict, f: Fixture): number[] {
-  const e = f.expected, bad: number[] = [];
-  if (v.cause !== e.cause) bad.push(1);
-  if (v.confidence !== e.confidence || v.mechanismStated !== e.mechanismStated) bad.push(2);
-  if (v.rule !== e.rule) bad.push(3);
-  if ((v.upstream?.cause ?? null) !== e.upstreamCause || (v.upstream?.confidence ?? null) !== e.upstreamConfidence) bad.push(4);
-  if (!sameSet(v.coCauses, e.coCauses)) bad.push(5);
-  const text = v.object?.text ?? null;
-  if (text !== e.weaponOrObject || (v.object?.key ?? null) !== (text == null ? null : objectKeyFromText(text))) bad.push(6);
-  const a = v.attribution, ea = e.attributedTo;
-  if ((a == null) !== (ea == null) || (a && ea && (a.role !== ea.role || a.dayzId !== ea.id || a.confidence !== ea.confidence))) bad.push(7);
-  if (v.deathAt !== e.utc) bad.push(8);
-  const lines = (xs: { admFileId: number; lineIndex: number; role: string }[]) => xs.map((l) => `${refKey(l)}=${l.role}`).join(" ");
-  if (lines(v.deathLines) !== lines(e.deathLines.map((l) => ({ ...l.ref, role: l.role }))) || `${f.project}-${f.serverId}-${v.deathRef.admFileId}-${v.deathRef.lineIndex}` !== f.uid) bad.push(9);
-  if (!sameSet(v.evidence.flags, e.flags) || !sameSet(v.evidence.contributors.map((c) => c.dayzId), e.contributorIds)) bad.push(10);
-  return bad;
-}
-
 describe.skipIf(!ready)("parity with the reference classifier (private data, the gate)", () => {
   it("every death passes the ten checks, except the known gaps — and every known gap still fails", ({ task }) => {
     const gaps = JSON.parse(readFileSync(layout!.knownGaps, "utf8")) as Record<string, string>;
@@ -56,7 +35,7 @@ describe.skipIf(!ready)("parity with the reference classifier (private data, the
     let passed = 0, clockOrLines = 0;
     for (const f of fixtures) {
       const v = classifyDeath(buildDeathContext(f));
-      const bad = failedChecks(v, f);
+      const bad = failedChecks(v, f.expected, f.uid);
       if (bad.includes(8) || bad.includes(9)) clockOrLines += 1;
       if (bad.length === 0) {
         passed += 1;

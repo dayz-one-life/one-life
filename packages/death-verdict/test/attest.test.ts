@@ -27,11 +27,12 @@ import { CLASSIFIER_VERSION } from "../src/index.js";
  *
  * What each step lowers or raises here, in the same commit as its golden run:
  */
-/** The most deaths that may still be known gaps. Step 3: all of them, `classifyDeath` is a stub.
+/** The most deaths that may still be known gaps. Step 3: 280, `classifyDeath` was a stub. Step 4:
+ *  31, the deaths only an inferred rule answers.
  *  ⚠️ Only ever lowered. A regression cannot be hidden by listing a death as a gap again. */
-const GAPS_CEILING = 280;
+const GAPS_CEILING = 31;
 /** The private suites and tests a golden run must have run. */
-const SUITES = 9, TESTS = 23;
+const SUITES = 11, TESTS = 28;
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const attest = JSON.parse(readFileSync(join(pkgRoot, "golden-attest.json"), "utf8")) as Attestation;
@@ -106,8 +107,9 @@ describe("the signature", () => {
       { ...signed, sourceHash: "0".repeat(64) }, { ...signed, harnessHash: "0".repeat(64) }, { ...signed, corpusSha: "0".repeat(64) },
       { ...signed, classifierVersion: signed.classifierVersion + 1 }, { ...signed, suites: 1 }, { ...signed, tests: 1 },
       { ...signed, rows: 0 }, { ...signed, passed: 280, gaps: 0 }, { ...signed, gaps: 0 },
-      { ...signed, totals: { ...signed.totals, definitive: 227 } }, { ...signed, totals: { ...signed.totals, strong: 36 } },
-      { ...signed, totals: { ...signed.totals, inferred: 17 } }, { ...signed, totals: { ...signed.totals, killLine: 14 } },
+      // one more than the run really had: a fixed figure here would stop being a forgery the day a run reaches it
+      { ...signed, totals: { ...signed.totals, definitive: signed.totals.definitive + 1 } }, { ...signed, totals: { ...signed.totals, strong: signed.totals.strong + 1 } },
+      { ...signed, totals: { ...signed.totals, inferred: signed.totals.inferred + 1 } }, { ...signed, totals: { ...signed.totals, killLine: signed.totals.killLine + 1 } },
       { ...signed, signature: "" }, { ...signed, signature: "AAAA" }, { ...fields },
     ];
     for (const f of forged) expect(verifyAttestation(f, pub)).toBe(false);
