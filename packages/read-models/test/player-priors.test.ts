@@ -65,6 +65,30 @@ describe("getPlayerPriors", () => {
     expect(pr.longestLifeSeconds).toBe(36000);  // the sakhal life
     expect(pr.bestLifeMap).toBe("sakhal");      // cross-server: longest lived elsewhere
     expect(pr.totalKills).toBe(2);              // kills before the boundary only
+    expect(pr.trapKills).toBe(0);
+  });
+
+  // Revision 3: a trap kill is a kill. totalKills counts it; trapKills says how many of those are
+  // credited from a trap (death-verdict spec 6.1), with the same "before this life" filter.
+  it("counts an earlier trap kill in totalKills and in trapKills; a later one in neither", async () => {
+    const name = `trapper-${svcA}`;
+    const [p] = await db.insert(players).values({ gamertag: name, firstSeenAt: hoursAgo(50), lastSeenAt: now }).returning();
+    pids.push(p!.id);
+    await db.insert(lives).values({ serverId: chern, playerId: p!.id, lifeNumber: 1, startedAt: hoursAgo(50), endedAt: hoursAgo(40), playtimeSeconds: 3600, deathCause: "fall" });
+    const [v] = await db.insert(players).values({ gamertag: `trap-victim-${svcA}`, firstSeenAt: hoursAgo(50), lastSeenAt: now }).returning();
+    pids.push(v!.id);
+    const [vb, vc] = await db.insert(lives).values([
+      { serverId: chern, playerId: v!.id, lifeNumber: 1, startedAt: hoursAgo(48), endedAt: hoursAgo(42), playtimeSeconds: 3600, deathCause: "explosion" },
+      { serverId: chern, playerId: v!.id, lifeNumber: 2, startedAt: hoursAgo(10), endedAt: hoursAgo(5), playtimeSeconds: 3600, deathCause: "explosion" },
+    ]).returning();
+    await db.insert(kills).values([
+      { serverId: chern, killerGamertag: name, killerPlayerId: p!.id, victimGamertag: "Victim A", weapon: "M4", distance: 10, occurredAt: hoursAgo(45) },
+      { serverId: chern, killerGamertag: name, killerPlayerId: p!.id, victimGamertag: "Victim B", victimLifeId: vb!.id, weapon: "Tripwire", distance: null, occurredAt: hoursAgo(42), basis: "trap_placement", creditSource: "classifier" },
+      { serverId: chern, killerGamertag: name, killerPlayerId: p!.id, victimGamertag: "Victim C", victimLifeId: vc!.id, weapon: "Land mine", distance: null, occurredAt: hoursAgo(5), basis: "trap_placement", creditSource: "classifier" },
+    ]);
+    const pr = await getPlayerPriors(db, name, hoursAgo(30));
+    expect(pr.totalKills).toBe(2);
+    expect(pr.trapKills).toBe(1);
   });
 
   it("distinguishes the usual death cause from the last death cause, as lower-case tag nouns", async () => {
@@ -76,7 +100,7 @@ describe("getPlayerPriors", () => {
   it("returns zeros/nulls for a first-lifer (no prior lives)", async () => {
     const pr = await getPlayerPriors(db, firstTag, hoursAgo(3));
     expect(pr).toEqual({
-      livesLived: 0, longestLifeSeconds: 0, totalKills: 0,
+      livesLived: 0, longestLifeSeconds: 0, totalKills: 0, trapKills: 0,
       usualDeathCause: null, lastDeathCause: null, bestLifeMap: null,
     });
   });

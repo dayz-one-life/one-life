@@ -33,6 +33,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   grouped by kind ("hunger and thirst", "wildlife", "pvp"), so three deaths to three different
   players count as one usual cause. No `--rebuild` and no backfill is needed.
 
+- Obituaries are written from the stored cause of death (prompt `obituary-v4`). The writer is told
+  the cause with its certainty: a cause the log states is given as fact, one that was worked out
+  may carry one small qualifier, and a best reading is given as "most likely" under a heading that
+  says it is not confirmed, with the instruction to hedge it in every sentence and keep it out of
+  the headline and the pull quote. A death the server gives no cause for, or one we choose not to
+  describe, gets no cause at all. When a trap kill is credited, the victim's obituary may name the
+  player credited in its body only, never in the headline, the opening paragraph or the pull
+  quote, and a trap-setter's obituary counts trap kills as kills but keeps any kill count out of
+  the headline and the opening paragraph. A check now reads every draft before it is published
+  and sends it back once, then gives up, if it breaks any of these rules or mentions how a player
+  left the game. The cause tag on a new obituary is the death's family ("Hunger and Thirst",
+  "Trap", "Exposure", ...) instead of "Environment"; it is "Unknown" only when no cause is given.
+  A re-published obituary keeps its address. The obituary records which version of the cause it
+  was written from (new column `articles.verdict_version`, migration `0041`), and stores the cause
+  in the old vocabulary so older pages and app builds still read it. The privacy page lists the
+  new things sent to the writer. `pnpm --filter @onelife/newsdesk run preview -- --life <id>
+  [--generate]` prints what would be sent for a death without writing anything. No `--rebuild` and
+  no backfill is needed.
+  After review, the check reads plain synonyms of each cause (winter, snow, food, a cough, the
+  bike, a stranger), checks the hedge of each clause rather than of the whole sentence, accepts
+  more honest hedges ("perhaps", "in all likelihood", "the paper's reading"), and no longer lets a
+  mention of an earlier death, earlier run-ins or the player's own kills excuse a flat statement
+  of how this one ended, in the headline or anywhere else. For a death with no cause given it
+  looks for that death's own kind of cause and for explicit mechanisms (a fall, wolves, a
+  tripwire), not every ordinary word like "cold" or "shot". It ignores numbers that are not kill
+  counts ("two hours", "no one", a gamertag) and model tags that are never published, and it
+  matches a credited player's name as a whole word. A failed obituary records only which rules
+  it broke. A stored "Likely" tag on an obituary is replaced by "Unknown" when that kind of cause
+  is switched off, even while the death is being re-checked. The tuning script now also drafts
+  deaths with no cause and trap-setters, sends the same recent-prose block as the real run, and
+  refuses any database whose name does not end in `_test`.
+
 ## [0.83.0] - 2026-11-11
 
 ### Changed

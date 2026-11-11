@@ -1,4 +1,5 @@
-import type { LifeTimeline, OrdealSummary, PlayerPriors } from "@onelife/read-models";
+import type { LifeTimeline, OrdealSummary, PlayerPriors, WriterDeath } from "@onelife/read-models";
+import type { Condition, LegacyCause, PublicDeath, PublicTag, WriterBrief } from "@onelife/death-verdict";
 import type { ObituaryTarget } from "./pg-store.js";
 
 export const LEGEND_KILLS = 20;
@@ -8,6 +9,16 @@ export const FRESH_SPAWN_SECONDS = 1800; // 30 min
  *  not the end of a run. Published suicides span 15s–5381s; the prompt must not read them alike. */
 export const SUICIDE_RESET_SECONDS = 300; // 5 min
 
+/**
+ * The death as the article freezes it (death-verdict spec 3.6, 6.1): the already-hedged public
+ * strings, the fallback whenever the live verdict is missing or pending. ⚠️ Built without the
+ * trap credit and without a named driver (`writerDeathOf`), so the only gamertag that can be in it
+ * is a kill-line killer's.
+ */
+export type ObituaryDeath = Pick<PublicDeath, "key" | "certainty" | "label" | "detail" | "sentence" | "caption" | "trap" | "selfStated"> & {
+  tag: PublicTag;
+};
+
 export interface ObituaryFacts {
   gamertag: string;
   map: string;
@@ -15,26 +26,54 @@ export interface ObituaryFacts {
   lifeNumber: number;
   timeAliveSeconds: number;
   timeAliveLabel: string;
+  /** Every kill this life, trap kills included (revision 3: a trap kill is a kill). */
   kills: number;
+  /** How many of `kills` are credited from a trap this player set. Stored as a number. */
+  trapKills: number;
   longestKillMeters: number | null;
   sessions: number;
+  /** The life row's own coarse word (`lives.death_cause`), kept for readers that predate `death`. */
   cause: string | null;
-  // "suicide" is its own category: a deliberate self-inflicted end is neither a player kill nor
-  // an act of the environment, and the two read completely differently in prose and imagery.
-  // "environment" means a mechanism was actually NAMED (bled_out/starvation/wolf/fall/...);
-  // a bare `died` with no verdict is "unknown", never environment — see the derivation below.
-  causeCategory: "pvp" | "suicide" | "environment" | "unknown";
+  /** The family tag of the death (`death.tag`): "PvP", "Self-Inflicted", "Hunger and Thirst", ...
+   *  "Unknown" if and only if the certainty is unknown (not recorded, or withheld). */
+  causeCategory: PublicTag;
+  /** Only a killer the kill line names (`death.killerGamertag`). Never a driver, never a placer. */
   killerGamertag: string | null;
   weapon: string | null;
   isLegend: boolean;
   freshSpawnVictim: boolean;
   endedAt: string;
   deathDistance: number | null;
-  verdict: { cause: string; confidence: "high" | "low"; conditions: string[] } | null;
+  /** The frozen public death. */
+  death: ObituaryDeath;
+  /** Today's vocabulary (`legacyCause`), for the v0.80.0 reader, an old mobile build and a
+   *  rolled-back release. `articles.cause` is `verdict.cause`. */
+  verdict: { cause: LegacyCause; confidence: "high" | "low"; conditions: Condition[] };
   ordeals: { infected: OrdealSummary; fire: OrdealSummary; pvp: OrdealSummary } | null;
   hpLow: number | null;
   priors: PlayerPriors;        // the player's global reputation before this life
   isKnownQuantity: boolean;    // priors.livesLived > 0
+  /** True when the writer was given a trap credit line. A boolean, never a name. Stored. */
+  creditSent: boolean;
+  /**
+   * ⚠️ NOT STORED. The player credited with this trap death, read live at write time. It goes to
+   * the prompt, the cause check and the place-check exemptions, and is stripped by `storedFacts`
+   * before `articles.facts` is written: a credit can be denied later (spec 6.4), and the stored
+   * facts carry no gamertag but a kill-line killer's.
+   */
+  creditedGamertag: string | null;
+  /** ⚠️ NOT STORED. The writer's brief (cause line, credit line, directives); it can hold the
+   *  credited name. Stripped by `storedFacts`. */
+  brief: WriterBrief;
+}
+
+/** What `articles.facts` holds: the facts minus the two fields that may name a trap-setter. */
+export type StoredObituaryFacts = Omit<ObituaryFacts, "creditedGamertag" | "brief">;
+
+/** The facts as they are written to `articles.facts`. */
+export function storedFacts(f: ObituaryFacts): StoredObituaryFacts {
+  const { creditedGamertag: _c, brief: _b, ...rest } = f;
+  return rest;
 }
 
 /** Human duration: days once past 24h, else "Hh Mm", else "Mm". */
@@ -51,57 +90,31 @@ export function timeAliveLabel(seconds: number): string {
 }
 
 /**
- * D4 — cause tokens that name no real mechanism. `died` is what the ADM parser writes when the
- * log line carries no killer and no entity; `environment`/`environmental` are the parser's and
- * classifier's catch-alls. Handing any of these to the model as a bare word invited invention
- * (a bare "environment" was published as the headline word "Terrain" for a death actually
- * recorded as infected). Treat them as an explicit unknown instead — the absence IS the story.
+ * Compose the factual snapshot the obituary prompt and Rap Sheet are built from.
  *
- * Lives here rather than in prompt.ts because the causeCategory derivation below is its first
- * consumer: the tag and the prose must agree on one vocabulary of "no mechanism named".
+ * The death comes from the stored verdict (`writer`, read by `getWriterDeath`), never from the
+ * life row's coarse word: the verdict is what every page shows, and the prose must agree with it.
  */
-const UNRECORDED_CAUSES = new Set(["", "died", "environment", "environmental", "unknown"]);
-
-/** True when the cause token names no mechanism (null/empty/died/environment/unknown). */
-export function isUnrecordedCause(cause: string | null | undefined): boolean {
-  return UNRECORDED_CAUSES.has((cause ?? "").trim().toLowerCase());
-}
-
-/** Compose the factual snapshot the obituary prompt and Rap Sheet are built from. */
 export function buildObituaryFacts(
   target: ObituaryTarget,
   timeline: LifeTimeline,
   priors: PlayerPriors,
+  writer: WriterDeath,
 ): ObituaryFacts {
   const life = timeline.life;
   const kills = timeline.kills.length;
+  const trapKills = timeline.kills.filter((k) => k.basis === "trap_placement").length;
   const longestKillMeters = timeline.kills.reduce<number | null>((max, k) => {
     if (k.distanceMeters == null) return max;
     return max == null || k.distanceMeters > max ? k.distanceMeters : max;
   }, null);
   const timeAliveSeconds = life.playtimeSeconds ?? 0;
-  const cause = life.deathCause;
-  const killerGamertag = life.deathByGamertag ?? null;
-  // A cause token only counts as "environment" if it NAMES a mechanism. A bare `died` (and the
-  // parser's `environment`/`environmental` catch-alls) name nothing — a truthiness test used to
-  // file them as Environment, which published an "Environment" tag over prose that correctly
-  // said no cause was recorded. Mirrors causeUnrecorded(): the verdict can rescue the category
-  // when classifyDeath inferred a real mechanism (e.g. starvation) from a bare log line, so
-  // causeCategory === "unknown" <=> causeUnrecorded(facts) outside the pvp short-circuit.
-  // The rescue only asks whether a mechanism was named, not which; a verdict of `pvp`/`suicide`
-  // over a bare cause still lands on `environment`, unchanged from before — narrowing that is
-  // out of scope.
-  // Order matters: a killer name outranks everything (a player did it), then the explicit
-  // suicide token, then a named mechanism, then nothing at all.
-  const mechanismNamed = !isUnrecordedCause(cause) || !isUnrecordedCause(timeline.verdict?.cause ?? null);
-  const causeCategory: ObituaryFacts["causeCategory"] =
-    cause === "pvp" || killerGamertag
-      ? "pvp"
-      : cause === "suicide"
-        ? "suicide"
-        : mechanismNamed
-          ? "environment"
-          : "unknown";
+  const d = writer.death;
+  const tag: PublicTag = d.tag ?? "Unknown";
+  const stated = d.certainty === "definitive" || d.certainty === "strong";
+  // The credit is sent only when the brief carries its line (a stated or strong trap death whose
+  // credit matches the device); that is the one case the placer's name reaches the writer.
+  const creditedGamertag = writer.brief.creditLine && writer.credit ? writer.credit.gamertag : null;
 
   return {
     gamertag: target.gamertag,
@@ -111,23 +124,25 @@ export function buildObituaryFacts(
     timeAliveSeconds,
     timeAliveLabel: timeAliveLabel(timeAliveSeconds),
     kills,
+    trapKills,
     longestKillMeters,
     sessions: timeline.sessions.length,
-    cause,
-    causeCategory,
-    killerGamertag,
+    cause: life.deathCause,
+    causeCategory: tag,
+    killerGamertag: d.killerGamertag,
     weapon: life.deathWeapon ?? null,
     isLegend: kills >= LEGEND_KILLS || timeAliveSeconds >= LEGEND_SECONDS,
-    // Deliberately pvp-only: the flag exists to protect a victim from being mocked for being
-    // preyed upon. A short suicide has no predator — it must never trip the protective branch,
-    // which would make the prompt hunt for a killer that does not exist.
-    freshSpawnVictim: causeCategory === "pvp" && timeAliveSeconds < FRESH_SPAWN_SECONDS,
+    // Deliberately a stated player kill only: the flag exists to protect a victim from being
+    // mocked for being preyed upon, and its directive says "killed by another player" as a fact.
+    // A short suicide has no predator, and a best reading of a player kill is not a fact.
+    freshSpawnVictim: tag === "PvP" && stated && timeAliveSeconds < FRESH_SPAWN_SECONDS,
     endedAt: target.endedAt.toISOString(),
     deathDistance: life.deathDistance ?? null,
-    // basis is auditing detail — keep the frozen facts snapshot lean.
-    verdict: timeline.verdict
-      ? { cause: timeline.verdict.cause, confidence: timeline.verdict.confidence, conditions: timeline.verdict.conditions }
-      : null,
+    death: {
+      key: d.key, tag, certainty: d.certainty, label: d.label, detail: d.detail, sentence: d.sentence,
+      caption: d.caption, trap: d.trap, selfStated: d.selfStated,
+    },
+    verdict: { cause: d.cause, confidence: d.confidence, conditions: [...d.conditions] },
     // buildsPlaced is deliberately NOT carried across: base-building is not obituary material,
     // and omitting it at the type level means a later edit cannot print it by accident.
     ordeals: timeline.ordeals
@@ -136,5 +151,8 @@ export function buildObituaryFacts(
     hpLow: timeline.hpLow ?? null,
     priors,
     isKnownQuantity: priors.livesLived > 0,
+    creditSent: creditedGamertag != null,
+    creditedGamertag,
+    brief: writer.brief,
   };
 }

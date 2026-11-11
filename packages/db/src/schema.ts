@@ -522,6 +522,9 @@ export const articles = pgTable("articles", {
   lastError: text("last_error"),
   bodyBlocks: jsonb("body_blocks"),                                  // rich body as an ordered block array (para|subhead|quote|list)
   generatedAt: timestamp("generated_at", { withTimezone: true }),
+  // 0041: the classifier version of the death verdict the prose was written from. NULL before the
+  // obituary-v4 prompt. Stale prose = NULL or below the current version, with a changed public key.
+  verdictVersion: integer("verdict_version"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   // PARTIAL: the two life-keyed kinds are constrained by the life tuple. This predicate is kept

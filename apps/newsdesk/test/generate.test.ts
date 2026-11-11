@@ -1,16 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { generateObituary, type CompletionClient } from "../src/generate.js";
-import type { ObituaryFacts } from "../src/facts.js";
+import { CauseCheckError, generateObituary, type CompletionClient } from "../src/generate.js";
+import { factsFor } from "./facts-fixture.js";
 
-const facts: ObituaryFacts = {
-  gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus", lifeNumber: 1, timeAliveSeconds: 3600,
-  timeAliveLabel: "1h 0m", kills: 0, longestKillMeters: null, sessions: 1, cause: "bled_out",
-  causeCategory: "environment", killerGamertag: null, weapon: null, isLegend: false, freshSpawnVictim: false,
-  endedAt: "2026-07-10T02:00:00.000Z",
-  deathDistance: null, verdict: null, ordeals: null, hpLow: null,
-  priors: { livesLived: 0, longestLifeSeconds: 0, totalKills: 0, usualDeathCause: null, lastDeathCause: null, bestLifeMap: null },
-  isKnownQuantity: false,
-};
+const facts = factsFor({ verdict: { cause: "bled_out_other", confidence: "strong" } });
 
 const stub = (payload: unknown): CompletionClient => ({ complete: async () => JSON.stringify(payload) });
 
@@ -68,5 +60,45 @@ describe("no-place enforcement", () => {
     const client = { complete: async () => { calls++; return mapJson; } };
     await generateObituary(client, facts, []);
     expect(calls).toBe(1);
+  });
+});
+
+describe("cause-check enforcement", () => {
+  const cold = factsFor({ verdict: { cause: "cold_exposure", confidence: "inferred" } });
+  const flat = JSON.stringify({ headline: "A Quiet End", lede: "He froze.", body: "B", pullQuote: null, tags: [] });
+  const hedged = JSON.stringify({ headline: "A Quiet End", lede: "He most likely froze.", body: "B", pullQuote: null, tags: [] });
+
+  it("retries once with the cause violations named, and returns the clean second draft", async () => {
+    const calls: string[] = [];
+    const client = { complete: async (req: { system: string; user: string }) => { calls.push(req.user); return calls.length === 1 ? flat : hedged; } };
+    const result = await generateObituary(client, cold, []);
+    expect(result.lede).toBe("He most likely froze.");
+    expect(calls[1]).toContain("rule 4");
+  });
+
+  it("throws after a second violating draft, with rule numbers in the message and the detail beside it", async () => {
+    const err = await generateObituary({ complete: async () => flat }, cold, []).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CauseCheckError);
+    expect((err as Error).message).toBe("cause-check violation after retry: rules 4");
+    expect((err as CauseCheckError).violations.join(" ")).toMatch(/rule 4 \(lede/);
+  });
+
+  it("the logout hint widens rule 1 to the whole article", async () => {
+    const body = JSON.stringify({ headline: "H", lede: "L", body: "He never respawned.", pullQuote: null, tags: [] });
+    let n = 0;
+    await generateObituary({ complete: async () => { n++; return body; } }, facts, [], { logoutFamily: false, family: null });
+    expect(n).toBe(1);
+    await expect(generateObituary({ complete: async () => body }, facts, [], { logoutFamily: true, family: null })).rejects.toThrow(/cause-check/);
+  });
+
+  it("a credited name containing a banned place word does not trip the place check", async () => {
+    const credited = factsFor({
+      verdict: { cause: "landmine", attrBasis: "placement" },
+      credit: { gamertag: "Barn Owl Seven", device: "land_mine", byOperator: false },
+    });
+    const json = JSON.stringify({ headline: "A Short Walk", lede: "L", body: "Barn Owl Seven is credited with the kill.", pullQuote: null, tags: [] });
+    let n = 0;
+    await generateObituary({ complete: async () => { n++; return json; } }, credited, []);
+    expect(n).toBe(1);
   });
 });

@@ -26,6 +26,11 @@ export interface PublishFacts {
   kills: number;
   longestKillMeters: number | null;
   cause: string | null;
+  /** Today's vocabulary (`legacyCause`); `articles.cause` is its `cause` (spec 3.6). */
+  verdict: { cause: string; confidence: "high" | "low"; conditions: string[] };
+  /** ⚠️ Never stored: stripped here even if the caller forgot `storedFacts` (spec 6.1). */
+  creditedGamertag?: string | null;
+  brief?: unknown;
 }
 export interface PublishObituary {
   headline: string;
@@ -41,6 +46,8 @@ export interface PublishInput {
   promptVersion: string;
   model: string;
   now: Date;
+  /** The classifier version of the verdict the prose was written from (`articles.verdict_version`). */
+  verdictVersion: number;
 }
 
 // Slugs are frozen at publish time — this obituary is the only kind newsdesk publishes today.
@@ -186,9 +193,17 @@ const IDENTITY = (t: ObituaryTarget) => ({
   deathAt: t.endedAt,
 });
 
-/** Upsert a published obituary on the natural key. Bumps attempts, sets status='published'. */
+/**
+ * Upsert a published obituary on the natural key. Bumps attempts, sets status='published'.
+ *
+ * ⚠️ The slug is frozen once set: a re-publish over a row that already has one keeps it (spec 6.1,
+ * "slug freeze"). The URL is what Discord, Facebook and the crier's ledger hold; a new headline
+ * must not move it.
+ */
 export async function publishObituary(db: Database, input: PublishInput): Promise<void> {
-  const { target: t, facts, obituary: o } = input;
+  const { target: t, obituary: o } = input;
+  // The credited trap-setter's name and the writer's brief are never stored.
+  const { creditedGamertag: _c, brief: _b, ...facts } = input.facts;
   const values = {
     ...IDENTITY(t),
     status: "published" as const,
@@ -196,7 +211,8 @@ export async function publishObituary(db: Database, input: PublishInput): Promis
     timeAliveSeconds: facts.timeAliveSeconds,
     kills: facts.kills,
     longestKillMeters: facts.longestKillMeters,
-    cause: facts.cause,
+    // Today's vocabulary, so the v0.80.0 reader and an old mobile build print something correct.
+    cause: facts.verdict.cause,
     headline: o.headline,
     lede: o.lede,
     body: o.body,
@@ -207,6 +223,7 @@ export async function publishObituary(db: Database, input: PublishInput): Promis
     promptVersion: input.promptVersion,
     model: input.model,
     generatedAt: input.now,
+    verdictVersion: input.verdictVersion,
   };
   await db
     .insert(articles)
@@ -214,7 +231,12 @@ export async function publishObituary(db: Database, input: PublishInput): Promis
     .onConflictDoUpdate({
       target: CONFLICT,
       targetWhere: CONFLICT_WHERE,
-      set: { ...values, attempts: sql`${articles.attempts} + 1`, lastError: null },
+      set: {
+        ...values,
+        slug: sql`coalesce(${articles.slug}, excluded.slug)`,
+        attempts: sql`${articles.attempts} + 1`,
+        lastError: null,
+      },
     });
 }
 
@@ -232,4 +254,29 @@ export async function recordObituaryFailure(
       targetWhere: CONFLICT_WHERE,
       set: { status: "failed", attempts: sql`${articles.attempts} + 1`, lastError: input.error },
     });
+}
+
+/**
+ * The obituary target for one life by its id, whatever the gates say (no qualification, cutoff,
+ * verdict or article filter): the preview and the tuning script build facts for a named life the
+ * same way the tick does. Null for a life that does not exist or has not ended.
+ */
+export async function targetForLife(db: Database, lifeId: number): Promise<ObituaryTarget | null> {
+  const [r] = await db
+    .select({
+      lifeId: lives.id,
+      serverId: lives.serverId,
+      gamertag: players.gamertag,
+      map: servers.map,
+      mapSlug: servers.slug,
+      lifeNumber: lives.lifeNumber,
+      lifeStartedAt: lives.startedAt,
+      endedAt: lives.endedAt,
+    })
+    .from(lives)
+    .innerJoin(players, eq(players.id, lives.playerId))
+    .innerJoin(servers, eq(servers.id, lives.serverId))
+    .where(eq(lives.id, lifeId));
+  if (!r || r.endedAt == null) return null;
+  return { ...r, lifeId: Number(r.lifeId), endedAt: r.endedAt };
 }

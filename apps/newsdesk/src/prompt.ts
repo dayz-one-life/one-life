@@ -1,13 +1,17 @@
 import { z } from "zod";
+import {
+  CREDIT_DIRECTIVE, INFERRED_CAUSE_DIRECTIVE, NOT_CONFIRMED_HEADING, TRAP_KILLS_CAVEAT, type PublicTag, type TrapDevice,
+} from "@onelife/death-verdict";
 import type { ObituaryFacts } from "./facts.js";
-import { timeAliveLabel, SUICIDE_RESET_SECONDS, isUnrecordedCause } from "./facts.js";
+import { timeAliveLabel, SUICIDE_RESET_SECONDS } from "./facts.js";
 import { OBITUARY_SYSTEM } from "./voice.js";
 import type { RecentProse } from "./prose-pg-store.js";
 import { recentProseBlock } from "./prose-block.js";
 
-// v3.1: `explosion` and `vehicle` lose the "(not a player kill)" suffix and gain
-// NAMES_NO_PERSON_DIRECTIVE (see below). Nothing else differs from v3.
-export const OBITUARY_PROMPT_VERSION = "obituary-v3.1";
+// v4 (death-verdict spec 6.1): the cause comes from the stored verdict's writer brief, by
+// certainty. Definitive and strong lines sit among the confirmed facts; an inferred line and a
+// trap credit go under NOT_CONFIRMED_HEADING with their directives. Kill counts include trap kills.
+export const OBITUARY_PROMPT_VERSION = "obituary-v4";
 
 export interface Obituary {
   headline: string;
@@ -20,108 +24,73 @@ export interface Obituary {
 const MAP_LABEL: Record<string, string> = { chernarusplus: "Chernarus", sakhal: "Sakhal", enoch: "Livonia" };
 export const mapLabel = (map: string): string => MAP_LABEL[map] ?? map.replace(/\b\w/g, (c) => c.toUpperCase());
 
-/** The one sentence the prompt gets when nothing named the mechanism. */
-export const UNKNOWN_DEATH_PHRASE = "unknown — the record does not name a mechanism.";
-
 /**
- * D4 companion constraint. Saying "unknown" in the facts block is not enough — a model handed a
- * blank will fill it. This names the failure mode explicitly and reframes the gap as the angle.
+ * D4 companion constraint, for a death whose cause is not recorded (or whose inferred family is
+ * switched off). A model handed a blank will fill it; this names the failure mode explicitly and
+ * reframes the gap as the angle.
  */
 export const NO_MECHANISM_DIRECTIVE =
   `THE CAUSE OF DEATH IS NOT RECORDED. Do NOT name or imply a mechanism — no fall, no terrain, no exposure, no animal, no infected, no starvation, no thirst, no weather, no ambush. Do not guess, hedge toward, or hint at one, and do not dress the blank up as a cause. The paper does not know. Say so: the ABSENCE of a cause IS the story — the record simply stops, and a life ends with nothing written next to it. Write the gap, not a mechanism.`;
 
-/**
- * ⚠️ Causes the kill line pins on an OBJECT — a grenade, a mine, a tripwire, a 40mm round, a fuel
- * pump, a vehicle with nobody in the seat. The log names no person on those lines, which is not
- * the same as there being none: somebody may have thrown it, placed it or been driving. The prose
- * is posted to Discord and Facebook where it cannot be edited, so for these causes the prompt
- * must not assert "(not a player kill)" — and must not invite the opposite guess either.
- */
-const NAMES_NO_PERSON_CAUSES = new Set(["explosion", "vehicle"]);
+/** Re-exported for tests and callers that predate the vocabulary package owning it. */
+export { NAMES_NO_PERSON_DIRECTIVE } from "@onelife/death-verdict";
 
-export const NAMES_NO_PERSON_DIRECTIVE =
-  "The record names no person behind this. Do not name, hint at or speculate about anyone, and do not say that no one was involved.";
-
-/** The cause the prompt actually describes: the verdict's when it names one, else the recorded one. */
-function describedCause(facts: ObituaryFacts): string | null {
-  const v = facts.verdict?.cause ?? null;
-  return isUnrecordedCause(v) ? facts.cause : v;
-}
-
-/** True when the death is described as an explosion or a vehicle and no player is named for it. */
-export function namesNoPerson(facts: ObituaryFacts): boolean {
-  if (facts.causeCategory === "pvp" || facts.killerGamertag) return false;
-  return NAMES_NO_PERSON_CAUSES.has((describedCause(facts) ?? "").trim().toLowerCase());
-}
-
-/**
- * True when nothing in the record names a mechanism for this death. A player kill is never
- * unrecorded (the killer IS the mechanism), so pvp short-circuits to false.
- */
+/** True when the writer is told nothing about the cause: not recorded (or a family switched off). */
 export function causeUnrecorded(facts: ObituaryFacts): boolean {
-  if (facts.causeCategory === "pvp" || facts.killerGamertag) return false;
-  return isUnrecordedCause(facts.cause) && isUnrecordedCause(facts.verdict?.cause ?? null);
+  return facts.death.key === "unknown";
 }
 
-/** How a cause is worded for the model. A cause not listed is sent as its token, spaced. */
-const CAUSE_PHRASE: Record<string, string> = {
-  suicide: "died by their own hand",
-  starvation: "starvation — they ran out of food",
-  dehydration: "dehydration — they ran out of water",
-  bled_out: "bled out",
-  mauled: "mauled — bleeding out after an animal or infected attack",
-  wolf: "killed by a wolf",
-  bear: "killed by a bear",
-  animal: "killed by a wild animal",
-  infected: "killed by the infected",
-  fall: "died in a fall",
-  vehicle: "killed by a vehicle",
-  explosion: "killed in an explosion",
-};
+/** True when the cause line is a best reading and goes under NOT_CONFIRMED_HEADING. */
+const isInferred = (facts: ObituaryFacts): boolean => facts.death.certainty === "inferred";
+
 /**
- * The recorded cause as words, for the two paths with no verdict to word it. Explosion and vehicle
- * drop the "(not a player kill)" suffix, and a bare "explosion." / "vehicle." is not something to
- * hand the model — so those two take their phrase. Every other cause keeps its token: it still
- * carries the suffix, which is what makes it read as a statement.
+ * The writer line for this death (spec 2.2), or null when the writer is given none (not recorded,
+ * withheld). An inferred line starts "most likely"; `buildObituaryPrompt` puts it under the NOT
+ * CONFIRMED heading, never among the confirmed facts. A named driver is never in it.
  */
-function recordedCausePhrase(cause: string): string {
-  const key = cause.trim().toLowerCase();
-  return NAMES_NO_PERSON_CAUSES.has(key) ? CAUSE_PHRASE[key]! : cause.replace(/_/g, " ");
+export function describeDeath(facts: ObituaryFacts): string | null {
+  return facts.brief.line;
 }
 
-/** Deterministic, qualitative death sentence for the prompt — words, never raw stat values. */
-export function describeDeath(facts: ObituaryFacts): string {
-  if (facts.causeCategory === "pvp") {
-    const killer = facts.killerGamertag ? ` (${facts.killerGamertag})` : "";
-    const weapon = facts.weapon ? `, ${facts.weapon}` : "";
-    const dist = facts.deathDistance != null ? `, from ${Math.round(facts.deathDistance)}m` : "";
-    return `killed by another player${killer}${weapon}${dist}.`;
+const DEVICE_OF_KEY: Record<string, TrapDevice> = { tripwire: "tripwire", land_mine: "land_mine" };
+
+/** The credit directive actually in the brief, or null. */
+function creditDirective(facts: ObituaryFacts): string | null {
+  const device = DEVICE_OF_KEY[facts.death.key];
+  if (!facts.creditedGamertag || !device) return null;
+  const d = CREDIT_DIRECTIVE(facts.creditedGamertag, device);
+  return facts.brief.directives.includes(d) ? d : null;
+}
+
+/** The brief's directives that belong with the confirmed facts (strong, names-no-person, withheld). */
+function confirmedDirectives(facts: ObituaryFacts): string[] {
+  const credit = creditDirective(facts);
+  return facts.brief.directives.filter((d) => d !== INFERRED_CAUSE_DIRECTIVE && d !== credit);
+}
+
+/** Sent beside the trap-kills caveat: the cause check's rule 6 rejects a kill count in the
+ *  headline or the lede, so the writer is told (review of PR 406). Not in the death-verdict
+ *  vocabulary, so the attested caveat text is unchanged. */
+export const TRAP_KILLS_COUNT_DIRECTIVE = "Give no kill count in the headline or the lede; the body may give it.";
+
+/** The NOT CONFIRMED block (spec 6.1), or [] when there is nothing to put under it. */
+function notConfirmedBlock(facts: ObituaryFacts): string[] {
+  const out: string[] = [];
+  const line = describeDeath(facts);
+  if (line && isInferred(facts)) {
+    out.push(`- Cause of death (the paper's reading): ${line}`);
+    out.push(INFERRED_CAUSE_DIRECTIVE);
   }
-  const v = facts.verdict;
-  // Everything that is not a player kill says so — except the causes that name an object and no
-  // person, where that claim is more than the record supports (NAMES_NO_PERSON_CAUSES).
-  const notPlayer = namesNoPerson(facts) ? "." : " (not a player kill).";
-  if (!v) {
-    // The bare "suicide" token must never reach the model as a raw word — it is the one cause
-    // whose phrasing carries a duty of care, so phrase it here exactly as the verdict path does.
-    if (facts.cause === "suicide") return "died by their own hand (not a player kill).";
-    // D4: no verdict and no mechanism token — say so plainly rather than emitting a bare word.
-    if (isUnrecordedCause(facts.cause)) return UNKNOWN_DEATH_PHRASE;
-    return `${recordedCausePhrase(facts.cause!)}${notPlayer}`;
+  const credit = creditDirective(facts);
+  if (facts.brief.creditLine && credit) {
+    out.push(`- ${facts.brief.creditLine}`);
+    out.push(credit);
   }
-  const conds = v.conditions.filter((c) => c !== "healthy");
-  const state = conds.length
-    ? ` At the end they were ${conds.join(" and ")}.`
-    : v.conditions.includes("healthy") ? " They were in good health at the end." : "";
-  const hedge = v.confidence === "low" ? "likely " : "";
-  // D4: a verdict of "environmental"/"unknown" names nothing either. Fall back to the recorded
-  // mechanism when there is one; otherwise it is an explicit unknown, plus the factual state.
-  if (isUnrecordedCause(v.cause)) {
-    if (isUnrecordedCause(facts.cause)) return `${UNKNOWN_DEATH_PHRASE}${state}`;
-    return `${hedge}${recordedCausePhrase(facts.cause!)}${notPlayer}${state}`;
+  if (facts.trapKills > 0 || facts.priors.trapKills > 0) {
+    out.push(`- ${TRAP_KILLS_CAVEAT(facts.trapKills, facts.priors.trapKills)}`);
+    out.push(TRAP_KILLS_COUNT_DIRECTIVE);
   }
-  const base = CAUSE_PHRASE[v.cause] ?? v.cause.replace(/_/g, " ");
-  return `${hedge}${base}${notPlayer}${state}`;
+  return out.length ? [NOT_CONFIRMED_HEADING, ...out] : [];
 }
 
 /**
@@ -137,10 +106,13 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   lines.push(`- Dateline (map only, never a pin): ${mapLabel(facts.map)}`);
   lines.push(`- Life number on this map: ${facts.lifeNumber} (NOT a career count — see Priors below)`);
   lines.push(`- Time survived this life: ${facts.timeAliveLabel}`);
-  lines.push(`- Confirmed kills this life: ${facts.kills}`);
+  lines.push(`- Kills this life: ${facts.kills}`);
   if (facts.longestKillMeters != null) lines.push(`- Longest kill: ${Math.round(facts.longestKillMeters)}m`);
   lines.push(`- Sessions played: ${facts.sessions}`);
-  lines.push(`- Cause of death: ${describeDeath(facts)}`);
+  // Definitive and strong only: an inferred line goes under the NOT CONFIRMED heading below, and
+  // a death with no line (not recorded, withheld) sends none.
+  const line = describeDeath(facts);
+  if (line && !isInferred(facts)) lines.push(`- Cause of death: ${line}.`);
   if (facts.ordeals) {
     const o = facts.ordeals;
     if (o.infected.encounters > 0) lines.push(`- Run-ins with the infected: ${o.infected.encounters}${o.infected.worstEncounterHits > 1 ? ` (the worst took ${o.infected.worstEncounterHits} hits)` : ""}`);
@@ -153,7 +125,7 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
   if (facts.isKnownQuantity) {
     lines.push(`- Prior lives lived: ${facts.priors.livesLived}`);
     lines.push(`- Longest prior life: ${timeAliveLabel(facts.priors.longestLifeSeconds)}`);
-    lines.push(`- Confirmed kills across all prior lives: ${facts.priors.totalKills}`);
+    lines.push(`- Kills across all prior lives: ${facts.priors.totalKills}`);
     if (facts.priors.usualDeathCause) lines.push(`- Usual cause of death: ${facts.priors.usualDeathCause}`);
     if (facts.priors.lastDeathCause) lines.push(`- Most recent prior death: ${facts.priors.lastDeathCause}`);
     if (facts.priors.bestLifeMap) lines.push(`- Best run was on: ${mapLabel(facts.priors.bestLifeMap)}`);
@@ -161,9 +133,14 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
     lines.push(`- None. This was their first recorded life anywhere. A stranger to these shores.`);
   }
   lines.push("");
-  if (facts.causeCategory === "suicide" && facts.timeAliveSeconds < SUICIDE_RESET_SECONDS) {
+  const unconfirmed = notConfirmedBlock(facts);
+  if (unconfirmed.length) {
+    lines.push(...unconfirmed);
+    lines.push("");
+  }
+  if (facts.causeCategory === "Self-Inflicted" && facts.timeAliveSeconds < SUICIDE_RESET_SECONDS) {
     lines.push(`This was a SELF-INFLICTED death, ${Math.round(facts.timeAliveSeconds)} seconds after this life began. Frame it as a REROLL, not a decision: a bad beach, a broken leg on landing, a spawn nobody wanted — a survivor pressing the reset button on a life that had not started yet. Bureaucratic deadpan, a filing error, an administrative footnote. There is no story arc to eulogize because there was no arc. Do not reach for grief, meaning, or significance — this is paperwork, not a loss.`);
-  } else if (facts.causeCategory === "suicide") {
+  } else if (facts.causeCategory === "Self-Inflicted") {
     lines.push(`This was a SELF-INFLICTED death that ended a real run — the life lasted ${facts.timeAliveLabel} before it ended. Frame it as a survivor closing their own book after a genuine stretch out there: the record they built is the story, and the ending is the last line of it, reported flatly. Never treat the act itself as the punchline and never speculate about a state of mind — you have the record, not the reason. Any needle lands on the circumstances of the run, never on the person.`);
   } else if (facts.isLegend) {
     lines.push(`This was a LEGEND (a long life and/or a high kill count). Use the reverent tone — a sincere send-off with exactly one small needle.`);
@@ -179,13 +156,9 @@ export function buildObituaryPrompt(facts: ObituaryFacts, recent: RecentProse[] 
     lines.push(`FIRST LIFE: no priors anywhere — this was their first recorded life. The absence of a record is the story. Do NOT mock them for being new, green, or unlucky; the joke is the world they walked into, never the person.`);
   }
   lines.push("");
-  lines.push(`Describe the manner of death in qualitative terms — never quote raw stat numbers (energy or water values).`);
-  if (causeUnrecorded(facts)) {
-    lines.push(NO_MECHANISM_DIRECTIVE);
-  } else if (facts.verdict?.confidence === "low") {
-    lines.push(`The cause of death is an inference from the record, not a certainty — hedge it in-voice ("the record is murky", "the island isn't saying").`);
-  }
-  if (namesNoPerson(facts)) lines.push(NAMES_NO_PERSON_DIRECTIVE);
+  if (line) lines.push(`Describe the manner of death in qualitative terms — never quote raw stat numbers (energy or water values).`);
+  if (causeUnrecorded(facts)) lines.push(NO_MECHANISM_DIRECTIVE);
+  lines.push(...confirmedDirectives(facts));
   lines.push("");
   lines.push(...recentProseBlock(recent));
   lines.push("");
@@ -220,17 +193,10 @@ export function parseObituary(raw: string): Obituary {
   return parsed;
 }
 
-export function causeCategoryTag(cat: ObituaryFacts["causeCategory"]): string {
-  switch (cat) {
-    case "pvp":
-      return "PvP";
-    case "suicide":
-      return "Self-Inflicted";
-    case "environment":
-      return "Environment";
-    default:
-      return "Unknown";
-  }
+/** The reserved cause tag: the death's family tag. "Unknown" if and only if the certainty is
+ *  unknown (not recorded, or withheld). */
+export function causeCategoryTag(facts: ObituaryFacts): PublicTag {
+  return facts.death.tag;
 }
 
 /**
@@ -239,8 +205,18 @@ export function causeCategoryTag(cat: ObituaryFacts["causeCategory"]): string {
  * tags (it only supplies optional flavor).
  */
 export function composeTags(facts: ObituaryFacts, llmTags: string[]): string[] {
-  const base = ["Obituaries", mapLabel(facts.map), causeCategoryTag(facts.causeCategory)];
-  const taken = new Set(base.map((t) => t.toLowerCase()));
-  const flavor = llmTags.map((t) => t.trim()).find((t) => t && !taken.has(t.toLowerCase()));
+  const base = reservedTags(facts);
+  const flavor = flavorTagOf(facts, llmTags);
   return flavor ? [...base, flavor] : base;
+}
+
+function reservedTags(facts: ObituaryFacts): string[] {
+  return ["Obituaries", mapLabel(facts.map), causeCategoryTag(facts)];
+}
+
+/** The one model tag `composeTags` keeps: the first that is not a reserved tag; null for none.
+ *  The cause check reads only this one, since the others are never published. */
+export function flavorTagOf(facts: ObituaryFacts, llmTags: string[]): string | null {
+  const taken = new Set(reservedTags(facts).map((t) => t.toLowerCase()));
+  return llmTags.map((t) => t.trim()).find((t) => t && !taken.has(t.toLowerCase())) ?? null;
 }

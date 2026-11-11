@@ -21,9 +21,12 @@ function opener(lede: string | null): string {
   return first.length > OPENER_MAX ? `${first.slice(0, OPENER_MAX).trimEnd()}…` : first;
 }
 
+/** How many recent obituaries the do-not-reuse block lists (the tick, the preview, the tuning script). */
+export const RECENT_PROSE_LIMIT = 12;
+
 /** The last N same-kind published articles, for the do-not-reuse prose block. Read-only — no
  *  migration, no new storage; headline / pull_quote_attribution / lede already exist. */
-export async function recentProse(db: Database, kind: string, limit = 12): Promise<RecentProse[]> {
+export async function recentProse(db: Database, kind: string, limit = RECENT_PROSE_LIMIT): Promise<RecentProse[]> {
   const rows = await db
     .select({ headline: articles.headline, attribution: articles.pullQuoteAttribution, lede: articles.lede })
     .from(articles)

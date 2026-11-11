@@ -297,8 +297,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     place. **⚠️ The newsdesk gate:** `findObituaryTargets` (`apps/newsdesk/src/pg-store.ts`) only
     returns a life that has a `death_verdicts` row at the CURRENT `CLASSIFIER_VERSION` with
     `needs_review = false`. A new obituary therefore waits for the sweep (minutes), and every
-    obituary waits while a version bump is being swept. The prompt still reads the life's own
-    fields; only whether a verdict exists is read. **⚠️ The overdue alarm:** every newsdesk tick
+    obituary waits while a version bump is being swept. From `obituary-v4` (plan step 8) the
+    prompt reads the verdict itself (see "Newsdesk v4" below). **⚠️ The overdue alarm:** every newsdesk tick
     logs `newsdesk.obituary_overdue` at error level with the ids of qualified dead lives (since
     `NEWSDESK_SINCE`) that ended over 45 minutes ago and still have no such row
     (`overdueObituaryLives`): a needs_review row, a sweep skipped because the projector is behind,
@@ -405,7 +405,7 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     classification. `getPublicDeath`/`getPublicDeathsForLives` return null for an open or retired
     life. The timeline (`verdict`), past lives (`death.verdict`), the ban card (`ban.verdict`) are
     all that shape, with the legacy `cause`/`confidence`/`conditions` still in today's vocabulary —
-    newsdesk's v3.1 prompt reads only those three, so it is unchanged until step 8.
+    the legacy fields are what `articles.cause` and `facts.verdict` store (newsdesk v4 below).
     - **A victim's trap credit** comes ONLY from its `kills` row with `basis = 'trap_placement'`
       (`getTrapCreditForVictimLife`), with the placer's CURRENT gamertag joined on
       `killer_player_id`. A placer who failed the bar has no row and appears nowhere. "Kill
@@ -436,6 +436,56 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
       and the boards print the placer's current name; one logged up to two seconds after the
       placer's death belongs to the life that ended (its `qualifiedAt` capped at the death).
       `trap-kill-parity.test.ts` pins both.
+  - **Newsdesk v4** (plan step 8, release R3; prompt `obituary-v4`). The writer is told what the
+    stored verdict says, through `getWriterDeath` (read-models; newsdesk only) and
+    `writerBrief`: the cause line by certainty. Definitive and strong lines sit among the
+    confirmed facts (strong adds "one small qualifier is allowed"); an inferred line ("most
+    likely …") and a trap credit line go under `NOT CONFIRMED: the paper's reading` with their
+    directives; not recorded sends `NO_MECHANISM_DIRECTIVE`, withheld the withheld directive. No
+    logout directive is ever sent (the instruction would itself be a tell). Kill counts include
+    trap kills ("Kills this life", "Kills across all prior lives"); when this life or the priors
+    hold one, `TRAP_KILLS_CAVEAT` goes under the NOT CONFIRMED heading.
+    - **`facts.death`** freezes `{ key, tag, certainty, label, detail, sentence, caption, trap,
+      selfStated }` built WITHOUT the credit and WITHOUT a named driver (`writerDeathOf`).
+      `facts.verdict` and `articles.cause` are today's vocabulary (`legacyCause`).
+      `articles.verdict_version` (migration `0041`) is the classifier version written from.
+      `facts.trapKills`, `facts.priors.trapKills` (numbers) and `facts.creditSent` (a boolean) are
+      stored. **⚠️ The credited name (`facts.creditedGamertag`) and the brief are never stored**:
+      `storedFacts` strips them in the tick and `publishObituary` strips them again.
+    - **The reserved tag** is `death.tag` ("Unknown" if and only if the certainty is unknown).
+    - **⚠️ The cause check** (`cause-check.ts`, `findCauseViolations`) runs beside
+      `findPlaceViolations` with the same retry-then-fail path. It reads the one flavour tag
+      `composeTags` keeps (`flavorTagOf`), never the composed reserved tag (a family word by
+      design). Six rules: logout words (whole article for a logout-family death); for a death the
+      writer was given no cause for, no word of its internal family and no explicit mechanism
+      (`MECHANISMS`: froze, starved, gunned down, fell, wolves, drowned, tripwire, restrained...)
+      in the headline, lede or tag; pneumonia/silicosis/heatstroke never; an inferred cause absent
+      from the headline, pull quote, attribution and tag and hedged clause by clause in the lede
+      and body (split on `;`, `:`, dashes and "but"); the credited name, as a whole word, out of
+      the headline, lede, pull quote and tag, and never told as the killer in the body; no kill
+      count in the headline or lede when a trap kill is in it (the writer is told this,
+      `TRAP_KILLS_COUNT_DIRECTIVE`). The internal hints (`getDeathCheckHints`: `logoutFamily`, and
+      `family` of the stored or upstream cause) are passed as an argument, never put in facts or
+      the prompt. **⚠️ Exemptions apply in the lede and body only, never the headline, pull quote
+      or tag**, and only to a clause visibly about a sent fact: past run-ins (a count or an
+      encounter word, no death term), the player's own kills ("shot two men", nothing aimed at
+      him), or an earlier death ("last time", "previous", "his last life") with no repeat marker
+      ("again", "too", "as usual"). A family word right after a negation ("never fired a shot") is
+      no claim. **⚠️ `articles.last_error` stores only the rule numbers** (`CauseCheckError`): the
+      field that broke rule 1 would show a logout-family death. The full strings go to the
+      operator log. It is lexical; tune its word lists with `scripts/check-inferred-previews.ts`
+      (the operator's model key; a local `*_test` database only, since production's database is
+      on 127.0.0.1 too), never by guesswork. That script drafts three groups: deaths shown
+      inferred, a sample shown with no cause, and trap-setters.
+    - **Slug freeze.** `publishObituary` keeps an existing slug on conflict; the crier's ledger is
+      keyed on it. **⚠️ It does not survive a rename:** the conflict key holds `articles.gamertag`,
+      which `publishObituary` fills from the player's current gamertag, so after a rename a
+      re-publish inserts a second row with a new slug (a new crier target). The tick cannot reach
+      this (published lives are excluded), but a regenerate command must update by article id or
+      slug, or resolve the article's stored gamertag first.
+    - **Preview.** `pnpm --filter @onelife/newsdesk run preview -- --life <id> [--generate]` prints
+      the prompt the tick would send, recent-prose block included (and with `--generate` one draft
+      and both checks, with the internal hints). It writes nothing.
 ## Identity merge, content engine, obituaries
 
 - **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;

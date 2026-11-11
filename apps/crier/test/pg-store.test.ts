@@ -83,3 +83,7 @@ describe("ledger transitions", () => {
     expect(row!.postedAt).toEqual(hrs(3));
   });
 });
+
+// Death-verdict plan step 8: a re-published article keeps its slug and is no new target. That is
+// proven end to end in apps/newsdesk/test/pg-store.test.ts ("a re-publish of a posted article"),
+// through newsdesk's real upsert and this app's findSyndicationTargets.
