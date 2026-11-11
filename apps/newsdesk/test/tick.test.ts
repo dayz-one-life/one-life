@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles, playerGamertags } from "@onelife/db";
+import { servers, players, lives, articles, playerGamertags, kills, deathVerdicts } from "@onelife/db";
+import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import { eq, inArray, and } from "drizzle-orm";
 import { newsdeskTick } from "../src/tick.js";
 import type { CompletionClient } from "../src/generate.js";
@@ -209,6 +210,49 @@ describe("newsdeskTick", () => {
     const alarm = errors.find(([, m]) => m === "newsdesk.obituary_overdue");
     expect(alarm).toBeDefined();
     expect((alarm![0] as { lifeIds: number[] }).lifeIds).toContain(id);
+  });
+
+  it("v4: stores the frozen death, the legacy cause and verdict_version, and never the credited name", async () => {
+    const tag = `tk-trap-${svc}`;
+    const id = await seedQualifiedDeath(tag, 50);
+    await db.update(lives).set({ deathCause: "explosion", deathByGamertag: null, deathWeapon: null }).where(eq(lives.id, id));
+    await db.delete(deathVerdicts).where(eq(deathVerdicts.lifeId, id));
+    await seedVerdict(db, id, { cause: "explosive_trap", objectKey: "m67_grenade", attrBasis: "placement", rule: "A07" });
+    const [placer] = await db.insert(players).values({ gamertag: `Placer Person ${svc}` }).returning();
+    pids.push(placer!.id);
+    await db.insert(kills).values({
+      serverId, killerGamertag: `Placer Person ${svc}`, killerPlayerId: placer!.id, victimGamertag: tag, victimLifeId: id,
+      weapon: "Tripwire", occurredAt: hrs(50), basis: "trap_placement", creditSource: "classifier",
+    });
+    const seen: string[] = [];
+    const client: CompletionClient = { complete: async ({ user }) => { seen.push(user); return JSON.stringify({ headline: "A Wire Too Far", lede: "L", body: "B", pullQuote: null, tags: [] }); } };
+    await newsdeskTick(db, deps({ client, batchCap: 50, promptVersion: "obituary-v4" }));
+    const prompt = seen.find((u) => u.includes(tag))!;
+    expect(prompt).toContain(`credited with the kill`);
+    expect(prompt).toContain(`Placer Person ${svc}`);
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, tag));
+    expect(row!.status).toBe("published");
+    expect(row!.cause).toBe("explosion");
+    expect(row!.verdictVersion).toBe(CLASSIFIER_VERSION);
+    expect(row!.tags).toEqual(["Obituaries", "Chernarus", "Trap"]);
+    const facts = row!.facts as { death: { key: string; sentence: string }; creditSent: boolean };
+    expect(facts.death.key).toBe("tripwire");
+    expect(facts.creditSent).toBe(true);
+    expect(JSON.stringify(row!.facts)).not.toContain("Placer Person");
+    await db.delete(kills).where(eq(kills.victimLifeId, id));
+  });
+
+  it("v4: a logout-family death fails the check on a logout word anywhere in the article", async () => {
+    const tag = `tk-ko-${svc}`;
+    const id = await seedQualifiedDeath(tag, 52);
+    await db.update(lives).set({ deathCause: "died", deathByGamertag: null }).where(eq(lives.id, id));
+    await db.delete(deathVerdicts).where(eq(deathVerdicts.lifeId, id));
+    await seedVerdict(db, id, { cause: "unconscious_logout", upstreamCause: "infected", upstreamConfidence: "definitive", rule: "B01" });
+    const client: CompletionClient = { complete: async () => JSON.stringify({ headline: "H", lede: "L", body: "He never respawned.", pullQuote: null, tags: [] }) };
+    await newsdeskTick(db, deps({ client, batchCap: 50 }));
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, tag));
+    expect(row!.status).toBe("failed");
+    expect(row!.lastError).toMatch(/cause-check/);
   });
 });
 

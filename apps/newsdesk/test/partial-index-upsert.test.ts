@@ -61,8 +61,8 @@ const rowsFor = (kind: string, gamertag: string) =>
 describe("partial unique index: article upserts still conflict-resolve", () => {
   it("publishes an obituary twice — upserts in place, attempts = 2", async () => {
     const target = obitTarget(dead);
-    const facts = { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 3, longestKillMeters: 90, cause: "pvp" };
-    const base = { target, facts, promptVersion: "obituary-v2", model: "test", now: hrs(5) };
+    const facts = { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 3, longestKillMeters: 90, cause: "pvp", verdict: { cause: "pvp", confidence: "high" as const, conditions: [] } };
+    const base = { target, facts, promptVersion: "obituary-v2", model: "test", now: hrs(5), verdictVersion: 2 };
     await publishObituary(db, { ...base, obituary: { headline: "Gone First", lede: "l1", body: "b1", pullQuote: null, tags: ["Obituaries"] } });
     await publishObituary(db, { ...base, obituary: { headline: "Gone Second", lede: "l2", body: "b2", pullQuote: null, tags: ["Obituaries"] } });
 

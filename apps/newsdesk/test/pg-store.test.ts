@@ -5,8 +5,12 @@ import { eq, inArray } from "drizzle-orm";
 import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import { overdueObituaryLives, findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
 import { seedVerdict } from "./verdict.js";
+import { storedFacts } from "../src/facts.js";
+import { factsFor } from "./facts-fixture.js";
+import { INTERNAL_CAUSES, type Confidence } from "@onelife/death-verdict";
 
 const { db, sql } = getTestDb();
+const PVP_LEGACY = { cause: "pvp", confidence: "high" as const, conditions: [] };
 const svc = Math.floor(Math.random() * 1e8) + 52e7;
 const t0 = new Date("2026-07-13T00:00:00Z");
 const hrs = (h: number) => new Date(t0.getTime() + h * 3600_000);
@@ -67,9 +71,9 @@ describe("findObituaryTargets", () => {
   it("excludes a life that already has a published obituary", async () => {
     await publishObituary(db, {
       target: targetFor(qualified, 2),
-      facts: { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 0, longestKillMeters: null, cause: "pvp" },
+      facts: { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 0, longestKillMeters: null, cause: "pvp", verdict: PVP_LEGACY },
       obituary: { headline: "Gone", lede: "l", body: "b", pullQuote: null, tags: ["Obituaries"] },
-      promptVersion: "obituary-v1", model: "test", now: hrs(4),
+      promptVersion: "obituary-v1", model: "test", now: hrs(4), verdictVersion: CLASSIFIER_VERSION,
     });
     const targets = await findObituaryTargets(db, { limit: 50, maxAttempts: 3, since: new Date("2020-01-01T00:00:00Z") });
     expect(targets.find((t) => t.lifeId === qualified.lifeId)).toBeUndefined();
@@ -85,9 +89,9 @@ describe("findObituaryTargets", () => {
     const renamed = await seedLife(`nd-old-${svc}`, { lifeNumber: 1, endedAt: hrs(6), deathCause: "pvp", playtimeSeconds: 7200 });
     await publishObituary(db, {
       target: targetFor(renamed, 6),
-      facts: { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 0, longestKillMeters: null, cause: "pvp" },
+      facts: { sessions: 1, killerGamertag: "Killer", weapon: "M4", timeAliveSeconds: 7200, kills: 0, longestKillMeters: null, cause: "pvp", verdict: PVP_LEGACY },
       obituary: { headline: "Renamed Later", lede: "l", body: "b", pullQuote: null, tags: ["Obituaries"] },
-      promptVersion: "obituary-v1", model: "test", now: hrs(7),
+      promptVersion: "obituary-v1", model: "test", now: hrs(7), verdictVersion: CLASSIFIER_VERSION,
     });
 
     // Simulate a rename: players.gamertag moves to the new name, and player_gamertags gains a
@@ -164,3 +168,63 @@ describe("overdueObituaryLives: the overdue alarm (review of step 6)", () => {
   });
 });
 
+
+describe("publishObituary (obituary-v4)", () => {
+  const publish = (t: ObituaryTarget, headline: string, over: Partial<Parameters<typeof publishObituary>[1]> = {}) => publishObituary(db, {
+    target: t,
+    facts: { sessions: 1, killerGamertag: null, weapon: null, timeAliveSeconds: 7200, kills: 0, longestKillMeters: null, cause: "died", verdict: { cause: "starvation", confidence: "low", conditions: [] } },
+    obituary: { headline, lede: "l", body: "b", pullQuote: null, tags: ["Obituaries"] },
+    promptVersion: "obituary-v4", model: "test", now: hrs(30), verdictVersion: CLASSIFIER_VERSION, ...over,
+  });
+
+  it("a re-publish keeps the existing slug", async () => {
+    const l = await seedLife(`nd-slug-${svc}`, { lifeNumber: 1, endedAt: hrs(29), deathCause: "died", playtimeSeconds: 7200 });
+    await publish(targetFor(l, 29), "The First Headline");
+    await publish(targetFor(l, 29), "A Rewritten Headline");
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
+    expect(row!.headline).toBe("A Rewritten Headline");
+    expect(row!.slug).toMatch(/^the-first-headline-/);
+  });
+
+  it("a failed stub gets its slug on the first publish", async () => {
+    const l = await seedLife(`nd-stub-${svc}`, { lifeNumber: 1, endedAt: hrs(29), deathCause: "died", playtimeSeconds: 7200 });
+    await recordObituaryFailure(db, { target: targetFor(l, 29), error: "boom" });
+    await publish(targetFor(l, 29), "After A Failure");
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
+    expect(row!.slug).toMatch(/^after-a-failure-/);
+  });
+
+  it("verdict_version is stamped, and articles.cause is the legacy token", async () => {
+    const l = await seedLife(`nd-vv-${svc}`, { lifeNumber: 1, endedAt: hrs(29), deathCause: "died", playtimeSeconds: 7200 });
+    await publish(targetFor(l, 29), "Stamped");
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
+    expect(row!.verdictVersion).toBe(CLASSIFIER_VERSION);
+    expect(row!.cause).toBe("starvation");
+  });
+
+  it("articles.cause is a legacy token for every key", async () => {
+    const LEGACY = new Set(["pvp", "suicide", "starvation", "dehydration", "bled_out", "mauled", "environmental", "unknown", "wolf", "bear", "animal", "infected", "fall", "vehicle", "explosion"]);
+    const l = await seedLife(`nd-legacy-${svc}`, { lifeNumber: 1, endedAt: hrs(29), deathCause: "died", playtimeSeconds: 7200 });
+    for (const cause of INTERNAL_CAUSES) {
+      for (const confidence of ["definitive", "strong", "inferred", "unknown"] as Confidence[]) {
+        const f = factsFor({ verdict: { cause, confidence, upstream: { cause: "infected", confidence } } });
+        await publish(targetFor(l, 29), "Legacy", { facts: storedFacts(f) });
+        const [row] = await db.select({ cause: articles.cause }).from(articles).where(eq(articles.gamertag, l.gamertag));
+        expect(LEGACY.has(row!.cause!), `${cause}:${confidence} -> ${row!.cause}`).toBe(true);
+        expect(row!.cause).toBe(f.verdict.cause);
+      }
+    }
+  });
+
+  it("never stores the credited name, even when handed the unstripped facts", async () => {
+    const l = await seedLife(`nd-credit-${svc}`, { lifeNumber: 1, endedAt: hrs(29), deathCause: "explosion", playtimeSeconds: 7200 });
+    const f = factsFor({
+      verdict: { cause: "explosive_trap", objectKey: "m67_grenade", attrBasis: "placement" },
+      credit: { gamertag: "Placer Person", device: "tripwire", byOperator: false },
+    });
+    await publish(targetFor(l, 29), "Credited", { facts: f });
+    const [row] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
+    expect(JSON.stringify(row!.facts)).not.toContain("Placer Person");
+    expect((row!.facts as { creditSent: boolean }).creditSent).toBe(true);
+  });
+});

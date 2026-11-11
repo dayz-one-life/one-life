@@ -1,73 +1,53 @@
 import { describe, it, expect } from "vitest";
-import { buildObituaryFacts } from "../src/facts.js";
-import { composeTags, buildObituaryPrompt, causeUnrecorded, NO_MECHANISM_DIRECTIVE, UNKNOWN_DEATH_PHRASE } from "../src/prompt.js";
-import type { ObituaryTarget } from "../src/pg-store.js";
-import type { PlayerPriors } from "@onelife/read-models";
-
-const noPriors: PlayerPriors = {
-  livesLived: 0, longestLifeSeconds: 0, totalKills: 0,
-  usualDeathCause: null, lastDeathCause: null, bestLifeMap: null,
-};
-
-const target: ObituaryTarget = {
-  lifeId: 1, serverId: 1, gamertag: "Boots", map: "chernarusplus", mapSlug: "chernarus",
-  lifeNumber: 3, lifeStartedAt: new Date("2026-07-09T02:00:00Z"), endedAt: new Date("2026-07-10T02:00:00Z"),
-};
-
-const timelineFor = (deathCause: string | null, verdict: unknown = null) =>
-  ({
-    life: { deathCause, deathByGamertag: null, deathWeapon: null, deathDistance: null, playtimeSeconds: 3600 },
-    sessions: [{}],
-    kills: [],
-    character: null,
-    qualifiedAt: null,
-    verdict,
-    ordeals: null,
-    hpLow: null,
-  }) as unknown as import("@onelife/read-models").LifeTimeline;
+import { INTERNAL_CAUSES, PUBLIC_INFERRED, type Confidence, type InferredFamily } from "@onelife/death-verdict";
+import { composeTags, buildObituaryPrompt, causeUnrecorded, NO_MECHANISM_DIRECTIVE } from "../src/prompt.js";
+import { factsFor } from "./facts-fixture.js";
 
 // The bug this file exists for: the paper contradicted itself on ~23% of deaths — an
-// "Environment" tag over prose forbidden to name terrain, exposure, or weather.
-describe("bare 'died' coherence: tag and prose agree", () => {
-  it("tags Unknown and instructs the model that no mechanism is recorded", () => {
-    const facts = buildObituaryFacts(target, timelineFor("died"), noPriors);
+// "Environment" tag over prose forbidden to name terrain, exposure, or weather. In v4 the tag and
+// the prose both come from one stored verdict, so they cannot disagree.
+const CONFIDENCES: Confidence[] = ["definitive", "strong", "inferred", "unknown"];
 
-    expect(facts.causeCategory).toBe("unknown");
-    expect(composeTags(facts, ["Elektro"])).toEqual(["Obituaries", "Chernarus", "Unknown", "Elektro"]);
-    expect(composeTags(facts, [])).not.toContain("Environment");
-
-    const { user } = buildObituaryPrompt(facts);
-    expect(user).toContain(NO_MECHANISM_DIRECTIVE);
-    expect(user).toContain(UNKNOWN_DEATH_PHRASE);
-  });
-
-  it("the invariant holds: causeCategory 'unknown' <=> causeUnrecorded, outside pvp", () => {
-    for (const c of [null, "", "died", "environment", "environmental", "unknown"]) {
-      const f = buildObituaryFacts(target, timelineFor(c), noPriors);
-      expect(f.causeCategory).toBe("unknown");
-      expect(causeUnrecorded(f)).toBe(true);
-    }
-    for (const c of ["bled_out", "starvation", "wolf", "fall", "infected"]) {
-      const f = buildObituaryFacts(target, timelineFor(c), noPriors);
-      expect(f.causeCategory).toBe("environment");
-      expect(causeUnrecorded(f)).toBe(false);
+describe("tag and prose agree", () => {
+  it("tag \"Unknown\" if and only if the certainty is unknown or withheld", () => {
+    for (const cause of INTERNAL_CAUSES) {
+      for (const confidence of CONFIDENCES) {
+        for (const upstream of [null, { cause: "infected", confidence }, { cause: "player", confidence }]) {
+          const f = factsFor({ verdict: { cause, confidence, upstream } });
+          const tag = composeTags(f, [])[2];
+          expect(tag === "Unknown", `${cause}:${confidence}`).toBe(f.death.certainty === "unknown");
+          expect(f.causeCategory).toBe(tag);
+        }
+      }
     }
   });
 
-  it("a real mechanism still tags Environment — the fix does not over-correct", () => {
-    const f = buildObituaryFacts(target, timelineFor("bled_out"), noPriors);
-    expect(composeTags(f, [])).toEqual(["Obituaries", "Chernarus", "Environment"]);
+  it("a cause that is not recorded tags Unknown and instructs the model that no mechanism is recorded", () => {
+    const f = factsFor({ verdict: { cause: "unknown", confidence: "unknown" } });
+    expect(composeTags(f, ["Elektro"])).toEqual(["Obituaries", "Chernarus", "Unknown", "Elektro"]);
+    expect(causeUnrecorded(f)).toBe(true);
+    expect(buildObituaryPrompt(f).user).toContain(NO_MECHANISM_DIRECTIVE);
+  });
+
+  it("a real mechanism tags its family and drops the no-mechanism directive", () => {
+    const f = factsFor({ verdict: { cause: "bled_out_infected", confidence: "strong" } });
+    expect(composeTags(f, [])).toEqual(["Obituaries", "Chernarus", "Blood Loss"]);
     expect(buildObituaryPrompt(f).user).not.toContain(NO_MECHANISM_DIRECTIVE);
   });
 
-  it("a verdict-inferred mechanism tags Environment and drops the no-mechanism directive together", () => {
-    const f = buildObituaryFacts(
-      target,
-      timelineFor("died", { cause: "starvation", confidence: "high", conditions: ["starving"], basis: {} }),
-      noPriors,
-    );
-    expect(f.causeCategory).toBe("environment");
-    expect(composeTags(f, [])).toContain("Environment");
-    expect(buildObituaryPrompt(f).user).not.toContain(NO_MECHANISM_DIRECTIVE);
+  it("an inferred cause in a family that is switched off reads as not recorded, tag and prompt alike", () => {
+    const family: InferredFamily = "exposure";
+    const was = PUBLIC_INFERRED[family];
+    (PUBLIC_INFERRED as Record<InferredFamily, boolean>)[family] = false;
+    try {
+      const f = factsFor({ verdict: { cause: "cold_exposure", confidence: "inferred" } });
+      expect(composeTags(f, [])[2]).toBe("Unknown");
+      const { user } = buildObituaryPrompt(f);
+      expect(user).toContain(NO_MECHANISM_DIRECTIVE);
+      expect(user).not.toContain("Cause of death");
+      expect(user).not.toContain("died of exposure");
+    } finally {
+      (PUBLIC_INFERRED as Record<InferredFamily, boolean>)[family] = was;
+    }
   });
 });
