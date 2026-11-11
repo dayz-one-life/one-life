@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-11-11
+
 ### Changed
 
 - Every page now shows how a player died from the cause the projector has stored, instead of
