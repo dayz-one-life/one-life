@@ -239,7 +239,7 @@ export async function getPlayerPage(
       // exactly the provisional case. `profile.currentLifeSeconds` is 0 there — getPlayerProfile
       // filters the same way — so compute the live duration here instead.
       const isQualified = openLife !== null && profile?.alive === true;
-      const killList = await getLifeKills(db, s.id, gamertag, anyOpenLife.startedAt, null);
+      const killList = await getLifeKills(db, s.id, anyOpenLife.playerId, anyOpenLife.startedAt, null);
       const openSession = p
         ? (await db.select().from(sessions)
             .where(and(eq(sessions.serverId, s.id), eq(sessions.playerId, p.id), sql`${sessions.disconnectedAt} is null`)).limit(1))[0] ?? null
@@ -286,7 +286,7 @@ export async function getPlayerPage(
 
   const pastLives: PastLife[] = [];
   for (const { row: l, serverId, map, slug } of pageSlice) {
-    const killList = await getLifeKills(db, serverId, gamertag, l.startedAt, l.endedAt);
+    const killList = await getLifeKills(db, serverId, l.playerId, l.startedAt, l.endedAt);
     const scRow = await db.select({ c: sql<number>`count(*)::int` }).from(sessions).where(and(eq(sessions.serverId, serverId), eq(sessions.lifeId, l.id)));
     const endReason = l.endReason ?? "death";
     // A retirement is not a death: no dossier to classify, and nothing to say about one.
