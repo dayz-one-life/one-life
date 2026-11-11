@@ -2,7 +2,7 @@ import type { Database } from "@onelife/db";
 import { deathVerdicts, kills, lives, players } from "@onelife/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  CAUSE_VOCAB, LOGOUT_CAUSES, PUBLIC_ROWS, UPSTREAM_TO_PUBLIC, isInternalCause, pendingPublicDeath, toPublicDeath, writerBrief,
+  CLASSIFIER_VERSION, CAUSE_VOCAB, LOGOUT_CAUSES, PUBLIC_ROWS, UPSTREAM_TO_PUBLIC, isInternalCause, pendingPublicDeath, toPublicDeath, writerBrief,
   type AttributionBasis, type InferredFamily, type Condition, type Confidence, type InternalCause, type LifeDeathFacts, type ObjectKey,
   type PublicDeath, type StoredVerdict, type TrapCredit, type TrapDevice, type WriterBrief,
 } from "@onelife/death-verdict";
@@ -149,6 +149,38 @@ export async function getPublicDeathsForLives(db: Database, ls: PublicDeathLife[
  */
 export async function getPublicDeathsForArticles(db: Database, keys: ArticleLifeKey[]): Promise<Map<string, PublicDeath>> {
   const out = new Map<string, PublicDeath>();
+  const found = await getArticleLives(db, keys);
+  if (found.size === 0) return out;
+  const ids = [...new Set([...found.values()].map((l) => l.id))];
+  const [rows, credits] = await Promise.all([verdictRows(db, ids), getTrapCreditsForVictimLives(db, ids)]);
+  for (const [key, life] of found) {
+    if (life.endedAt == null) continue;
+    const row = rows.get(life.id);
+    if (!row || row.needsReview) continue;
+    out.set(key, toPublicDeath(storedOf(row), life, credits.get(life.id) ?? null));
+  }
+  return out;
+}
+
+/** The life an article was written about, as `getArticleLives` finds it. */
+export interface ArticleLife extends PublicDeathLife {
+  serverId: number;
+  playerId: number;
+  /** The player's CURRENT gamertag (`players.gamertag`); the article keeps the name it was
+   *  published under. */
+  currentGamertag: string;
+  lifeNumber: number;
+  startedAt: Date;
+  playtimeSeconds: number;
+}
+
+/**
+ * The life behind each article key (`articleKey`), found through the player's whole alias history
+ * (`player_gamertags`): `articles.gamertag` is frozen at publish time and a rename since must not
+ * lose the life. A key that resolves to no life is left out.
+ */
+export async function getArticleLives(db: Database, keys: ArticleLifeKey[]): Promise<Map<string, ArticleLife>> {
+  const out = new Map<string, ArticleLife>();
   if (keys.length === 0) return out;
   const conds = keys.map((k) => sql`(${lives.serverId} = ${k.serverId} AND ${lives.startedAt} = ${k.lifeStartedAt.toISOString()}::timestamptz
     AND ${lives.playerId} IN (SELECT pg.player_id FROM player_gamertags pg WHERE lower(pg.gamertag) = ${k.gamertag.toLowerCase()}))`);
@@ -156,17 +188,14 @@ export async function getPublicDeathsForArticles(db: Database, keys: ArticleLife
     .select({
       id: lives.id, serverId: lives.serverId, startedAt: lives.startedAt, endedAt: lives.endedAt,
       deathCause: lives.deathCause, deathByGamertag: lives.deathByGamertag, deathWeapon: lives.deathWeapon,
-      deathDistance: lives.deathDistance, playerId: lives.playerId,
+      deathDistance: lives.deathDistance, playerId: lives.playerId, currentGamertag: players.gamertag,
+      lifeNumber: lives.lifeNumber, playtimeSeconds: lives.playtimeSeconds,
     })
     .from(lives)
+    .innerJoin(players, eq(players.id, lives.playerId))
     .where(sql.join(conds, sql` OR `));
   if (found.length === 0) return out;
-  const ids = found.map((l) => Number(l.id));
-  const [rows, credits, aliases] = await Promise.all([
-    verdictRows(db, ids),
-    getTrapCreditsForVictimLives(db, ids),
-    db.execute(sql`SELECT player_id, lower(gamertag) AS gamertag FROM player_gamertags WHERE player_id IN (${sql.join(found.map((l) => sql`${l.playerId}`), sql`, `)})`),
-  ]);
+  const aliases = await db.execute(sql`SELECT player_id, lower(gamertag) AS gamertag FROM player_gamertags WHERE player_id IN (${sql.join(found.map((l) => sql`${l.playerId}`), sql`, `)})`);
   const namesOf = new Map<number, Set<string>>();
   for (const a of aliases as unknown as { player_id: number | string; gamertag: string }[]) {
     const pid = Number(a.player_id);
@@ -176,11 +205,8 @@ export async function getPublicDeathsForArticles(db: Database, keys: ArticleLife
   for (const k of keys) {
     const life = found.find((l) => l.serverId === k.serverId && l.startedAt.getTime() === k.lifeStartedAt.getTime()
       && (namesOf.get(Number(l.playerId))?.has(k.gamertag.toLowerCase()) ?? false));
-    if (!life || life.endedAt == null) continue;
-    const id = Number(life.id);
-    const row = rows.get(id);
-    if (!row || row.needsReview) continue;
-    out.set(articleKey(k), toPublicDeath(storedOf(row), life, credits.get(id) ?? null));
+    if (!life) continue;
+    out.set(articleKey(k), { ...life, id: Number(life.id), playerId: Number(life.playerId) });
   }
   return out;
 }
@@ -207,8 +233,22 @@ export interface WriterDeath {
   verdictVersion: number;
 }
 
+/**
+ * `withdrawFamily`: write as if that inferred family were switched off, whatever `PUBLIC_INFERRED`
+ * says (spec 6.3, `regenerate --inferred-family`): a verdict inferred in it is given to the writer
+ * as "not recorded", with the no-mechanism directive and no cause line.
+ */
+export interface WriterOptions { withdrawFamily?: InferredFamily }
+
+/** A stored verdict that presents as "Not recorded": no grade, no cause, no upstream. */
+const NOT_RECORDED_VERDICT = (v: StoredVerdict): StoredVerdict =>
+  ({ ...v, cause: "unknown", confidence: "unknown", upstream: null, objectKey: null, attrBasis: null, ownerlessFirearm: false });
+
 /** The pure half of `getWriterDeath`, for tests and for any caller that already holds the row. */
-export function writerDeathOf(v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | null, verdictVersion: number): WriterDeath {
+export function writerDeathOf(
+  v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | null, verdictVersion: number, opts: WriterOptions = {},
+): WriterDeath {
+  if (opts.withdrawFamily && inferredFamilyOfStored(v) === opts.withdrawFamily) v = NOT_RECORDED_VERDICT(v);
   const live = toPublicDeath(v, life, null);
   // A driver is printed on the life page; it is not obituary material and is never stored here.
   const frozen = live.driverGamertag ? toPublicDeath(v, { ...life, deathByGamertag: null }, null) : live;
@@ -221,7 +261,7 @@ export function writerDeathOf(v: StoredVerdict, life: LifeDeathFacts, credit: Tr
  * until the row exists (spec 6.1). `findObituaryTargets` already gates on a row at the current
  * version, so in the tick `verdictVersion` is the current one.
  */
-export async function getWriterDeath(db: Database, life: PublicDeathLife): Promise<WriterDeath | null> {
+export async function getWriterDeath(db: Database, life: PublicDeathLife, opts: WriterOptions = {}): Promise<WriterDeath | null> {
   if (!isDeath(life)) return null;
   const row = await db
     .select({ ...VERDICT_COLS, classifierVersion: deathVerdicts.classifierVersion })
@@ -230,7 +270,7 @@ export async function getWriterDeath(db: Database, life: PublicDeathLife): Promi
   const r = row[0];
   if (!r || r.needsReview) return null;
   const credit = await getTrapCreditForVictimLife(db, life.id);
-  return writerDeathOf(storedOf({ ...r, lifeId: Number(r.lifeId) }), life, credit, r.classifierVersion);
+  return writerDeathOf(storedOf({ ...r, lifeId: Number(r.lifeId) }), life, credit, r.classifierVersion, opts);
 }
 
 /** The knock-out and logout causes, and the restrained logout: the deaths whose stored marker must
@@ -264,4 +304,67 @@ function internalFamilyOf(cause: string, upstream: string | null): InferredFamil
     return key ? PUBLIC_ROWS[key].family : null;
   }
   return isInternalCause(cause) ? CAUSE_VOCAB[cause].family : null;
+}
+
+/**
+ * The family a stored verdict is a best reading in, WHATEVER the `PUBLIC_INFERRED` switches say;
+ * null when it is not inferred or its row has no family. For a logout-family death it is the
+ * upstream cause's. A bled-out or "shot" verdict whose mechanism the line states is shown at strong
+ * (`present`), and both rows have no family, so neither is ever one.
+ */
+export function inferredFamilyOfStored(v: StoredVerdict): InferredFamily | null {
+  if (typeof v.cause !== "string" || !isInternalCause(v.cause)) return null;
+  if (LOGOUT_CAUSES.has(v.cause)) {
+    const up = v.upstream;
+    if (!up || up.confidence !== "inferred" || !Object.hasOwn(UPSTREAM_TO_PUBLIC, up.cause)) return null;
+    const key = UPSTREAM_TO_PUBLIC[up.cause];
+    return key ? PUBLIC_ROWS[key].family : null;
+  }
+  if (v.confidence !== "inferred") return null;
+  if (v.cause === "pvp" && v.ownerlessFirearm && v.mechanismStated) return null; // "Shot", floored to strong
+  return CAUSE_VOCAB[v.cause].family;
+}
+
+/**
+ * `inferredFamilyOfStored` for a batch of lives (rows held for review included: their prose was
+ * written all the same). Lives with no row, or not inferred in a family, are left out.
+ * ⚠️ INTERNAL, like `getDeathCheckHints`: for the newsdesk's `regenerate --inferred-family` only.
+ */
+export async function getInferredFamilies(db: Database, lifeIds: number[]): Promise<Map<number, InferredFamily>> {
+  const out = new Map<number, InferredFamily>();
+  for (const [id, row] of await verdictRows(db, lifeIds)) {
+    const family = inferredFamilyOfStored(storedOf(row));
+    if (family) out.set(id, family);
+  }
+  return out;
+}
+
+/** What `verdictSweepBacklog` found; the sweep has caught up only when all three are zero/false. */
+export interface VerdictSweepBacklog {
+  /** Rows in `death_verdict_queue`: deaths waiting to settle, backing off, or held. */
+  queued: number;
+  /** Ended lives with no verdict at the current classifier version (not yet seen, or not yet
+   *  re-derived after a version bump or a rebuild). */
+  unswept: number;
+  /** The projector's fold cursor is below the newest event (a rebuild in progress, or a backlog). */
+  foldBehind: boolean;
+}
+
+export const sweepCaughtUp = (b: VerdictSweepBacklog): boolean => b.queued === 0 && b.unswept === 0 && !b.foldBehind;
+
+/**
+ * Whether the stored verdicts, and so the trap kills in `kills`, can be trusted as complete
+ * (spec 6.4). ⚠️ In the gap after a `--rebuild` every trap kill is absent until the sweep refills
+ * it, so a command that acts on "a trap kill that is no longer there" (`regenerate --denied-credit`,
+ * the enforcer's `unqualified-bans`) must refuse until this reports nothing outstanding.
+ */
+export async function verdictSweepBacklog(db: Database): Promise<VerdictSweepBacklog> {
+  const q = await db.execute(sql`SELECT count(*) AS n FROM death_verdict_queue`);
+  const u = await db.execute(sql`SELECT count(*) AS n FROM lives l WHERE l.ended_at IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM death_verdicts v WHERE v.life_id = l.id AND v.classifier_version >= ${CLASSIFIER_VERSION})`);
+  const f = await db.execute(sql`SELECT coalesce((SELECT last_event_id FROM consumer_cursors WHERE consumer_name = 'projector'), 0) AS cursor,
+      coalesce((SELECT max(id) FROM events), 0) AS max`);
+  const n = (r: unknown) => Number((r as { n: string | number }[])[0]?.n ?? 0);
+  const fr = (f as unknown as { cursor: string | number; max: string | number }[])[0];
+  return { queued: n(q), unswept: n(u), foldBehind: Number(fr?.cursor ?? 0) < Number(fr?.max ?? 0) };
 }

@@ -1,5 +1,5 @@
 import type { Database } from "@onelife/db";
-import { articles } from "@onelife/db";
+import { articleRevisions, articles } from "@onelife/db";
 import { and, eq, desc, sql } from "drizzle-orm";
 import {
   CAPTION, OBJECT_LABEL, PUBLIC_INFERRED, PUBLIC_ROWS, type ObjectLabel, type PublicCauseKey, type PublicDeath,
@@ -104,6 +104,59 @@ export interface ObituaryArticle extends ObituaryCard {
   killerGamertag: string | null;
   weapon: string | null;
   verdict: { cause: string; confidence: "high" | "low"; conditions: string[] } | null;
+  /** When `regenerate` rewrote this text after the cause of death was corrected; null when the
+   *  text on the page is not such a rewrite (spec 6.2, question 5). */
+  correctedAt: Date | null;
+}
+
+/**
+ * Why `regenerate` replaced an article's text (`article_revisions.reason`). Only `cause-corrected`
+ * puts the correction line on the page.
+ *  - `cause-corrected`: rewritten because the cause of death changed (`--stale-cause`,
+ *    `--stale-inferred`, `--inferred-family`, or `--denied-credit` for a victim whose credit went);
+ *  - `kills-corrected`: rewritten because its kill counts held a trap kill since denied;
+ *  - `retracted`: taken down (`status = 'retracted'`) because its life no longer qualifies;
+ *  - `restored`: `--restore` wrote an earlier version back.
+ */
+export const REVISION_REASONS = ["cause-corrected", "kills-corrected", "retracted", "restored"] as const;
+export type RevisionReason = (typeof REVISION_REASONS)[number];
+
+/** The newest revision row of an article, as `correctedAtOf` reads it. */
+export interface LatestRevision { reason: string; replacedAt: Date; snapshot: unknown }
+
+/**
+ * When the text now on the page was rewritten after a cause correction, from the article's NEWEST
+ * revision only:
+ *  - `cause-corrected`: that rewrite is the current text, so its time;
+ *  - `restored`: the current text is a snapshot written back, and the restore recorded that
+ *    snapshot's own value (`restoredCorrectedAt`), so restoring the original text drops the line
+ *    and restoring a corrected text keeps it;
+ *  - anything else, or none: null.
+ * ⚠️ Not "the latest cause-corrected row": after the pilot's write-then-restore that row still
+ * exists, and the original text would carry a line saying it had been rewritten.
+ */
+export function correctedAtOf(latest: LatestRevision | null): Date | null {
+  if (!latest) return null;
+  if (latest.reason === "cause-corrected") return latest.replacedAt;
+  if (latest.reason === "restored") {
+    const v = latest.snapshot != null && typeof latest.snapshot === "object"
+      ? (latest.snapshot as { restoredCorrectedAt?: unknown }).restoredCorrectedAt : null;
+    if (typeof v !== "string") return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+/** The newest `article_revisions` row of one article, or null. */
+export async function latestRevision(db: Database, articleId: number): Promise<LatestRevision | null> {
+  const [r] = await db
+    .select({ reason: articleRevisions.reason, replacedAt: articleRevisions.replacedAt, snapshot: articleRevisions.snapshot })
+    .from(articleRevisions)
+    .where(eq(articleRevisions.articleId, articleId))
+    .orderBy(desc(articleRevisions.id))
+    .limit(1);
+  return r ?? null;
 }
 
 type FactsSnapshot = {
@@ -310,13 +363,14 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
       pullQuoteText: articles.pullQuoteText,
       pullQuoteAttribution: articles.pullQuoteAttribution,
       facts: articles.facts,
+      articleId: articles.id,
     })
     .from(articles)
     .where(and(publishedObituary, eq(articles.slug, slug)))
     .limit(1);
 
   if (!rows[0]) return null;
-  const [withDeath] = await withArticleDeaths(db, [rows[0]]);
+  const [[withDeath], latest] = await Promise.all([withArticleDeaths(db, [rows[0]]), latestRevision(db, rows[0].articleId)]);
   const r = assertSubjectful(withDeath!, "obituary", ["map", "lifeNumber"]);
   const facts = (r.facts ?? {}) as FactsSnapshot;
   return {
@@ -343,5 +397,6 @@ export async function getObituaryBySlug(db: Database, slug: string): Promise<Obi
     verdict: facts.verdict?.cause
       ? { cause: facts.verdict.cause, confidence: facts.verdict.confidence ?? "high", conditions: facts.verdict.conditions ?? [] }
       : null,
+    correctedAt: correctedAtOf(latest),
   };
 }
