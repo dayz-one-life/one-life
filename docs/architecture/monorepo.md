@@ -17,8 +17,20 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `death-verdict` (pure, no workspace dependencies: the death-cause vocabulary and
   `toPublicDeath`, the one function that turns a stored verdict into the words a page prints,
   with `writerBrief` for what the obituary writer is told about the same death —
-  nothing imports it yet; its private golden suites need `DEATH_GOLDEN_DIR` and are skipped
-  without it), `event-log` (append/cursor over
+  nothing imports it yet. It also holds the classifier's evidence layer, a port of a reference
+  pipeline kept with the private golden data: `evidence/parse.ts` (`parseEvidenceLine` — separate
+  from `adm-parser`'s `parseLine` on purpose; it emits no events and has no `subIndex` contract),
+  `evidence/log-clock.ts` (UTC from the log's own header date and wall clock, never from
+  `raw_lines.occurred_at`; a file must be stamped whole and in order), `context/cluster.ts`
+  (which lines are one death and which is its primary line — ⚠️ never a `committed suicide`
+  line, so the line a life was folded from is not always the primary), `context/select.ts`
+  (`selectContextLines`, the ONE rule for which lines a death needs) and `context/build.ts`
+  (`DeathContext`). ⚠️ `classifyDeath` is a stub that answers "unknown" until the rules are
+  ported; nothing may store or show its verdict. Its private golden suites need
+  `DEATH_GOLDEN_DIR` and are skipped without it; `pnpm --filter @onelife/death-verdict run golden`
+  runs them where the data is and writes `golden-attest.json`, and the public `attest.test.ts`
+  fails when `src/` no longer matches that file — so a change under `src/` needs a fresh golden
+  run, never a hand-edited hash), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
   `player-priors` — global cross-life reputation via `getPlayerPriors`), `test-support` (Postgres
   test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),

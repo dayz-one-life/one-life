@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   running release does not recognise reads "Not recorded". Nothing on the site uses the package
   yet, so no page, card or obituary changes with this release. No `--rebuild` and no backfill is
   needed.
+- The groundwork for working out how a player died from the server log, inside
+  `@onelife/death-verdict`: reading every kind of log line, telling the time of a line from the
+  log's own clock (midnight and the night the clocks go back included), deciding which lines
+  belong to one death, and choosing the lines of the log a death needs. No cause is worked out
+  yet and nothing on the site reads any of it, so no page, card or obituary changes. A new file,
+  `packages/death-verdict/golden-attest.json`, records that the private checks were run against
+  the code as committed; a test fails when the two drift apart. No `--rebuild` and no backfill is
+  needed.
 
 ### Changed
 
