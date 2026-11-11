@@ -4,13 +4,14 @@ import { buildObituaryPrompt, parseObituary, type Obituary } from "./prompt.js";
 import { checkDraft, type CompletionClient } from "./generate.js";
 import { loadObituaryInputs } from "./inputs.js";
 import { targetForLife } from "./pg-store.js";
+import { recentProse, RECENT_PROSE_LIMIT } from "./prose-pg-store.js";
 import { openrouterClient } from "./openrouter.js";
 
 /**
  * `pnpm --filter @onelife/newsdesk run preview -- --life <id> [--life <id> ...] [--generate]`
  *
  * Builds the obituary-v4 facts for each named life through the same functions as the tick
- * (`loadObituaryInputs`) and prints the prompt. With `--generate` it also asks the model for ONE
+ * (`loadObituaryInputs`) and prints the prompt, recent-prose block included (a read). With `--generate` it also asks the model for ONE
  * draft and prints it with the result of both checks (no-place and cause), without the retry the
  * tick would give it, so a rejection is visible.
  *
@@ -52,6 +53,8 @@ const showDraft = (o: Obituary): string => JSON.stringify(o, null, 2);
 export async function runPreview(db: Database, args: PreviewArgs, deps: PreviewDeps): Promise<number> {
   if (args.generate && !deps.client) throw new Error("--generate needs a model client (OPENROUTER_API_KEY)");
   let missed = 0;
+  // The tick sends the do-not-reuse block, so the preview does too: it changes the wording.
+  const recent = await recentProse(db, "obituary", RECENT_PROSE_LIMIT);
   for (const lifeId of args.lives) {
     deps.out(`=== life ${lifeId} ===`);
     const target = await targetForLife(db, lifeId);
@@ -66,7 +69,7 @@ export async function runPreview(db: Database, args: PreviewArgs, deps: PreviewD
       missed++;
       continue;
     }
-    const { system, user } = buildObituaryPrompt(inputs.facts);
+    const { system, user } = buildObituaryPrompt(inputs.facts, recent);
     deps.out(`--- prompt (verdict version ${inputs.verdictVersion}; the system prompt is OBITUARY_SYSTEM in voice.ts) ---`);
     deps.out(user);
     if (!args.generate) continue;

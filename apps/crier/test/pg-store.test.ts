@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
 import { articles, syndications } from "@onelife/db";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { findSyndicationTargets, recordSuccess, recordFailure } from "../src/pg-store.js";
 
 const { db, sql } = getTestDb();
@@ -84,15 +84,6 @@ describe("ledger transitions", () => {
   });
 });
 
-// Death-verdict plan step 8: newsdesk keeps an article's slug when it re-publishes it (a rewrite
-// keeps the URL). The crier keys its ledger on the slug, so a re-publish must not look new.
-describe("a re-published article", () => {
-  it("a re-published article with the same slug yields no new target", async () => {
-    const s = slugOf("posted");
-    const ledger = await db.select().from(syndications).where(eq(syndications.slug, s));
-    await db.update(articles).set({ headline: "H rewritten", lede: "L rewritten", generatedAt: hrs(5) }).where(eq(articles.slug, s));
-    const targets = await findSyndicationTargets(db, opts);
-    expect(targets.some((t) => t.slug === s)).toBe(false);
-    expect(await db.select().from(syndications).where(eq(syndications.slug, s))).toEqual(ledger);
-  });
-});
+// Death-verdict plan step 8: a re-published article keeps its slug and is no new target. That is
+// proven end to end in apps/newsdesk/test/pg-store.test.ts ("a re-publish of a posted article"),
+// through newsdesk's real upsert and this app's findSyndicationTargets.

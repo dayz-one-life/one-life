@@ -230,7 +230,7 @@ describe("getWriterDeath", () => {
 });
 
 describe("getDeathCheckHints", () => {
-  it("logoutFamily for the knock-out and logout causes, and only those", async () => {
+  it("logoutFamily for the knock-out and logout causes, and only those; family of the stored (or upstream) cause", async () => {
     const a = await life(60, { deathCause: "died" });
     await seedVerdict(db, { lifeId: a.id, cause: "unconscious_logout", confidence: "definitive", upstreamCause: "infected", upstreamConfidence: "definitive" });
     const b = await life(61, { deathCause: "died" });
@@ -240,10 +240,14 @@ describe("getDeathCheckHints", () => {
     const d = await life(63, { deathCause: "died" });
     const e = await life(64, { deathCause: "died" });
     await seedVerdict(db, { lifeId: e.id, cause: "restrained_logout", confidence: "definitive" });
-    expect(await getDeathCheckHints(db, e.id)).toEqual({ logoutFamily: true });
-    expect(await getDeathCheckHints(db, a.id)).toEqual({ logoutFamily: true });
-    expect(await getDeathCheckHints(db, b.id)).toEqual({ logoutFamily: true });
-    expect(await getDeathCheckHints(db, c.id)).toEqual({ logoutFamily: false });
-    expect(await getDeathCheckHints(db, d.id)).toEqual({ logoutFamily: false });
+    expect(await getDeathCheckHints(db, e.id)).toEqual({ logoutFamily: true, family: null });
+    expect(await getDeathCheckHints(db, a.id)).toEqual({ logoutFamily: true, family: "infected" });
+    expect(await getDeathCheckHints(db, b.id)).toEqual({ logoutFamily: true, family: null });
+    expect(await getDeathCheckHints(db, c.id)).toEqual({ logoutFamily: false, family: "infected" });
+    expect(await getDeathCheckHints(db, d.id)).toEqual({ logoutFamily: false, family: null });
+    // A switched-off or unknown-certainty inferred cause still reports its internal family.
+    const f = await life(65, { deathCause: "died" });
+    await seedVerdict(db, { lifeId: f.id, cause: "cold_exposure", confidence: "inferred" });
+    expect(await getDeathCheckHints(db, f.id)).toEqual({ logoutFamily: false, family: "exposure" });
   });
 });

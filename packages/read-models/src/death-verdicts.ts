@@ -2,8 +2,8 @@ import type { Database } from "@onelife/db";
 import { deathVerdicts, kills, lives, players } from "@onelife/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  LOGOUT_CAUSES, pendingPublicDeath, toPublicDeath, writerBrief,
-  type AttributionBasis, type Condition, type Confidence, type InternalCause, type LifeDeathFacts, type ObjectKey,
+  CAUSE_VOCAB, LOGOUT_CAUSES, PUBLIC_ROWS, UPSTREAM_TO_PUBLIC, isInternalCause, pendingPublicDeath, toPublicDeath, writerBrief,
+  type AttributionBasis, type InferredFamily, type Condition, type Confidence, type InternalCause, type LifeDeathFacts, type ObjectKey,
   type PublicDeath, type StoredVerdict, type TrapCredit, type TrapDevice, type WriterBrief,
 } from "@onelife/death-verdict";
 
@@ -238,14 +238,30 @@ export async function getWriterDeath(db: Database, life: PublicDeathLife): Promi
 const LOGOUT_FAMILY: ReadonlySet<string> = new Set<string>([...LOGOUT_CAUSES, "restrained_logout"]);
 
 /**
- * What the obituary check needs and the writer must never see (spec 6.1): whether this death is of
- * the logout family, so the check bans logout words from the whole article, not just the headline.
+ * What the obituary check needs and the writer must never see (spec 6.1):
+ *  - `logoutFamily`: whether this death is of the logout family, so the check bans logout words
+ *    from the whole article, not just the headline;
+ *  - `family`: the family of the stored cause (for a logout-family death, of its upstream cause),
+ *    so that when the writer was given no cause (not recorded, withheld, a family switched off)
+ *    rule 2 can keep that family's words out of the headline, the lede and the tag. Null for a
+ *    cause with no family.
  *
- * ⚠️ INTERNAL. It reads the stored cause token, which is never public. The answer is one boolean,
- * passed to `findCauseViolations` as an argument; it is never put in `ObituaryFacts`, the prompt,
+ * ⚠️ INTERNAL. It reads the stored cause token, which is never public. The answer is passed to
+ * `findCauseViolations` as an argument; it is never put in `ObituaryFacts`, the prompt,
  * `articles.facts` or any response. No API route calls this.
  */
-export async function getDeathCheckHints(db: Database, lifeId: number): Promise<{ logoutFamily: boolean }> {
-  const [r] = await db.select({ cause: deathVerdicts.cause }).from(deathVerdicts).where(eq(deathVerdicts.lifeId, lifeId));
-  return { logoutFamily: r != null && LOGOUT_FAMILY.has(r.cause) };
+export async function getDeathCheckHints(db: Database, lifeId: number): Promise<{ logoutFamily: boolean; family: InferredFamily | null }> {
+  const [r] = await db
+    .select({ cause: deathVerdicts.cause, upstream: deathVerdicts.upstreamCause })
+    .from(deathVerdicts)
+    .where(eq(deathVerdicts.lifeId, lifeId));
+  return { logoutFamily: r != null && LOGOUT_FAMILY.has(r.cause), family: r ? internalFamilyOf(r.cause, r.upstream) : null };
+}
+
+function internalFamilyOf(cause: string, upstream: string | null): InferredFamily | null {
+  if (LOGOUT_CAUSES.has(cause as InternalCause)) {
+    const key = upstream != null && Object.hasOwn(UPSTREAM_TO_PUBLIC, upstream) ? UPSTREAM_TO_PUBLIC[upstream] : null;
+    return key ? PUBLIC_ROWS[key].family : null;
+  }
+  return isInternalCause(cause) ? CAUSE_VOCAB[cause].family : null;
 }

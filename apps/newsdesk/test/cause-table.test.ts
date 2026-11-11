@@ -4,7 +4,7 @@ import {
   NOT_CONFIRMED_HEADING, OBJECT_LABEL, PUBLIC_ROWS, STRONG_CAUSE_DIRECTIVE, TRAP_KILLS_CAVEAT, WITHHELD_DIRECTIVE,
   type Confidence, type InternalCause, type PublicCauseKey,
 } from "@onelife/death-verdict";
-import { buildObituaryPrompt, composeTags, NO_MECHANISM_DIRECTIVE, type Obituary } from "../src/prompt.js";
+import { buildObituaryPrompt, composeTags, NO_MECHANISM_DIRECTIVE, TRAP_KILLS_COUNT_DIRECTIVE, type Obituary } from "../src/prompt.js";
 import { findPlaceViolations } from "../src/no-place.js";
 import { LOGOUT_WORDS } from "../src/cause-check.js";
 import type { ObituaryFacts } from "../src/facts.js";
@@ -111,6 +111,8 @@ describe("what the writer is told", () => {
   it("the trap-kill caveat is sent when this-life trap kills are above zero", () => {
     const h = halves(factsFor({ verdict: { cause: "fall" }, kills: [{ distanceMeters: null, basis: "trap_placement" }, { distanceMeters: 30 }] }));
     expect(h.unconfirmed).toContain(TRAP_KILLS_CAVEAT(1, 0));
+    // the cause check's rule 6 is told to the writer, or a legend placer is rejected twice
+    expect(h.unconfirmed).toContain(TRAP_KILLS_COUNT_DIRECTIVE);
     expect(h.confirmed).toContain("- Kills this life: 2");
   });
 
@@ -143,7 +145,7 @@ describe("what the writer is told", () => {
   it("every sentence, writer line and directive passes findPlaceViolations when wrapped in an Obituary", () => {
     const texts: string[] = [
       INFERRED_CAUSE_DIRECTIVE, STRONG_CAUSE_DIRECTIVE, WITHHELD_DIRECTIVE, NAMES_NO_PERSON_DIRECTIVE, NO_MECHANISM_DIRECTIVE,
-      TRAP_KILLS_CAVEAT(1, 2), ...Object.values(CAPTION).filter((c): c is string => !!c),
+      TRAP_KILLS_CAVEAT(1, 2), TRAP_KILLS_COUNT_DIRECTIVE, ...Object.values(CAPTION).filter((c): c is string => !!c),
     ];
     const objects = [null, ...Object.values(OBJECT_LABEL)];
     for (const key of Object.keys(PUBLIC_ROWS) as PublicCauseKey[]) {

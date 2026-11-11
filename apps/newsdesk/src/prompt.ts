@@ -68,6 +68,11 @@ function confirmedDirectives(facts: ObituaryFacts): string[] {
   return facts.brief.directives.filter((d) => d !== INFERRED_CAUSE_DIRECTIVE && d !== credit);
 }
 
+/** Sent beside the trap-kills caveat: the cause check's rule 6 rejects a kill count in the
+ *  headline or the lede, so the writer is told (review of PR 406). Not in the death-verdict
+ *  vocabulary, so the attested caveat text is unchanged. */
+export const TRAP_KILLS_COUNT_DIRECTIVE = "Give no kill count in the headline or the lede; the body may give it.";
+
 /** The NOT CONFIRMED block (spec 6.1), or [] when there is nothing to put under it. */
 function notConfirmedBlock(facts: ObituaryFacts): string[] {
   const out: string[] = [];
@@ -83,6 +88,7 @@ function notConfirmedBlock(facts: ObituaryFacts): string[] {
   }
   if (facts.trapKills > 0 || facts.priors.trapKills > 0) {
     out.push(`- ${TRAP_KILLS_CAVEAT(facts.trapKills, facts.priors.trapKills)}`);
+    out.push(TRAP_KILLS_COUNT_DIRECTIVE);
   }
   return out.length ? [NOT_CONFIRMED_HEADING, ...out] : [];
 }
@@ -199,8 +205,18 @@ export function causeCategoryTag(facts: ObituaryFacts): PublicTag {
  * tags (it only supplies optional flavor).
  */
 export function composeTags(facts: ObituaryFacts, llmTags: string[]): string[] {
-  const base = ["Obituaries", mapLabel(facts.map), causeCategoryTag(facts)];
-  const taken = new Set(base.map((t) => t.toLowerCase()));
-  const flavor = llmTags.map((t) => t.trim()).find((t) => t && !taken.has(t.toLowerCase()));
+  const base = reservedTags(facts);
+  const flavor = flavorTagOf(facts, llmTags);
   return flavor ? [...base, flavor] : base;
+}
+
+function reservedTags(facts: ObituaryFacts): string[] {
+  return ["Obituaries", mapLabel(facts.map), causeCategoryTag(facts)];
+}
+
+/** The one model tag `composeTags` keeps: the first that is not a reserved tag; null for none.
+ *  The cause check reads only this one, since the others are never published. */
+export function flavorTagOf(facts: ObituaryFacts, llmTags: string[]): string | null {
+  const taken = new Set(reservedTags(facts).map((t) => t.toLowerCase()));
+  return llmTags.map((t) => t.trim()).find((t) => t && !taken.has(t.toLowerCase())) ?? null;
 }

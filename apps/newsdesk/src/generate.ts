@@ -2,17 +2,29 @@ import type { ObituaryFacts } from "./facts.js";
 import { buildObituaryPrompt, parseObituary, type Obituary } from "./prompt.js";
 import type { RecentProse } from "./prose-pg-store.js";
 import { findPlaceViolations } from "./no-place.js";
-import { findCauseViolations } from "./cause-check.js";
+import { findCauseViolations, ruleNumbersOf, type CheckHints } from "./cause-check.js";
 
 /** The one capability the generator needs — real OpenRouter in prod, a stub in tests. */
 export interface CompletionClient {
   complete(req: { system: string; user: string }): Promise<string>;
 }
 
-/** Internal hints for the cause check (`getDeathCheckHints`). Never sent to the model. */
-export interface CheckHints { logoutFamily: boolean }
+export type { CheckHints };
 
-const NO_HINTS: CheckHints = { logoutFamily: false };
+const NO_HINTS: CheckHints = { logoutFamily: false, family: null };
+
+/**
+ * The cause check failed after the retry. ⚠️ `message` (what `articles.last_error` stores) holds
+ * the rule numbers only: the field that broke rule 1 would tell a reader of the table that the
+ * death was of the logout family (spec 2.3), and the strings quote draft sentences. `violations`
+ * carries the detail for the operator log.
+ */
+export class CauseCheckError extends Error {
+  constructor(readonly violations: string[]) {
+    super(`cause-check violation after retry: rules ${ruleNumbersOf(violations)}`);
+    this.name = "CauseCheckError";
+  }
+}
 
 /**
  * Gamertags are identity, not scenery — a callsign containing a banned word must not trip. The
@@ -65,6 +77,6 @@ export async function generateObituary(
   const second = parseObituary(await client.complete({ system, user: feedback.join("\n") }));
   const v2 = checkDraft(second, facts, hints);
   if (v2.place.length > 0) throw new Error(`no-place violation after retry: ${v2.place.join(", ")}`);
-  if (v2.cause.length > 0) throw new Error(`cause-check violation after retry: ${v2.cause.join("; ")}`);
+  if (v2.cause.length > 0) throw new CauseCheckError(v2.cause);
   return second;
 }

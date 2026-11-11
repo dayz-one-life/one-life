@@ -140,6 +140,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new things sent to the writer. `pnpm --filter @onelife/newsdesk run preview -- --life <id>
   [--generate]` prints what would be sent for a death without writing anything. No `--rebuild` and
   no backfill is needed.
+  After review, the check reads plain synonyms of each cause (winter, snow, food, a cough, the
+  bike, a stranger), checks the hedge of each clause rather than of the whole sentence, accepts
+  more honest hedges ("perhaps", "in all likelihood", "the paper's reading"), and no longer lets a
+  mention of an earlier death, earlier run-ins or the player's own kills excuse a flat statement
+  of how this one ended, in the headline or anywhere else. For a death with no cause given it
+  looks for that death's own kind of cause and for explicit mechanisms (a fall, wolves, a
+  tripwire), not every ordinary word like "cold" or "shot". It ignores numbers that are not kill
+  counts ("two hours", "no one", a gamertag) and model tags that are never published, and it
+  matches a credited player's name as a whole word. A failed obituary records only which rules
+  it broke. A stored "Likely" tag on an obituary is replaced by "Unknown" when that kind of cause
+  is switched off, even while the death is being re-checked. The tuning script now also drafts
+  deaths with no cause and trap-setters, sends the same recent-prose block as the real run, and
+  refuses any database whose name does not end in `_test`.
 
 ### Fixed
 

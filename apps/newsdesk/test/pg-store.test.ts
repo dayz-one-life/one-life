@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTestDb } from "@onelife/test-support";
-import { servers, players, lives, articles, playerGamertags } from "@onelife/db";
+import { servers, players, lives, articles, playerGamertags, syndications } from "@onelife/db";
+// The crier's own target query, so the slug freeze is proven end to end: a re-publish through
+// newsdesk's upsert is not a new crier target and leaves the ledger alone (spec 6.2).
+import { findSyndicationTargets } from "../../crier/src/pg-store.js";
 import { eq, inArray } from "drizzle-orm";
 import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import { overdueObituaryLives, findObituaryTargets, publishObituary, recordObituaryFailure, obituarySlug, type ObituaryTarget } from "../src/pg-store.js";
@@ -184,6 +187,27 @@ describe("publishObituary (obituary-v4)", () => {
     const [row] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
     expect(row!.headline).toBe("A Rewritten Headline");
     expect(row!.slug).toMatch(/^the-first-headline-/);
+  });
+
+  it("a re-publish of a posted article is no new crier target, and leaves the ledger untouched", async () => {
+    const l = await seedLife(`nd-crier-${svc}`, { lifeNumber: 1, endedAt: hrs(29), deathCause: "died", playtimeSeconds: 7200 });
+    await publish(targetFor(l, 29), "Posted Once");
+    const [first] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
+    const slug = first!.slug!;
+    await db.insert(syndications).values({ slug, channel: "discord", postedAt: hrs(31), attempts: 1 });
+    try {
+      const opts = { channels: ["discord"], since: hrs(0), maxAttempts: 5, limit: 1000 };
+      const ledger = await db.select().from(syndications).where(eq(syndications.slug, slug));
+      await publish(targetFor(l, 29), "Rewritten After Posting", { now: hrs(40) });
+      const [again] = await db.select().from(articles).where(eq(articles.gamertag, l.gamertag));
+      expect(again!.headline).toBe("Rewritten After Posting");
+      expect(again!.slug).toBe(slug);
+      expect((await findSyndicationTargets(db, opts)).some((t) => t.slug === slug)).toBe(false);
+      expect((await findSyndicationTargets(db, opts)).some((t) => t.slug.startsWith("rewritten-after-posting"))).toBe(false);
+      expect(await db.select().from(syndications).where(eq(syndications.slug, slug))).toEqual(ledger);
+    } finally {
+      await db.delete(syndications).where(eq(syndications.slug, slug));
+    }
   });
 
   it("a failed stub gets its slug on the first publish", async () => {

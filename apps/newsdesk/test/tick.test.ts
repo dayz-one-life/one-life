@@ -253,6 +253,10 @@ describe("newsdeskTick", () => {
     const [row] = await db.select().from(articles).where(eq(articles.gamertag, tag));
     expect(row!.status).toBe("failed");
     expect(row!.lastError).toMatch(/cause-check/);
+    // Only rule numbers are stored: the field that broke rule 1 ("body") would show a logout-family
+    // death to anyone reading the table, and no draft sentence is kept either.
+    expect(row!.lastError).toBe("cause-check violation after retry: rules 1");
+    expect(row!.lastError).not.toMatch(/body|respawn/i);
   });
 });
 

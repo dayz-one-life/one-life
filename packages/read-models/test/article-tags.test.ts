@@ -173,6 +173,17 @@ describe("pure parts", () => {
     expect(frozenDeathOf({ ...frozen, key: "toString" })).toBeNull();
     expect(frozenDeathOf({ ...frozen, key: "no_such_key" })).toBeNull();
   });
+  it("a pending live verdict does not keep a stored inferred family tag whose switch is off", () => {
+    const frozen = { key: "starvation", tag: "Hunger and Thirst", certainty: "inferred", label: "Likely starvation", detail: null,
+      sentence: "Likely starved.", caption: "Best reading of the log. The server recorded no cause." };
+    const stored = ["Obituaries", "Chernarus", "Hunger and Thirst", "Paperwork"];
+    expect(articleTags(stored, null, "obituary-v4", frozen)).toEqual(stored);
+    PUBLIC_INFERRED.hunger_thirst = false;
+    expect(articleTags(stored, null, "obituary-v4", frozen)).toEqual(["Obituaries", "Chernarus", "Unknown", "Paperwork"]);
+    // a frozen death that is not inferred, or none at all, keeps the stored tag
+    expect(articleTags(stored, null, "obituary-v4", { ...frozen, certainty: "definitive" })).toEqual(stored);
+    expect(articleTags(stored, null, "obituary-v4", null)).toEqual(stored);
+  });
   it("malformed frozen values are no frozen value", () => {
     expect(frozenDeathOf({ key: 3 })).toBeNull();
     expect(frozenDeathOf("x")).toBeNull();

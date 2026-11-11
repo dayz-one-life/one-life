@@ -1,10 +1,10 @@
 import type { Database } from "@onelife/db";
 import { findObituaryTargets, overdueObituaryLives, publishObituary, recordObituaryFailure, OBITUARY_OVERDUE_MINUTES } from "./pg-store.js";
-import { recentProse } from "./prose-pg-store.js";
+import { recentProse, RECENT_PROSE_LIMIT } from "./prose-pg-store.js";
 import { storedFacts } from "./facts.js";
 import { loadObituaryInputs } from "./inputs.js";
 import { composeTags } from "./prompt.js";
-import { generateObituary, type CompletionClient } from "./generate.js";
+import { CauseCheckError, generateObituary, type CompletionClient } from "./generate.js";
 import { dedupePullQuote } from "./prose-backstop.js";
 
 export type NewsdeskDeps = {
@@ -23,7 +23,6 @@ export type NewsdeskResult = { generated: number; failed: number; skipped: numbe
 
 /** How many recently published articles the model is shown as do-not-reuse material. Fetched
  *  ONCE per tick, not per article — the block is the same for every target in the batch. */
-const RECENT_PROSE_LIMIT = 12;
 
 /**
  * One newsdesk cycle: find qualified deaths lacking a published obituary, generate each in the
@@ -85,7 +84,9 @@ export async function newsdeskTick(db: Database, deps: NewsdeskDeps): Promise<Ne
       generated++;
     } catch (e) {
       await recordObituaryFailure(db, { target: t, error: e instanceof Error ? e.message : String(e) });
-      deps.log.error?.({ err: e, lifeId: t.lifeId }, "obituary generation failed (will retry)");
+      // The operator log gets the cause check's full strings; the stored last_error only its rule numbers.
+      const violations = e instanceof CauseCheckError ? e.violations : undefined;
+      deps.log.error?.({ err: e, lifeId: t.lifeId, violations }, "obituary generation failed (will retry)");
       failed++;
     }
   }

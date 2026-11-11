@@ -12,15 +12,16 @@ const svc = Math.floor(Math.random() * 1e8) + 53e7;
 const t0 = new Date("2031-08-01T00:00:00Z");
 const hrs = (h: number) => new Date(t0.getTime() + h * 3600_000);
 let serverId: number;
-let withVerdict: number, without: number;
+let withVerdict: number, without: number, logoutLife: number;
 const pids: number[] = [];
 
-async function seed(tag: string, verdict: boolean) {
+async function seed(tag: string, verdict: boolean | Parameters<typeof seedVerdict>[2]) {
   const [p] = await db.insert(players).values({ gamertag: tag }).returning();
   pids.push(p!.id);
   await db.insert(playerGamertags).values({ playerId: p!.id, gamertag: tag, firstSeenAt: hrs(0), lastSeenAt: hrs(0) });
   const [l] = await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: hrs(0), endedAt: hrs(2), deathCause: "died", playtimeSeconds: 7200 }).returning();
-  if (verdict) await seedVerdict(db, l!.id, { cause: "starvation", confidence: "inferred", mechanismStated: false, rule: "B20" });
+  if (verdict === true) await seedVerdict(db, l!.id, { cause: "starvation", confidence: "inferred", mechanismStated: false, rule: "B20" });
+  else if (verdict) await seedVerdict(db, l!.id, verdict);
   return l!.id;
 }
 
@@ -29,6 +30,7 @@ beforeAll(async () => {
   serverId = s!.id;
   withVerdict = await seed(`pv-a-${svc}`, true);
   without = await seed(`pv-b-${svc}`, false);
+  logoutLife = await seed(`pv-ko-${svc}`, { cause: "unconscious_logout", upstreamCause: "infected", upstreamConfidence: "definitive", rule: "B01" });
 });
 afterAll(async () => {
   await db.delete(articles).where(eq(articles.serverId, serverId));
@@ -73,6 +75,24 @@ describe("preview", () => {
     expect(text).toMatch(/cause check: REJECTED/);
     expect(text).toContain("rule 4 (headline)");
     expect(await count()).toBe(before);
+  });
+
+  it("--generate on a logout-family life applies the internal hint: a logout word in the body is REJECTED", async () => {
+    const client: CompletionClient = {
+      complete: async () => JSON.stringify({ headline: "H", lede: "L", body: "He never respawned.", pullQuote: null, tags: [] }),
+    };
+    const out: string[] = [];
+    await runPreview(db, { lives: [logoutLife], generate: true }, { client, out: (l) => out.push(l) });
+    expect(out.join("\n")).toMatch(/cause check: REJECTED:\n\s+rule 1 \(body\)/);
+  });
+
+  it("the prompt carries the recent-prose block, as the tick's does", async () => {
+    const slug = `pv-recent-${svc}`;
+    await db.insert(articles).values({ kind: "obituary", status: "published", slug, serverId, headline: "A Headline To Avoid", lede: "Some lede." });
+    const out: string[] = [];
+    await runPreview(db, { lives: [withVerdict], generate: false }, { client: null, out: (l) => out.push(l) });
+    expect(out.join("\n")).toContain("A Headline To Avoid");
+    await db.delete(articles).where(eq(articles.slug, slug));
   });
 
   it("a life with no verdict, or no life at all, is reported and counted", async () => {

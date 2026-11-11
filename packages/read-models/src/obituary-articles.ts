@@ -178,19 +178,29 @@ export function promptHedgesInferred(promptVersion: string | null): boolean {
  *     inferred cause (v4 on), else "Unknown" — a v3 article says the record knows no cause;
  *   - live inferred with the family off, unknown, withheld: "Unknown" (`toPublicDeath` already
  *     turns a switched-off family into the unknown row);
- *   - pending or missing: the stored tag.
+ *   - pending or missing: the stored tag, except that a frozen inferred death whose family is
+ *     now switched off (`frozenDeathOf` withdraws it) shows "Unknown": the switch withdraws the
+ *     tag with the label, sentence and caption (spec 2.1).
  * The rewrite happens here, in the read-model, so the web chip and every API client agree.
  * Tags not composed by newsdesk (no leading "Obituaries") are left alone.
  */
-export function articleTags(stored: string[], live: PublicDeath | null, promptVersion: string | null): string[] {
-  if (!live || live.status !== "final" || stored.length < 3 || stored[0] !== "Obituaries") return stored;
+export function articleTags(stored: string[], live: PublicDeath | null, promptVersion: string | null, frozenDeath: unknown = null): string[] {
+  if (stored.length < 3 || stored[0] !== "Obituaries") return stored;
   let tag: string;
-  if (live.certainty === "definitive" || live.certainty === "strong") tag = live.tag ?? "Unknown";
+  if (!live || live.status !== "final") {
+    if (!frozenInferredWithdrawn(frozenDeath)) return stored;
+    tag = "Unknown";
+  } else if (live.certainty === "definitive" || live.certainty === "strong") tag = live.tag ?? "Unknown";
   else if (live.certainty === "inferred") tag = live.tag && promptHedgesInferred(promptVersion) ? live.tag : "Unknown";
   else tag = "Unknown";
   const head = [stored[0]!, stored[1]!, tag];
   const rest = stored.slice(3).filter((t) => t.toLowerCase() !== tag.toLowerCase());
   return [...head, ...rest];
+}
+
+/** A frozen death that was written inferred and that `frozenDeathOf` now withdraws. */
+function frozenInferredWithdrawn(raw: unknown): boolean {
+  return raw != null && typeof raw === "object" && (raw as { certainty?: unknown }).certainty === "inferred" && frozenDeathOf(raw) === null;
 }
 
 /** What every article read selects to find and present its death. Not returned. */
@@ -224,7 +234,7 @@ export async function withArticleDeaths<T extends DeathKeyed>(db: Database, rows
     return {
       ...(rest as Omit<T, keyof DeathKeyed>),
       death: final ?? frozenDeathOf(frozenDeath),
-      tags: articleTags(tags ?? [], final, promptVersion),
+      tags: articleTags(tags ?? [], final, promptVersion, frozenDeath),
     };
   });
 }

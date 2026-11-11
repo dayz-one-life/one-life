@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateObituary, type CompletionClient } from "../src/generate.js";
+import { CauseCheckError, generateObituary, type CompletionClient } from "../src/generate.js";
 import { factsFor } from "./facts-fixture.js";
 
 const facts = factsFor({ verdict: { cause: "bled_out_other", confidence: "strong" } });
@@ -76,16 +76,19 @@ describe("cause-check enforcement", () => {
     expect(calls[1]).toContain("rule 4");
   });
 
-  it("throws after a second violating draft", async () => {
-    await expect(generateObituary({ complete: async () => flat }, cold, [])).rejects.toThrow(/cause-check/);
+  it("throws after a second violating draft, with rule numbers in the message and the detail beside it", async () => {
+    const err = await generateObituary({ complete: async () => flat }, cold, []).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(CauseCheckError);
+    expect((err as Error).message).toBe("cause-check violation after retry: rules 4");
+    expect((err as CauseCheckError).violations.join(" ")).toMatch(/rule 4 \(lede/);
   });
 
   it("the logout hint widens rule 1 to the whole article", async () => {
     const body = JSON.stringify({ headline: "H", lede: "L", body: "He never respawned.", pullQuote: null, tags: [] });
     let n = 0;
-    await generateObituary({ complete: async () => { n++; return body; } }, facts, [], { logoutFamily: false });
+    await generateObituary({ complete: async () => { n++; return body; } }, facts, [], { logoutFamily: false, family: null });
     expect(n).toBe(1);
-    await expect(generateObituary({ complete: async () => body }, facts, [], { logoutFamily: true })).rejects.toThrow(/cause-check/);
+    await expect(generateObituary({ complete: async () => body }, facts, [], { logoutFamily: true, family: null })).rejects.toThrow(/cause-check/);
   });
 
   it("a credited name containing a banned place word does not trip the place check", async () => {

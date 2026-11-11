@@ -1,6 +1,6 @@
 import { FAMILY_TAG, PUBLIC_ROWS, type InferredFamily, type PublicCauseKey } from "@onelife/death-verdict";
 import type { ObituaryFacts } from "./facts.js";
-import type { Obituary } from "./prompt.js";
+import { flavorTagOf, type Obituary } from "./prompt.js";
 
 /**
  * The deterministic check of a draft against what the writer was told about the death
@@ -10,75 +10,132 @@ import type { Obituary } from "./prompt.js";
  *
  * ⚠️ It is LEXICAL. It proves that a hedge word is present, not that a sentence is honest, and a
  * rule that rejects honest wording costs a publication (retry, then a failure stub). The word
- * lists are tuned by running `scripts/check-inferred-previews.ts` over generated previews of the
- * inferred lives before release 3; widen a list only with a draft that shows why.
+ * lists are tuned by running `scripts/check-inferred-previews.ts` over generated previews before
+ * release 3; widen a list only with a draft that shows why.
  *
  * The rules:
- *   1. logout vocabulary never appears in the headline, the lede or the tags; for a logout-family
+ *   1. logout vocabulary never appears in the headline, the lede or the tag; for a logout-family
  *      death (an internal hint, never in the facts) nowhere in the article;
- *   2. when the writer was given no cause (not recorded, withheld), no family word appears in the
- *      headline, the lede or the tags;
+ *   2. when the writer was given no cause (not recorded, withheld), the headline, the lede and the
+ *      tag hold no word of the death's own internal family (an internal hint, like the logout
+ *      one) and none of a short list of explicit mechanisms (`MECHANISMS`);
  *   3. pneumonia, silicosis and heatstroke never appear;
- *   4. an inferred cause: no family word in the headline, the pull quote, its attribution or a
- *      flavour tag; in the lede and the body every cause sentence holds a hedge marker and no
- *      certainty marker;
- *   5. a trap credit: the credited name is absent from the headline, the lede, the pull quote, its
- *      attribution and the tags;
+ *   4. an inferred cause: no family word in the headline, the pull quote, its attribution or the
+ *      flavour tag; in the lede and the body every clause that states it holds its own hedge
+ *      marker, and the sentence holds no certainty marker;
+ *   5. a trap credit: the credited name (as a whole word) is absent from the headline, the lede,
+ *      the pull quote, its attribution and the tag, and the body never says NAME killed them;
  *   6. a trap kill in a count: when this life or the earlier ones hold a trap kill, no kill count
  *      in the headline or the lede (those two fields are all the crier posts, and a post cannot be
  *      recalled after a denial).
- * A family word in a sentence that only states a confirmed fact (an earlier death, run-ins with
- * the infected) is exempt; see `isCauseSentence`.
+ *
+ * Exemptions (lede and body only; never the headline, the pull quote, its attribution or the
+ * tag): a clause that is visibly about a confirmed fact that was sent (past run-ins with the
+ * infected, the player's own kills, an earlier death) is not a statement of this death's cause.
+ * A family word right after a negation ("never fired a shot") states nothing.
+ *
+ * "The tag" is the one flavour tag `composeTags` keeps (`flavorTagOf`); the others are never
+ * published, and the reserved tags are composed, not written.
  */
+
+/** Internal hints for the check (`getDeathCheckHints`). Never sent to the model or stored. */
+export interface CheckHints {
+  /** A knock-out or logout cause, or the restrained logout: rule 1 covers the whole article. */
+  logoutFamily: boolean;
+  /** The family of the stored (or, for the logout family, upstream) cause; rule 2 reads it when
+   *  the writer was given no cause. Null for a cause with no family. */
+  family: InferredFamily | null;
+}
 
 /** Rule 1. Never in any obituary: how a player left the game is not public (spec 2.3). */
 export const LOGOUT_WORDS: readonly RegExp[] = [
-  /\blog(?:s|ged|ging)?[\s-]*(?:out|off)\b/i,
+  /\blog(?:s|ged|ging)?[\s-]*(?:out|off)s?\b/i,
   /\bdisconnect\w*/i,
   /\b(?:rage[\s-]*)?quit(?:s|ting|ter|ters)?\b/i,
   /\brespawn\w*/i,
   /\bcombat[\s-]*log\w*/i,
   /\b(?:gave|give|gives|giving)\s+up\b/i,
   /\bleft\s+the\s+(?:server|game)\b/i,
+  /\b(?:went|go|goes|going|gone)\s+offline\b/i,
+  /\bsign(?:s|ed|ing)?[\s-]+off\b/i,
+  /\bpull(?:s|ed|ing)?\s+the\s+plug\b/i,
+  /\balt[\s+-]*f4\b/i,
 ];
+
+/** The two logout words that read as ordinary praise when negated ("never quit", "never gave
+ *  up"). Exempt then, but only for a death that is not of the logout family. */
+const NEGATABLE_LOGOUT: ReadonlySet<RegExp> = new Set([LOGOUT_WORDS[2]!, LOGOUT_WORDS[5]!]);
+const NEGATION_BEFORE = /\b(?:never|not|n't|refused\s+to|wouldn't|won't|didn't)\s+(?:\w+\s+)?$/i;
 
 /** Rule 3. Internal words that are never public. */
 export const NEVER_PUBLIC_WORDS: readonly RegExp[] = [/\bpneumonia\b/i, /\bsilicosis\b/i, /\bheat[\s-]*stroke\b/i];
 
-/**
- * The words that state a death of each inferred family. Rule 4 for an inferred cause of that
- * family; rule 2 for every family when the writer was given no cause.
- */
+/** The words that state a death of each inferred family (rule 4; rule 2 for the hinted family). */
 export const FAMILY_WORDS: Record<InferredFamily, RegExp> = {
-  exposure: /\b(?:cold|froze|frozen|freez(?:e|es|ing)|exposure|hypotherm\w*|overheat\w*)\b/i,
-  illness: /\b(?:illness\w*|sick\w*|disease[sd]?|fever\w*|ailment\w*)\b/i,
-  vehicle_crash: /\b(?:crash\w*|wreck\w*|collision\w*|motorbike\w*|motorcycle\w*|vehicle\w*)\b/i,
-  hunger_thirst: /\b(?:starv\w*|hunger|hungry|famish\w*|thirst\w*|dehydrat\w*|malnourish\w*)\b/i,
-  infected: /\b(?:infected|zombies?|horde\w*|undead)\b/i,
-  pvp: /\b(?:shot|shooter\w*|gunned|gunfire|gunman|bullets?|sniper\w*|murder\w*|another player)\b/i,
+  exposure: /\b(?:cold|froze|frozen|freez(?:e|es|ing)|exposure|hypotherm\w*|overheat\w*|winter\w*|snow\w*|ice|icy|chill\w*|frost\w*)\b/i,
+  illness: /\b(?:illness\w*|sick\w*|disease[sd]?|fever\w*|ailment\w*|cough\w*|infection\w*|flu|virus\w*|caught\s+something)\b/i,
+  vehicle_crash: /\b(?:crash\w*|wreck\w*|collision\w*|motorbike\w*|motorcycle\w*|vehicle\w*|bikes?|cars?|trucks?|drove|driv\w*|roads?|wheels?|rolled|flipped|corner\w*|skid\w*)\b/i,
+  hunger_thirst: /\b(?:starv\w*|hunger|hungry|famish\w*|thirst\w*|dehydrat\w*|malnourish\w*|food|water|meals?|stomach\w*|ate|eat|eating|drank|drink\w*|rations?)\b/i,
+  infected: /\b(?:infected|zombies?|horde\w*|undead|bites?|bitten|walkers?|shamblers?|ghouls?)\b/i,
+  pvp: /\b(?:shot|shooter\w*|gunned|gunfire|gunman|bullets?|sniper\w*|murder\w*|another\s+player|strangers?|rivals?|enem(?:y|ies)|ambush\w*|rifles?|firefight\w*)\b/i,
 };
 
-/** A sentence that states an inferred cause must hold one of these (spec 6.1). */
+/**
+ * Rule 2's own list: explicit mechanisms that `NO_MECHANISM_DIRECTIVE` forbids for a death the
+ * writer was given no cause for, by the family each belongs to (null: no family). Deliberately
+ * tighter than `FAMILY_WORDS`: no bare "cold", "shot", "sick" or "crash", which are ordinary ways
+ * to write that the record stops ("the trail goes cold", "his last shot").
+ */
+const MECHANISMS: readonly [InferredFamily | null, RegExp][] = [
+  ["exposure", /\b(?:froze|frozen|freez(?:e|es|ing)|hypotherm\w*)\b/i],
+  ["hunger_thirst", /\b(?:starv\w*|dehydrat\w*)\b/i],
+  ["infected", /\b(?:infected|zombies?|horde\w*|undead)\b/i],
+  ["pvp", /\b(?:gunned|shot\s+(?:dead|down|him|her|them)|(?:was|were|got|been|being)\s+shot|murder\w*)\b/i],
+  ["vehicle_crash", /\b(?:crashed|wrecked)\b/i],
+  [null, /(?<!\b(?:night|darkness|silence|dusk|quiet)\s)\bfell\b(?!\s+(?:silent|asleep|quiet|apart|short|behind|for|through|into\s+place))|\b(?:a|the|his|her|their)\s+fall\b(?!\s+of)|\bwolves\b|\b(?:a|the)\s+(?:wolf|bears?)\b|\bmaul\w*|\bdrown\w*|\bbled\b|\bbleeding\b|\bambush\w*|\btripwires?\b|\b(?:land\s*)mines?\b|\bexplo(?:sion|sions|sive|sives|ded)\b|\bgrenades?\b|\bhandcuff\w*|\bcuffed\b|\brestrained\b|\bbound\s+hand\b/i],
+];
+
+/** A clause that states an inferred cause must hold one of these (spec 6.1, widened in review). */
 export const HEDGE_MARKERS: RegExp =
-  /\b(?:likely|probably|most likely|apparently|appears?|appeared|seems?|seemed|looks? like|by every sign|points? to|pointed to|suggests?|suggested|may have|might have|presumed|presumably)\b/i;
+  /\b(?:likel(?:y|ier|iest|ihood)|probabl[ey]|perhaps|possibl[ey]|apparently|appears?|appeared|seems?|seemed|looks?\s+like|looked\s+like|by\s+(?:every|all)\s+signs?|points?\s+(?:to|toward|towards)|pointed\s+(?:to|toward|towards)|suggests?|suggested|may\s+have|might\s+have|presum\w*|evidently|best\s+guess|(?:paper['’]s|our|best|the|a|only\s+a)\s+reading)\b/i;
 
 /**
- * And none of these. ⚠️ Not the bare word "recorded": "No cause was recorded, but he most likely
- * starved" is the honest sentence and must pass.
+ * And no sentence that states it holds one of these. ⚠️ Not the bare word "recorded": "No cause
+ * was recorded, but he most likely starved" is the honest sentence and must pass; nor "the record
+ * says nothing".
  */
 export const CERTAINTY_MARKERS: RegExp =
-  /\b(?:confirmed|confirms|the record shows|the records show|the log shows|the record confirms|was recorded as|officially|cause of death:)/i;
+  /\b(?:confirmed|confirms|the\s+(?:records?|logs?)\s+(?:shows|show|says|say|confirms|confirm|states|state)\b(?!\s+(?:nothing|little|no|not|only)\b)|was\s+recorded\s+as|officially|cause\s+of\s+death:|certainly|definitely|no\s+doubt|without\s+(?:a\s+)?doubt|beyond\s+doubt|make\s+no\s+mistake|undoubtedly)/i;
 
-/** A sentence about a confirmed run-in states no death without one of these. */
-export const DEATH_TERMS: RegExp = /\b(?:died|dies|dead|death|killed|kills him|kills her|fatal\w*|perished|succumbed|the end)\b/i;
-
-/** A sentence about an earlier death holds one of these. */
-export const PRIOR_MARKERS: RegExp = /\b(?:last time|before|again|previous\w*|earlier|once more|usual\w*)\b/i;
+/** A clause that states a death. A clause about a past encounter must hold none of these. */
+export const DEATH_TERMS: RegExp =
+  /\b(?:died|dies|dead|death|killed|kill(?:s|ed)?\s+(?:him|her|them)|fatal\w*|perished|succumbed|got\s+(?:him|her|them)|took\s+(?:him|her|them)|finish(?:ed|es)?\s+(?:him|her|them|it)|claimed\s+(?:him|her|them)|caught\s+up|won|wins?|collect\w*|overwhelm\w*|overran|overrun|brought\s+(?:him|her|them)\s+down|ended\s+(?:him|her|them))\b/i;
 
 const NUMBER_WORDS =
   "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|dozen|dozens";
-const COUNT_TOKEN = new RegExp(`^(?:\\d+|${NUMBER_WORDS})$`, "i");
-const KILL_TOKEN = /^(?:kill|kills|killed|bodies|dead)$/i;
+
+/** A sign that a clause is about an earlier encounter, not the death: a count or an encounter word. */
+const PAST_ENCOUNTER = new RegExp(`\\b(?:run-?ins?|encounters?|brushes|brush|fought|fended|survived|escaped|shook\\s+off|times|${NUMBER_WORDS}|\\d+)\\b`, "i");
+
+/** The player's own kills ("shot two men"), and words that aim a shooting at the player. */
+const OWN_KILL = new RegExp(`\\b(?:shot|gunned\\s+down|outgunned|murdered|dropped|took\\s+down)\\s+(?:${NUMBER_WORDS}|\\d+|a|an|another|someone)\\b`, "i");
+const AIMED_AT_HIM = /\b(?:(?:was|were|got|been|being|is)\s+(?:shot|gunned|murdered)|(?:shot|gunned\s+down|murdered|ambushed)\s+(?:him|her|them)|bullets?|snipers?|gunman|shooter\w*|strangers?|ambush\w*)\b/i;
+
+/** A clause about an earlier death holds one of these (the earlier death, not this one)... */
+export const PRIOR_MARKERS: RegExp =
+  /\b(?:last\s+time|the\s+time\s+before|previous\w*|prior\s+(?:life|lives|death|deaths)|earlier\s+(?:life|lives|death|deaths)|most\s+recent|last\s+(?:life|death)|the\s+life\s+before|before\s+this\s+life|lives\s+before|(?:his|her|their)\s+usual|(?:a|an|his|her|their)\s+(?:past|former)\s+life)\b/i;
+/** ...and none of these, which say this death repeated it ("froze again", "starved too"). */
+const REPEAT_MARKERS = /\b(?:again|once\s+more|as\s+usual|usually|too(?!\s+(?:late|soon|early|long|far|much|many|few)\b)|also|this\s+time|repeat\w*|same\s+(?:way|mistake|end|fate)|another\s+time|second\s+time|as\s+before|like\s+before)\b/i;
+
+/** A family word right after one of these (two words at most between) is no claim. A perception
+ *  verb in between is ("never saw the bullet"). */
+const NEGATED = /\b(?:never|no|not|nothing|without|nor|n't)\s+(?:(?!(?:saw|see|seen|heard|hear|felt|feel|knew|know|coming)\b)\w+\s+){0,2}$/i;
+
+const COUNT_TOKEN = new RegExp(`^(?:\\d+|${NUMBER_WORDS}|double|triple|pair|brace|couple|handful)$`, "i");
+const KILL_TOKEN = /^(?:kill|kills|killed|bodies|dead|victims|killers?|scalps?|notch|notches)$/i;
+const TIME_UNIT = /^(?:seconds?|minutes?|mins?|hours?|hrs?|days?|nights?|weeks?|months?|years?)$/i;
+/** "no one", "the one": not a count. */
+const NOT_A_COUNT_BEFORE_ONE = /^(?:no|the|any|every|some|that|this|which|only)$/i;
 
 /** Sentences, split on terminal punctuation and line breaks. Small on purpose: prose here is a
  *  headline, a lede and a few short paragraphs. */
@@ -89,15 +146,41 @@ export function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
+/** Clauses of a sentence, split on semicolons, colons, dashes and "but"/"yet", so a hedge on one
+ *  clause does not cover a flat statement in the next. */
+export function splitClauses(sentence: string): string[] {
+  return sentence
+    .split(/\s*[;:—–]\s*|\s+-\s+|,?\s+\b(?:but|yet)\b\s+/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 const words = (s: string): string[] => s.toLowerCase().match(/[a-z0-9]+/g) ?? [];
 
-/** Rule 6: a digit or number word within three words of kill, kills, killed, bodies or dead. */
-export function holdsKillCount(text: string): boolean {
-  const w = words(text);
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** `name` as a whole word (not inside a longer word), literally, ignoring case. */
+const nameRe = (name: string, flags = "i") => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(name)}(?![\\p{L}\\p{N}])`, `${flags}u`);
+
+/**
+ * Rule 6: a count (a digit, a number word, "double", "pair" ...) within three words of kill,
+ * kills, killed, bodies, dead, victims, killer, scalps or notches. Not a count: a number before a
+ * time unit ("dead within two hours"), "one" in "no one" or "the one", and anything inside
+ * `names` (gamertags, removed before the words are read).
+ */
+export function holdsKillCount(text: string, names: readonly string[] = []): boolean {
+  let t = text;
+  for (const n of names) if (n.trim()) t = t.replace(nameRe(n.trim(), "gi"), " ");
+  const w = words(t);
+  const isCount = (j: number): boolean => {
+    if (!COUNT_TOKEN.test(w[j]!)) return false;
+    if (j + 1 < w.length && TIME_UNIT.test(w[j + 1]!)) return false;
+    if (w[j] === "one" && j > 0 && NOT_A_COUNT_BEFORE_ONE.test(w[j - 1]!)) return false;
+    return true;
+  };
   for (let i = 0; i < w.length; i++) {
     if (!KILL_TOKEN.test(w[i]!)) continue;
     for (let j = Math.max(0, i - 3); j <= Math.min(w.length - 1, i + 3); j++) {
-      if (j !== i && COUNT_TOKEN.test(w[j]!)) return true;
+      if (j !== i && isCount(j)) return true;
     }
   }
   return false;
@@ -115,83 +198,84 @@ function familyOfPriorNoun(noun: string | null): InferredFamily | null {
   return hit ?? null;
 }
 
-/**
- * What was actually sent to the writer that states a confirmed fact in each family, so a sentence
- * about it is not read as a statement of this death's cause (spec 6.1).
- *  - a confirmed in-life fact of the family was sent (run-ins with the infected; for player kills,
- *    a kill this life or a firefight): a sentence with no death term is not a cause sentence;
- *  - a prior in the family was sent: a sentence with a prior marker is not a cause sentence.
- */
-interface Exemptions { inLife: Set<InferredFamily>; prior: Set<InferredFamily> }
-
-export function exemptionsOf(facts: ObituaryFacts): Exemptions {
-  const inLife = new Set<InferredFamily>();
-  const prior = new Set<InferredFamily>();
-  if (facts.ordeals && facts.ordeals.infected.encounters > 0) inLife.add("infected");
-  if (facts.kills > 0 || (facts.ordeals && facts.ordeals.pvp.encounters > 0)) inLife.add("pvp");
-  if (facts.isKnownQuantity) {
-    for (const noun of [facts.priors.usualDeathCause, facts.priors.lastDeathCause]) {
-      const f = familyOfPriorNoun(noun);
-      if (f) prior.add(f);
-    }
+/** True when `re` matches somewhere in `clause` other than right after a negation. */
+export function claims(clause: string, re: RegExp): boolean {
+  const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
+  for (const m of clause.matchAll(g)) {
+    if (!NEGATED.test(clause.slice(0, m.index))) return true;
   }
-  return { inLife, prior };
+  return false;
 }
 
-/** True when the sentence holds a word of `family` and is not exempt as a confirmed fact. */
-export function isCauseSentence(sentence: string, family: InferredFamily, ex: Exemptions): boolean {
-  if (!FAMILY_WORDS[family].test(sentence)) return false;
-  if (ex.inLife.has(family) && !DEATH_TERMS.test(sentence)) return false;
-  if (ex.prior.has(family) && PRIOR_MARKERS.test(sentence)) return false;
-  return true;
+/**
+ * True when a lede or body clause holding a word of `family` is visibly about a confirmed fact
+ * that was sent, not about this death (spec 6.1, narrowed in review):
+ *  - infected, when run-ins were sent: the clause has a sign of a past encounter (a count,
+ *    "run-ins", "fought off", "survived") and no death term;
+ *  - player kills, when the player killed this life: the clause tells the player's own kill
+ *    ("shot two men") and aims nothing at the player;
+ *  - any family with a prior of that family sent: the clause names the earlier death ("last
+ *    time", "previous", "his last life") and does not say this death repeated it ("again",
+ *    "too", "as usual").
+ */
+export function isExemptClause(clause: string, family: InferredFamily, facts: ObituaryFacts): boolean {
+  if (family === "infected" && (facts.ordeals?.infected.encounters ?? 0) > 0
+    && PAST_ENCOUNTER.test(clause) && !DEATH_TERMS.test(clause)) return true;
+  if (family === "pvp" && facts.kills > 0 && OWN_KILL.test(clause) && !AIMED_AT_HIM.test(clause)) return true;
+  if (facts.isKnownQuantity && PRIOR_MARKERS.test(clause) && !REPEAT_MARKERS.test(clause)) {
+    const priors = [facts.priors.usualDeathCause, facts.priors.lastDeathCause].map(familyOfPriorNoun);
+    if (priors.includes(family)) return true;
+  }
+  return false;
 }
 
-const ALL_FAMILIES = Object.keys(FAMILY_WORDS) as InferredFamily[];
+const HEDGEABLE = ["lede", "body"];
 
 /**
  * Every rule broken by a draft, as readable strings ("rule N (field): what"); [] when it passes.
+ * The strings name sentences of the draft and go to the retry prompt and the operator log only;
+ * `ruleNumbersOf` is what may be stored.
  *
- * `hints.logoutFamily` comes from `getDeathCheckHints` and is internal: it is passed here as an
- * argument and is never in `facts`, the prompt or `articles.facts`.
+ * `hints` comes from `getDeathCheckHints` and is internal: it is passed here as an argument and is
+ * never in `facts`, the prompt or `articles.facts`.
  *
- * ⚠️ `obituary.tags` must be the MODEL's flavour tags (the draft as parsed), not the composed set:
- * the composed reserved tag is the death's family tag, which is a family word by design.
+ * ⚠️ `obituary.tags` must be the MODEL's tags (the draft as parsed), not the composed set: the
+ * check reads the one flavour tag `composeTags` would keep.
  */
-export function findCauseViolations(
-  obituary: Obituary,
-  facts: ObituaryFacts,
-  hints: { logoutFamily: boolean },
-): string[] {
+export function findCauseViolations(obituary: Obituary, facts: ObituaryFacts, hints: CheckHints): string[] {
   const out: string[] = [];
   const quote = obituary.pullQuote;
+  const tag = flavorTagOf(facts, obituary.tags);
   const fields: [string, string][] = [
     ["headline", obituary.headline],
     ["lede", obituary.lede],
     ["body", obituary.body],
     ["pull quote", quote?.text ?? ""],
     ["attribution", quote?.attribution ?? ""],
-    ...obituary.tags.map((t): [string, string] => ["tag", t]),
+    ...(tag ? [["tag", tag] as [string, string]] : []),
   ];
   const pick = (names: string[]) => fields.filter(([n]) => names.includes(n));
-  const short = ["headline", "lede", "tag"];
-  const outside = ["headline", "pull quote", "attribution", "tag"];
-  const ex = exemptionsOf(facts);
+  const clausesOf = (text: string) => splitSentences(text).flatMap((s) => splitClauses(s).map((c) => ({ s, c })));
 
   // 1. Logout vocabulary.
-  for (const [name, text] of hints.logoutFamily ? fields : pick(short)) {
+  for (const [name, text] of hints.logoutFamily ? fields : pick(["headline", "lede", "tag"])) {
     for (const re of LOGOUT_WORDS) {
-      const m = re.exec(text);
-      if (m) out.push(`rule 1 (${name}): "${m[0]}"`);
+      for (const m of text.matchAll(new RegExp(re.source, `${re.flags}g`))) {
+        if (!hints.logoutFamily && NEGATABLE_LOGOUT.has(re) && NEGATION_BEFORE.test(text.slice(0, m.index))) continue;
+        out.push(`rule 1 (${name}): "${m[0]}"`);
+      }
     }
   }
 
-  // 2. No cause given to the writer: no family word in the headline, the lede or the tags.
+  // 2. No cause given to the writer: no word of the death's own family, and no explicit mechanism,
+  //    in the headline, the lede or the tag.
   if (facts.death.certainty === "unknown") {
-    for (const [name, text] of pick(short)) {
-      for (const s of splitSentences(text)) {
-        for (const f of ALL_FAMILIES) {
-          if (isCauseSentence(s, f, ex)) out.push(`rule 2 (${name}): ${s}`);
-        }
+    const lists: [InferredFamily | null, RegExp][] = [...MECHANISMS];
+    if (hints.family) lists.push([hints.family, FAMILY_WORDS[hints.family]]);
+    for (const [name, text] of pick(["headline", "lede", "tag"])) {
+      for (const { s, c } of clausesOf(text)) {
+        const hit = lists.some(([f, re]) => claims(c, re) && !(name === "lede" && f && isExemptClause(c, f, facts)));
+        if (hit) out.push(`rule 2 (${name}): ${s}`);
       }
     }
   }
@@ -204,39 +288,67 @@ export function findCauseViolations(
     }
   }
 
-  // 4. An inferred cause: never in the headline, the pull quote or a tag; hedged in the lede and body.
+  // 4. An inferred cause: never in the headline, the pull quote or the tag; hedged in the lede and
+  //    the body, clause by clause.
   const family = facts.death.certainty === "inferred" ? familyOfKey(facts.death.key) : null;
   if (family) {
-    for (const [name, text] of pick(outside)) {
-      for (const s of splitSentences(text)) {
-        if (isCauseSentence(s, family, ex)) out.push(`rule 4 (${name}): ${s}`);
+    const re = FAMILY_WORDS[family];
+    for (const [name, text] of pick(["headline", "pull quote", "attribution", "tag"])) {
+      for (const { s, c } of clausesOf(text)) {
+        if (claims(c, re)) out.push(`rule 4 (${name}): ${s}`);
       }
     }
-    for (const [name, text] of pick(["lede", "body"])) {
+    for (const [name, text] of pick(HEDGEABLE)) {
       for (const s of splitSentences(text)) {
-        if (!isCauseSentence(s, family, ex)) continue;
-        if (!HEDGE_MARKERS.test(s)) out.push(`rule 4 (${name}, no hedge): ${s}`);
+        const stating = splitClauses(s).filter((c) => claims(c, re) && !isExemptClause(c, family, facts));
+        if (stating.length === 0) continue;
+        if (stating.some((c) => !HEDGE_MARKERS.test(c))) out.push(`rule 4 (${name}, no hedge): ${s}`);
         else if (CERTAINTY_MARKERS.test(s)) out.push(`rule 4 (${name}, certainty marker): ${s}`);
       }
     }
   }
 
-  // 5. The credited name stays out of everything the crier posts and every tag.
-  const name = facts.creditedGamertag?.trim().toLowerCase();
-  if (name) {
+  // 5. The credited name stays out of everything the crier posts and the tag; the body may say
+  //    the name is credited, never that the name killed them.
+  const credited = facts.creditedGamertag?.trim();
+  if (credited) {
+    const re = nameRe(credited);
+    const own = facts.gamertag.trim();
+    const strip = (t: string) => (own && own.toLowerCase() !== credited.toLowerCase() ? t.replace(nameRe(own, "gi"), " ") : t);
     for (const [field, text] of pick(["headline", "lede", "pull quote", "attribution", "tag"])) {
-      if (text.toLowerCase().includes(name)) out.push(`rule 5 (${field}): the credited name`);
+      if (re.test(strip(text))) out.push(`rule 5 (${field}): the credited name`);
+    }
+    for (const s of splitSentences(obituary.body)) {
+      if (re.test(strip(s)) && CREDITED_KILLED.test(s) && !/\bcredit\w*/i.test(s)) out.push(`rule 5 (body): the credited name as the killer`);
     }
   }
 
   // 6. A kill count that holds a trap kill stays out of the headline and the lede.
   if (facts.trapKills > 0 || facts.priors.trapKills > 0) {
+    const names = [facts.gamertag, facts.killerGamertag, facts.creditedGamertag].filter((g): g is string => !!g);
     for (const [field, text] of pick(["headline", "lede"])) {
       for (const s of splitSentences(text)) {
-        if (holdsKillCount(s)) out.push(`rule 6 (${field}): ${s}`);
+        if (holdsKillCount(s, names)) out.push(`rule 6 (${field}): ${s}`);
       }
     }
   }
 
   return [...new Set(out)];
+}
+
+/** What CREDIT_DIRECTIVE forbids in the body: the credited name told as the killer. */
+const CREDITED_KILLED = /\b(?:killed|murdered|took\s+(?:him|her|them)|finished\s+(?:him|her|them)|shot|did\s+for|ended\s+(?:him|her|them))\b/i;
+
+/**
+ * The rule numbers alone ("1,4"), for `articles.last_error`. ⚠️ The full strings name the field
+ * that broke rule 1, which tells a reader of the table that the death was of the logout family,
+ * and quote draft sentences; they go to the operator log only.
+ */
+export function ruleNumbersOf(violations: readonly string[]): string {
+  const n = new Set<number>();
+  for (const v of violations) {
+    const m = /^rule (\d+)/.exec(v);
+    if (m) n.add(Number(m[1]));
+  }
+  return [...n].sort((a, b) => a - b).join(",");
 }
