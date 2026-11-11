@@ -35,9 +35,16 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `credit.ts` (`creditEvidence`: tests 1 to 5 of the trap-kill bar, pure). ⚠️ Each rule sets the
   attribution's `basis` itself: only `kill_line`, `kill_line_driver` and `kill_line_self` may
   ever put a name on a page; `placement` (a trap's placer) can become a trap kill and only
-  through the bar; every inferred person is `not_stated`. ⚠️ `creditEvidence` answering
-  `credited` means only that the log evidence holds — the two tests that need the database and
-  any operator override belong to whoever stores the verdict. ⚠️ Only the stated rules are
+  through the bar; every inferred person is `not_stated`. ⚠️ `creditEvidence` answers
+  `evidence_passes`, `refused` or `not_applicable` and never `credited`: `evidence_passes` means
+  only that the log evidence holds — the two tests that need the database and any operator
+  override belong to whoever stores the verdict, and only that writer may set `credited` or
+  `granted`. A placement counts only when it was written before the device went off (the
+  victim's trip line for a tripwire); every trip line of the victim in the last six seconds is
+  the death's own detonation, and two wires tripped in that time refuse (`ambiguous_trip`). Its
+  other flags (`fuse_not_4s`, `no_explosion_line`, `multi_blast`, `kill_lines_xN`,
+  `held_frag_before_blast`, `claymore_by_other_player`) mark shapes no real trap death has had;
+  they do not refuse, so whatever lists trap kills for the operator must show them. ⚠️ Only the stated rules are
   ported: a death that needs an inferred rule comes back as rule `B00`, "unknown", and
   `golden-attest.json`'s `gaps` counts them; nothing may store or show a verdict while it is
   not 0. `ContextInput.files[].boot` is the file's number in the server's boot order over ALL

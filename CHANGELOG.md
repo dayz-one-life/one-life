@@ -31,9 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anyone it only worked out, so that only a name the log itself gives can ever be printed. For a
   death by tripwire or land mine it also checks whether the log supports crediting the player who
   set the trap: exactly one placer at the spot, no other player's live trap close by, not the
-  victim's own, and not a trap that had already gone off. Deaths the log gives no cause for are
-  still left as unknown; they come in a later release. Nothing on the site reads any of this yet,
-  so no page, card, kill count or obituary changes. No `--rebuild` and no backfill is needed.
+  victim's own, and not a trap that had already gone off. A trap placed after the victim had
+  already tripped the wire does not count, and a victim who tripped two wires within seconds
+  credits nobody, because the log cannot say which one killed. That check is evidence only: it
+  never says a kill is credited, which is decided later with facts the log does not hold. Deaths
+  the log gives no cause for are still left as unknown; they come in a later release. Nothing on
+  the site reads any of this yet, so no page, card, kill count or obituary changes. No `--rebuild`
+  and no backfill is needed.
 
 ### Changed
 
