@@ -5,6 +5,7 @@ import { getTestDb } from "@onelife/test-support";
 import { CLASSIFIER_VERSION } from "@onelife/death-verdict";
 import {
   getPublicDeath, getPublicDeathsForLives, getPublicDeathsForArticles, getTrapCreditForVictimLife, articleKey,
+  getWriterDeath, getDeathCheckHints,
 } from "../src/death-verdicts.js";
 import { seedVerdict } from "./support/verdicts.js";
 
@@ -171,5 +172,78 @@ describe("batch and articles", () => {
     const gone = { serverId: sid, gamertag: `Victim One ${svc}`, lifeStartedAt: at(99_999) };
     const m = await getPublicDeathsForArticles(db, [pending, gone]);
     expect(m.size).toBe(0);
+  });
+});
+
+// The obituary writer's read (death-verdict plan step 8). Used by newsdesk only; no API route.
+describe("getWriterDeath", () => {
+  it("null with no row, with a row held for review, and for an open life", async () => {
+    const none = await life(50, { deathCause: "died" });
+    expect(await getWriterDeath(db, none)).toBeNull();
+    const held = await life(51, { deathCause: "died" });
+    await seedVerdict(db, { lifeId: held.id, cause: "fall", confidence: "definitive", needsReview: true });
+    expect(await getWriterDeath(db, held)).toBeNull();
+    const open = await life(52, { endedAt: null });
+    expect(await getWriterDeath(db, open)).toBeNull();
+  });
+
+  it("gives the frozen death, the writer's brief and the row's classifier version", async () => {
+    const l = await life(53, { deathCause: "died" });
+    await seedVerdict(db, { lifeId: l.id, cause: "starvation", confidence: "inferred", classifierVersion: CLASSIFIER_VERSION });
+    const w = (await getWriterDeath(db, l))!;
+    expect(w.verdictVersion).toBe(CLASSIFIER_VERSION);
+    expect(w.death).toMatchObject({ status: "final", key: "starvation", certainty: "inferred", label: "Likely starvation" });
+    expect(w.brief.line).toBe("most likely starved");
+    expect(w.credit).toBeNull();
+  });
+
+  it("a credited trap death: the brief names the placer, the frozen death does not", async () => {
+    const l = await life(54, { deathCause: "explosion" });
+    await seedVerdict(db, { lifeId: l.id, cause: "explosive_trap", confidence: "definitive", objectKey: "m67_grenade", attrBasis: "placement" });
+    await db.insert(kills).values({
+      serverId: sid, killerGamertag: "Name When Written", killerPlayerId: placerId, victimGamertag: `Victim One ${svc}`,
+      victimPlayerId: vid, victimLifeId: l.id, weapon: "Tripwire", occurredAt: l.endedAt!, basis: "trap_placement", creditSource: "classifier",
+    });
+    const w = (await getWriterDeath(db, l))!;
+    expect(w.credit).toEqual({ gamertag: `Placer Person ${svc}`, device: "tripwire", byOperator: false });
+    expect(w.brief.creditLine).toContain(`Placer Person ${svc}`);
+    expect(JSON.stringify(w.death)).not.toContain("Placer Person");
+    expect(w.death.credit).toBeNull();
+    expect(w.death.sentence).toBe("Killed by a tripwire rigged with an M67 frag grenade.");
+  });
+
+  it("a named driver is in neither the frozen death nor the brief", async () => {
+    const l = await life(55, { deathCause: "pvp", deathByGamertag: "Driver Seven", deathWeapon: "Sedan" });
+    await seedVerdict(db, { lifeId: l.id, cause: "vehicle_run_over", confidence: "definitive", attrBasis: "kill_line_driver" });
+    const w = (await getWriterDeath(db, l))!;
+    expect(w.death.key).toBe("hit_by_vehicle_driver");
+    expect(JSON.stringify(w)).not.toContain("Driver Seven");
+  });
+
+  it("a kill-line killer stays in the frozen label", async () => {
+    const l = await life(56, { deathCause: "pvp", deathByGamertag: "Killer Eight", deathWeapon: "M4", deathDistance: 50 });
+    await seedVerdict(db, { lifeId: l.id, cause: "pvp", confidence: "definitive", attrBasis: "kill_line" });
+    const w = (await getWriterDeath(db, l))!;
+    expect(w.death.killerGamertag).toBe("Killer Eight");
+    expect(w.brief.line).toContain("Killer Eight");
+  });
+});
+
+describe("getDeathCheckHints", () => {
+  it("logoutFamily for the knock-out and logout causes, and only those", async () => {
+    const a = await life(60, { deathCause: "died" });
+    await seedVerdict(db, { lifeId: a.id, cause: "unconscious_logout", confidence: "definitive", upstreamCause: "infected", upstreamConfidence: "definitive" });
+    const b = await life(61, { deathCause: "died" });
+    await seedVerdict(db, { lifeId: b.id, cause: "respawn_while_unconscious", confidence: "definitive", upstreamCause: "fall", upstreamConfidence: "inferred" });
+    const c = await life(62, { deathCause: "infected" });
+    await seedVerdict(db, { lifeId: c.id, cause: "infected", confidence: "definitive" });
+    const d = await life(63, { deathCause: "died" });
+    const e = await life(64, { deathCause: "died" });
+    await seedVerdict(db, { lifeId: e.id, cause: "restrained_logout", confidence: "definitive" });
+    expect(await getDeathCheckHints(db, e.id)).toEqual({ logoutFamily: true });
+    expect(await getDeathCheckHints(db, a.id)).toEqual({ logoutFamily: true });
+    expect(await getDeathCheckHints(db, b.id)).toEqual({ logoutFamily: true });
+    expect(await getDeathCheckHints(db, c.id)).toEqual({ logoutFamily: false });
+    expect(await getDeathCheckHints(db, d.id)).toEqual({ logoutFamily: false });
   });
 });

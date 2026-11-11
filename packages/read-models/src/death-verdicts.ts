@@ -2,9 +2,9 @@ import type { Database } from "@onelife/db";
 import { deathVerdicts, kills, lives, players } from "@onelife/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  pendingPublicDeath, toPublicDeath,
-  type AttributionBasis, type Condition, type Confidence, type InternalCause, type ObjectKey, type PublicDeath,
-  type StoredVerdict, type TrapCredit, type TrapDevice,
+  LOGOUT_CAUSES, pendingPublicDeath, toPublicDeath, writerBrief,
+  type AttributionBasis, type Condition, type Confidence, type InternalCause, type LifeDeathFacts, type ObjectKey,
+  type PublicDeath, type StoredVerdict, type TrapCredit, type TrapDevice, type WriterBrief,
 } from "@onelife/death-verdict";
 
 /**
@@ -183,4 +183,69 @@ export async function getPublicDeathsForArticles(db: Database, keys: ArticleLife
     out.set(articleKey(k), toPublicDeath(storedOf(row), life, credits.get(id) ?? null));
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The obituary writer's read (death-verdict plan step 8). newsdesk only; no API route uses these.
+// ---------------------------------------------------------------------------------------------
+
+/** What the obituary desk needs about one death. */
+export interface WriterDeath {
+  /**
+   * The public death as an article freezes it into `facts.death` (spec 3.6). ⚠️ Built WITHOUT the
+   * trap credit and without a named driver: the frozen strings are stored and served as a fallback
+   * for as long as the article exists, and a credit can be denied afterwards (spec 6.4), while a
+   * driver is never given to the writer at all (spec 6.1). A kill-line killer stays.
+   */
+  death: PublicDeath;
+  /** The cause line, the credit line and the directives (`writerBrief`), credit included. */
+  brief: WriterBrief;
+  /** The trap kill credited for this death, read live from its `kills` row; null for none. Its
+   *  name goes to the prompt and the checks, never into the stored facts. */
+  credit: TrapCredit | null;
+  /** The classifier version of the row the article is written from (`articles.verdict_version`). */
+  verdictVersion: number;
+}
+
+/** The pure half of `getWriterDeath`, for tests and for any caller that already holds the row. */
+export function writerDeathOf(v: StoredVerdict, life: LifeDeathFacts, credit: TrapCredit | null, verdictVersion: number): WriterDeath {
+  const live = toPublicDeath(v, life, null);
+  // A driver is printed on the life page; it is not obituary material and is never stored here.
+  const frozen = live.driverGamertag ? toPublicDeath(v, { ...life, deathByGamertag: null }, null) : live;
+  return { death: frozen, brief: writerBrief(v, life, credit), credit, verdictVersion };
+}
+
+/**
+ * The death an obituary is written from: only a FINAL row (any version, not `needs_review`) of a
+ * life that ended in a death; null otherwise. There is no pending brief: no obituary is written
+ * until the row exists (spec 6.1). `findObituaryTargets` already gates on a row at the current
+ * version, so in the tick `verdictVersion` is the current one.
+ */
+export async function getWriterDeath(db: Database, life: PublicDeathLife): Promise<WriterDeath | null> {
+  if (!isDeath(life)) return null;
+  const row = await db
+    .select({ ...VERDICT_COLS, classifierVersion: deathVerdicts.classifierVersion })
+    .from(deathVerdicts)
+    .where(eq(deathVerdicts.lifeId, life.id));
+  const r = row[0];
+  if (!r || r.needsReview) return null;
+  const credit = await getTrapCreditForVictimLife(db, life.id);
+  return writerDeathOf(storedOf({ ...r, lifeId: Number(r.lifeId) }), life, credit, r.classifierVersion);
+}
+
+/** The knock-out and logout causes, and the restrained logout: the deaths whose stored marker must
+ *  never be hinted at in prose. */
+const LOGOUT_FAMILY: ReadonlySet<string> = new Set<string>([...LOGOUT_CAUSES, "restrained_logout"]);
+
+/**
+ * What the obituary check needs and the writer must never see (spec 6.1): whether this death is of
+ * the logout family, so the check bans logout words from the whole article, not just the headline.
+ *
+ * ⚠️ INTERNAL. It reads the stored cause token, which is never public. The answer is one boolean,
+ * passed to `findCauseViolations` as an argument; it is never put in `ObituaryFacts`, the prompt,
+ * `articles.facts` or any response. No API route calls this.
+ */
+export async function getDeathCheckHints(db: Database, lifeId: number): Promise<{ logoutFamily: boolean }> {
+  const [r] = await db.select({ cause: deathVerdicts.cause }).from(deathVerdicts).where(eq(deathVerdicts.lifeId, lifeId));
+  return { logoutFamily: r != null && LOGOUT_FAMILY.has(r.cause) };
 }

@@ -6,7 +6,12 @@ import { getPublicDeathsForLives } from "./death-verdicts.js";
 export interface PlayerPriors {
   livesLived: number;              // count of PRIOR lives (startedAt < beforeLifeStartedAt); excludes current
   longestLifeSeconds: number;      // best prior life; 0 if none
-  totalKills: number;              // confirmed kills across all prior lives
+  totalKills: number;              // every kill before this life, trap kills included (death-verdict spec 2.4)
+  /** How many of `totalKills` are credited from a trap the player set (`kills.basis =
+   *  'trap_placement'`). The writer is told to count them as kills and never to tell one as a
+   *  shooting; the obituary check keeps any count out of the headline and lede when this is above
+   *  zero (spec 6.1). */
+  trapKills: number;
   /** Most common cause FAMILY across prior deaths, as the lower-case noun of the public tag
    *  ("pvp", "hunger and thirst", "wildlife"); null if none. Definitive and strong verdicts only. */
   usualDeathCause: string | null;
@@ -16,7 +21,7 @@ export interface PlayerPriors {
 }
 
 const EMPTY: PlayerPriors = {
-  livesLived: 0, longestLifeSeconds: 0, totalKills: 0,
+  livesLived: 0, longestLifeSeconds: 0, totalKills: 0, trapKills: 0,
   usualDeathCause: null, lastDeathCause: null, bestLifeMap: null,
 };
 
@@ -90,17 +95,23 @@ export async function getPlayerPriors(
   ended.sort((a, b) => b.endedAt!.getTime() - a.endedAt!.getTime());
   const lastDeathCause = ended[0] ? familyOf(Number(ended[0].id)) : null;
 
-  // confirmed kills across all prior lives = kills scored before the current life began (any server)
+  // kills across all prior lives = kills scored before the current life began (any server). A
+  // trap kill is a kill (revision 3): it is in the total, and counted again on its own.
   const kc = await db
-    .select({ c: sql<number>`count(*)::int` })
+    .select({
+      c: sql<number>`count(*)::int`,
+      t: sql<number>`count(*) FILTER (WHERE ${kills.basis} = 'trap_placement')::int`,
+    })
     .from(kills)
     .where(and(eq(kills.killerPlayerId, p.id), lt(kills.occurredAt, beforeLifeStartedAt)));
   const totalKills = kc[0]?.c ?? 0;
+  const trapKills = kc[0]?.t ?? 0;
 
   return {
     livesLived: priorLives.length,
     longestLifeSeconds,
     totalKills,
+    trapKills,
     usualDeathCause,
     lastDeathCause,
     bestLifeMap,
