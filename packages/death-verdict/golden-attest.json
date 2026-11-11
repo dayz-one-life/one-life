@@ -1,0 +1,14 @@
+{
+  "sourceHash": "1dc8c0352d881afda97ae62789dda303e43f1c8480e96bf28018c66ed04477b4",
+  "corpusSha": "09effb6a3bb289515efe8e0539ddcece7322e9b7b1f618e4c4615a75a41c97ff",
+  "classifierVersion": 0,
+  "rows": 280,
+  "passed": 0,
+  "gaps": 280,
+  "totals": {
+    "definitive": 0,
+    "strong": 0,
+    "inferred": 0,
+    "killLine": 0
+  }
+}

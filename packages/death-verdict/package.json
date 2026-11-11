@@ -3,11 +3,18 @@
   "version": "0.0.0",
   "type": "module",
   "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "golden": "DEATH_GOLDEN_REQUIRED=1 vitest run --dir test/golden-private"
+    "golden": "DEATH_GOLDEN_REQUIRED=1 vitest run --dir test/golden-private && tsx scripts/write-attest.ts"
   },
-  "devDependencies": { "typescript": "^5.6.0", "vitest": "^2.1.0" }
+  "devDependencies": {
+    "@onelife/adm-parser": "workspace:*",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
 }
