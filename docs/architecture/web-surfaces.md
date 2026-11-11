@@ -93,6 +93,27 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   computed on the server (`PublicDeath`, `@onelife/death-verdict`; `apps/web` cannot import it).
   `verdictPhrase` returns `verdict.label` first; its token branches are the legacy path for a payload
   with only `cause`/`confidence`/`conditions` and stay until the mobile minimum-version gate moves.
+  (Plan step 10 checked: the floor, `IOS_MIN_APP_VERSION`/`ANDROID_MIN_APP_VERSION` behind
+  `GET /api/app-version`, is unset, so `VERDICT_NOUN`, `ENTITY_VERDICTS`, the token branches and the
+  legacy `DeathVerdictDto` fields all stay.) The design note is
+  `docs/superpowers/specs/2026-11-10-death-verdicts-design.md`.
+  - **Final, pending, and what each prints.** A death is `status: "final"` once the sweep has stored
+    a usable verdict (about six minutes after the death is folded), and `"pending"` before that, or
+    while the stored row needs review. **⚠️ Pending is never "Unknown".** It prints only what the
+    death line states: a specific coarse word (`pvp` with the killer's name, `suicide`, `infected`,
+    `explosion`, `vehicle`, `fall`, an animal, `drowned`, `bled_out`) prints that family's words with
+    no detail, and anything else reads **"Awaiting the record"**. No pending death has a tag or a
+    caption, and no obituary is written from one. "Not recorded" ("The log does not say.") is a
+    final answer, not a loading state; so is "No cause given" (a death whose mechanism the site
+    chooses not to print). Loading, failed, pending and final are four renders.
+  - **Captions.** The caption is a function of the shown certainty: none at definitive; **"Worked
+    out from the log"** at strong; **"Best reading of the log. The server recorded no cause."** at
+    inferred, whose label and sentence always start "Likely". A trap credit replaces the caption
+    ("The log names no killer. NAME placed the only tripwire it records at this spot.", or
+    "… Credited by the server operator."). The caption is printed on the life page's death row and
+    under the Rap Sheet; cards, the Morgue, the ban card and OG images print the bare label (strong
+    included) by design. Switching an inferred family off (`PUBLIC_INFERRED`) turns its label,
+    sentence, caption and tag into "Not recorded" / "Unknown" at once, live and frozen alike.
   - **The timeline's death row** prints "Killed by <link>" only when `killerGamertag` is set (the
     kill line names the killer, final or pending); otherwise the `sentence`, then `detail` and the
     vitals, then the `caption` ("Worked out from the log", the inferred hedge, or a trap credit's
@@ -110,9 +131,21 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     final, else frozen) and fall back to `verdictPhrase(verdict, cause)`. The Rap Sheet prints the
     death's caption under the sheet. Tag chips come from the read-model's REWRITTEN `tags`, not from
     `death.tag`: for a v3 article over an inferred verdict the chip must stay "Unknown" (spec 6.2).
-  - **OG caching.** The life OG card is `max-age=60` while its death is pending; the obituary OG card
-    is `max-age=86400` with a final or frozen cause and `max-age=60` without one (and on the failure
-    path) — the Cause cell is live, so it is no longer cached for a year.
+  - **Live, then frozen, article metadata.** An article's prose is fixed when it is written, but
+    its cause metadata is read live: `withArticleDeaths` serves the stored verdict while it is
+    final; while it is pending or missing (a rebuild, a version bump in flight, a held life) it
+    serves the strings the article froze at write time (`facts.death`, v4 on, `status: "frozen"`),
+    re-checked field by field (`frozenDeathOf`: a trap death keeps no name, an inferred one is
+    dropped when its family is switched off); and with neither it falls back to the article's
+    legacy `cause` / `facts.verdict`, which keep the pre-stage-4 vocabulary permanently. A trap
+    credit comes only from the live read. The obituary page revalidates every 300 s, which is also
+    how long a corrected cause takes to show. When `regenerate` has rewritten an article after its
+    cause was corrected, the byline carries "This obituary was rewritten on DATE after the cause of
+    death was corrected." (`correctedAt`); a `retracted` article is skipped by every reader.
+  - **OG caching.** The life OG card is `public, max-age=86400` once its death is final and
+    `public, max-age=60, must-revalidate` otherwise (pending, no verdict, an open life, the failure
+    path); the obituary OG card is `max-age=86400` with a final or frozen cause and `max-age=60`
+    without one — the Cause cell is live, so neither is cached for a year any more.
   - The About page's five-minute grace rule names the trap case (residual question Q9).
 
 ## Tabloid redesign (R1–R4), sitemap, cross-linking
