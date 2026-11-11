@@ -2,6 +2,9 @@ import { dist2d, parseEvidenceLine, type HitCategory, type HitInfo, type Pos } f
 import type { LineRef } from "../types.js";
 import { buildRecord, type DeathCluster, type DeathFeatures, type DeathRecord, type DeathRole } from "./cluster.js";
 import { indexOf, pyRound, pySum, refKey, type ServerIndex, type StampedLine } from "./server.js";
+import { CREATURE, NET_DRAIN, ZONE_F } from "../classify/tables.js";
+
+export { NET_DRAIN, ZONE_F };
 
 /**
  * The death context: one death and the timeline of the life it ended, as the rules read it.
@@ -24,7 +27,15 @@ export interface ContextInput {
    * UTC second. ⚠️ The time is stored, not recomputed: it can only be worked out from a whole
    * file (see log-clock.ts), and these are a selection.
    */
-  files: { admFileId: number; name: string; lines: [lineIndex: number, ts: number, text: string][] }[];
+  files: {
+    admFileId: number; name: string; lines: [lineIndex: number, ts: number, text: string][];
+    /**
+     * The file's number in the order the server booted, counted over ALL the server's files, not
+     * only the selected ones. Null or absent when the caller does not know it. Two of them give
+     * how many times the server restarted between a trap being set and going off.
+     */
+    boot?: number | null;
+  }[];
   /** Which of those lines were kept because they place a device near the death or near a hit. */
   placements: LineRef[];
   /** Up to 60 earlier deaths of the same player on the server, oldest first. */
@@ -47,15 +58,6 @@ export function ownLinesOf(S: ServerIndex, pid: string, detached: Iterable<numbe
   const skip = new Set(detached ?? []);
   return skip.size === 0 ? own : own.filter((o) => !skip.has(o.admFileId));
 }
-
-const CREATURE: readonly HitCategory[] = ["infected", "animal"];
-/** Health removed per point of PRINTED damage, by body zone. Measured, not from the engine. */
-export const ZONE_F: Readonly<Record<string, number>> = {
-  Torso: 1.0, Head: 2.0, Brain: 2.0, LeftArm: 0.10, RightArm: 0.10, LeftHand: 0.10, RightHand: 0.10,
-  LeftLeg: 0.25, RightLeg: 0.25, LeftFoot: 0.15, RightFoot: 0.15,
-};
-/** Observed health drain per second, net of regeneration, by how many stats are low. */
-export const NET_DRAIN: readonly number[] = [0.0, 0.025, 0.075];
 
 /** One hit line on the victim. */
 export class Hit {
@@ -168,8 +170,11 @@ export class DeathContext {
   readonly fresh: boolean;
   /** How many of Water and Energy are at or below 300. */
   readonly nLow: number;
+  private readonly boots: ReadonlyMap<number, number>;
 
-  constructor(lines: readonly StampedLine[], input: Pick<ContextInput, "serverId" | "map" | "cluster" | "prevDeaths" | "detached">) {
+  constructor(lines: readonly StampedLine[], input: Pick<ContextInput, "serverId" | "map" | "cluster" | "prevDeaths" | "detached">,
+    boots: ReadonlyMap<number, number> = new Map()) {
+    this.boots = boots;
     const S = indexOf(lines);
     const primary = S.line(input.cluster.primary);
     if (!primary?.subject) throw new Error(`DeathContext: the primary line ${refKey(input.cluster.primary)} is not among the lines`);
@@ -225,6 +230,11 @@ export class DeathContext {
     this.firstAliveTs = fa0 ? fa0.ts : null;
     this.fresh = this.lifeStart != null;
     this.nLow = [this.stats.water, this.stats.energy].filter((v) => v != null && v <= 300).length;
+  }
+
+  /** A file's number in the order the server booted (see `ContextInput.files`); null when unknown. */
+  bootOf(admFileId: number): number | null {
+    return this.boots.get(admFileId) ?? null;
   }
 
   /** Seconds between two instants of this life with the logged-out time removed. */
@@ -508,5 +518,7 @@ export function linesOfInput(input: Pick<ContextInput, "files">): StampedLine[] 
 
 /** The context of one death, from the lines selected for it. */
 export function buildDeathContext(input: ContextInput): DeathContext {
-  return new DeathContext(linesOfInput(input), input);
+  const boots = new Map<number, number>();
+  for (const f of input.files) if (f.boot != null) boots.set(f.admFileId, f.boot);
+  return new DeathContext(linesOfInput(input), input, boots);
 }

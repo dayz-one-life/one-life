@@ -9,15 +9,15 @@ import { contextDigest, corpusOf, cwFixtures, differences, goldenReady, layout, 
  * fixture), and from the whole server log with nothing left out. The verdicts must be deep-equal,
  * evidence and contributors included. A difference means a rule read a line the selection drops.
  *
- * ⚠️ UNPROVEN until step 4. `classifyDeath` is a stub, so the verdicts are equal whatever the
- * selection drops. What stands in for them until the rules exist:
+ * The verdict comparison is real for every death a ported rule answers: the stated rules (a kill
+ * line, or a stated mechanism on a bare death line), their post-pass and the trap-kill evidence.
+ * ⚠️ For a death only an inferred rule would answer, `classifyDeath` still returns "unknown"
+ * whatever the selection drops. Until those rules are ported, what stands in for them is:
  * - the whole context digest (everything the context computes — all of it within five minutes and
  *   150 m of the death), and
  * - `selectionProbe`: the life-long lines the later rules will read — company along the whole
  *   life, mentions for twenty minutes, placements near every hit, the credit ring — found
  *   independently in the whole log with the design's numbers and required to be in the selection.
- * The probe proves the windows are as wide as the design says. Only ported rules can prove the
- * design's windows are wide ENOUGH; from step 4 the verdict comparison is the real test.
  *
  * ⚠️ What real data does NOT pin, measured by changing one constant at a time and rebuilding the
  * fixtures: the credit ring (no golden trap death has an earlier detonation at its spot) and the

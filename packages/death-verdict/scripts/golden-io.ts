@@ -26,7 +26,8 @@ export interface Expected {
   coCauses: string[];
   weaponOrObject: string | null;
   attributedTo: { role: string; id: string; confidence: string } | null;
-  contributorIds: string[];
+  /** Everyone else the reference names for the operator: who, as what, how surely. */
+  contributors: { id: string; role: string; confidence: string }[];
   flags: string[];
   deathLines: { ref: LineRef; role: string }[];
   utc: string;
@@ -45,7 +46,7 @@ interface ClassifiedRow {
   uid: string; project: Project; server_id: number; cause: string; confidence: string; rule: string;
   mechanism_stated: boolean; upstream_cause: string | null; upstream_confidence: string | null; co_causes: string[];
   weapon_or_object: string | null; attributed_to: { role: string; id: string; confidence: string } | null;
-  contributors: { id: string }[]; flags: string[]; death_lines: { ref: string; role: string }[]; utc: string;
+  contributors: { id: string; role: string; confidence: string }[]; flags: string[]; death_lines: { ref: string; role: string }[]; utc: string;
 }
 
 export const parseRef = (s: string): LineRef => {
@@ -71,7 +72,7 @@ export function readClassified(path: string, project: Project): { uid: string; s
         upstreamCause: r.upstream_cause, upstreamConfidence: r.upstream_confidence, coCauses: r.co_causes,
         weaponOrObject: r.weapon_or_object,
         attributedTo: r.attributed_to ? { role: r.attributed_to.role, id: r.attributed_to.id, confidence: r.attributed_to.confidence } : null,
-        contributorIds: r.contributors.map((c) => c.id), flags: r.flags,
+        contributors: r.contributors.map((c) => ({ id: c.id, role: c.role, confidence: c.confidence })), flags: r.flags,
         deathLines: r.death_lines.map((d) => ({ ref: parseRef(d.ref), role: d.role })), utc: r.utc,
       },
     });
@@ -156,6 +157,8 @@ export function goldenLayout(gold: string) {
     knownGaps: join(gold, "known-gaps.json"),
     parityExpected: join(gold, "parity.expected.json"),
     contextExpected: join(gold, "context.expected.json.gz"),
+    /** The evidence half of the trap-kill bar per trap death, reviewed (`tools/make-credits-expected.mts`). */
+    creditsExpected: join(gold, "credits.expected.json"),
     records: join(corpus, "deaths.jsonl.gz"),
     /** The uids the Clan Wars rule fixtures were built from, one per line. */
     cwUids: join(gold, "cw-rules.uids.txt"),
@@ -172,7 +175,7 @@ export function goldenLayout(gold: string) {
  * earned on. ⚠️ A suite that starts reading another private file must add it here.
  */
 export const GOLDEN_INPUTS: readonly string[] = [
-  "classified.jsonl", "known-gaps.json", "parity.expected.json", "context.expected.json.gz", "cw-rules.uids.txt",
+  "classified.jsonl", "known-gaps.json", "parity.expected.json", "context.expected.json.gz", "credits.expected.json", "cw-rules.uids.txt",
   "labels.snapshot.json", "labels.expected.json", "tokens.json",
   "corpus/ol_raw_lines.tsv", "corpus/ol_adm_files.csv", "corpus/ol_servers.csv", "corpus/ol_lives.csv", "corpus/ol_kills.csv",
   "corpus/cw_raw_lines.tsv", "corpus/cw_adm_files.csv",
@@ -182,9 +185,9 @@ export const GOLDEN_INPUTS: readonly string[] = [
 /** The private suites a golden run must have run, by file name. ⚠️ Adding or removing a suite
  *  changes this list, the pinned counts in `test/attest.test.ts`, and needs a fresh golden run. */
 export const GOLDEN_SUITES: readonly string[] = [
-  "cluster-golden.test.ts", "cluster-seed.test.ts", "context-golden.test.ts", "fixtures-golden.test.ts",
+  "cluster-golden.test.ts", "cluster-seed.test.ts", "context-golden.test.ts", "credits-golden.test.ts", "fixtures-golden.test.ts",
   "golden-labels.test.ts", "golden-parity.test.ts", "log-clock-golden.test.ts", "select-sufficiency.test.ts",
-  "tokens-golden.test.ts",
+  "stated-golden.test.ts", "tokens-golden.test.ts",
 ];
 
 export function readFixtures(dir: string): Fixture[] {

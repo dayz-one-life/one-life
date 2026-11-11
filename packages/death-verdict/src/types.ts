@@ -68,10 +68,18 @@ export interface InternalVerdict {
   };
 }
 
-/** The reading behind a trap kill. INTERNAL. The classifier fills the evidence tests; the writer
- *  of the verdict fills the outcome. */
+/**
+ * The reading behind a trap kill. INTERNAL. The classifier fills the evidence tests; the writer
+ * of the verdict fills the outcome.
+ *
+ * ⚠️ The classifier only ever returns `evidence_passes`, `refused` (by test 2 to 5) or
+ * `not_applicable`. `evidence_passes` is NOT a kill: tests 6 and 7 need the database, and an
+ * operator can deny. `credited` and `granted` mean "a `kills` row stands" and are set only by the
+ * writer of the verdict, after those tests. A stored row that still says `evidence_passes` beside
+ * a trap row in `kills` is a bug in the writer.
+ */
 export interface CreditEvidence {
-  outcome: "credited" | "refused" | "denied" | "granted" | "not_applicable";
+  outcome: "evidence_passes" | "credited" | "refused" | "denied" | "granted" | "not_applicable";
   refusedBy: 1 | 2 | 3 | 4 | 5 | 6 | 7 | null;
   placerDayzId: string | null;
   placement: LineRef | null;

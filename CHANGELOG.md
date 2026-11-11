@@ -24,6 +24,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the code as committed. It is signed with a key kept beside the private data, so it cannot be
   written by hand, and a test fails when the code, the checks themselves or the signature no
   longer match it. No `--rebuild` and no backfill is needed.
+- `@onelife/death-verdict` now works out the cause of every death the server log states outright:
+  a `killed by` line (a player, a driver, a grenade, a tripwire, a land mine, a fuel pump, a fire,
+  an infected, an animal, a vehicle), a suicide, a drowning, a fall, a logout or respawn while
+  knocked out or tied up, and a bleed-out. It records who a kill line names, and marks apart
+  anyone it only worked out, so that only a name the log itself gives can ever be printed. For a
+  death by tripwire or land mine it also checks whether the log supports crediting the player who
+  set the trap: exactly one placer at the spot, no other player's live trap close by, not the
+  victim's own, and not a trap that had already gone off. A trap placed after the victim had
+  already tripped the wire does not count, and a victim who tripped two wires within seconds
+  credits nobody, because the log cannot say which one killed. That check is evidence only: it
+  never says a kill is credited, which is decided later with facts the log does not hold. Deaths
+  the log gives no cause for are still left as unknown; they come in a later release. Nothing on
+  the site reads any of this yet, so no page, card, kill count or obituary changes. No `--rebuild`
+  and no backfill is needed.
 
 ## [0.81.0] - 2026-11-11
 

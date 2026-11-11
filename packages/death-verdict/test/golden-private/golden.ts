@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
-import { goldenLayout, loadCorpora, readFixtures, type Fixture, type Project } from "../../scripts/golden-io.js";
+import { goldenLayout, loadCorpora, readFixtures, type Expected, type Fixture, type Project } from "../../scripts/golden-io.js";
 import {
-  dist2d, isDetonation, lowerBound, refKey, trapAnchors, upperBound,
-  type DeathContext, type Hit, type ServerCorpus, type StampedLine,
+  dist2d, isDetonation, lowerBound, objectKeyFromText, refKey, trapAnchors, upperBound,
+  type DeathContext, type Hit, type InternalVerdict, type ServerCorpus, type StampedLine,
 } from "../../src/index.js";
 import type { GoldenOutcome } from "../../scripts/golden-reporter.js";
 
@@ -200,4 +200,57 @@ export function differences(a: unknown, b: unknown, path = ""): string[] {
   const ka = Object.keys(a as object), kb = Object.keys(b as object);
   const keys = [...new Set([...ka, ...kb])];
   return keys.flatMap((key) => differences((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key], `${path ? `${path}.` : ""}${/^[0-9A-F]{40}$/.test(key) ? "*" : key}`));
+}
+
+/** Equal as multisets: the same values the same number of times, in any order. */
+const sameBag = (a: readonly string[], b: readonly string[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+
+/**
+ * The basis an attribution must carry, from the rule and the role alone. ⚠️ `basis` is the gate
+ * for printing a name, and the reference has no such field to compare with: this fixed map is the
+ * design's (only a kill line names a killer, a driver or the victim; only the trap owner of a
+ * tripwire or a mine is a placement; everyone else is `not_stated`).
+ */
+export function basisOf(rule: string, role: string): string {
+  if (role === "killer" || role === "grenade_holder") return "kill_line";
+  if (role === "driver") return "kill_line_driver";
+  if (role === "self") return "kill_line_self";
+  if (role === "trap_owner" && (rule === "A06" || rule === "A07" || rule === "A09")) return "placement";
+  return "not_stated";
+}
+
+/** The reference's rules that answer from a stated line: a kill line (A), or a stated mechanism on
+ *  a bare death line (B01 to B08). Everything else it decides by inference. */
+export const isStatedRule = (rule: string): boolean => /^(A|B0[1-8])/.test(rule);
+
+/**
+ * The numbers of the parity checks a verdict fails against the reference's answer, 1 to 10 as the
+ * design numbers them. `uid` names the death (`OL-<server>-<file>-<line>`): check 9 requires the
+ * verdict to be keyed on that line.
+ *
+ * ⚠️ Three checks are stricter than the design's wording, on purpose. Check 5 and the flags of
+ * check 10 compare multisets, not sets (a value listed twice is a difference). Check 7 also
+ * requires the attribution's `basis` to be the one its rule and role allow (`basisOf`). Check 10
+ * compares each contributor's id, role AND confidence, not the ids alone: a contributor's
+ * confidence is the only place some rule conditions show.
+ */
+export function failedChecks(v: InternalVerdict, e: Expected, uid: string): number[] {
+  const bad: number[] = [];
+  if (v.cause !== e.cause) bad.push(1);
+  if (v.confidence !== e.confidence || v.mechanismStated !== e.mechanismStated) bad.push(2);
+  if (v.rule !== e.rule) bad.push(3);
+  if ((v.upstream?.cause ?? null) !== e.upstreamCause || (v.upstream?.confidence ?? null) !== e.upstreamConfidence) bad.push(4);
+  if (!sameBag(v.coCauses, e.coCauses)) bad.push(5);
+  const text = v.object?.text ?? null;
+  if (text !== e.weaponOrObject || (v.object?.key ?? null) !== (text == null ? null : objectKeyFromText(text))) bad.push(6);
+  const a = v.attribution, ea = e.attributedTo;
+  if ((a == null) !== (ea == null) || (a && ea && (a.role !== ea.role || a.dayzId !== ea.id || a.confidence !== ea.confidence || a.basis !== basisOf(e.rule, ea.role)))) bad.push(7);
+  if (v.deathAt !== e.utc) bad.push(8);
+  const lines = (xs: { admFileId: number; lineIndex: number; role: string }[]) => xs.map((l) => `${refKey(l)}=${l.role}`).join(" ");
+  const [project, server] = uid.split("-");
+  if (lines(v.deathLines) !== lines(e.deathLines.map((l) => ({ ...l.ref, role: l.role }))) || `${project}-${server}-${v.deathRef.admFileId}-${v.deathRef.lineIndex}` !== uid) bad.push(9);
+  const people = (xs: readonly { id: string; role: string; confidence: string }[]) => xs.map((c) => `${c.id}|${c.role}|${c.confidence}`);
+  if (!sameBag(v.evidence.flags, e.flags)
+    || !sameBag(people(v.evidence.contributors.map((c) => ({ id: c.dayzId, role: c.role, confidence: c.confidence }))), people(e.contributors))) bad.push(10);
+  return bad;
 }
