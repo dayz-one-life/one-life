@@ -36,8 +36,10 @@ pnpm + turbo monorepo, TS/ESM, Postgres + Drizzle. `packages/`: `db`, `domain`, 
 
 Architecture in one line: ADM logs → append-only `events` → a single-instance fold into
 projection tables → read-models → API → web. **Projections are rebuildable from the event log;
-durable tables are not.** Derived facts (life qualification, death verdicts) are computed at read
-time and never materialized.
+durable tables are not.** Life qualification is computed at read time and never materialized.
+Death verdicts are the one stored derivation: the projector's sweep writes `death_verdicts` from
+`raw_lines` (re-derivable, emptied by a rebuild's cascade and refilled), see
+[`docs/architecture/ingest-and-domain.md`](docs/architecture/ingest-and-domain.md), stage 4.
 
 ## Workflow
 

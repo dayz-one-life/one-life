@@ -38,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the log gives no cause for are still left as unknown; they come in a later release. Nothing on
   the site reads any of this yet, so no page, card, kill count or obituary changes. No `--rebuild`
   and no backfill is needed.
+- The projector now works out and stores how every dead player died, a few minutes after the
+  death, in a new table the operator can check with `verify-verdicts`. It reads the server log
+  itself, never the coarse word stored on the life. The operator can correct a death's cause, or
+  allow or refuse a trap kill, with a row in another new table that a rebuild keeps. A player
+  whose tripwire or land mine kills another player can be credited with the kill, but only when
+  `TRAP_KILLS_WRITE=true` is set, and it is off by default: with it off, nothing public changes
+  and any trap kill already written is removed. Deaths the log gives no cause for are stored as
+  unknown for now. Nothing on the site reads the stored causes yet, so no page, card or obituary
+  changes. The deploy runs a database migration; no `--rebuild` and no backfill is needed.
 
 ### Changed
 
@@ -57,6 +66,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   total but is not counted toward the life that had just ended.
 - `backfill-death-causes` never upgrades a stored death to a player kill. It patches the cause
   only, so it would have produced a player-kill death with no killer and no kill credited.
+- A player who is still alive and offline is counted as having scored a kill that is logged
+  after they last left, so the board, their profile and their lives list agree with the ban and
+  the "This life counts now" notice. How long they have been alive still stops when they left.
+- The ban notice says when the ban ends ("banned until 2026-07-17 00:00 UTC") instead of a fixed
+  "24 hours", because a ban recorded late has less than a day left.
+- One unban token now lifts every active ban a player has on a server. A ban recorded late, for a
+  death before a later one, no longer keeps them out after they have paid to come back, and when
+  one of two such bans ends the server keeps the player banned until the other ends too. No ban
+  is recorded for a life whose ban would already be over. None of this changes a ban on the
+  servers today.
 
 ### Fixed
 
