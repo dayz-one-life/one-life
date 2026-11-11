@@ -127,7 +127,9 @@ export async function getAliveSurvivors(
       deathCause: r.deathCause,
       effectivePlaytimeSeconds: timeAliveSeconds,
       startedAt: r.startedAt,
-      windowEnd: upTo,
+      // ⚠️ The kill window of an open life ends now, not at the last heartbeat: a trap kill is
+      // scored while its placer is offline (spec 2.4). Playtime keeps the heartbeat cap.
+      windowEnd: now,
       playerKills: myKills,
     });
     if (!qualified) continue;

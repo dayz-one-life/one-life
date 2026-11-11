@@ -1,5 +1,6 @@
-import { bans, gamertagLinks, servers } from "@onelife/db";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { type Database, bans, gamertagLinks, servers } from "@onelife/db";
+import { and, eq, gt, gte, inArray, isNull, ne, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Generator, NotificationDraft } from "../types.js";
 import { windowStart } from "../types.js";
 import { playerSlug } from "./account.js";
@@ -35,6 +36,19 @@ const verifiedOwner = and(
  */
 const realBan = eq(bans.dryRun, false);
 
+/**
+ * "banned until 2026-07-17 00:00 UTC", from the row's own expiry.
+ *
+ * ⚠️ Not a fixed "24 hours": a ban can be written late (a trap kill is scored minutes after the
+ * death it qualifies, an operator grant much later), and it still ends at the death time plus the
+ * ban length, so less of it is left. Spelled out in UTC: the notification has no viewer zone.
+ */
+export function bannedUntil(expiresAt: Date | null): string {
+  if (!expiresAt) return "banned";
+  const iso = expiresAt.toISOString();
+  return `banned until ${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+
 export const banAppliedGenerator: Generator = async (deps) => {
   const from = windowStart(deps);
   const rows = await deps.db
@@ -60,10 +74,28 @@ export const banAppliedGenerator: Generator = async (deps) => {
     kind: "ban_applied",
     naturalKey: `ban_applied:${r.id}`,
     title: "You died on a qualified life",
-    body: `${r.serverName}: banned for 24 hours. Spend an unban token to come back early.`,
+    body: `${r.serverName}: ${bannedUntil(r.expiresAt)}. Spend an unban token to come back early.`,
     href: `/players/${playerSlug(r.gamertag)}`,
   }));
 };
+
+/**
+ * ⚠️ Another real ban of the same player on the same server that is still `pending` or `applied`
+ * and runs past the moment this one ended. The server's ban list holds names, and the enforcer
+ * leaves a name on it while such a ban needs it (namesToRemove in apps/enforcer/src/pg-store.ts;
+ * this is the same rule): a late ban can expire while a later one keeps the player out, and
+ * "You're back in" would be false. Nothing is lost by staying quiet: the later ban's own row
+ * announces the return when it ends.
+ */
+const other = alias(bans, "other_ban");
+const stillBanning = (db: Database) => db.select({ one: sql`1` }).from(other).where(and(
+  ne(other.id, bans.id),
+  eq(other.serverId, bans.serverId),
+  eq(other.dryRun, false),
+  inArray(other.status, ["pending", "applied"]),
+  or(isNull(other.expiresAt), gt(other.expiresAt, bans.liftedAt)),
+  or(sql`lower(${other.gamertag}) = lower(${bans.gamertag})`, eq(other.dayzId, bans.dayzId)),
+));
 
 export const banLiftedGenerator: Generator = async (deps) => {
   const from = windowStart(deps);
@@ -90,7 +122,7 @@ export const banLiftedGenerator: Generator = async (deps) => {
     // of the functions and false of the code that can actually call them.) With `realBan`
     // excluding dry-run rows above, this is now moot for THIS query — but it is why the
     // enforcer's expiry sweep looks dead in the logs, which is worth not rediscovering.
-    .where(and(realBan, inArray(bans.status, ["expired", "lifted"]), gte(bans.liftedAt, from)));
+    .where(and(realBan, inArray(bans.status, ["expired", "lifted"]), gte(bans.liftedAt, from), notExists(stillBanning(deps.db))));
 
   return rows.map((r): NotificationDraft => ({
     userId: r.userId,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planBans, planExpiries, banNames, namesToRelease, type EndedLife } from "../src/decide.js";
+import { planBans, planExpiries, banNames, type EndedLife } from "../src/decide.js";
 
 const base: EndedLife = {
   serverId: 1,
@@ -198,29 +198,5 @@ describe("planBans — a death whose ban would already be over", () => {
   it("uses the configured duration", () => {
     expect(planBans([life], 12, new Date("2026-07-12T00:00:00Z"))).toEqual([]);
     expect(planBans([life], 48, new Date("2026-07-12T12:00:00Z"))).toHaveLength(1);
-  });
-});
-
-describe("namesToRelease", () => {
-  const ban = (id: number, gamertag: string, dayzId: string | null, serverId = 1) => ({ id, serverId, gamertag, dayzId });
-  it("releases the id and the gamertag when no other ban holds them", () => {
-    const a = ban(1, "Ronald", "ABC123");
-    expect(namesToRelease(a, [a, ban(2, "Other", "ZZZ999")])).toEqual(["ABC123", "Ronald"]);
-  });
-  it("releases nothing while the same player has another ban still running on that server", () => {
-    const a = ban(1, "Ronald", "ABC123");
-    expect(namesToRelease(a, [a, ban(2, "Ronald", "ABC123")])).toEqual([]);
-  });
-  it("after a rename, releases only the name the other ban does not hold", () => {
-    const a = ban(1, "OldName", "ABC123");
-    expect(namesToRelease(a, [a, ban(2, "NewName", "ABC123")])).toEqual(["OldName"]);
-  });
-  it("a ban on another server holds nothing here", () => {
-    const a = ban(1, "Ronald", "ABC123");
-    expect(namesToRelease(a, [a, ban(2, "Ronald", "ABC123", 2)])).toEqual(["ABC123", "Ronald"]);
-  });
-  it("a ban never holds its own names", () => {
-    const a = ban(1, "Ronald", null);
-    expect(namesToRelease(a, [a])).toEqual(["Ronald"]);
   });
 });

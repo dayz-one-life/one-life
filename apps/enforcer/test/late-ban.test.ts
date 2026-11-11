@@ -147,6 +147,44 @@ describe("enforcerTick — a ban expiring while the same player has another stil
   });
 });
 
+describe("enforcerTick — a ban with no expiry", () => {
+  it("keeps the player's names on the list when another ban of theirs ends", async () => {
+    // ⚠️ invented player. No code writes a null expiry; an operator's hand-inserted permanent ban does.
+    const first = new Date("2026-07-19T11:00:00Z");
+    await db.insert(bans).values([
+      { serverId, gamertag: "LB Perm", dayzId: "LBPM1", lifeStartedAt: new Date(first.getTime() - H), reason: "qualified_death", bannedAt: first, expiresAt: new Date(first.getTime() + 24 * H), status: "applied", dryRun: false, appliedAt: first },
+      { serverId, gamertag: "LB Perm", dayzId: "LBPM1", lifeStartedAt: new Date(first.getTime() - 2 * H), reason: "operator", bannedAt: first, expiresAt: null, status: "applied", dryRun: false, appliedAt: first },
+    ]);
+    const fake = fakeNitrado();
+    await tick(fake, NOW);
+    expect(mine(fake.calls)).toEqual([]);
+    const rows = (await myBans()).filter((b) => b.dayzId === "LBPM1");
+    expect(rows.map((b) => b.status)).toEqual(["expired", "applied"]);
+    await db.delete(bans).where(and(eq(bans.serverId, serverId), eq(bans.dayzId, "LBPM1")));
+  });
+});
+
+describe("enforcerTick — a player renamed after his ban was recorded", () => {
+  it("does not ban the same death again under the new name", async () => {
+    const [p] = await db.insert(players).values({ gamertag: "LB OldTag", dayzId: "LBRN4" }).returning();
+    playerIds.push(Number(p!.id));
+    const s0 = new Date("2026-07-20T10:00:00Z"), s1 = new Date("2026-07-20T11:00:00Z");
+    await db.insert(lives).values({ serverId, playerId: p!.id, lifeNumber: 1, startedAt: s0, endedAt: s1, deathCause: "pvp", playtimeSeconds: 3600 });
+    const first = fakeNitrado();
+    await tick(first, NOW);
+    expect(mine(first.calls)).toEqual(["add LBRN4,LB OldTag"]);
+
+    await db.update(players).set({ gamertag: "LB NewTag" }).where(eq(players.id, p!.id));
+    const second = fakeNitrado();
+    await tick(second, NOW);
+    expect(mine(second.calls)).toEqual([]);
+    expect((await myBans()).filter((b) => b.dayzId === "LBRN4")).toHaveLength(1);
+
+    await db.delete(bans).where(and(eq(bans.serverId, serverId), eq(bans.dayzId, "LBRN4")));
+    await db.delete(lives).where(eq(lives.serverId, serverId));
+  });
+});
+
 // A row that is still `pending` when its time runs out: Nitrado kept failing, or the enforcer
 // was switched from dry-run to enforcing with old rows on the books.
 describe("enforcerTick — a pending ban whose time is already up", () => {

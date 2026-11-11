@@ -53,9 +53,9 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   two seconds after the death. It is read-time only: stored timestamps are as logged, so there is
   no migration, no `--rebuild` and no backfill, and a rebuild cannot change the answer.
   "Previous life" is by `started_at`; when two lives share a start (connect, death and reconnect
-  in one logged second) the zero-length one is the predecessor of the other. An OPEN life's window
-  ends at the last heartbeat where a reader caps it (`isLifeQualified`'s `windowEnd`), and the two
-  seconds are added there too; that only brings a real kill forward by one heartbeat.
+  in one logged second) the zero-length one is the predecessor of the other. An OPEN life's kill
+  window ends NOW (`isLifeQualified`'s `windowEnd`), not at the last heartbeat: a trap kill is
+  scored while its placer is offline. Playtime keeps the heartbeat cap.
   `getPlayerPriors` counts a kill in a prior life's two seconds as a prior kill.
   **⚠️ A kill belongs to a PLAYER by `kills.killer_player_id`, never by `killer_gamertag`**
   (`packages/read-models/src/kill-owner.ts`: `isKillByPlayer`, `killsByPlayer`). The name on the
@@ -75,13 +75,17 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `getLifeKills` takes the life row's `playerId`, not a gamertag: a name lookup could pick the
   other holder of a shared name. Read-time only: no migration, no `--rebuild`, no backfill.
   **⚠️ Three enforcer rules follow from the Nitrado ban list holding NAMES, not bans** (removing
-  a name lifts every ban that put it there), all in `apps/enforcer/src/decide.ts` + `tick.ts`:
+  a name lifts every ban that put it there), in `apps/enforcer/src/decide.ts`, `tick.ts` and
+  `pg-store.ts`:
   (1) `planBans` plans nothing for a death whose ban is already over at `now`, so a death judged
   late (enforcer downtime, or a qualifying `kills` row that only appears in a later rebuild)
   gets no `bans` row, no Nitrado call and no notification; (2) a `pending` ban past its
-  `expires_at` is marked `expired` without being sent; (3) on expiry `namesToRelease` keeps any
-  name another still-`applied` ban on that server holds, so one ban ending never unbans a player
-  serving a later one. Token lifts (`lift_pending`) are not filtered this way.
+  `expires_at` is marked `expired` without being sent; (3) on expiry AND on a token lift,
+  `namesToRemove` (`pg-store.ts`, the one implementation) removes only the names no other real
+  (not dry-run), `pending` or `applied`, not-yet-due ban on that server shares, by dayz id or by
+  gamertag ignoring case, so one ban ending never unbans a player serving a later one, while a
+  name only the ending ban needs (an old gamertag, or the first player's id on a recycled
+  gamertag) still comes off. A redeem lifts every active ban of that player on that server.
   **⚠️ Bans are placed against `bans.dayz_id` (the stable DayZ account hash) AND the gamertag,
   via the batched `addBans`/`removeBans` — never the single-entry `addBan`/`removeBan`, which
   would be one whole-field read-modify-write of the Nitrado ban list per entry, with a
@@ -143,7 +147,9 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `classifyDeath` (`@onelife/domain`, pure, mechanism-first ladder + side-effect subtraction,
   thresholds 1/1/120s) turns mechanism + death vitals + a 120 s `hit_events` window into a verdict
   (`starvation|dehydration|bled_out|mauled|…`, `high|low` confidence, conditions). Computed lazily —
-  never materialized (no migration/rebuild; the `isLifeQualified` precedent) — by the new
+  never materialized (no migration/rebuild; the `isLifeQualified` precedent; **superseded by stage 4**,
+  which stores the death-verdict classifier's answer in `death_verdicts` — this stage-1 verdict is
+  still what pages read until the readers move, death-verdict plan step 7) — by the new
   `life-dossier` read-model (`dossierForLife`/`getLifeDossier`/`dossierVerdict`, plus ordeals:
   encounter-collapsed infected/fire/pvp hits, hpLow, builds). Surfaces: `getLifeTimeline` +
   `getPlayerPage` visible slice → API → web (`verdictPhrase`, shared `@/lib/cause-format`) on the
@@ -174,7 +180,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   `ENTITY_MECHANISMS` in `@onelife/domain` (duplicated deliberately — `apps/web` has no dependency
   on that package); **add a new mechanism token to both**, or the classifier will be right and the
   page will still say Unknown.
-  Retroactive — verdicts are lazy, never materialized.
+  Retroactive — these stage-1 verdicts are lazy, never materialized (stage 4's stored verdicts are
+  re-derived by the sweep instead: a `CLASSIFIER_VERSION` bump rewrites every row).
   **Deploy runbook (stage-2 release):** normal deploy → on the host run
   `apps/projector` `backfill-death-causes` (re-parses `raw_lines`, upgrade-only, prints the
   unmapped-entity survey — feed it back into the dict) → projection rebuild
@@ -278,6 +285,79 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   with no companion is counted in `unpaired`, reported loudly, and **left alone**.
   **Deploy runbook:** normal deploy → on the host run `backfill-death-causes` → projection rebuild.
   The 8 no-signal deaths stay "Unknown" and are not recoverable from the ADM.
+- **Death-cause fidelity, stage 4 — stored verdicts** (death-verdict plan step 5; release R2).
+  The `@onelife/death-verdict` classifier's answer for every ended life is stored in
+  **`death_verdicts`** (migration `0040`), one row per life, with `death_verdict_queue` (lives seen
+  but not yet written) and the durable **`death_verdict_overrides`**. Nothing reads them on a page
+  yet (step 7); the operator checks them with `verify-verdicts`.
+  - **The sweep** (`apps/projector/src/verdict-sweep.ts`) runs in the projector loop after a fold
+    tick (`loop.ts` `runLoopOnce`), in its own try/catch, and **⚠️ only when the fold has caught
+    up** (the tick took less than a full batch and the cursor is at the newest event): mid-rebuild
+    lives are half-enriched. A pass starts no new life after 10 s or 50 lives. Targets: ended lives
+    with no row at `CLASSIFIER_VERSION`, or whose override changed (`death_verdict_overrides.updated_at`
+    vs `death_verdicts.override_seen_at`, kept current by a trigger), oldest first. A failing life
+    gets a queue row with backoff (30 s doubling to 6 h); three failures log `verdict_sweep.held`.
+  - **Settled** is judged from ingest progress in the death's own file, never from stored times:
+    `file` (a line of that file is 300 s past the death on the log clock), `rotation` (a later file,
+    or the file is complete), `wall` (30 minutes since the sweep FIRST SAW the life —
+    `death_verdict_queue.first_seen_at`, not `ended_at`). A `wall` row is re-derived once later.
+  - **The loader** (`packages/read-models/src/death-context.ts`, `loadDeath`) seeds from the
+    life's `player.died` event (within 2 s of `ended_at`, by dayz id or a name the player carried)
+    and **`resolveCluster` resolves the real primary line**: a firearm suicide is folded from its
+    `committed suicide` line, its primary is the `died.` line. The row, the override key and the
+    golden join all use that resolved line (`death_file_id`, `death_line_index`). It loads whole
+    files from `raw_lines`: from the previous death's file (or, for a first life, the player's first
+    connect line, and never later than the file holding `started_at` − 2 h) through the file after
+    the death's, and on while a later file starts within the five minutes after it. Older
+    placements and detonations near the death come in as extra lines. **⚠️ `adm_files.log_date` is
+    the server's wall clock labelled as UTC** (seven or eight hours early on a Pacific host); the
+    loader allows 14 h of slack, and its private suite caught the first file of a life being
+    skipped without it. **⚠️ The log clock, never `raw_lines.occurred_at`**, times every line.
+  - **⚠️ The classifier never reads `payload.cause` or `lives.death_cause`.** The sweep reads
+    `death_cause` for two things only: the invariant (a `kill_line`/`kill_line_driver` attribution
+    exactly when `death_cause = 'pvp'`, else `needs_review = true` — such a row is pending, never
+    public) and the rule that no trap kill is written for a `pvp` life.
+  - **Overrides** are keyed on the resolved death line (stable across rebuilds), validated on read
+    against the classifier's vocabulary (an invalid row is ignored and listed by `verify-verdicts`);
+    non-null fields replace the classifier's and set `source = 'override'`. `credit = 'deny' | 'grant'`
+    drives the trap kill.
+  - **Trap kills** (spec 2.4): a credited trap or mine kill is a row in `kills` with
+    `basis = 'trap_placement'` (`credit_source` `classifier` or `override`), written by the sweep in
+    the SAME transaction as the verdict. **⚠️ Two writers: the fold never touches a trap row, the
+    sweep never touches a `kill_line` row** (check constraint `kills_basis_chk`). Tests 6 (the placer
+    has a `players` row) and 7 (the victim's life counts on its own: 300 s, or a kill-line kill of
+    theirs in the life — never another trap kill) live in the sweep's `resolveCredit`; a grant
+    replaces tests 2, 3 and 5 only. The stored `evidence.credit.outcome` is `credited`, `granted`,
+    `denied`, `refused` (with the test) or `not_applicable`, never the classifier's `evidence_passes`.
+    An override that lowers the confidence below strong, or moves the cause to the other trap
+    device, is refused by test 1. A valid `deny` left on another line of the death's cluster (the
+    primary line can move on a re-derivation) still keeps the trap kill out; its other fields are
+    not applied, and check 8 lists it. An override whose `server_id` is not its death file's server
+    is invalid. **`TRAP_KILLS_WRITE`** (projector env, default off) gates the row, and is part of
+    what makes a life a candidate: off, every `trap_placement` row is deleted at the start of each
+    pass (the rollback); on, a stored `credited`/`granted` credit whose life has no row in `kills`
+    is re-derived and written on the next pass. A refusal by test 6 is re-derived once the placer
+    has a `players` row; a refusal by test 7 is decided once (its inputs are complete when the fold
+    has caught up), and only a version bump or a rebuild revisits it.
+  - **Second look.** A wall-settled row stores a cheap `settleProbe` (the server's newest file id,
+    the death file's last line, whether it is complete). It is worked out again only once one of
+    those has moved, or after 24 h, never on every pass; a second look that throws gets a queue row
+    with backoff like any other failure.
+  - **Rebuild.** `death_verdicts` and the queue are NOT in `REBUILD_TRUNCATE_TABLES` (they are
+    created in the release that ships them — the v0.42.1 rule); `TRUNCATE lives ... CASCADE`
+    empties them and `kills` is truncated, so trap rows vanish until the sweep refills after the
+    fold catches up. Overrides survive.
+  - **Readers that moved with it:** the open-life kill window in `getPlayerProfile`,
+    `getPlayerLives`, the survivors board and alive-longest now ends at `now`, not the last
+    heartbeat (a trap fires while its placer is offline); playtime keeps the heartbeat cap. The
+    enforcer's `planBans` takes `now` and skips a ban that would already have ended; expire and lift
+    remove only the ban-list names no other running ban needs (`namesToRemove`: an old gamertag
+    after a rename comes off, a shared dayz id or gamertag stays); one unban token lifts every active ban of that player on that server;
+    `ban_applied` says "banned until …" from `expires_at`.
+  - `backfill-death-causes` is kept and is not needed for any of this.
+  - **Verify** (`pnpm --filter @onelife/projector run verify-verdicts`, read-only): checks 1 to 10
+    of spec 5.5 (`--golden`, `--csv`, `--rederive`, `--held`, `--credits`, `--expect-trap`). Its
+    output names players: read it on the host, never paste it anywhere public.
 ## Identity merge, content engine, obituaries
 
 - **Identity merge** ✅: `players.dayz_id` (the stable DayZ account hash) becomes the identity;
@@ -392,7 +472,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   signal is new plumbing: `packages/adm-parser`'s `parseUnconscious`, a `player.unconscious` event,
   a projected `unconscious_events` table (migration `0031`), and `recentUnconscious` on
   `LifeDossier`, forwarded by `dossierVerdict` as `classifyDeath`'s **required** third argument.
-  Verdicts stay lazy and are never materialized, so corrected lives fix themselves; already-published
+  Verdicts stay lazy and are never materialized (stage 4's stored verdicts are re-derived by the
+  sweep on a version bump instead), so corrected lives fix themselves; already-published
   obituary prose is frozen and is NOT regenerated.
   **⚠️ `terminalHp` reads INFECTED hits only, never all hits in the window.** `hunted` and the
   terminal-HP corroboration must rest on the SAME hits — otherwise a fire tick or a player's shot

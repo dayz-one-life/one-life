@@ -9,7 +9,9 @@ export type QualificationInput = {
   deathCause: string | null;         // lives.death_cause ("pvp" = the victim died in PvP)
   effectivePlaytimeSeconds: number;  // livePlaytime(stored, openSession, lastSeenAt) for this life
   startedAt: Date;                   // life.started_at
-  windowEnd: Date;                   // life.ended_at ?? lastSeenAt ?? now — upper bound of the kill window
+  windowEnd: Date;                   // life.ended_at ?? now — upper bound of the kill window (an open
+                                     // life's ends now, not at the last heartbeat: a trap kill lands
+                                     // while its placer is offline)
   playerKills: { occurredAt: Date }[]; // kills scored by this player on this server (kill-owner.ts)
   /** End of this player's previous life on this server. Keeps that life's posthumous kill out of
    *  this one (kill-window.ts). Omit only when `playerKills` was already filtered with it. */

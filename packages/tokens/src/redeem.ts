@@ -25,9 +25,10 @@ async function playerIdForGamertag(tx: Executor, gamertag: string): Promise<numb
 }
 
 /**
- * Spend one token to lift the user's active 24h death-ban. Sets the ban to 'lift_pending'
+ * Spend one token to lift the user's active death-ban. Sets the ban to 'lift_pending'
  * (the enforcer removes it from Nitrado) — or straight to 'lifted' if it was still 'pending'
- * (queued but not yet applied to Nitrado). Never calls Nitrado.
+ * (queued but not yet applied to Nitrado). Every other active ban of the same player on the same
+ * server is lifted with it, for the same token. Never calls Nitrado.
  * A ban placed under ENFORCER_DRY_RUN (`bans.dryRun = true`) was never actually applied on the
  * game server — it is not a real ban, so it is excluded from the candidate set entirely and
  * cannot be redeemed (throws 'no_active_ban'/'not_owner' as appropriate; no token is spent).
@@ -53,12 +54,30 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
       (await Promise.all(links.map((l) => playerIdForGamertag(tx, l.gamertag))))
         .filter((id): id is number => id !== null),
     );
-    const banIds = new Map<string, number | null>();
+    // ⚠️ A ban's owner is the player with its dayz id, when it has one. Resolving the ban's NAME
+    // to whoever holds that name now hands a recycled gamertag's old bans to the new holder: his
+    // token would lift (and the enforcer would unban) another player. The name is the fallback
+    // only for a ban with no dayz id, or one whose dayz id has no players row.
+    const byName = new Map<string, number | null>();
+    const byDayzId = new Map<string, number | null>();
+    const ownerOf = new Map<number, number | null>();
     for (const b of candidates) {
-      if (!banIds.has(b.gamertag)) banIds.set(b.gamertag, await playerIdForGamertag(tx, b.gamertag));
+      let id: number | null = null;
+      if (b.dayzId != null) {
+        if (!byDayzId.has(b.dayzId)) {
+          const [p] = await tx.select({ id: players.id }).from(players).where(eq(players.dayzId, b.dayzId)).limit(1);
+          byDayzId.set(b.dayzId, p?.id ?? null);
+        }
+        id = byDayzId.get(b.dayzId)!;
+      }
+      if (id === null) {
+        if (!byName.has(b.gamertag)) byName.set(b.gamertag, await playerIdForGamertag(tx, b.gamertag));
+        id = byName.get(b.gamertag)!;
+      }
+      ownerOf.set(b.id, id);
     }
     const owned = candidates.filter((b) => {
-      const id = banIds.get(b.gamertag);
+      const id = ownerOf.get(b.id);
       return id !== null && id !== undefined && linkIds.has(id);
     });
 
@@ -81,11 +100,24 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
       relatedBanId: ban.id,
     });
 
-    const lifted = ban.status !== "applied"; // 'pending' was never on Nitrado
-    await tx
-      .update(bans)
-      .set({ status: lifted ? "lifted" : "lift_pending", liftedAt: lifted ? new Date() : null })
-      .where(eq(bans.id, ban.id));
+    // ⚠️ One token lifts EVERY active ban of this player on this server, not only the one named.
+    // The server's ban list holds names, shared by all of them: a late ban (a trap kill written
+    // after the death it qualifies) can overlap a later one, and lifting only one would leave the
+    // player locked out by the other while they have paid to come back.
+    // Two bans that both carry a dayz id are the same player only if the ids are equal; the
+    // resolved owner decides only when one of them has none.
+    const chosen = ban;
+    const chosenOwner = ownerOf.get(chosen.id);
+    const siblings = owned.filter((b) => b.serverId === chosen.serverId && (b.id === chosen.id
+      || (chosen.dayzId != null && b.dayzId != null ? b.dayzId === chosen.dayzId : ownerOf.get(b.id) === chosenOwner)));
+    const at = new Date();
+    for (const b of siblings) {
+      const lifted = b.status !== "applied"; // 'pending' was never on Nitrado
+      await tx
+        .update(bans)
+        .set({ status: lifted ? "lifted" : "lift_pending", liftedAt: lifted ? at : null })
+        .where(eq(bans.id, b.id));
+    }
 
     return { banId: ban.id, gamertag: ban.gamertag };
   });

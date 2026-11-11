@@ -7,14 +7,17 @@
   "exports": {
     ".": "./src/index.ts",
     "./global-setup": "./src/global-setup.ts",
-    "./setup-path": "./src/setup-path.ts"
+    "./setup-path": "./src/setup-path.ts",
+    "./adm-log": "./src/adm-log.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@onelife/adm-parser": "workspace:*",
     "@onelife/db": "workspace:*",
+    "@onelife/death-verdict": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "postgres": "^3.4.4"
   },

@@ -1,8 +1,8 @@
 import type { Database } from "@onelife/db";
-import { planBans, planExpiries, banNames, namesToRelease } from "./decide.js";
+import { planBans, planExpiries, banNames } from "./decide.js";
 import {
   findEndedUnbannedLives, insertBan, pendingBans, appliedBans, liftPendingBans,
-  markApplied, markError, markExpired, markLifted, serverServiceId,
+  markApplied, markError, markExpired, markLifted, serverServiceId, namesToRemove,
 } from "./pg-store.js";
 
 /** Minimal Nitrado surface the enforcer needs — real client or a fake in tests. */
@@ -60,9 +60,6 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
   // ── expire ──
   const active = await appliedBans(db);
   const dueIds = new Set(planExpiries(active.map((b) => ({ id: b.id, expiresAt: b.expiresAt })), deps.now));
-  // Bans that stay in force after this pass. A name one of them holds must stay on the Nitrado
-  // list when another ban of the same player expires (decide.ts namesToRelease).
-  const stillRunning = active.filter((b) => !dueIds.has(b.id));
   for (const b of active.filter((b) => dueIds.has(b.id))) {
     if (deps.dryRun) {
       await markExpired(db, b.id, deps.now);
@@ -70,12 +67,14 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
       continue;
     }
     try {
-      const names = namesToRelease(b, stillRunning);
-      if (names.length > 0) {
+      // ⚠️ The ban list holds names, shared by every ban of this player: a name another running
+      // ban still needs stays (pg-store.ts namesToRemove; a ban due in this same pass does not
+      // count as running). The row is marked as usual.
+      const names = await namesToRemove(db, b, deps.now);
+      if (names.length < banNames(b).length) deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id, removed: names.length }, "ban expired; names kept for a later ban");
+      if (names.length) {
         const sid = await serverServiceId(db, b.serverId);
         await deps.nitradoFor(sid).removeBans(names);
-      } else {
-        deps.log.info({ gamertag: b.gamertag, serverId: b.serverId }, "ban expired; a later ban still holds the player");
       }
       await markExpired(db, b.id, deps.now);
       expired++;
@@ -94,8 +93,12 @@ export async function enforcerTick(db: Database, deps: EnforcerDeps): Promise<Ti
       continue;
     }
     try {
-      const sid = await serverServiceId(db, b.serverId);
-      await deps.nitradoFor(sid).removeBans(banNames(b));
+      const names = await namesToRemove(db, b, deps.now);
+      if (names.length < banNames(b).length) deps.log.info({ gamertag: b.gamertag, serverId: b.serverId, banId: b.id, removed: names.length }, "ban lifted; names kept for a later ban");
+      if (names.length) {
+        const sid = await serverServiceId(db, b.serverId);
+        await deps.nitradoFor(sid).removeBans(names);
+      }
       await markLifted(db, b.id, deps.now);
       lifted++;
     } catch (e) {

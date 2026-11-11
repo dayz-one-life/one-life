@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { servers, players, lives, bans } from "@onelife/db";
+import { servers, players, lives, bans, kills } from "@onelife/db";
 import { eq } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { enforcerTick, type BanClient } from "../src/tick.js";
@@ -157,5 +157,100 @@ describe("enforcerTick — lift_pending (token redemption)", () => {
     expect(r.lifted).toBe(1);
     const [b] = await db.select().from(bans).where(eq(bans.lifeStartedAt, L));
     expect(b!.status).toBe("lifted");
+  });
+});
+
+describe("enforcerTick — two bans of one player share the server's name entry", () => {
+  // ⚠️ Invented players. The ban list holds names, not bans: removing the names for one ban lifts
+  // every ban of that player.
+  let sid2: number;
+  const H = 3600_000;
+  const T1 = new Date("2026-09-01T12:00:00Z");
+  async function ban(gamertag: string, dayzId: string | null, startedAt: Date, expiresAt: Date, status = "applied", dryRun = false) {
+    await db.insert(bans).values({
+      serverId: sid2, gamertag, dayzId, lifeStartedAt: startedAt, reason: "qualified_death", bannedAt: new Date(expiresAt.getTime() - 24 * H),
+      expiresAt, status, dryRun,
+    });
+  }
+  const tick = (now: Date) => {
+    const fake = fakeNitrado();
+    return enforcerTick(db, { nitradoFor: fake.nitradoFor, dryRun: false, banDurationHours: 24, now, log }).then((r) => ({ r, fake }));
+  };
+  beforeAll(async () => {
+    const [s] = await db.insert(servers).values({ nitradoServiceId: 555002, name: "enf-siblings" }).returning();
+    sid2 = s!.id;
+  });
+
+  it("a lifted ban does not call removeBans while a sibling is applied", async () => {
+    await ban("Sibling Two", "S2S2", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 5 * H), "lift_pending");
+    await ban("Sibling Two", "S2S2", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 20 * H));
+    const { r, fake } = await tick(new Date(T1.getTime() + 2 * H));
+    expect(r.lifted).toBe(1);
+    expect(fake.calls.remove).not.toContainEqual(["S2S2", "Sibling Two"]);
+    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Sibling Two")).orderBy(bans.id);
+    expect(rows.map((b) => b.status)).toEqual(["lifted", "applied"]);
+  });
+
+  it("a recycled gamertag held by another player: the first id comes off, the shared name stays", async () => {
+    await ban("Shared Name", "R1R1", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("Shared Name", "R2R2", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    // the first player's id comes off; the name stays for the other player's running ban
+    expect(fake.calls.remove).toContainEqual(["R1R1"]);
+    expect(fake.calls.remove.flat()).not.toContain("Shared Name");
+  });
+
+  it("a dry-run sibling does not count", async () => {
+    await ban("Sibling Four", "S4S4", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("Sibling Four", "S4S4", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 40 * H), "pending", true);
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove).toContainEqual(["S4S4", "Sibling Four"]);
+  });
+
+  // The same-player expiry and the rename are pinned in late-ban.test.ts; these are the rest of
+  // what namesToRemove (pg-store.ts) decides.
+  it("a sibling with the same gamertag in another case counts", async () => {
+    await ban("Case Eight", null, new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("CASE EIGHT", null, new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove.flat().map((n) => n.toLowerCase())).not.toContain("case eight");
+  });
+
+  it("a pending real sibling counts: it is about to be sent", async () => {
+    await ban("Pending Nine", "P9P9", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("Pending Nine", "P9P9", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H), "pending");
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove.flat()).not.toContain("P9P9");
+    expect(fake.calls.add).toContainEqual(["P9P9", "Pending Nine"]);
+  });
+
+  it("a running ban of the same player on another server holds nothing here", async () => {
+    const [other] = await db.insert(servers).values({ nitradoServiceId: 555003, name: "enf-siblings-2" }).returning();
+    await ban("Elsewhere Ten", "E10E", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await db.insert(bans).values({
+      serverId: other!.id, gamertag: "Elsewhere Ten", dayzId: "E10E", lifeStartedAt: new Date("2026-08-31T00:00:00Z"), reason: "qualified_death",
+      bannedAt: new Date(T1.getTime() + 6 * H), expiresAt: new Date(T1.getTime() + 30 * H), status: "applied", dryRun: false,
+    });
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove).toContainEqual(["E10E", "Elsewhere Ten"]);
+  });
+
+  it("a trap_placement row qualifies an ended 60-second life exactly as a kill_line row does", async () => {
+    const start = new Date(T1.getTime() + 60 * H);
+    const end = new Date(start.getTime() + 60_000);
+    for (const [name, basis] of [["Line Six", "kill_line"], ["Trap Seven", "trap_placement"]] as const) {
+      const [p] = await db.insert(players).values({ gamertag: name, dayzId: name === "Line Six" ? "K6K6" : "K7K7" }).returning();
+      await db.insert(lives).values({ serverId: sid2, playerId: p!.id, lifeNumber: 1, startedAt: start, endedAt: end, deathCause: "infected", playtimeSeconds: 60 });
+      await db.insert(kills).values({
+        serverId: sid2, killerGamertag: name, killerPlayerId: p!.id, victimGamertag: "Someone Else", victimLifeId: 900000 + p!.id,
+        weapon: basis === "kill_line" ? "M4-A1" : "Tripwire", occurredAt: new Date(start.getTime() + 30_000),
+        basis, creditSource: basis === "kill_line" ? null : "classifier",
+      });
+    }
+    await tick(new Date(end.getTime() + 60_000));
+    const rows = await db.select().from(bans).where(eq(bans.serverId, sid2));
+    const of = (g: string) => rows.find((b) => b.gamertag === g);
+    expect(of("Line Six")).toMatchObject({ qualifiedBy: "kill" });
+    expect(of("Trap Seven")).toMatchObject({ qualifiedBy: "kill" });
   });
 });

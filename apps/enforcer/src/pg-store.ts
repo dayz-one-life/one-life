@@ -1,7 +1,7 @@
-import { and, eq, isNull, isNotNull } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, ne, gt, or, inArray, sql } from "drizzle-orm";
 import { killsByPlayer, killsInLifeWindow, previousLifeEndedAt } from "@onelife/read-models";
 import { type Database, lives, players, kills, bans, servers } from "@onelife/db";
-import type { EndedLife, BanPlan } from "./decide.js";
+import { banNames, type EndedLife, type BanPlan } from "./decide.js";
 
 /** Ended lives with no ban row yet, joined to gamertag + their in-life kills. */
 export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]> {
@@ -22,8 +22,15 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
       bans,
       and(
         eq(bans.serverId, lives.serverId),
-        eq(bans.gamertag, players.gamertag),
         eq(bans.lifeStartedAt, lives.startedAt),
+        // ⚠️ The ban belongs to the player with its dayz id, whatever he is called now: matching by
+        // the current gamertag alone made a rename after the ban look like an unbanned death, and
+        // the enforcer banned (and notified) it again under the new name. The name decides only
+        // when either side has no dayz id.
+        or(
+          eq(bans.dayzId, players.dayzId),
+          and(or(isNull(bans.dayzId), isNull(players.dayzId)), eq(bans.gamertag, players.gamertag)),
+        ),
       ),
     )
     .where(and(isNotNull(lives.endedAt), isNull(bans.id)))
@@ -134,4 +141,32 @@ export async function serverServiceId(db: Database, serverId: number): Promise<n
   const [s] = await db.select({ sid: servers.nitradoServiceId }).from(servers).where(eq(servers.id, serverId));
   if (!s) throw new Error(`enforcer: no server ${serverId}`);
   return s.sid;
+}
+
+/**
+ * The names of `ban` that no other real ban on the same server still needs: not dry-run, `pending`
+ * or `applied`, not yet due, and sharing a name with it (the dayz id, or the gamertag ignoring
+ * case). Only these may be removed from the server's ban list.
+ *
+ * ⚠️ The server's ban list holds names, not bans: two bans of one player share entries. A late ban
+ * (a trap kill written after the death it qualifies, an operator grant) can overlap a later one;
+ * removing every name when the earlier one expires or is lifted would let the player back in while
+ * the database still says the later ban is applied. Equally, a name only this ban needs must come
+ * off: an old gamertag after a rename, or the first player's id when another player now holds the
+ * same gamertag.
+ */
+export async function namesToRemove(db: Database, ban: BanRow, now: Date): Promise<string[]> {
+  const sameName = sql`lower(${bans.gamertag}) = lower(${ban.gamertag})`;
+  const who = ban.dayzId ? or(eq(bans.dayzId, ban.dayzId), sameName)! : sameName;
+  const rows = await db.select({ dayzId: bans.dayzId, gamertag: bans.gamertag }).from(bans).where(and(
+    ne(bans.id, ban.id),
+    eq(bans.serverId, ban.serverId),
+    eq(bans.dryRun, false),
+    inArray(bans.status, ["pending", "applied"]),
+    // A ban with no expiry never ends, so it keeps its names for good.
+    or(isNull(bans.expiresAt), gt(bans.expiresAt, now)),
+    who,
+  ));
+  const kept = new Set(rows.flatMap((r) => banNames(r)).map((x) => x.toLowerCase()));
+  return banNames(ban).filter((x) => !kept.has(x.toLowerCase()));
 }

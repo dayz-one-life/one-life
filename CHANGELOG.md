@@ -38,6 +38,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the log gives no cause for are still left as unknown; they come in a later release. Nothing on
   the site reads any of this yet, so no page, card, kill count or obituary changes. No `--rebuild`
   and no backfill is needed.
+- The projector now works out and stores how every dead player died, a few minutes after the
+  death, in a new table the operator can check with `verify-verdicts`. It reads the server log
+  itself, never the coarse word stored on the life. The operator can correct a death's cause, or
+  allow or refuse a trap kill, with a row in another new table that a rebuild keeps. A player
+  whose tripwire or land mine kills another player can be credited with the kill, but only when
+  `TRAP_KILLS_WRITE=true` is set, and it is off by default: with it off, nothing public changes
+  and every trap kill already written is removed on the next pass. Turning it on credits the trap
+  kills of deaths already stored on the next pass too. Deaths the log gives no cause for are stored as
+  unknown for now. Nothing on the site reads the stored causes yet, so no page, card or obituary
+  changes. The deploy runs a database migration; no `--rebuild` and no backfill is needed.
+
+### Changed
+
+- A player who is still alive and offline is counted as having scored a kill that is logged
+  after they last left, so the board, their profile and their lives list agree with the ban and
+  the "This life counts now" notice. An open life's kill window now runs to the present instead
+  of to two seconds past the last heartbeat. How long they have been alive still stops when they
+  left.
+- The ban notice says when the ban ends ("banned until 2026-07-17 00:00 UTC") instead of a fixed
+  "24 hours", because a ban recorded late has less than a day left.
+- One unban token now lifts every active ban a player has on a server. A ban recorded late, for a
+  death before a later one, no longer keeps them out after they have paid to come back. A ban
+  lifted with a token, like one that expires, now leaves the player on the server's list while
+  another ban of theirs is still running or still waiting to be sent, and a gamertag is matched
+  ignoring case. When a gamertag has passed to another player who is banned under it, the first
+  player's ban ends by taking off only their account id, and their ban is no longer theirs to
+  lift with a token, nor lifted along with the new holder's: a ban belongs to the account id it
+  was recorded with. A ban with no end date keeps the player's names on the list for good. None
+  of this changes a ban on the servers today.
+- "You're back in" is no longer sent when a ban ends while another ban keeps the player out on
+  that server; the last one to end sends it.
+- A player renamed after his ban was recorded is no longer banned, and told so, a second time for
+  the same death under his new name.
+- A trap kill is credited when the victim's own kill, logged up to two seconds after the death,
+  is what made his life count, as it does on the boards and for bans; a kill that belongs to the
+  victim's previous life no longer does.
 
 ## [0.81.0] - 2026-11-11
 

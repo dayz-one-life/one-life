@@ -149,6 +149,14 @@ export const kills = pgTable("kills", {
   weapon: text("weapon"),
   distance: doublePrecision("distance"),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  // 'kill_line' (the fold, from a kill line) | 'trap_placement' (the verdict sweep, from where a
+  // tripwire or land mine was placed). ⚠️ Two writers, each leaving the other's rows alone: the
+  // fold never writes or touches a trap row, the sweep never touches a kill-line row. A reader
+  // counts both; only a page that would say "X killed Y" must check it. Check constraint
+  // `kills_basis_chk` (0040).
+  basis: text("basis").notNull().default("kill_line"),
+  // null for a kill line; 'classifier' | 'override' (an operator grant) for a trap row.
+  creditSource: text("credit_source"),
 }, (t) => ({
   uniq: uniqueIndex("kills_victim_life_uniq").on(t.serverId, t.victimLifeId),
   byKiller: index("kills_killer_idx").on(t.serverId, t.killerGamertag),
@@ -525,6 +533,75 @@ export const articles = pgTable("articles", {
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
   createdIdx: index("articles_kind_status_created_idx").on(t.kind, t.status, t.createdAt),
+}));
+
+// ── Stored death verdicts (0040; death-verdict plan step 5). Written only by the projector's
+// verdict sweep (apps/projector/src/verdict-sweep.ts) from raw_lines; never by the fold.
+// ⚠️ Not in REBUILD_TRUNCATE_TABLES: `TRUNCATE lives ... CASCADE` empties death_verdicts and
+// death_verdict_queue through their FK, and the sweep refills them once the fold has caught up.
+// INTERNAL columns (object_text, attr_dayz_id, attr_gamertag, evidence) hold raw class names
+// and inferred players: never serialise a row; build a PublicDeath with @onelife/death-verdict. ──
+export const deathVerdicts = pgTable("death_verdicts", {
+  lifeId: bigint("life_id", { mode: "number" }).primaryKey().references(() => lives.id, { onDelete: "cascade" }),
+  classifierVersion: integer("classifier_version").notNull(),
+  source: text("source").notNull().default("classifier"),       // classifier | override
+  settledBy: text("settled_by").notNull(),                       // file | rotation | wall
+  deathFileId: bigint("death_file_id", { mode: "number" }).notNull(),   // the resolved primary death line
+  deathLineIndex: integer("death_line_index").notNull(),
+  deathAt: timestamp("death_at", { withTimezone: true }).notNull(),     // log-clock UTC
+  cause: text("cause").notNull(),
+  confidence: text("confidence").notNull(),
+  mechanismStated: boolean("mechanism_stated").notNull(),
+  objectKey: text("object_key"),
+  objectClass: text("object_class"),
+  objectText: text("object_text"),
+  upstreamCause: text("upstream_cause"),
+  upstreamConfidence: text("upstream_confidence"),
+  coCauses: text("co_causes").array().notNull().default(sql`'{}'`),
+  conditions: text("conditions").array().notNull().default(sql`'{}'`),
+  attrRole: text("attr_role"),
+  attrBasis: text("attr_basis"),
+  attrDayzId: text("attr_dayz_id"),
+  attrGamertag: text("attr_gamertag"),
+  attrConfidence: text("attr_confidence"),
+  rule: text("rule").notNull(),
+  evidence: jsonb("evidence").notNull().default({}),
+  needsReview: boolean("needs_review").notNull().default(false),
+  overrideSeenAt: timestamp("override_seen_at", { withTimezone: true }),
+  classifiedAt: timestamp("classified_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byVersion: index("death_verdicts_version_idx").on(t.classifierVersion),
+  byLine: index("death_verdicts_line_idx").on(t.deathFileId, t.deathLineIndex),
+}));
+
+/** One row per ended life the sweep has seen and not yet written. */
+export const deathVerdictQueue = pgTable("death_verdict_queue", {
+  lifeId: bigint("life_id", { mode: "number" }).primaryKey().references(() => lives.id, { onDelete: "cascade" }),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Durable operator corrections, keyed on the resolved death line (stable across rebuilds).
+ *  `updated_at` is kept current by a BEFORE UPDATE trigger (0040). */
+export const deathVerdictOverrides = pgTable("death_verdict_overrides", {
+  serverId: integer("server_id").notNull(),
+  deathFileId: bigint("death_file_id", { mode: "number" }).notNull(),
+  deathLineIndex: integer("death_line_index").notNull(),
+  cause: text("cause"),                       // null = keep the classifier's
+  confidence: text("confidence"),
+  objectKey: text("object_key"),
+  upstreamCause: text("upstream_cause"),
+  upstreamConfidence: text("upstream_confidence"),
+  credit: text("credit"),                     // 'deny' | 'grant' | null
+  creditDayzId: text("credit_dayz_id"),       // required for 'grant'
+  note: text("note").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ name: "death_verdict_overrides_pk", columns: [t.deathFileId, t.deathLineIndex] }),
 }));
 
 // ── Player notifications. Durable: NOT in apps/projector/src/rebuild.ts's truncate

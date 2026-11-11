@@ -153,4 +153,51 @@ describe("redeem", () => {
     const rows = await db.select().from(players).where(eq(players.gamertag, "RecycledGT"));
     expect(rows.map((p) => p.id).sort((a, b) => a - b)).toEqual([unrelatedStale!.id, ownerId].sort((a, b) => a - b));
   });
+
+  it("one token lifts both of a player's active bans on a server", async () => {
+    // ⚠️ invented player. A late ban (dated at an earlier death) overlapping a later one.
+    await db.insert(user).values({ id: "rd-two", name: "RDTwo", email: "rd-two@x.com" });
+    await db.insert(gamertagLinks).values({ userId: "rd-two", gamertag: "Two Bans", status: "verified" });
+    await db.insert(players).values({ gamertag: "Two Bans", dayzId: "TWOBANS" });
+    const A = new Date("2026-09-01T10:00:00Z"), B = new Date("2026-09-02T10:00:00Z"), C = new Date("2026-09-03T10:00:00Z");
+    await db.insert(bans).values([
+      { serverId, gamertag: "Two Bans", dayzId: "TWOBANS", lifeStartedAt: A, reason: "qualified_death", bannedAt: A, status: "applied", dryRun: false },
+      { serverId, gamertag: "Two Bans", dayzId: "TWOBANS", lifeStartedAt: B, reason: "qualified_death", bannedAt: B, status: "pending", dryRun: false },
+      // another server's ban is not part of it
+      { serverId: serverId2, gamertag: "Two Bans", dayzId: "TWOBANS", lifeStartedAt: C, reason: "qualified_death", bannedAt: C, status: "applied", dryRun: false },
+    ]);
+    await grant(db, { userId: "rd-two", kind: "verification", idempotencyKey: "verify:rd-two" });
+    const [first] = await db.select().from(bans).where(eq(bans.lifeStartedAt, A));
+    const r = await redeem(db, { userId: "rd-two", banId: first!.id });
+    expect(r.banId).toBe(first!.id);
+    expect(await getBalance(db, "rd-two")).toBe(0);
+    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Two Bans")).orderBy(bans.lifeStartedAt);
+    expect(rows.map((b) => [b.serverId === serverId, b.status])).toEqual([[true, "lift_pending"], [true, "lifted"], [false, "applied"]]);
+    expect(rows.some((b) => b.id === r.banId)).toBe(true);
+  });
+  it("does not lift another player's ban written under a gamertag the redeemer now holds (recycled name)", async () => {
+    // ⚠️ invented players. Player 1 (RCYA) was banned as 'Recyc', then renamed; player 2 (RCYB)
+    // now holds 'Recyc' and was banned under it too. Resolving each ban's NAME to whoever holds
+    // it now would make player 1's ban look like player 2's and lift it with his token.
+    await db.insert(user).values({ id: "rcy2", name: "RCY2", email: "rcy2@x.com" });
+    await db.insert(gamertagLinks).values({ userId: "rcy2", gamertag: "Recyc", status: "verified" });
+    await db.insert(players).values([
+      { gamertag: "Elsewhere", dayzId: "RCYA", lastSeenAt: new Date("2026-09-05T00:00:00Z") },
+      { gamertag: "Recyc", dayzId: "RCYB", lastSeenAt: new Date("2026-09-06T00:00:00Z") },
+    ]);
+    const A = new Date("2026-09-04T10:00:00Z"), B = new Date("2026-09-05T10:00:00Z");
+    await db.insert(bans).values([
+      { serverId, gamertag: "Recyc", dayzId: "RCYA", lifeStartedAt: A, reason: "qualified_death", bannedAt: A, status: "applied", dryRun: false },
+      { serverId, gamertag: "Recyc", dayzId: "RCYB", lifeStartedAt: B, reason: "qualified_death", bannedAt: B, status: "applied", dryRun: false },
+    ]);
+    await grant(db, { userId: "rcy2", kind: "verification", idempotencyKey: "verify:rcy2" });
+    const [mine] = await db.select().from(bans).where(eq(bans.dayzId, "RCYB"));
+    const [theirs] = await db.select().from(bans).where(eq(bans.dayzId, "RCYA"));
+    // Player 1's ban is not player 2's to redeem, by id or by default.
+    await expect(redeem(db, { userId: "rcy2", banId: theirs!.id })).rejects.toThrow(/not_owner/);
+    const r = await redeem(db, { userId: "rcy2" });
+    expect(r.banId).toBe(mine!.id);
+    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Recyc")).orderBy(bans.lifeStartedAt);
+    expect(rows.map((b) => [b.dayzId, b.status])).toEqual([["RCYA", "applied"], ["RCYB", "lift_pending"]]);
+  });
 });

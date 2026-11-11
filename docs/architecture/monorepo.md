@@ -17,7 +17,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `death-verdict` (pure, no workspace dependencies: the death-cause vocabulary and
   `toPublicDeath`, the one function that turns a stored verdict into the words a page prints,
   with `writerBrief` for what the obituary writer is told about the same death —
-  nothing imports it yet. It also holds the classifier's evidence layer, a port of a reference
+  `read-models` (the death-context loader) and `projector` (the verdict sweep) import it; no
+  page reads a verdict yet. It also holds the classifier's evidence layer, a port of a reference
   pipeline kept with the private golden data: `evidence/parse.ts` (`parseEvidenceLine` — separate
   from `adm-parser`'s `parseLine` on purpose; it emits no events and has no `subIndex` contract),
   `evidence/log-clock.ts` (UTC from the log's own header date and wall clock, never from
@@ -46,8 +47,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   `held_frag_before_blast`, `claymore_by_other_player`) mark shapes no real trap death has had;
   they do not refuse, so whatever lists trap kills for the operator must show them. ⚠️ Only the stated rules are
   ported: a death that needs an inferred rule comes back as rule `B00`, "unknown", and
-  `golden-attest.json`'s `gaps` counts them; nothing may store or show a verdict while it is
-  not 0. `ContextInput.files[].boot` is the file's number in the server's boot order over ALL
+  `golden-attest.json`'s `gaps` counts them; the sweep stores them (as rule `B00`) for the
+  operator, and nothing may show a verdict while it is not 0. `ContextInput.files[].boot` is the file's number in the server's boot order over ALL
   its files (it gives the restarts between a trap being set and going off); a loader that
   passes part of a log must pass `SelectOptions.bootOrdinals`. Its private
   golden suites need `DEATH_GOLDEN_DIR` and are skipped without it;
@@ -70,7 +71,8 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   one), `event-log` (append/cursor over
   `events`), `projections` (fold logic), `read-models` (stats queries, including
   `player-priors` — global cross-life reputation via `getPlayerPriors`), `test-support` (Postgres
-  test harness), `auth` (Better Auth), `verification` (emote-sequence challenges),
+  test harness; `@onelife/test-support/adm-log` writes invented ADM files into `adm_files`,
+  `raw_lines` and `events` as ingest does, for the suites that read the log back), `auth` (Better Auth), `verification` (emote-sequence challenges),
   `tokens` (unban-token ledger + grants/redeem/transfer), `rpt-parser` (RPT login-correlation →
   character sightings), `friends` (friendship pair ordering + viewer-relative projection,
   presence consent flags and `shouldNotifyPresence`; session-scoped location GRANTS
@@ -79,7 +81,13 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim.
   transitions, read queries; writes its own notifications inline — see the Friends F1 entry, whose
   ten invariants are all load-bearing).
 - **apps:** `ingest-worker` (ADM+RPT poll→events loop; **DB-driven** — sweeps every `servers` row with
-  `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold),
+  `active=true` using the shared `NITRADO_TOKEN`, no `NITRADO_SERVICE_ID` env), `projector` (events→projections fold, then — once the fold has caught up — the death-verdict
+  sweep, `verdict-sweep.ts`, which stores `death_verdicts` and writes trap kills into `kills`
+  only when **`TRAP_KILLS_WRITE=true`** (default off); `verify-verdicts` is the operator's
+  read-only check. Its private suite `test/golden-private/sweep-golden.test.ts` seeds the golden
+  export into the test database and runs the sweep on every One Life death; it needs both
+  `DEATH_GOLDEN_DIR` and `TEST_DATABASE_URL`, is skipped without the first, and is not part of the
+  signed attestation),
   `verifier` (emote-verification loop), `api` (Fastify REST + auth; token-store checkout routes require `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_TOKEN_PRICE_ID` — all unset-means-OFF, and the API warns at boot if any of the three is set but the others are not), `web` (Next.js frontend; displays token price from `NEXT_PUBLIC_TOKEN_PRICE_LABEL`, unset-means-OFF),
   `enforcer` (24h death-ban reconciler; dry-run by default), `granter` (token grant sweeps),
   `rebooter` (restarts every `active` server on the top of each **even UTC hour** — 00:00,02:00,…,22:00

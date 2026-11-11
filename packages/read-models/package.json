@@ -3,9 +3,20 @@
   "version": "0.0.0",
   "type": "module",
   "main": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@onelife/db": "workspace:*", "@onelife/domain": "workspace:*", "@onelife/location-sharing": "workspace:*", "drizzle-orm": "^0.36.0" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@onelife/db": "workspace:*",
+    "@onelife/death-verdict": "workspace:*",
+    "@onelife/domain": "workspace:*",
+    "@onelife/location-sharing": "workspace:*",
+    "drizzle-orm": "^0.36.0"
+  },
   "devDependencies": {
     "@onelife/test-support": "workspace:*",
     "typescript": "^5.6.0",
