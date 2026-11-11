@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { user, servers, gamertagLinks, bans } from "@onelife/db";
+import { eq } from "drizzle-orm";
 import { getTestDb } from "@onelife/test-support";
 import { banAppliedGenerator, banLiftedGenerator } from "../src/generators/bans.js";
 
@@ -164,5 +165,36 @@ describe("banLiftedGenerator", () => {
     expect(keys).toEqual(
       expect.arrayContaining([`ban_lifted:${banIds[1]}`, `ban_lifted:${banIds[5]}`]),
     );
+  });
+});
+
+// ⚠️ invented player. Runs last and removes its rows: the generators read every server, so its
+// rows would change the counts the cases above assert.
+describe("banLiftedGenerator — a ban that ends while a later one keeps the player banned", () => {
+  it("says nothing until the last ban ends", async () => {
+    await db.insert(user).values({ id: "bn3", name: "BN3", email: "bn3@x.com" });
+    const [s] = await db.insert(servers).values({ nitradoServiceId: 991003, name: "e3srv", slug: "e3srv" }).returning();
+    await db.insert(gamertagLinks).values({ userId: "bn3", gamertag: "Late3", status: "verified", verifiedAt: new Date("2026-07-02T00:00:00Z") });
+    const base = { serverId: s!.id, reason: "qualified_death", dryRun: false } as const;
+    const rows = await db.insert(bans).values([
+      // Expired at 11:31 inside the window, but its names stay on the server's list for (2).
+      { ...base, gamertag: "Late3", dayzId: "LATE3", lifeStartedAt: new Date("2026-07-18T10:00:00Z"), bannedAt: new Date("2026-07-18T11:31:00Z"),
+        expiresAt: new Date("2026-07-19T11:31:00Z"), status: "expired", liftedAt: new Date("2026-07-19T11:31:00Z") },
+      // (2) applied until tomorrow, under another casing of the same name.
+      { ...base, gamertag: "late3", dayzId: "LATE3", lifeStartedAt: new Date("2026-07-19T09:00:00Z"), bannedAt: new Date("2026-07-19T10:00:00Z"),
+        expiresAt: new Date("2026-07-20T10:00:00Z"), status: "applied" },
+      // A dry-run row keeps nobody out, so it does not hold anything back.
+      { ...base, gamertag: "Late3", dayzId: "LATE3", lifeStartedAt: new Date("2026-07-19T09:30:00Z"), bannedAt: new Date("2026-07-19T10:30:00Z"),
+        expiresAt: new Date("2026-07-20T10:30:00Z"), status: "applied", dryRun: true },
+    ]).returning();
+    const keys = async (now: Date) => (await banLiftedGenerator({ ...deps, now })).map((d) => d.naturalKey);
+    expect(await keys(NOW)).not.toContain(`ban_lifted:${rows[0]!.id}`);
+
+    // Once (2) has ended too, its own row announces the return.
+    await db.update(bans).set({ status: "expired", liftedAt: new Date("2026-07-20T10:00:00Z") }).where(eq(bans.id, rows[1]!.id));
+    const later = await keys(new Date("2026-07-20T10:05:00Z"));
+    expect(later).toContain(`ban_lifted:${rows[1]!.id}`);
+
+    await db.delete(bans).where(eq(bans.serverId, s!.id));
   });
 });

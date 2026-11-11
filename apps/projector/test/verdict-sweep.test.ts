@@ -5,7 +5,7 @@ import { getTestDb } from "@onelife/test-support";
 import { seedAdmLog, line, fakeId, type Who, type SeedFile } from "@onelife/test-support/adm-log";
 import { CLASSIFIER_VERSION, type CreditEvidence } from "@onelife/death-verdict";
 import * as rm from "@onelife/read-models";
-import { sweepVerdicts, SETTLE_WALL_MINUTES } from "../src/verdict-sweep.js";
+import { sweepVerdicts, lifeCountsOnItsOwn, SETTLE_WALL_MINUTES } from "../src/verdict-sweep.js";
 
 /**
  * The verdict sweep against Postgres. ⚠️ Every name, id and line is invented: hand-written ADM
@@ -467,6 +467,34 @@ describe("trap kills", () => {
     });
     await sweep({ trapKillsWrite: true });
     expect(await creditOf(d.lid)).toMatchObject({ outcome: "credited" });
+  });
+
+  it("a kill-line kill of the victim's inside the two-second grace past the death passes test 7", async () => {
+    // Same window as every other reader (read-models kill-window.ts): runs to ended_at + 2 s.
+    const d = await trapDeath({ playtime: 120 });
+    await db.insert(kills).values({
+      serverId: sid, killerGamertag: V.name, killerPlayerId: pids.get(V.id), victimGamertag: K.name, victimPlayerId: pids.get(K.id),
+      victimLifeId: null, occurredAt: new Date(d.endedAt.getTime() + 1000),
+    });
+    await sweep({ trapKillsWrite: true });
+    expect(await creditOf(d.lid)).toMatchObject({ outcome: "credited" });
+  });
+
+  it("a kill-line kill in the previous life's grace does not pass test 7 for this one", async () => {
+    // Called directly: a previous life with no death line of its own in raw_lines cannot be swept.
+    const vid = await player(V);
+    const k = await player(K);
+    const start = new Date("2031-06-10T12:00:00Z"), end = new Date("2031-06-10T12:02:00Z");
+    await life(vid, new Date(start.getTime() - 3_600_000), new Date(start.getTime() - 1000), "pvp", 3600, 1);
+    const lid = await life(vid, start, end, "explosion", 120, 2);
+    const credit = { id: lid, serverId: sid, playerId: vid, startedAt: start, endedAt: end, playtimeSeconds: 120,
+      deathCause: "explosion", victimDayzId: V.id, victimGamertag: V.name };
+    // Stamped as this life began, one second after the previous death: still that life's kill.
+    await db.insert(kills).values({ serverId: sid, killerGamertag: V.name, killerPlayerId: vid, victimGamertag: K.name, victimPlayerId: k, occurredAt: start });
+    expect(await lifeCountsOnItsOwn(db, credit)).toBe(false);
+    // Positive control: past the previous life's two seconds it is this life's.
+    await db.insert(kills).values({ serverId: sid, killerGamertag: V.name, killerPlayerId: vid, victimGamertag: K.name, victimPlayerId: k, occurredAt: new Date(start.getTime() + 2000) });
+    expect(await lifeCountsOnItsOwn(db, credit)).toBe(true);
   });
 
   it("a deny removes the row and records outcome denied", async () => {

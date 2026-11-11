@@ -39,6 +39,53 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   (per-server Nitrado ban list, name-based). **`ENFORCER_DRY_RUN` defaults to `true`** — logs
   intended bans without writing to Nitrado; set `false` to enforce. `bans` table is durable
   (never rebuilt).
+  **⚠️ A kill belongs to a life by ONE rule, `packages/read-models/src/kill-window.ts`, and every
+  reader must use it.** A `kills` row carries the victim's death time, and DayZ can stamp that
+  line a second after the killer's own death line (a grenade in the air, a mutual kill). So a
+  life's kill window is `[started_at, ended_at + 2 s]` (`POSTHUMOUS_KILL_GRACE_MS`), and a kill
+  inside the PREVIOUS life's two seconds is that life's and never this one's, even if the player
+  was already back. The rule exists three ways and they must stay identical: `isKillInLife`
+  (pure; `isLifeQualified`, `lifeQualifiedAt`, the boards, the enforcer's `decide.ts`),
+  `killsInLifeWindow` + `previousLifeEndedAt` (queries holding the life's bounds:
+  `getLifeKills`, the life track, the enforcer's `pg-store.ts`), and the correlated SQL in
+  `qualifiedLifeCondition` (which deaths get an obituary). **Ban effect:** a life under five
+  minutes that ended in a non-player death is banned "by kill" when its kill line is logged up to
+  two seconds after the death. It is read-time only: stored timestamps are as logged, so there is
+  no migration, no `--rebuild` and no backfill, and a rebuild cannot change the answer.
+  "Previous life" is by `started_at`; when two lives share a start (connect, death and reconnect
+  in one logged second) the zero-length one is the predecessor of the other. An OPEN life's kill
+  window ends NOW (`isLifeQualified`'s `windowEnd`), not at the last heartbeat: a trap kill is
+  scored while its placer is offline. Playtime keeps the heartbeat cap.
+  `getPlayerPriors` counts a kill in a prior life's two seconds as a prior kill.
+  **⚠️ A kill belongs to a PLAYER by `kills.killer_player_id`, never by `killer_gamertag`**
+  (`packages/read-models/src/kill-owner.ts`: `isKillByPlayer`, `killsByPlayer`). The name on the
+  row is the name on the kill line; it does not move on a rename and a given-up name can be taken
+  by someone else. The enforcer (`pg-store.ts`), the notifier's lives generator and the
+  most-kills, longest-killstreak, alive-longest and alltime-longest boards matched by name until
+  this rule: a renamed killer's kills dropped out of his ban, his "counts now" notice and those
+  boards, and the name's next holder would have inherited them. **Ban effect:** a renamed
+  player's short life is banned "by kill" for a kill logged under his old name, and the new
+  holder of that name is not. Those six readers fall back to the name, ignoring case, ONLY for a
+  row whose id is null (the fold found no player under the killer's name at the kill); the
+  readers that always matched by id (`getLifeKills`, `qualifiedLifeCondition`, survivors, career
+  counts) have no fallback and do not see such a row. most-kills groups by player and prints the
+  current name, and longest-kills prints the current name too (the stored one on an id-less
+  row); the three per-player boards key their maps by player id, since two players can hold one
+  name, so they can return two rows with the same `gamertag` (`LeaderRow` carries no id).
+  `getLifeKills` takes the life row's `playerId`, not a gamertag: a name lookup could pick the
+  other holder of a shared name. Read-time only: no migration, no `--rebuild`, no backfill.
+  **⚠️ Three enforcer rules follow from the Nitrado ban list holding NAMES, not bans** (removing
+  a name lifts every ban that put it there), in `apps/enforcer/src/decide.ts`, `tick.ts` and
+  `pg-store.ts`:
+  (1) `planBans` plans nothing for a death whose ban is already over at `now`, so a death judged
+  late (enforcer downtime, or a qualifying `kills` row that only appears in a later rebuild)
+  gets no `bans` row, no Nitrado call and no notification; (2) a `pending` ban past its
+  `expires_at` is marked `expired` without being sent; (3) on expiry AND on a token lift,
+  `namesToRemove` (`pg-store.ts`, the one implementation) removes only the names no other real
+  (not dry-run), `pending` or `applied`, not-yet-due ban on that server shares, by dayz id or by
+  gamertag ignoring case, so one ban ending never unbans a player serving a later one, while a
+  name only the ending ban needs (an old gamertag, or the first player's id on a recycled
+  gamertag) still comes off. A redeem lifts every active ban of that player on that server.
   **⚠️ Bans are placed against `bans.dayz_id` (the stable DayZ account hash) AND the gamertag,
   via the batched `addBans`/`removeBans` — never the single-entry `addBan`/`removeBan`, which
   would be one whole-field read-modify-write of the Nitrado ban list per entry, with a
@@ -368,7 +415,7 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
       kill's basis (`killBasis`) and the timeline words it "A trap kill credited. The life counts
       from here."; WHEN a life qualifies is unchanged. **⚠️ `life-track.ts` drops trap kills from
       the map markers** (a marker pins the killer's own fix; a trap fires where it was placed).
-      most-kills has a second sort key (the name) so level players come back in a stable order.
+      most-kills orders level players by name, so ties (common with trap kills) are stable.
     - **Articles** carry `death` = the live FINAL verdict (through `player_gamertags`, as the
       timeline finds the article), else the frozen `facts.death` strings (`status: "frozen"`; for
       a trap death every string is rebuilt from the row with no name, keeping only the key, the
@@ -384,10 +431,11 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     - **Priors** (`player-priors.ts`) count definitive and strong verdicts only and aggregate on the
       public TAG, never the label (a label can hold a killer's name); the prior prints the tag's
       lower-case noun ("pvp", "hunger and thirst", "wildlife").
-    - **Renames.** Until killer-id matching (PR #398) ships, the readers that match a kill to its
-      killer by name (most-kills, killstreak, alive-longest, alltime-longest, the enforcer, the
-      notifier) lose a renamed placer's trap kill; the page, the timeline and qualification match by
-      id. `trap-kill-parity.test.ts` pins which side each reader is on.
+    - **Renames and the grace.** A trap row is matched to its placer by `killer_player_id`
+      (kill-owner.ts) and read through kill-window.ts like any kill line: a rename loses it nowhere
+      and the boards print the placer's current name; one logged up to two seconds after the
+      placer's death belongs to the life that ended (its `qualifiedAt` capped at the death).
+      `trap-kill-parity.test.ts` pins both.
   - **Newsdesk v4** (plan step 8, release R3; prompt `obituary-v4`). The writer is told what the
     stored verdict says, through `getWriterDeath` (read-models; newsdesk only) and
     `writerBrief`: the cause line by certainty. Definitive and strong lines sit among the

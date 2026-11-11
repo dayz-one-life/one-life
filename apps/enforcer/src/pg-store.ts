@@ -1,4 +1,5 @@
-import { and, eq, isNull, isNotNull, gte, lte, ne, gt, or, inArray, sql } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, ne, gt, or, inArray, sql } from "drizzle-orm";
+import { killsByPlayer, killsInLifeWindow, previousLifeEndedAt } from "@onelife/read-models";
 import { type Database, lives, players, kills, bans, servers } from "@onelife/db";
 import { banNames, type EndedLife, type BanPlan } from "./decide.js";
 
@@ -7,7 +8,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const rows = await db
     .select({
       serverId: lives.serverId,
-      playerId: players.id,
+      playerId: lives.playerId,
       gamertag: players.gamertag,
       dayzId: players.dayzId,
       startedAt: lives.startedAt,
@@ -21,8 +22,15 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
       bans,
       and(
         eq(bans.serverId, lives.serverId),
-        eq(bans.gamertag, players.gamertag),
         eq(bans.lifeStartedAt, lives.startedAt),
+        // ⚠️ The ban belongs to the player with its dayz id, whatever he is called now: matching by
+        // the current gamertag alone made a rename after the ban look like an unbanned death, and
+        // the enforcer banned (and notified) it again under the new name. The name decides only
+        // when either side has no dayz id.
+        or(
+          eq(bans.dayzId, players.dayzId),
+          and(or(isNull(bans.dayzId), isNull(players.dayzId)), eq(bans.gamertag, players.gamertag)),
+        ),
       ),
     )
     .where(and(isNotNull(lives.endedAt), isNull(bans.id)))
@@ -54,18 +62,20 @@ export async function endedLifeOf(
   db: Database,
   r: { serverId: number; playerId: number; gamertag: string; dayzId: string | null; startedAt: Date; endedAt: Date; deathCause: string | null; playtimeSeconds: number },
 ): Promise<EndedLife> {
+  // ⚠️ The kill window is read-models' kill-window.ts: it runs two seconds past the death, and
+  // skips a kill that belongs to the previous life's two seconds. decide.ts applies the same
+  // rule again to what this returns; narrowing here alone would silently un-ban.
+  const previousEnd = await previousLifeEndedAt(db, r.serverId, r.playerId, r.startedAt, r.endedAt);
   const krows = await db
     .select({ occurredAt: kills.occurredAt })
     .from(kills)
     .where(
       and(
         eq(kills.serverId, r.serverId),
-        or(
-          eq(kills.killerPlayerId, r.playerId),
-          and(isNull(kills.killerPlayerId), sql`lower(${kills.killerGamertag}) = lower(${r.gamertag})`),
-        ),
-        gte(kills.occurredAt, r.startedAt),
-        lte(kills.occurredAt, r.endedAt),
+        // ⚠️ By player id, not by name (read-models kill-owner.ts): a kill logged under a name
+        // the killer has since changed still bans him, and never the name's next holder.
+        killsByPlayer(r.playerId, r.gamertag),
+        killsInLifeWindow({ startedAt: r.startedAt, endedAt: r.endedAt, previousLifeEndedAt: previousEnd }),
       ),
     );
   return {
@@ -77,6 +87,7 @@ export async function endedLifeOf(
     deathCause: r.deathCause,
     effectivePlaytimeSeconds: r.playtimeSeconds,
     playerKills: krows.map((k) => ({ occurredAt: k.occurredAt })),
+    previousLifeEndedAt: previousEnd,
   };
 }
 
@@ -169,7 +180,8 @@ export async function namesToRemove(db: Database, ban: BanRow, now: Date): Promi
     eq(bans.serverId, ban.serverId),
     eq(bans.dryRun, false),
     inArray(bans.status, ["pending", "applied"]),
-    gt(bans.expiresAt, now),
+    // A ban with no expiry never ends, so it keeps its names for good.
+    or(isNull(bans.expiresAt), gt(bans.expiresAt, now)),
     who,
   ));
   const kept = new Set(rows.flatMap((r) => banNames(r)).map((x) => x.toLowerCase()));

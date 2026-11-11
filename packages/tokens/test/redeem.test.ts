@@ -177,4 +177,29 @@ describe("redeem", () => {
     expect(rows.map((b) => [b.serverId === serverId, b.status])).toEqual([[true, "lift_pending"], [true, "lifted"], [false, "applied"]]);
     expect(rows.some((b) => b.id === r.banId)).toBe(true);
   });
+  it("does not lift another player's ban written under a gamertag the redeemer now holds (recycled name)", async () => {
+    // ⚠️ invented players. Player 1 (RCYA) was banned as 'Recyc', then renamed; player 2 (RCYB)
+    // now holds 'Recyc' and was banned under it too. Resolving each ban's NAME to whoever holds
+    // it now would make player 1's ban look like player 2's and lift it with his token.
+    await db.insert(user).values({ id: "rcy2", name: "RCY2", email: "rcy2@x.com" });
+    await db.insert(gamertagLinks).values({ userId: "rcy2", gamertag: "Recyc", status: "verified" });
+    await db.insert(players).values([
+      { gamertag: "Elsewhere", dayzId: "RCYA", lastSeenAt: new Date("2026-09-05T00:00:00Z") },
+      { gamertag: "Recyc", dayzId: "RCYB", lastSeenAt: new Date("2026-09-06T00:00:00Z") },
+    ]);
+    const A = new Date("2026-09-04T10:00:00Z"), B = new Date("2026-09-05T10:00:00Z");
+    await db.insert(bans).values([
+      { serverId, gamertag: "Recyc", dayzId: "RCYA", lifeStartedAt: A, reason: "qualified_death", bannedAt: A, status: "applied", dryRun: false },
+      { serverId, gamertag: "Recyc", dayzId: "RCYB", lifeStartedAt: B, reason: "qualified_death", bannedAt: B, status: "applied", dryRun: false },
+    ]);
+    await grant(db, { userId: "rcy2", kind: "verification", idempotencyKey: "verify:rcy2" });
+    const [mine] = await db.select().from(bans).where(eq(bans.dayzId, "RCYB"));
+    const [theirs] = await db.select().from(bans).where(eq(bans.dayzId, "RCYA"));
+    // Player 1's ban is not player 2's to redeem, by id or by default.
+    await expect(redeem(db, { userId: "rcy2", banId: theirs!.id })).rejects.toThrow(/not_owner/);
+    const r = await redeem(db, { userId: "rcy2" });
+    expect(r.banId).toBe(mine!.id);
+    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Recyc")).orderBy(bans.lifeStartedAt);
+    expect(rows.map((b) => [b.dayzId, b.status])).toEqual([["RCYA", "applied"], ["RCYB", "lift_pending"]]);
+  });
 });
