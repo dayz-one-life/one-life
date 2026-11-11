@@ -330,6 +330,9 @@ export const bans = pgTable("bans", {
   liftedAt: timestamp("lifted_at", { withTimezone: true }),
   lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0043: 'token' (redeem) | 'operator' (enforcer `unqualified-bans --lift`). NULL on older rows,
+  // which reads as 'token': a token was the only way to lift a ban before.
+  liftReason: text("lift_reason"),
 }, (t) => ({
   uniqDeath: uniqueIndex("bans_server_gamertag_life_uniq").on(t.serverId, t.gamertag, t.lifeStartedAt),
   byStatus: index("bans_status_idx").on(t.status),
@@ -536,6 +539,19 @@ export const articles = pgTable("articles", {
   uniqSlug: uniqueIndex("articles_slug_uniq").on(t.slug),
   feedIdx: index("articles_kind_status_death_idx").on(t.kind, t.status, t.deathAt),
   createdIdx: index("articles_kind_status_created_idx").on(t.kind, t.status, t.createdAt),
+}));
+
+// ── Replaced obituary text (0042; death-verdict plan step 9). Durable, no foreign key: one row per
+// version `regenerate` replaced (rewrite, retraction or restore); `snapshot` holds what the
+// article said, so `regenerate --restore <slug>` can write it back. ──
+export const articleRevisions = pgTable("article_revisions", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  articleId: bigint("article_id", { mode: "number" }).notNull(),
+  replacedAt: timestamp("replaced_at", { withTimezone: true }).notNull().defaultNow(),
+  reason: text("reason").notNull(),   // 'cause-corrected' | 'kills-corrected' | 'regenerated' | 'retracted' | 'restored'
+  snapshot: jsonb("snapshot").notNull(),
+}, (t) => ({
+  byArticle: index("article_revisions_article_idx").on(t.articleId, t.id),
 }));
 
 // ── Stored death verdicts (0040; death-verdict plan step 5). Written only by the projector's

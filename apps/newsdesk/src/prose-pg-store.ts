@@ -13,7 +13,7 @@ export interface RecentProse {
 const OPENER_MAX = 120;
 
 /** The lede's first sentence, trimmed and truncated for the prompt block. */
-function opener(lede: string | null): string {
+export function opener(lede: string | null): string {
   const s = (lede ?? "").trim();
   if (!s) return "";
   const stop = s.search(/[.!?](\s|$)/);

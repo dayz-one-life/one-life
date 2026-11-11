@@ -43,35 +43,52 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
   const out: EndedLife[] = [];
   for (const r of rows) {
     if (!r.endedAt) continue;
-    // ⚠️ The kill window is read-models' kill-window.ts: it runs two seconds past the death, and
-    // skips a kill that belongs to the previous life's two seconds. decide.ts applies the same
-    // rule again to what this returns; narrowing here alone would silently un-ban.
-    const previousEnd = await previousLifeEndedAt(db, r.serverId, r.playerId, r.startedAt, r.endedAt);
-    const krows = await db
-      .select({ occurredAt: kills.occurredAt })
-      .from(kills)
-      .where(
-        and(
-          eq(kills.serverId, r.serverId),
-          // ⚠️ By player id, not by name (read-models kill-owner.ts): a kill logged under a name
-          // the killer has since changed still bans him, and never the name's next holder.
-          killsByPlayer(r.playerId, r.gamertag),
-          killsInLifeWindow({ startedAt: r.startedAt, endedAt: r.endedAt, previousLifeEndedAt: previousEnd }),
-        ),
-      );
-    out.push({
-      serverId: r.serverId,
-      gamertag: r.gamertag,
-      dayzId: r.dayzId,
-      startedAt: r.startedAt,
-      endedAt: r.endedAt,
-      deathCause: r.deathCause,
-      effectivePlaytimeSeconds: r.playtimeSeconds,
-      playerKills: krows.map((k) => ({ occurredAt: k.occurredAt })),
-      previousLifeEndedAt: previousEnd,
-    });
+    out.push(await endedLifeOf(db, { ...r, playerId: Number(r.playerId), endedAt: r.endedAt }));
   }
   return out;
+}
+
+/**
+ * One ended life with its in-life kills, as `planBans` reads it. ⚠️ Shared by
+ * `findEndedUnbannedLives` and `unqualified-bans`, so both judge a life on the same kills.
+ *
+ * ⚠️ Kills are the player's by `killer_player_id`, never by the name on the kill line: that name
+ * does not move when the killer renames, and `unqualified-bans` runs long after the death, often
+ * after a rename (matching by the current name listed a ban the life still earned, and `--lift`
+ * let the player back in). The name is consulted only for a row with no id (the killer had not
+ * connected inside the ingested log), ignoring case. Same rule as #398's `killsByPlayer`.
+ */
+export async function endedLifeOf(
+  db: Database,
+  r: { serverId: number; playerId: number; gamertag: string; dayzId: string | null; startedAt: Date; endedAt: Date; deathCause: string | null; playtimeSeconds: number },
+): Promise<EndedLife> {
+  // ⚠️ The kill window is read-models' kill-window.ts: it runs two seconds past the death, and
+  // skips a kill that belongs to the previous life's two seconds. decide.ts applies the same
+  // rule again to what this returns; narrowing here alone would silently un-ban.
+  const previousEnd = await previousLifeEndedAt(db, r.serverId, r.playerId, r.startedAt, r.endedAt);
+  const krows = await db
+    .select({ occurredAt: kills.occurredAt })
+    .from(kills)
+    .where(
+      and(
+        eq(kills.serverId, r.serverId),
+        // ⚠️ By player id, not by name (read-models kill-owner.ts): a kill logged under a name
+        // the killer has since changed still bans him, and never the name's next holder.
+        killsByPlayer(r.playerId, r.gamertag),
+        killsInLifeWindow({ startedAt: r.startedAt, endedAt: r.endedAt, previousLifeEndedAt: previousEnd }),
+      ),
+    );
+  return {
+    serverId: r.serverId,
+    gamertag: r.gamertag,
+    dayzId: r.dayzId,
+    startedAt: r.startedAt,
+    endedAt: r.endedAt,
+    deathCause: r.deathCause,
+    effectivePlaytimeSeconds: r.playtimeSeconds,
+    playerKills: krows.map((k) => ({ occurredAt: k.occurredAt })),
+    previousLifeEndedAt: previousEnd,
+  };
 }
 
 /** Insert a planned ban (idempotent on the durable death key). */

@@ -80,6 +80,17 @@ export const banAppliedGenerator: Generator = async (deps) => {
 };
 
 /**
+ * The ban_lifted wording. ⚠️ A ban the server operator lifted (`lift_reason = 'operator'`: its
+ * life stopped qualifying when a trap kill was denied, death-verdict spec 6.4) must not say a token
+ * was spent: none was. A NULL lift_reason is an older row, lifted by a token.
+ */
+export function liftedBody(serverName: string, status: string, liftReason: string | null): string {
+  if (status !== "lifted") return `${serverName}: your ban has expired. Go start a new life.`;
+  if (liftReason === "operator") return `${serverName}: the ban was lifted by the server operator.`;
+  return `${serverName}: your token was spent and the ban is lifted.`;
+}
+
+/**
  * ⚠️ Another real ban of the same player on the same server that is still `pending` or `applied`
  * and runs past the moment this one ended. The server's ban list holds names, and the enforcer
  * leaves a name on it while such a ban needs it (namesToRemove in apps/enforcer/src/pg-store.ts;
@@ -102,7 +113,7 @@ export const banLiftedGenerator: Generator = async (deps) => {
   const rows = await deps.db
     .select({
       id: bans.id, userId: gamertagLinks.userId, gamertag: gamertagLinks.gamertag,
-      serverName: servers.name, status: bans.status,
+      serverName: servers.name, status: bans.status, liftReason: bans.liftReason,
     })
     .from(bans)
     .innerJoin(gamertagLinks, verifiedOwner)
@@ -129,9 +140,7 @@ export const banLiftedGenerator: Generator = async (deps) => {
     kind: "ban_lifted",
     naturalKey: `ban_lifted:${r.id}`,
     title: "You're back in",
-    body: r.status === "lifted"
-      ? `${r.serverName}: your token was spent and the ban is lifted.`
-      : `${r.serverName}: your ban has expired. Go start a new life.`,
+    body: liftedBody(r.serverName, r.status, r.liftReason),
     href: `/players/${playerSlug(r.gamertag)}`,
   }));
 };

@@ -8,6 +8,7 @@
     "test": "vitest run",
     "start": "tsx src/main.ts",
     "preview": "tsx src/preview.ts",
+    "regenerate": "tsx src/regenerate.ts",
     "check-inferred-previews": "tsx scripts/check-inferred-previews.ts"
   },
   "dependencies": {

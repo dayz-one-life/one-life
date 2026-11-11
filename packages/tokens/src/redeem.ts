@@ -115,7 +115,7 @@ export async function redeem(db: Database, a: { userId: string; banId?: number }
       const lifted = b.status !== "applied"; // 'pending' was never on Nitrado
       await tx
         .update(bans)
-        .set({ status: lifted ? "lifted" : "lift_pending", liftedAt: lifted ? at : null })
+        .set({ status: lifted ? "lifted" : "lift_pending", liftedAt: lifted ? at : null, liftReason: "token" })
         .where(eq(bans.id, b.id));
     }
 
