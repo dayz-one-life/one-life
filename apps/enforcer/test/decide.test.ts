@@ -72,7 +72,7 @@ describe("planBans", () => {
 // for such a life must be exactly what it was — playtime or an earlier kill, never "pvp-death".
 describe("planBans — the self-kill line", () => {
   const plan = (deathCause: string, over: Partial<EndedLife> = {}) =>
-    planBans([{ ...base, deathCause, ...over }], 24);
+    planBans([{ ...base, deathCause, ...over }], 24, NOW);
 
   it("decisions are unchanged for the self-kill line", () => {
     const cases: Partial<EndedLife>[] = [
