@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { POSTHUMOUS_KILL_GRACE_MS, isKillInLife, killWindowEnd, previousLifeEnd } from "../src/kill-window.js";
+import { POSTHUMOUS_KILL_GRACE_MS, isKillInLife, killWindowEnd, previousLifeEnd, previousLifeEndLookup } from "../src/kill-window.js";
 
 const T = (iso: string) => new Date(iso);
 const start = T("2026-07-11T10:00:00Z");
@@ -74,16 +74,60 @@ describe("previousLifeEnd", () => {
   const all = [second, third, first];
 
   it("is the end of the life that started before this one", () => {
-    expect(previousLifeEnd(all, third.startedAt)).toEqual(died);
-    expect(previousLifeEnd(all, second.startedAt)).toEqual(first.endedAt);
+    expect(previousLifeEnd(all, third)).toEqual(died);
+    expect(previousLifeEnd(all, second)).toEqual(first.endedAt);
   });
   it("is null for a first life", () => {
-    expect(previousLifeEnd(all, first.startedAt)).toBeNull();
-    expect(previousLifeEnd([], start)).toBeNull();
+    expect(previousLifeEnd(all, first)).toBeNull();
+    expect(previousLifeEnd([], second)).toBeNull();
   });
   it("a life that began and ended in the same second is not its own predecessor", () => {
     const instant = { startedAt: died, endedAt: died };
-    expect(previousLifeEnd([instant], instant.startedAt)).toBeNull();
-    expect(isKillInLife(T("2026-07-11T10:03:01Z"), { ...instant, previousLifeEndedAt: previousLifeEnd([instant], instant.startedAt) })).toBe(true);
+    expect(previousLifeEnd([instant], instant)).toBeNull();
+    expect(isKillInLife(T("2026-07-11T10:03:01Z"), { ...instant, previousLifeEndedAt: previousLifeEnd([instant], instant) })).toBe(true);
+  });
+
+  // Connect, death and reconnect all logged in one second: two lives share a start. Lives do not
+  // overlap, so the zero-length one is the earlier life, and its two seconds still keep the kill
+  // out of the other. Without that, the kill counted in both lives' streaks and qualified both.
+  describe("two lives that started in the same second", () => {
+    const at = T("2026-07-11T10:00:03Z");
+    const instant = { startedAt: at, endedAt: at };
+    const kill = T("2026-07-11T10:00:05Z");
+    const claims = (lives: { startedAt: Date; endedAt: Date | null }[]) =>
+      lives.filter((l) => isKillInLife(kill, { ...l, previousLifeEndedAt: previousLifeEnd(lives, l) })).length;
+
+    it("the zero-length one is the predecessor of the other, never the reverse", () => {
+      const later = { startedAt: at, endedAt: T("2026-07-11T10:00:07Z") };
+      expect(previousLifeEnd([instant, later], later)).toEqual(at);
+      expect(previousLifeEnd([later, instant], later)).toEqual(at);
+      expect(previousLifeEnd([instant, later], instant)).toBeNull();
+    });
+    it("a kill inside the first one's grace is claimed once, when the second life ended", () => {
+      const later = { startedAt: at, endedAt: T("2026-07-11T10:00:07Z") };
+      expect(claims([instant, later])).toBe(1);
+      expect(isKillInLife(kill, { ...instant, previousLifeEndedAt: previousLifeEnd([instant, later], instant) })).toBe(true);
+    });
+    it("a caller that only knows the second life as open gets the same answer", () => {
+      const later = { startedAt: at, endedAt: T("2026-07-11T10:00:07Z") };
+      // e.g. a retired or capped window: the life's stored end is not what the caller passes.
+      expect(previousLifeEnd([instant, later], { startedAt: at, endedAt: null })).toEqual(at);
+    });
+    it("and once when the second life is still open", () => {
+      const open = { startedAt: at, endedAt: null };
+      expect(previousLifeEnd([instant, open], open)).toEqual(at);
+      expect(claims([instant, open])).toBe(1);
+    });
+    it("the lookup for many players applies the same order", () => {
+      const later = { startedAt: at, endedAt: T("2026-07-11T10:00:07Z") };
+      const lookup = previousLifeEndLookup([
+        { serverId: 1, playerId: 7, ...instant }, { serverId: 1, playerId: 7, ...later },
+        { serverId: 1, playerId: 8, ...instant },
+      ]);
+      expect(lookup(1, 7, later.startedAt, later.endedAt)).toEqual(at);
+      expect(lookup(1, 7, instant.startedAt, instant.endedAt)).toBeNull();
+      expect(lookup(1, 8, instant.startedAt, instant.endedAt)).toBeNull();
+      expect(lookup(2, 7, later.startedAt, later.endedAt)).toBeNull();
+    });
   });
 });

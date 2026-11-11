@@ -111,7 +111,7 @@ export async function getLifeTrack(
   // null when the killer had no players row); `eq` never matches null, which is exactly right.
   // The kill window is kill-window.ts's, so the map shows the same kills the life page counts: a
   // real death's window runs two seconds past it. A retired or open life keeps `windowEnd`.
-  const previousEnd = await previousLifeEndedAt(db, serverId, row.playerId, row.startedAt);
+  const previousEnd = await previousLifeEndedAt(db, serverId, row.playerId, row.startedAt, row.endedAt);
   const killRows = await db
     .select({ victimGamertag: kills.victimGamertag, occurredAt: kills.occurredAt })
     .from(kills)

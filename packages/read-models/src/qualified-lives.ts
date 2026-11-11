@@ -1,6 +1,6 @@
 import type { Database } from "@onelife/db";
 import { lives, players, kills } from "@onelife/db";
-import { and, or, eq, gte, lt, isNull, exists, notExists, sql, type SQL } from "drizzle-orm";
+import { and, or, eq, gt, gte, lt, isNull, exists, notExists, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { QUALIFY_SECONDS } from "./qualified.js";
 import { POSTHUMOUS_KILL_GRACE_MS } from "./kill-window.js";
@@ -42,7 +42,16 @@ export function qualifiedLifeCondition(db: Database): SQL {
                   and(
                     eq(prev.serverId, lives.serverId),
                     eq(prev.playerId, lives.playerId),
-                    lt(prev.startedAt, lives.startedAt),
+                    // "Previous" as in previousLifeEnd (kill-window.ts): an earlier start, or
+                    // the same start when that life is zero-length and this one is not.
+                    or(
+                      lt(prev.startedAt, lives.startedAt),
+                      and(
+                        eq(prev.startedAt, lives.startedAt),
+                        eq(prev.endedAt, prev.startedAt),
+                        or(isNull(lives.endedAt), gt(lives.endedAt, lives.startedAt)),
+                      ),
+                    ),
                     sql`${kills.occurredAt} <= ${prev.endedAt} + ${grace}`,
                   ),
                 ),

@@ -52,6 +52,19 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
   minutes that ended in a non-player death is banned "by kill" when its kill line is logged up to
   two seconds after the death. It is read-time only: stored timestamps are as logged, so there is
   no migration, no `--rebuild` and no backfill, and a rebuild cannot change the answer.
+  "Previous life" is by `started_at`; when two lives share a start (connect, death and reconnect
+  in one logged second) the zero-length one is the predecessor of the other. An OPEN life's window
+  ends at the last heartbeat where a reader caps it (`isLifeQualified`'s `windowEnd`), and the two
+  seconds are added there too; that only brings a real kill forward by one heartbeat.
+  `getPlayerPriors` counts a kill in a prior life's two seconds as a prior kill.
+  **⚠️ Three enforcer rules follow from the Nitrado ban list holding NAMES, not bans** (removing
+  a name lifts every ban that put it there), all in `apps/enforcer/src/decide.ts` + `tick.ts`:
+  (1) `planBans` plans nothing for a death whose ban is already over at `now`, so a death judged
+  late (enforcer downtime, or a qualifying `kills` row that only appears in a later rebuild)
+  gets no `bans` row, no Nitrado call and no notification; (2) a `pending` ban past its
+  `expires_at` is marked `expired` without being sent; (3) on expiry `namesToRelease` keeps any
+  name another still-`applied` ban on that server holds, so one ban ending never unbans a player
+  serving a later one. Token lifts (`lift_pending`) are not filtered this way.
   **⚠️ Bans are placed against `bans.dayz_id` (the stable DayZ account hash) AND the gamertag,
   via the batched `addBans`/`removeBans` — never the single-entry `addBan`/`removeBan`, which
   would be one whole-field read-modify-write of the Nitrado ban list per entry, with a

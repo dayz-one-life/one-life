@@ -39,7 +39,7 @@ export async function findEndedUnbannedLives(db: Database): Promise<EndedLife[]>
     // ⚠️ The kill window is read-models' kill-window.ts: it runs two seconds past the death, and
     // skips a kill that belongs to the previous life's two seconds. decide.ts applies the same
     // rule again to what this returns; narrowing here alone would silently un-ban.
-    const previousEnd = await previousLifeEndedAt(db, r.serverId, r.playerId, r.startedAt);
+    const previousEnd = await previousLifeEndedAt(db, r.serverId, r.playerId, r.startedAt, r.endedAt);
     const krows = await db
       .select({ occurredAt: kills.occurredAt })
       .from(kills)

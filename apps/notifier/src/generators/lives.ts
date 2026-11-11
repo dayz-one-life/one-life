@@ -73,7 +73,7 @@ async function openQualifiedLives(deps: Parameters<Generator>[0]): Promise<Row[]
       sessions: lifeSessions,
       lastSeenAt: c.lastSeenAt,
       playerKills,
-      previousLifeEndedAt: previousEnd(c.serverId, c.playerId, c.startedAt),
+      previousLifeEndedAt: previousEnd(c.serverId, c.playerId, c.startedAt, null),
     });
     if (!q) continue;
     rows.push({

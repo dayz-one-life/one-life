@@ -38,31 +38,49 @@ export function isKillInLife(occurredAt: Date, life: LifeKillWindow): boolean {
   return true;
 }
 
-/** Among one player's lives on one server: when the life before the one that started at
- *  `startedAt` ended, or null for a first life. "Before" is by start, never by end, so a life
- *  that began and ended in the same second is not mistaken for its own predecessor. */
+/** Among one player's lives on one server: when the life before `life` ended, or null for a
+ *  first life.
+ *
+ *  ⚠️ "Before" is by start, with one extra case. A connect, death and reconnect logged in one
+ *  second give a zero-length life and its successor the SAME start. A player's lives do not
+ *  overlap, so of two lives sharing a start the earlier one is the zero-length one: it is the
+ *  predecessor of the other, and never of itself. Start alone is not enough: with neither life
+ *  counted as the other's predecessor, a kill in the zero-length life's two seconds was claimed
+ *  by both. Never order by end alone either, or a zero-length life is its own predecessor. The
+ *  same rule is written in `previousLifeEndedAt` (kill-window-db.ts) and in
+ *  `qualifiedLifeCondition` (qualified-lives.ts); keep the three identical.
+ *
+ *  Two zero-length lives of one player in the same second cannot be told apart here and would
+ *  both claim such a kill. That needs two whole lives inside one logged second. */
 export function previousLifeEnd(
   playerLives: readonly { startedAt: Date; endedAt: Date | null }[],
-  startedAt: Date,
+  life: { startedAt: Date; endedAt: Date | null },
 ): Date | null {
-  const s = startedAt.getTime();
+  const s = life.startedAt.getTime();
+  const e = life.endedAt ? life.endedAt.getTime() : Infinity;
   let best: Date | null = null;
   for (const l of playerLives) {
-    if (!l.endedAt || l.startedAt.getTime() >= s) continue;
+    if (!l.endedAt) continue;
+    const ls = l.startedAt.getTime();
+    if (ls > s) continue;
+    // Same start: only a zero-length life precedes, and only a life that is not zero-length.
+    if (ls === s && !(l.endedAt.getTime() === ls && e > s)) continue;
     if (!best || l.endedAt.getTime() > best.getTime()) best = l.endedAt;
   }
   return best;
 }
 
-/** `previousLifeEnd` for many players at once: index a set of lives, then ask per life. */
+/** `previousLifeEnd` for many players at once: index a set of lives, then ask per life, giving
+ *  that life's own start and end (null = open). */
 export function previousLifeEndLookup(
   all: readonly { serverId: number; playerId: number; startedAt: Date; endedAt: Date | null }[],
-): (serverId: number, playerId: number, startedAt: Date) => Date | null {
+): (serverId: number, playerId: number, startedAt: Date, endedAt: Date | null) => Date | null {
   const byPlayer = new Map<string, { startedAt: Date; endedAt: Date | null }[]>();
   for (const l of all) {
     const key = `${l.serverId}:${l.playerId}`;
     const list = byPlayer.get(key);
     if (list) list.push(l); else byPlayer.set(key, [l]);
   }
-  return (serverId, playerId, startedAt) => previousLifeEnd(byPlayer.get(`${serverId}:${playerId}`) ?? [], startedAt);
+  return (serverId, playerId, startedAt, endedAt) =>
+    previousLifeEnd(byPlayer.get(`${serverId}:${playerId}`) ?? [], { startedAt, endedAt });
 }

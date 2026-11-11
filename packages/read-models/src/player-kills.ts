@@ -24,7 +24,7 @@ export async function getLifeKills(
   // still counts. Resolve the id once from the caller's gamertag; a miss means no kills.
   const p = (await db.select({ id: players.id }).from(players).where(eq(players.gamertag, killerGamertag)))[0];
   if (!p) return [];
-  const previousEnd = await previousLifeEndedAt(db, serverId, p.id, startedAt);
+  const previousEnd = await previousLifeEndedAt(db, serverId, p.id, startedAt, endedAt);
   const rows = await db
     .select({
       victimGamertag: kills.victimGamertag,

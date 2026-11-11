@@ -53,7 +53,7 @@ export async function getPlayerProfile(db: Database, serverId: number, gamertag:
     startedAt: l.startedAt,
     windowEnd: l.endedAt ?? upTo,
     playerKills: pk,
-    previousLifeEndedAt: previousLifeEnd(lifeRows, l.startedAt),
+    previousLifeEndedAt: previousLifeEnd(lifeRows, l),
   }));
 
   const openLife = qualified.find((l) => l.endedAt === null) ?? null;   // qualified current life only
@@ -89,7 +89,7 @@ export async function getPlayerLives(db: Database, serverId: number, gamertag: s
     startedAt: l.startedAt,
     windowEnd: l.endedAt ?? upTo,
     playerKills: pk,
-    previousLifeEndedAt: previousLifeEnd(rows, l.startedAt),
+    previousLifeEndedAt: previousLifeEnd(rows, l),
   }));
 }
 

@@ -1,7 +1,8 @@
 import type { Database } from "@onelife/db";
 import { players, lives, servers, kills } from "@onelife/db";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lt, lte, or, sql } from "drizzle-orm";
 import { causeFamily } from "@onelife/domain";
+import { killWindowEnd } from "./kill-window.js";
 
 export interface PlayerPriors {
   livesLived: number;              // count of PRIOR lives (startedAt < beforeLifeStartedAt); excludes current
@@ -34,6 +35,7 @@ export async function getPlayerPriors(
   // All prior lives across all servers, oldest first (deterministic tie-breaks below).
   const priorLives = await db
     .select({
+      serverId: lives.serverId,
       endedAt: lives.endedAt,
       playtimeSeconds: lives.playtimeSeconds,
       deathCause: lives.deathCause,
@@ -76,11 +78,24 @@ export async function getPlayerPriors(
   ended.sort((a, b) => b.endedAt!.getTime() - a.endedAt!.getTime());
   const lastDeathCause = ended[0]?.deathCause ?? null;
 
-  // confirmed kills across all prior lives = kills scored before the current life began (any server)
+  // confirmed kills across all prior lives = kills scored before the current life began (any
+  // server), plus a kill logged inside a prior life's two seconds after its death (kill-window.ts)
+  // when the player was already back. That kill is the dead life's: the current life does not
+  // count it, so without this it was in neither number. Almost always there is no such life and
+  // the condition is the plain "before the current life began".
+  const stillInGrace = priorLives.filter(
+    (l) => l.endedAt !== null && killWindowEnd(l.endedAt).getTime() >= beforeLifeStartedAt.getTime(),
+  );
   const kc = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(kills)
-    .where(and(eq(kills.killerPlayerId, p.id), lt(kills.occurredAt, beforeLifeStartedAt)));
+    .where(and(
+      eq(kills.killerPlayerId, p.id),
+      or(
+        lt(kills.occurredAt, beforeLifeStartedAt),
+        ...stillInGrace.map((l) => and(eq(kills.serverId, l.serverId), lte(kills.occurredAt, killWindowEnd(l.endedAt!)))),
+      ),
+    ));
   const totalKills = kc[0]?.c ?? 0;
 
   return {

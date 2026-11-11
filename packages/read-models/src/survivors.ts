@@ -118,7 +118,7 @@ export async function getAliveSurvivors(
     // equals a real id, so orphan kills are correctly excluded. A kill logged inside the two
     // seconds after this player's PREVIOUS death is that life's kill, not this one's
     // (kill-window.ts), so it is neither counted here nor allowed to qualify this life.
-    const window = { startedAt: r.startedAt, endedAt: null, previousLifeEndedAt: previousEnd(r.serverId, r.playerId, r.startedAt) };
+    const window = { startedAt: r.startedAt, endedAt: null, previousLifeEndedAt: previousEnd(r.serverId, r.playerId, r.startedAt, null) };
     const myKills = killRows.filter(
       (k) => k.serverId === r.serverId && k.killerPlayerId === r.playerId && isKillInLife(k.occurredAt, window),
     );

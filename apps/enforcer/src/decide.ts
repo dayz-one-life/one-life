@@ -37,10 +37,22 @@ function qualifiedBy(life: EndedLife): QualifiedBy {
   return "playtime";
 }
 
-/** Which ended (already-unbanned) lives are qualified and therefore need a ban. Pure. */
-export function planBans(lives: EndedLife[], banDurationHours: number): BanPlan[] {
+/**
+ * Which ended (already-unbanned) lives are qualified and therefore need a ban. Pure.
+ *
+ * ⚠️ A death whose ban would already be over at `now` gets NO plan, so no `bans` row. Such a
+ * death is found late: the enforcer was down for longer than the ban, or a `kills` row that
+ * qualifies an old life only appeared afterwards (a rebuild; the two-second grace in read-models
+ * kill-window.ts is what lets a late-stamped kill count). Recording it would add the player to
+ * the Nitrado list and remove them in the same tick, and the notifier, which windows on
+ * `bans.created_at`, would tell them they were banned for a death that may be weeks old. The life
+ * simply stays in `findEndedUnbannedLives`, like every unqualified one.
+ */
+export function planBans(lives: EndedLife[], banDurationHours: number, now: Date): BanPlan[] {
   const plans: BanPlan[] = [];
   for (const life of lives) {
+    const expiresAt = new Date(life.endedAt.getTime() + banDurationHours * 3600_000);
+    if (expiresAt.getTime() <= now.getTime()) continue; // same instant planExpiries calls due
     const input: QualificationInput = {
       deathCause: life.deathCause,
       effectivePlaytimeSeconds: life.effectivePlaytimeSeconds,
@@ -56,7 +68,7 @@ export function planBans(lives: EndedLife[], banDurationHours: number): BanPlan[
       dayzId: life.dayzId,
       lifeStartedAt: life.startedAt,
       bannedAt: life.endedAt,
-      expiresAt: new Date(life.endedAt.getTime() + banDurationHours * 3600_000),
+      expiresAt,
       qualifiedBy: qualifiedBy(life),
     });
   }
@@ -82,4 +94,26 @@ export function banNames(b: { dayzId: string | null; gamertag: string }): string
   return [b.dayzId, b.gamertag]
     .filter((n): n is string => typeof n === "string" && n.trim() !== "")
     .map((n) => n.trim());
+}
+
+/**
+ * Which of an ending ban's names to take off the Nitrado list. Pure.
+ *
+ * ⚠️ The Nitrado list holds names, not bans: removing a name lifts EVERY ban that put it there.
+ * So a name another ban of the same server still holds stays on the list. `stillRunning` is the
+ * bans that remain in force after this one ends (it may include `ban` itself, which is ignored).
+ * Without this, one ban expiring unbanned a player who was a few hours into a later one, while
+ * that later row went on saying `applied`. After a rename the two bans share the account id but
+ * not the gamertag, so only the old gamertag is released.
+ */
+export function namesToRelease(
+  ban: { id: number; serverId: number; dayzId: string | null; gamertag: string },
+  stillRunning: readonly { id: number; serverId: number; dayzId: string | null; gamertag: string }[],
+): string[] {
+  const held = new Set<string>();
+  for (const other of stillRunning) {
+    if (other.id === ban.id || other.serverId !== ban.serverId) continue;
+    for (const n of banNames(other)) held.add(n);
+  }
+  return banNames(ban).filter((n) => !held.has(n));
 }

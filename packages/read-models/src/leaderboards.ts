@@ -44,7 +44,7 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
         const qualified = isLifeQualified({
           deathCause: r.deathCause, effectivePlaytimeSeconds: r.playtimeSeconds, startedAt: r.startedAt,
           windowEnd: r.endedAt ?? now, playerKills: killRows.filter((k) => k.gamertag === r.gamertag),
-          previousLifeEndedAt: previousEnd(r.serverId, r.playerId, r.startedAt),
+          previousLifeEndedAt: previousEnd(r.serverId, r.playerId, r.startedAt, r.endedAt),
         });
         if (!qualified) continue;
         byPlayer.set(r.gamertag, Math.max(byPlayer.get(r.gamertag) ?? 0, r.playtimeSeconds));
@@ -72,7 +72,7 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
           const qualified = isLifeQualified({
             deathCause: r.deathCause, effectivePlaytimeSeconds: value, startedAt: r.startedAt, windowEnd: upTo,
             playerKills: killRows.filter((k) => k.gamertag === r.gamertag),
-            previousLifeEndedAt: previousEnd(serverId, r.playerId, r.startedAt),
+            previousLifeEndedAt: previousEnd(serverId, r.playerId, r.startedAt, null),
           });
           return { gamertag: r.gamertag, value, qualified };
         })
@@ -93,7 +93,7 @@ export async function getLeaderboard(db: Database, serverId: number, board: Lead
       for (const life of rows) {
         // kill-window.ts: a kill logged up to two seconds after the death is part of the streak
         // it ended, and is not the first kill of the next life's streak.
-        const window = { startedAt: life.startedAt, endedAt: life.endedAt, previousLifeEndedAt: previousEnd(life.serverId, life.playerId, life.startedAt) };
+        const window = { startedAt: life.startedAt, endedAt: life.endedAt, previousLifeEndedAt: previousEnd(life.serverId, life.playerId, life.startedAt, life.endedAt) };
         const count = killRows.filter((k) =>
           k.killerGamertag === life.gamertag && isKillInLife(k.occurredAt, window) &&
           (life.endedAt !== null || k.occurredAt.getTime() <= now.getTime())).length;
