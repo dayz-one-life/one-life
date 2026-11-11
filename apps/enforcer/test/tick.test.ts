@@ -181,22 +181,6 @@ describe("enforcerTick — two bans of one player share the server's name entry"
     sid2 = s!.id;
   });
 
-  it("an expiring ban does not call removeBans while the same player has a later applied ban", async () => {
-    await ban("Sibling One", "S1S1", new Date("2026-08-30T00:00:00Z"), T1);
-    await ban("Sibling One", "S1S1", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 10 * H));
-    const { r, fake } = await tick(new Date(T1.getTime() + H));
-    expect(r.expired).toBe(1);
-    expect(fake.calls.remove).not.toContainEqual(["S1S1", "Sibling One"]);
-    const rows = await db.select().from(bans).where(eq(bans.gamertag, "Sibling One")).orderBy(bans.id);
-    expect(rows.map((b) => b.status)).toEqual(["expired", "applied"]);
-  });
-
-  it("the later ban's expiry does call it", async () => {
-    const { r, fake } = await tick(new Date(T1.getTime() + 11 * H));
-    expect(r.expired).toBe(1);
-    expect(fake.calls.remove).toContainEqual(["S1S1", "Sibling One"]);
-  });
-
   it("a lifted ban does not call removeBans while a sibling is applied", async () => {
     await ban("Sibling Two", "S2S2", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 5 * H), "lift_pending");
     await ban("Sibling Two", "S2S2", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 20 * H));
@@ -205,17 +189,6 @@ describe("enforcerTick — two bans of one player share the server's name entry"
     expect(fake.calls.remove).not.toContainEqual(["S2S2", "Sibling Two"]);
     const rows = await db.select().from(bans).where(eq(bans.gamertag, "Sibling Two")).orderBy(bans.id);
     expect(rows.map((b) => b.status)).toEqual(["lifted", "applied"]);
-  });
-
-  it("a sibling under a different gamertag but the same dayz id counts", async () => {
-    await ban("Old Name Three", "S3S3", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
-    await ban("New Name Three", "S3S3", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
-    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
-    expect(fake.calls.remove).not.toContainEqual(["S3S3", "Old Name Three"]);
-    // the old name is needed by no running ban: it comes off; the shared id stays
-    expect(fake.calls.remove).toContainEqual(["Old Name Three"]);
-    const [old] = await db.select().from(bans).where(eq(bans.gamertag, "Old Name Three"));
-    expect(old!.status).toBe("expired");
   });
 
   it("a recycled gamertag held by another player: the first id comes off, the shared name stays", async () => {
@@ -234,14 +207,32 @@ describe("enforcerTick — two bans of one player share the server's name entry"
     expect(fake.calls.remove).toContainEqual(["S4S4", "Sibling Four"]);
   });
 
-  it("planBans skips a life whose ban would already have ended", async () => {
-    const [p] = await db.insert(players).values({ gamertag: "Late Five", dayzId: "L5L5" }).returning();
-    await db.insert(lives).values({
-      serverId: sid2, playerId: p!.id, lifeNumber: 1, startedAt: new Date("2026-08-01T10:00:00Z"),
-      endedAt: new Date("2026-08-01T12:00:00Z"), deathCause: "infected", playtimeSeconds: 4000,
+  // The same-player expiry and the rename are pinned in late-ban.test.ts; these are the rest of
+  // what namesToRemove (pg-store.ts) decides.
+  it("a sibling with the same gamertag in another case counts", async () => {
+    await ban("Case Eight", null, new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("CASE EIGHT", null, new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H));
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove.flat().map((n) => n.toLowerCase())).not.toContain("case eight");
+  });
+
+  it("a pending real sibling counts: it is about to be sent", async () => {
+    await ban("Pending Nine", "P9P9", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await ban("Pending Nine", "P9P9", new Date("2026-08-31T00:00:00Z"), new Date(T1.getTime() + 30 * H), "pending");
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove.flat()).not.toContain("P9P9");
+    expect(fake.calls.add).toContainEqual(["P9P9", "Pending Nine"]);
+  });
+
+  it("a running ban of the same player on another server holds nothing here", async () => {
+    const [other] = await db.insert(servers).values({ nitradoServiceId: 555003, name: "enf-siblings-2" }).returning();
+    await ban("Elsewhere Ten", "E10E", new Date("2026-08-30T00:00:00Z"), new Date(T1.getTime() + 3 * H));
+    await db.insert(bans).values({
+      serverId: other!.id, gamertag: "Elsewhere Ten", dayzId: "E10E", lifeStartedAt: new Date("2026-08-31T00:00:00Z"), reason: "qualified_death",
+      bannedAt: new Date(T1.getTime() + 6 * H), expiresAt: new Date(T1.getTime() + 30 * H), status: "applied", dryRun: false,
     });
-    await tick(new Date(T1.getTime() + 50 * H));
-    expect(await db.select().from(bans).where(eq(bans.gamertag, "Late Five"))).toHaveLength(0);
+    const { fake } = await tick(new Date(T1.getTime() + 4 * H));
+    expect(fake.calls.remove).toContainEqual(["E10E", "Elsewhere Ten"]);
   });
 
   it("a trap_placement row qualifies an ended 60-second life exactly as a kill_line row does", async () => {

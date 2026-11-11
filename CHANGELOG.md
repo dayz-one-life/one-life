@@ -6,6 +6,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Every page now shows how a player died from the cause the projector has stored, instead of
+  guessing it each time the page loads. The life page says what happened in a sentence ("Killed by
+  a tripwire rigged with an M67 frag grenade.", "Died after an infected attack."), names the object
+  where the log does, and adds a short note when the cause was worked out rather than stated
+  ("Worked out from the log") or is only the best reading ("Likely starvation", with a note that
+  the server recorded no cause). About 90 deaths that read "Unknown" or "Environment" now read
+  their cause. A death whose cause has not been stored yet shows only what the log line itself
+  says, or "Awaiting the record", for the few minutes until it is. Cards, the Morgue, ban cards,
+  the Rap Sheet and both share images use the same wording, and an old obituary's cause chip
+  follows the stored cause unless its text said no cause was recorded. A life's share image is
+  kept by link previews for a day once its cause is stored, and for a minute before, so a corrected
+  cause reaches them; it used to be kept for a year. Switching off a "Likely" cause also takes it
+  off older obituaries whose stored cause is waiting for review. Kill counts never show
+  anyone the log does not name. No `--rebuild` and no backfill is needed.
+- A kill credited from a trap is shown as one. When the server operator turns trap kills on, a
+  kill credited to the player whose tripwire or land mine killed someone is marked "by trap" in
+  their kill list and life timeline with a note that the log names no killer, and a life that the trap kill qualified says "A trap kill credited. The life counts from
+  here." The victim's life page says "Kill credited to" that player. The life map shows no marker
+  for a trap kill, and the About page's grace rule now says that having a trap you set kill
+  another survivor qualifies the life. Nothing here turns trap kills on. No `--rebuild` and no
+  backfill is needed.
+- An obituary's "usual cause of death" now counts only causes the log states or nearly states,
+  grouped by kind ("hunger and thirst", "wildlife", "pvp"), so three deaths to three different
+  players count as one usual cause. No `--rebuild` and no backfill is needed.
+
+- Obituaries are written from the stored cause of death (prompt `obituary-v4`). The writer is told
+  the cause with its certainty: a cause the log states is given as fact, one that was worked out
+  may carry one small qualifier, and a best reading is given as "most likely" under a heading that
+  says it is not confirmed, with the instruction to hedge it in every sentence and keep it out of
+  the headline and the pull quote. A death the server gives no cause for, or one we choose not to
+  describe, gets no cause at all. When a trap kill is credited, the victim's obituary may name the
+  player credited in its body only, never in the headline, the opening paragraph or the pull
+  quote, and a trap-setter's obituary counts trap kills as kills but keeps any kill count out of
+  the headline and the opening paragraph. A check now reads every draft before it is published
+  and sends it back once, then gives up, if it breaks any of these rules or mentions how a player
+  left the game. The cause tag on a new obituary is the death's family ("Hunger and Thirst",
+  "Trap", "Exposure", ...) instead of "Environment"; it is "Unknown" only when no cause is given.
+  A re-published obituary keeps its address. The obituary records which version of the cause it
+  was written from (new column `articles.verdict_version`, migration `0041`), and stores the cause
+  in the old vocabulary so older pages and app builds still read it. The privacy page lists the
+  new things sent to the writer. `pnpm --filter @onelife/newsdesk run preview -- --life <id>
+  [--generate]` prints what would be sent for a death without writing anything. No `--rebuild` and
+  no backfill is needed.
+  After review, the check reads plain synonyms of each cause (winter, snow, food, a cough, the
+  bike, a stranger), checks the hedge of each clause rather than of the whole sentence, accepts
+  more honest hedges ("perhaps", "in all likelihood", "the paper's reading"), and no longer lets a
+  mention of an earlier death, earlier run-ins or the player's own kills excuse a flat statement
+  of how this one ended, in the headline or anywhere else. For a death with no cause given it
+  looks for that death's own kind of cause and for explicit mechanisms (a fall, wolves, a
+  tripwire), not every ordinary word like "cold" or "shot". It ignores numbers that are not kill
+  counts ("two hours", "no one", a gamertag) and model tags that are never published, and it
+  matches a credited player's name as a whole word. A failed obituary records only which rules
+  it broke. A stored "Likely" tag on an obituary is replaced by "Unknown" when that kind of cause
+  is switched off, even while the death is being re-checked. The tuning script now also drafts
+  deaths with no cause and trap-setters, sends the same recent-prose block as the real run, and
+  refuses any database whose name does not end in `_test`.
+
+## [0.83.0] - 2026-11-11
+
+### Changed
+
+- `@onelife/death-verdict` now also works out the deaths the log gives no cause for, from what
+  it does show: health readings, hunger and thirst, the faints of heatstroke, speed, altitude and
+  other deaths in the same moment. These answers are never shown as certain: starvation, cold,
+  heatstroke (on Nasdara "heatstroke or silicosis", which the log cannot tell apart), illness, a
+  vehicle crash, or a creature or player who wore the player down. A death nothing explains stays
+  unknown. The projector works every stored death out again on its next passes, in place. Nothing
+  on the site reads the stored causes yet. A worked-out fall or animal attack is not shown at all:
+  only the six kinds of worked-out cause that can each be switched off are ever shown.
+- Obituaries that are held back are no longer held silently: the newsdesk logs an error for every
+  qualified death still waiting for its cause 45 minutes after it, the projector logs an error
+  while any stored cause needs the operator's review, and `verify-verdicts --held` lists both.
+  An operator's correction of a death's cause now clears a review, and also releases a death the
+  projector cannot work out at all (`verify-verdicts --held` prints the line to correct). A death
+  the projector kept retrying is tried again as soon as the projector restarts after a fix.
+
+- New obituaries wait until the projector has stored how the player died, which takes a few
+  minutes after the death. The obituary itself is written as before. No `--rebuild` and no
+  backfill is needed.
+
+## [0.82.0] - 2026-11-11
+
 ### Added
 
 - A new internal package, `@onelife/death-verdict`, holding the wording for every cause of death:
@@ -48,52 +132,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kills of deaths already stored on the next pass too. Deaths the log gives no cause for are stored as
   unknown for now. Nothing on the site reads the stored causes yet, so no page, card or obituary
   changes. The deploy runs a database migration; no `--rebuild` and no backfill is needed.
-- `@onelife/death-verdict` now also works out the deaths the log gives no cause for, from what
-  it does show: health readings, hunger and thirst, the faints of heatstroke, speed, altitude and
-  other deaths in the same moment. These answers are never shown as certain: starvation, cold,
-  heatstroke (on Nasdara "heatstroke or silicosis", which the log cannot tell apart), illness, a
-  vehicle crash, or a creature or player who wore the player down. A death nothing explains stays
-  unknown. The projector works every stored death out again on its next passes, in place. Nothing
-  on the site reads the stored causes yet. A worked-out fall or animal attack is not shown at all:
-  only the six kinds of worked-out cause that can each be switched off are ever shown.
-- Obituaries that are held back are no longer held silently: the newsdesk logs an error for every
-  qualified death still waiting for its cause 45 minutes after it, the projector logs an error
-  while any stored cause needs the operator's review, and `verify-verdicts --held` lists both.
-  An operator's correction of a death's cause now clears a review, and also releases a death the
-  projector cannot work out at all (`verify-verdicts --held` prints the line to correct). A death
-  the projector kept retrying is tried again as soon as the projector restarts after a fix.
 
 ### Changed
 
-- Every page now shows how a player died from the cause the projector has stored, instead of
-  guessing it each time the page loads. The life page says what happened in a sentence ("Killed by
-  a tripwire rigged with an M67 frag grenade.", "Died after an infected attack."), names the object
-  where the log does, and adds a short note when the cause was worked out rather than stated
-  ("Worked out from the log") or is only the best reading ("Likely starvation", with a note that
-  the server recorded no cause). About 90 deaths that read "Unknown" or "Environment" now read
-  their cause. A death whose cause has not been stored yet shows only what the log line itself
-  says, or "Awaiting the record", for the few minutes until it is. Cards, the Morgue, ban cards,
-  the Rap Sheet and both share images use the same wording, and an old obituary's cause chip
-  follows the stored cause unless its text said no cause was recorded. A life's share image is
-  kept by link previews for a day once its cause is stored, and for a minute before, so a corrected
-  cause reaches them; it used to be kept for a year. Switching off a "Likely" cause also takes it
-  off older obituaries whose stored cause is waiting for review. Kill counts never show
-  anyone the log does not name. No `--rebuild` and no backfill is needed.
-- A kill credited from a trap is shown as one. When the server operator turns trap kills on, the
-  player whose tripwire or land mine killed someone has the kill in their "Kills" count like any
-  other, marked "by trap" in their kill list and life timeline with a note that the log names no
-  killer, and a life that the trap kill qualified says "A trap kill credited. The life counts from
-  here." The victim's life page says "Kill credited to" that player. The life map shows no marker
-  for a trap kill, and the About page's grace rule now says that having a trap you set kill
-  another survivor qualifies the life. Nothing here turns trap kills on. No `--rebuild` and no
-  backfill is needed.
-- An obituary's "usual cause of death" now counts only causes the log states or nearly states,
-  grouped by kind ("hunger and thirst", "wildlife", "pvp"), so three deaths to three different
-  players count as one usual cause. No `--rebuild` and no backfill is needed.
+- A player who is still alive and offline is counted as having scored a kill that is logged
+  after they last left, so the board, their profile and their lives list agree with the ban and
+  the "This life counts now" notice. An open life's kill window now runs to the present instead
+  of to two seconds past the last heartbeat. How long they have been alive still stops when they
+  left.
+- The ban notice says when the ban ends ("banned until 2026-07-17 00:00 UTC") instead of a fixed
+  "24 hours", because a ban recorded late has less than a day left.
+- One unban token now lifts every active ban a player has on a server. A ban recorded late, for a
+  death before a later one, no longer keeps them out after they have paid to come back. A ban
+  lifted with a token, like one that expires, now leaves the player on the server's list while
+  another ban of theirs is still running or still waiting to be sent, and a gamertag is matched
+  ignoring case. When a gamertag has passed to another player who is banned under it, the first
+  player's ban ends by taking off only their account id, and their ban is no longer theirs to
+  lift with a token, nor lifted along with the new holder's: a ban belongs to the account id it
+  was recorded with. A ban with no end date keeps the player's names on the list for good. None
+  of this changes a ban on the servers today.
+- "You're back in" is no longer sent when a ban ends while another ban keeps the player out on
+  that server; the last one to end sends it.
+- A player renamed after his ban was recorded is no longer banned, and told so, a second time for
+  the same death under his new name.
+- A trap kill is credited when the victim's own kill, logged up to two seconds after the death,
+  is what made his life count, as it does on the boards and for bans; a kill that belongs to the
+  victim's previous life no longer does.
 
-- New obituaries wait until the projector has stored how the player died, which takes a few
-  minutes after the death. The obituary itself is written as before. No `--rebuild` and no
-  backfill is needed.
+## [0.81.0] - 2026-11-11
+
+### Changed
 
 - New deaths by grenade, land mine, claymore, tripwire, plastic explosive, 40mm round or an
   exploding fuel pump are recorded as "Explosion", and deaths under a riderless motorbike or
@@ -111,48 +179,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   total but is not counted toward the life that had just ended.
 - `backfill-death-causes` never upgrades a stored death to a player kill. It patches the cause
   only, so it would have produced a player-kill death with no killer and no kill credited.
-- A player who is still alive and offline is counted as having scored a kill that is logged
-  after they last left, so the board, their profile and their lives list agree with the ban and
-  the "This life counts now" notice. How long they have been alive still stops when they left.
-- The ban notice says when the ban ends ("banned until 2026-07-17 00:00 UTC") instead of a fixed
-  "24 hours", because a ban recorded late has less than a day left.
-- One unban token now lifts every active ban a player has on a server. A ban recorded late, for a
-  death before a later one, no longer keeps them out after they have paid to come back, and when
-  one of two such bans ends the server keeps the player banned until the other ends too; a name
-  only the ended ban used, such as an old gamertag, is still taken off the server's list. No ban
-  is recorded for a life whose ban would already be over. None of this changes a ban on the
-  servers today.
-- Obituaries are written from the stored cause of death (prompt `obituary-v4`). The writer is told
-  the cause with its certainty: a cause the log states is given as fact, one that was worked out
-  may carry one small qualifier, and a best reading is given as "most likely" under a heading that
-  says it is not confirmed, with the instruction to hedge it in every sentence and keep it out of
-  the headline and the pull quote. A death the server gives no cause for, or one we choose not to
-  describe, gets no cause at all. When a trap kill is credited, the victim's obituary may name the
-  player credited in its body only, never in the headline, the opening paragraph or the pull
-  quote, and a trap-setter's obituary counts trap kills as kills but keeps any kill count out of
-  the headline and the opening paragraph. A check now reads every draft before it is published
-  and sends it back once, then gives up, if it breaks any of these rules or mentions how a player
-  left the game. The cause tag on a new obituary is the death's family ("Hunger and Thirst",
-  "Trap", "Exposure", ...) instead of "Environment"; it is "Unknown" only when no cause is given.
-  A re-published obituary keeps its address. The obituary records which version of the cause it
-  was written from (new column `articles.verdict_version`, migration `0041`), and stores the cause
-  in the old vocabulary so older pages and app builds still read it. The privacy page lists the
-  new things sent to the writer. `pnpm --filter @onelife/newsdesk run preview -- --life <id>
-  [--generate]` prints what would be sent for a death without writing anything. No `--rebuild` and
-  no backfill is needed.
-  After review, the check reads plain synonyms of each cause (winter, snow, food, a cough, the
-  bike, a stranger), checks the hedge of each clause rather than of the whole sentence, accepts
-  more honest hedges ("perhaps", "in all likelihood", "the paper's reading"), and no longer lets a
-  mention of an earlier death, earlier run-ins or the player's own kills excuse a flat statement
-  of how this one ended, in the headline or anywhere else. For a death with no cause given it
-  looks for that death's own kind of cause and for explicit mechanisms (a fall, wolves, a
-  tripwire), not every ordinary word like "cold" or "shot". It ignores numbers that are not kill
-  counts ("two hours", "no one", a gamertag) and model tags that are never published, and it
-  matches a credited player's name as a whole word. A failed obituary records only which rules
-  it broke. A stored "Likely" tag on an obituary is replaced by "Unknown" when that kind of cause
-  is switched off, even while the death is being re-checked. The tuning script now also drafts
-  deaths with no cause and trap-setters, sends the same recent-prose block as the real run, and
-  refuses any database whose name does not end in `_test`.
+- A kill the log writes up to two seconds after the killer's own death now counts toward the
+  life that had just ended. This happens when a grenade is already in the air, or when two
+  players kill each other and the second line is stamped a second late. The kill was in the
+  killer's career total but in none of their lives, so that life's page, kill streak and
+  obituary showed one kill fewer than the victim's page credited.
+- **This can ban a player who was not banned before.** If such a kill is the only thing that
+  makes a life count (the life was under five minutes and did not end in a player kill), the
+  life now qualifies "by kill" and its death draws the 24-hour ban. A life that ended in a player
+  kill, or lasted five minutes, was banned already and is not affected.
+- The kill is never counted twice. If the killer is back within those two seconds, it still
+  belongs to the life that died and not to the new one. It then shows in the new life's "kills
+  across prior lives", which used to miss it.
+- A life that is still open gets the same two seconds past the player's last heartbeat, which is
+  where its window ends until the next one. A kill stamped a second or two after that heartbeat
+  now qualifies the life on the survivors and alive boards and the profile straight away, and
+  not one heartbeat later. No ban follows from this: only a death is banned.
+- The enforcer no longer records a ban for a death whose ban period is already over when the
+  death is first judged. This happens after the enforcer has been down for longer than a ban
+  lasts, or when a kill that qualifies an old life only reaches the database later, for example
+  in a rebuild with a newer log parser. Before, such a ban was added to the Nitrado list and
+  removed in the same pass, and the player was told they had been banned for a death that could
+  be weeks old. Now nothing is written and nobody is notified.
+- **A ban that expires no longer takes the player off the Nitrado ban list while they are
+  serving a later ban on the same server.** The list holds names, not bans, so removing the name
+  ended both, and the later ban went on showing as active. The expiring ban is now closed and
+  the name stays until the last ban ends. After a rename only the old name is removed.
+- A ban still waiting to be sent to Nitrado when its time runs out is closed as expired and
+  never sent.
+
+No migration, `--rebuild` or backfill is needed: nothing stored changes, only which life a kill
+is read as part of. None of the kills recorded on One Life up to 2026-11-10 is affected, so
+no existing life page, board or ban changes on deploy.
 
 ### Fixed
 
@@ -163,11 +221,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The object named on a kill line is stored whole for new deaths. "6-M7 Frag Grenade" and
   "EGD-5 Frag Grenade" were stored as "6" and "EGD", and a driverless vehicle as "NO". The object
   names already stored on old deaths are not rewritten.
+- A kill is now matched to its killer by the player, not by the name on the kill line, in the
+  six places that still matched by name: the enforcer, the "This life counts now" notification
+  and the most-kills, longest-killstreak, alive-longest and alltime-longest boards. A player who
+  changed gamertag lost every kill logged under the old name there, although the profile and
+  life pages kept them.
+- **This can ban a player who was not banned before.** A renamed player whose life counted only
+  because of a kill logged under the old name (the life was under five minutes and did not end
+  in a player kill) is now banned when that life ends, like anyone else. And a player who takes
+  a name someone else gave up is no longer banned, notified or ranked for the previous holder's
+  kills.
+- most-kills counts per player and shows the current gamertag, so a renamed killer is one row
+  and not one per name. Players level on kills are listed in name order; before, their order
+  was whatever the database returned.
+- A kill row with no player on it (the killer had never connected inside the ingested log) is
+  still matched by name, ignoring case, in those six places, as before. The longest-killstreak
+  board used to leave such rows out and now counts them the same way.
+- The longest-kills board shows the killer's current gamertag too. It printed the name on the
+  kill line, so a renamed killer appeared under the old name there and the new one on
+  most-kills.
+- A life's kill list on the life page and the player page is read by the player the life
+  belongs to, not looked up again by name. When two players hold the same gamertag (a given-up
+  name taken by someone else before its previous holder reconnected), the name could resolve to
+  the other one, and the life then showed no kills and could read as not counting.
 
 No `--rebuild` and no backfill is needed. Only deaths logged after this release are affected.
 The older ones were corrected by hand, up to a snapshot taken on 2026-11-10: before tagging,
 check for grenade, mine, 40mm, fuel-pump and driverless-vehicle deaths logged since then and
 correct them the same way, or they keep reading "Environment".
+
+No migration, `--rebuild` or backfill is needed. On the kills recorded on One Life up to
+2026-11-10: every row has a player on it, no life changes status and no ban changes. One renamed
+player's kills return to the boards of two retired servers: a streak of 2 on one and of 1 on the
+other, and their two most-kills rows now show the current name.
 
 ## [0.80.0] - 2026-10-16
 

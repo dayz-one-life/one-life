@@ -6,6 +6,7 @@ import {
   type TrackPoint, type TrackSegment, type TrackMarker,
 } from "./life-track-shape.js";
 import { retirementCap } from "./retirement.js";
+import { killsInLifeWindow, previousLifeEndedAt } from "./kill-window-db.js";
 
 export interface LifeTrack {
   mapCodename: string;
@@ -108,6 +109,9 @@ export async function getLifeTrack(
   // — a kill scored under a former gamertag still counts, and this uses `kills_killer_player_idx`
   // (server_id, killer_player_id) end-to-end. `killer_player_id` is nullable (the fold leaves it
   // null when the killer had no players row); `eq` never matches null, which is exactly right.
+  // The kill window is kill-window.ts's, so the map shows the same kills the life page counts: a
+  // real death's window runs two seconds past it. A retired or open life keeps `windowEnd`.
+  const previousEnd = await previousLifeEndedAt(db, serverId, row.playerId, row.startedAt, row.endedAt);
   const killRows = await db
     .select({ victimGamertag: kills.victimGamertag, occurredAt: kills.occurredAt })
     .from(kills)
@@ -118,8 +122,8 @@ export async function getLifeTrack(
       // spec 2.4) fires where the trap was set, usually with its placer far away or offline, so
       // a marker for it would put a "kill" on the map where nothing happened.
       eq(kills.basis, "kill_line"),
-      gte(kills.occurredAt, row.startedAt),
-      lte(kills.occurredAt, windowEnd),
+      killsInLifeWindow({ startedAt: row.startedAt, endedAt: row.endedAt, previousLifeEndedAt: previousEnd }),
+      row.endedAt ? undefined : lte(kills.occurredAt, windowEnd),
     ))
     .orderBy(asc(kills.occurredAt));
 
