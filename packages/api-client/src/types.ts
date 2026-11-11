@@ -59,6 +59,22 @@ export type LifeDetail = { life: Life; sessions: Session[] };
 export type LeaderRow = { gamertag: string; value: number; detail?: Record<string, unknown> };
 export type GlobalLeaderRow = LeaderRow & { map: string; slug: string };
 
+/**
+ * How a kill was established (death-verdict spec 2.4). `kill_line`: the log's kill line names the
+ * killer. `trap_placement`: the log names no killer; the kill is credited to the player whose
+ * placed tripwire or land mine fired, read from where it was set. Both count the same everywhere.
+ */
+export type KillBasis = "kill_line" | "trap_placement";
+
+/**
+ * One row of `GET /servers/:id/kills`.
+ *
+ * ⚠️ For a row with `basis === "trap_placement"`, `killerGamertag` is a player CREDITED from a
+ * placement, not a killer the log names. A renderer must word it as
+ * "VICTIM · killed by a tripwire · kill credited to PLACER" (or "a land mine"), never
+ * "KILLER killed VICTIM", "KILLER's tripwire" or "confirmed kill". `basis` is the only marker; the
+ * server cannot enforce the wording.
+ */
 export type Kill = {
   id: number;
   serverId: number;
@@ -70,6 +86,9 @@ export type Kill = {
   weapon: string | null;
   distance: number | null;
   occurredAt: string;
+  basis: KillBasis;
+  /** Null for a kill line; `classifier` or `override` (an operator grant) for a trap kill. */
+  creditSource: "classifier" | "override" | null;
 };
 
 export type Build = {
@@ -139,11 +158,12 @@ export type PlayerAggregate = {
   };
 };
 
-export type PlayerKill = { victimGamertag: string; weapon: string | null; distanceMeters: number | null; occurredAt: string };
+/** `basis` is required so no consumer can ignore it: a trap kill is listed "by trap" (spec 2.4). */
+export type PlayerKill = { victimGamertag: string; weapon: string | null; distanceMeters: number | null; occurredAt: string; basis: KillBasis };
 /** `qualified` refines `state: "alive"` — a PROVISIONAL life (inside the five-minute grace window)
  *  is `qualified: false`, and `qualifiedAt` is null exactly then. The state union is deliberately
  *  not widened to a fourth member. */
-export type QualifiedAtDtoLite = { at: string; by: "playtime" | "kill" | "pvp-death" };
+export type QualifiedAtDtoLite = { at: string; by: "playtime" | "kill" | "pvp-death"; killBasis?: KillBasis };
 export type AliveStanding = { lifeId: number; lifeNumber: number; startedAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; killList: PlayerKill[]; qualified: boolean; qualifiedAt: QualifiedAtDtoLite | null };
 export type BanStanding = { banId: number; bannedAt: string; expiresAt: string | null; liftPending: boolean; triggeringLifeNumber: number | null; verdict: DeathVerdictDto | null };
 export type ServerStanding = { serverId: number; map: string; slug: string; state: "alive" | "banned" | "idle"; alive: AliveStanding | null; ban: BanStanding | null; lastLifeNumber: number | null; lastEndedAt: string | null };
@@ -151,15 +171,63 @@ export type PastLife = { lifeId: number; serverId: number; map: string; slug: st
 /** One FILED obituary on a player's page. Mirrors `ObituaryEntry` in @onelife/read-models
  *  (dates as ISO strings over the wire). A strict subset of the player's ended lives — see the
  *  ⚠️ notes on `filedObituaries` and on `<Morgue />`. */
-export type ObituaryEntry = { slug: string; map: string; mapSlug: string; lifeNumber: number; headline: string; lede: string | null; deathAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; cause: string | null };
+export type ObituaryEntry = { slug: string; map: string; mapSlug: string; lifeNumber: number; headline: string; lede: string | null; deathAt: string; timeAliveSeconds: number; kills: number; longestKillMeters: number | null; cause: string | null; death: ArticleDeathDto | null };
 export type PlayerPage = { gamertag: string; verified: boolean; avatarHash: string | null; firstSeenAt: string | null; aliveAnywhere: boolean; totals: { kills: number; lives: number; deaths: number; longestLifeSeconds: number }; previousBestSeconds: number; standing: ServerStanding[]; pastLives: PastLife[]; pastLivesTotal: number; pastLivesPage: number; pastLivesPageSize: number; obituaries: ObituaryEntry[]; obituariesTotal: number };
 
 export interface SurvivorRow { gamertag: string; map: string; slug: string; timeAliveSeconds: number; killsThisLife: number; longestKillMeters: number | null; avatarHash: string | null; }
 export interface SurvivorsPage { rows: SurvivorRow[]; total: number; page: number; pageSize: number; }
 
-export type DeathVerdictDto = { cause: string; confidence: "high" | "low"; conditions: string[] };
+/**
+ * The public death of a life (`PublicDeath` in @onelife/death-verdict; every string is computed on
+ * the server). `cause` / `confidence` / `conditions` are the legacy fields in the vocabulary
+ * readers had before stage 4; a current reader prints `label` (see `verdictPhrase`).
+ *
+ * ⚠️ `killerGamertag` is set only when the kill line names a killer; `driverGamertag` only when it
+ * names a driver (never a killer, never linked); `credit` only from a trap kill credited for this
+ * death. No other name ever appears here.
+ */
+export type DeathVerdictDto = {
+  cause: string;
+  confidence: "high" | "low";
+  conditions: string[];
+  /** `pending`: no stored verdict yet; only what the death line states is shown. */
+  status: "final" | "pending";
+  key: string;
+  tag: string | null;
+  certainty: "definitive" | "strong" | "inferred" | "unknown";
+  label: string;
+  detail: string | null;
+  sentence: string;
+  caption: string | null;
+  killerGamertag: string | null;
+  driverGamertag: string | null;
+  credit: { gamertag: string; basis: "trap_placement"; device: "tripwire" | "land_mine"; byOperator: boolean } | null;
+  trap: boolean;
+  selfStated: boolean;
+};
 
-export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death" };
+/** The legacy triple alone: what an obituary froze as `facts.verdict` before stage 4, and what an
+ *  old payload carries. */
+export type LegacyVerdictDto = Pick<DeathVerdictDto, "cause" | "confidence" | "conditions">;
+
+/** The hedged strings an obituary froze when it was written (shown while the live verdict is
+ *  pending or missing). Never carries a trap credit. */
+export type FrozenDeathDto = {
+  status: "frozen";
+  key: string;
+  tag: string | null;
+  certainty: string;
+  label: string;
+  detail: string | null;
+  sentence: string;
+  caption: string | null;
+};
+/** On an article: the live final verdict, else the frozen strings, else null (legacy fields). */
+export type ArticleDeathDto = DeathVerdictDto | FrozenDeathDto;
+
+/** `killBasis` is set when `by === "kill"`: which kind of kill qualified the life. It never changes
+ *  when the life qualified, only how the line is worded. */
+export type QualifiedAtDto = { at: string; by: "playtime" | "kill" | "pvp-death"; killBasis?: KillBasis };
 export type EncounterDto = {
   category: "wolf" | "bear" | "animal" | "infected" | "player" | "fire" | "environment";
   attackerGamertag: string | null;
@@ -213,6 +281,8 @@ export type ObituaryCard = {
   longestKillMeters: number | null;
   cause: string | null;
   deathAt: string;
+  /** Live final verdict, else the article's frozen strings, else null (use `cause`). */
+  death: ArticleDeathDto | null;
 };
 export type ObituariesFeed = { rows: ObituaryCard[]; total: number; page: number; pageSize: number };
 export type ObituaryArticle = ObituaryCard & {
@@ -222,7 +292,8 @@ export type ObituaryArticle = ObituaryCard & {
   sessions: number;
   killerGamertag: string | null;
   weapon: string | null;
-  verdict: DeathVerdictDto | null;
+  /** The legacy triple frozen into the article (`facts.verdict`); the live death is `death`. */
+  verdict: LegacyVerdictDto | null;
 };
 
 /** Named AppNotification to avoid shadowing the DOM's global Notification type,

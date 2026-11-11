@@ -1,9 +1,24 @@
 import { describe, expect, test } from "vitest";
 import { buildTimeline } from "./life-timeline";
-import type { LifeTimelineData } from "@onelife/api-client";
+import type { DeathVerdictDto, LifeTimelineData } from "@onelife/api-client";
 
 const start = "2026-07-14T00:00:00Z";
 const at = (mins: number) => new Date(Date.parse(start) + mins * 60_000).toISOString();
+
+const BASE_DEATH = {
+  status: "final", tag: null, certainty: "definitive", detail: null, caption: null, killerGamertag: null, driverGamertag: null,
+  credit: null, trap: false, selfStated: false,
+} as const;
+const STARVED: DeathVerdictDto = {
+  ...BASE_DEATH, cause: "starvation", confidence: "low", conditions: ["starving"], key: "starvation", tag: "Hunger and Thirst",
+  certainty: "inferred", label: "Likely starvation", sentence: "Likely starved to death.", caption: "Best reading of the log. The server recorded no cause.",
+};
+const TRAPPED: DeathVerdictDto = {
+  ...BASE_DEATH, cause: "explosion", confidence: "high", conditions: [], key: "tripwire", tag: "Trap", label: "Tripwire",
+  detail: "M67 frag grenade", sentence: "Killed by a tripwire rigged with an M67 frag grenade. Kill credited to Placer Person.",
+  caption: "The log names no killer. Placer Person placed the only tripwire it records at this spot.", trap: true,
+  credit: { gamertag: "Placer Person", basis: "trap_placement", device: "tripwire", byOperator: false },
+};
 
 function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
   return {
@@ -25,8 +40,8 @@ function data(over: Partial<LifeTimelineData> = {}): LifeTimelineData {
       { id: 3, serverId: 1, playerId: 1, lifeId: 1, connectedAt: at(400), disconnectedAt: null, durationSeconds: null, closeReason: null },
     ],
     kills: [
-      { victimGamertag: "Twhizzle4life", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(430) },
-      { victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90) },
+      { victimGamertag: "Twhizzle4life", weapon: "KAS-74U", distanceMeters: 25, occurredAt: at(430), basis: "kill_line" },
+      { victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(90), basis: "kill_line" },
     ],
     qualifiedAt: { at: at(5), by: "playtime" },
     encounters: [],
@@ -174,7 +189,7 @@ describe("buildTimeline", () => {
       const v = buildTimeline(
         data({
           sessions: [{ id: 1, serverId: 1, playerId: 1, lifeId: 1, connectedAt: start, disconnectedAt: null, durationSeconds: null, closeReason: null }],
-          kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(480) }],
+          kills: [{ victimGamertag: "Tomahawked11", weapon: "VSS", distanceMeters: 5, occurredAt: at(480), basis: "kill_line" }],
           lastSeenAt: at(300),
         }),
         now,
@@ -243,7 +258,7 @@ describe("buildTimeline", () => {
     const now = new Date(Date.parse(start) + 400 * 60_000);
     const deadData = data({
       qualifiedAt: null,
-      verdict: { cause: "starvation", confidence: "low", conditions: ["starving"] },
+      verdict: STARVED,
       life: {
         ...data().life, endedAt: at(360), endReason: "death", deathCause: "environment", deathByGamertag: null,
         deathWeapon: null, deathDistance: null, energyAtDeath: 0, waterAtDeath: 10, bleedSourcesAtDeath: 0,
@@ -252,7 +267,44 @@ describe("buildTimeline", () => {
     });
     const view = buildTimeline(deadData, now);
     const death = view.events.find((e) => e.kind === "death")!;
-    expect(death.kind === "death" && death.verdict).toEqual({ cause: "starvation", confidence: "low", conditions: ["starving"] });
+    expect(death.kind === "death" && death.verdict).toEqual(STARVED);
+  });
+
+  test("the death event carries the public death's sentence, detail, caption and names", () => {
+    const now = new Date(Date.parse(start) + 400 * 60_000);
+    const view = buildTimeline(data({
+      qualifiedAt: null, verdict: TRAPPED,
+      life: { ...data().life, endedAt: at(360), endReason: "death", deathCause: "explosion", playtimeSeconds: 21600 },
+    }), now);
+    const death = view.events.find((e) => e.kind === "death")!;
+    expect(death).toMatchObject({
+      sentence: "Killed by a tripwire rigged with an M67 frag grenade.",
+      detail: "M67 frag grenade",
+      caption: "The log names no killer. Placer Person placed the only tripwire it records at this spot.",
+      killerGamertag: null, driverGamertag: null,
+      credit: { gamertag: "Placer Person", device: "tripwire" },
+    });
+  });
+
+  test("a life qualified by a trap kill prints the trap line, not \"First blood drawn\"", () => {
+    const now = new Date(Date.parse(start) + 500 * 60_000);
+    const trap = buildTimeline(data({ qualifiedAt: { at: at(90), by: "kill", killBasis: "trap_placement" } }), now);
+    const q = trap.events.find((e) => e.kind === "qualified")!;
+    expect(q.kind === "qualified" && q.line).toBe("A trap kill credited. The life counts from here.");
+    const line = buildTimeline(data({ qualifiedAt: { at: at(90), by: "kill", killBasis: "kill_line" } }), now);
+    const q2 = line.events.find((e) => e.kind === "qualified")!;
+    expect(q2.kind === "qualified" && q2.line).toBe("First blood drawn. The life counts from here.");
+    // an old payload with no killBasis reads as a kill line
+    const old = buildTimeline(data({ qualifiedAt: { at: at(90), by: "kill" } }), now);
+    const q3 = old.events.find((e) => e.kind === "qualified")!;
+    expect(q3.kind === "qualified" && q3.line).toBe("First blood drawn. The life counts from here.");
+  });
+
+  test("a kill event carries its basis", () => {
+    const now = new Date(Date.parse(start) + 500 * 60_000);
+    const v = buildTimeline(data({ kills: [{ victimGamertag: "Victim One", weapon: "Tripwire", distanceMeters: null, occurredAt: at(90), basis: "trap_placement" }] }), now);
+    const k = v.events.find((e) => e.kind === "kill")!;
+    expect(k).toMatchObject({ kind: "kill", basis: "trap_placement", longestKill: false });
   });
 
   test("interleaves encounters with the exact copy per category", () => {

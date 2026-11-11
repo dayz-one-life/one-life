@@ -15,6 +15,13 @@ describe("causeLabel", () => {
 describe("verdictPhrase", () => {
   const v = (cause: string, confidence: "high" | "low" = "high", conditions: string[] = []) => ({ cause, confidence, conditions });
 
+  it("a public death prints its label, whatever the legacy fields say", () => {
+    expect(verdictPhrase({ ...v("explosion"), label: "Fuel pump explosion" }, "explosion")).toBe("Fuel pump explosion");
+    expect(verdictPhrase({ ...v("starvation", "low"), label: "Likely starvation and thirst" }, "died")).toBe("Likely starvation and thirst");
+  });
+  it("an empty label falls back to the legacy wording", () => {
+    expect(verdictPhrase({ ...v("starvation"), label: "" }, "died")).toBe("Starvation");
+  });
   it("no verdict falls back to the mechanism label", () => {
     expect(verdictPhrase(null, "drowned")).toBe("Drowned");
   });
