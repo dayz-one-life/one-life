@@ -288,6 +288,13 @@
       "when": 1787331600000,
       "tag": "0040_death_verdicts",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787418000000,
+      "tag": "0041_articles_verdict_version",
+      "breakpoints": true
     }
   ]
 }
