@@ -11,12 +11,11 @@ import { toVerdict, type Draft } from "./verdict.js";
  * The verdict for one death: the first rule that matches, then the post-pass, then the evidence
  * half of the trap-kill bar.
  *
- * ⚠️ ONLY THE STATED RULES ARE PORTED. A death with a kill line (A01 to A17) or with a stated
- * mechanism on a bare death line (B01 to B08) gets the reference's answer. Every other death
- * comes back as rule `B00`, cause `unknown`: the rules that read timing, speed and health
- * bookkeeping are not ported yet. The projector's sweep stores verdicts from version 1 on, for the
- * operator to verify; nothing may SHOW one until they are — the golden attestation's `gaps` says
- * how many deaths that is.
+ * The whole ladder of the reference is ported: the stated rules (a kill line, A01 to A17; a stated
+ * mechanism on a bare death line, B01 to B08) and the inferred ones (B09 to B23), which read
+ * timing, speed and health bookkeeping and never claim more than strong. A death nothing
+ * explains is rule B19, `unknown`. The golden attestation's `gaps` counts the deaths that differ
+ * from the reference; readers may show verdicts only while it is 0.
  *
  * ⚠️ Not ported, on purpose: the reference's last pass over a player's NEXT death (a chain of
  * grenade deaths seconds after respawning raises `self (spawn reset)` to strong). A verdict that
@@ -26,8 +25,7 @@ import { toVerdict, type Draft } from "./verdict.js";
  */
 export function classifyDeath(ctx: DeathContext): InternalVerdict {
   const first: Draft = ctx.killer ? classifyKilled(ctx) : classifyBare(ctx);
-  // B00 is "no rule yet", not a verdict: it gets no post-pass.
-  const draft = first.rule === "B00" ? first : finish(ctx, first);
+  const draft = finish(ctx, first);
   const verdict = toVerdict(ctx, draft, conditions(ctx), null);
   if (inCreditScope(verdict)) verdict.evidence.credit = creditEvidence(ctx, verdict);
   return verdict;
