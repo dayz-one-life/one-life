@@ -196,4 +196,19 @@ describe("newsdeskTick", () => {
     expect(afterRows).toHaveLength(1);
     expect(afterRows[0]!.status).toBe("published");
   });
+
+  it("logs the qualified deaths waiting over 45 minutes for a reviewable verdict, at error level", async () => {
+    const tag = `tk-overdue-${svc}`;
+    const id = await seedQualifiedDeath(tag, 40);
+    await sql`DELETE FROM death_verdicts WHERE life_id = ${id}`;
+    const errors: [unknown, string | undefined][] = [];
+    const spy = { info: () => {}, error: (o: unknown, m?: string) => { errors.push([o, m]); } };
+    await newsdeskTick(db, deps({ log: spy, now: new Date(hrs(40).getTime() + 30 * 60_000), dryRun: true }));
+    expect(errors.filter(([, m]) => m === "newsdesk.obituary_overdue")).toEqual([]);
+    await newsdeskTick(db, deps({ log: spy, now: new Date(hrs(40).getTime() + 50 * 60_000), dryRun: true }));
+    const alarm = errors.find(([, m]) => m === "newsdesk.obituary_overdue");
+    expect(alarm).toBeDefined();
+    expect((alarm![0] as { lifeIds: number[] }).lifeIds).toContain(id);
+  });
 });
+

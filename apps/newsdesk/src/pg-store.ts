@@ -125,6 +125,56 @@ export async function findObituaryTargets(
   return rows.map((r) => ({ ...r, endedAt: r.endedAt! }));
 }
 
+/** A qualified death this long past its end with no reviewable verdict is overdue (spec 4.4, 6.1). */
+export const OBITUARY_OVERDUE_MINUTES = 45;
+
+/**
+ * The overdue alarm: ids of qualified dead lives (since the cutoff, not blocked by an article)
+ * that ended more than OBITUARY_OVERDUE_MINUTES ago and still have no verdict at the current
+ * classifier version that does not need review — the lives the gate in `findObituaryTargets` is
+ * holding back. ⚠️ A death can wait without the sweep ever failing on it (a needs_review row, the
+ * projector judged behind on every pass, a projector still writing an older classifier version
+ * after a partial deploy); this is the one place that sees all of them.
+ */
+export async function overdueObituaryLives(
+  db: Database,
+  opts: { since: Date; now: Date; maxAttempts: number },
+): Promise<number[]> {
+  const cutoff = new Date(opts.now.getTime() - OBITUARY_OVERDUE_MINUTES * 60_000);
+  const rows = await db
+    .select({ lifeId: lives.id })
+    .from(lives)
+    // qualifiedLifeCondition reads players
+    .innerJoin(players, eq(players.id, lives.playerId))
+    .where(
+      and(
+        isNotNull(lives.endedAt),
+        gte(lives.endedAt, opts.since),
+        sql`${lives.endedAt} < ${cutoff.toISOString()}::timestamptz`,
+        qualifiedLifeCondition(db),
+        notExists(
+          db.select({ x: sql`1` }).from(deathVerdicts).where(and(
+            eq(deathVerdicts.lifeId, lives.id),
+            eq(deathVerdicts.classifierVersion, CLASSIFIER_VERSION),
+            eq(deathVerdicts.needsReview, false),
+          )),
+        ),
+        notExists(
+          db.select({ x: sql`1` }).from(articles).where(and(
+            eq(articles.kind, "obituary"),
+            eq(articles.serverId, lives.serverId),
+            sql`lower(${articles.gamertag}) IN (SELECT lower(pg.gamertag) FROM player_gamertags pg WHERE pg.player_id = ${lives.playerId})`,
+            eq(articles.lifeStartedAt, lives.startedAt),
+            sql`(${articles.status} = 'published' OR ${articles.attempts} >= ${opts.maxAttempts})`,
+          )),
+        ),
+      ),
+    )
+    .orderBy(lives.endedAt)
+    .limit(500);
+  return rows.map((r) => r.lifeId);
+}
+
 const IDENTITY = (t: ObituaryTarget) => ({
   kind: "obituary" as const,
   serverId: t.serverId,
