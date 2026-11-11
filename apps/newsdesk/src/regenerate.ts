@@ -1,12 +1,12 @@
 import { getDb, type Database } from "@onelife/db";
 import { articleRevisions, articles, kills, lives, players } from "@onelife/db";
-import { and, asc, eq, gte, lt, lte, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import {
-  articleKey, correctedAtOf, getArticleLives, getInferredFamilies, getPublicDeathsForArticles, getTrapCreditsForVictimLives,
+  articleKey, correctedAtOf, getArticleLives, getLifeKills, getPlayerPriors, getPublicDeathsForArticles, getTrapCreditsForVictimLives,
   latestRevision, promptHedgesInferred, qualifiedLifeCondition, sweepCaughtUp, verdictSweepBacklog,
   type ArticleLife, type ArticleLifeKey, type RevisionReason, type VerdictSweepBacklog,
 } from "@onelife/read-models";
-import { PUBLIC_INFERRED, type InferredFamily, type PublicDeath } from "@onelife/death-verdict";
+import { PUBLIC_INFERRED, PUBLIC_ROWS, type InferredFamily, type PublicCauseKey, type PublicDeath } from "@onelife/death-verdict";
 import { loadConfig } from "./config.js";
 import { storedFacts } from "./facts.js";
 import { CauseCheckError, generateObituary, type CompletionClient } from "./generate.js";
@@ -30,12 +30,16 @@ import { opener, recentProse, RECENT_PROSE_LIMIT, type RecentProse } from "./pro
  *                              while the stored verdict now states a cause (definitive or strong)
  *   --stale-inferred           written before obituary-v4 (so the prose says no cause was recorded)
  *                              about a death now read as a "Likely" cause whose family is switched on
- *   --inferred-family <f>      v4 obituaries of a death inferred in family f, rewritten as "not
- *                              recorded" whatever PUBLIC_INFERRED says (the retraction of 6.3)
+ *   --inferred-family <f>      v4 obituaries whose frozen text narrated a "Likely" reading in
+ *                              family f, rewritten as "not recorded" whatever PUBLIC_INFERRED says
+ *                              (the retraction of 6.3)
  *   --denied-credit            obituaries that named a trap-setter whose credit is gone, or counted
  *                              a trap kill that is gone; retracted instead when the life no longer
  *                              qualifies. Refuses while the verdict sweep has anything outstanding.
  *   --restore <slug>           writes the latest archived version back (no --write needed)
+ *
+ * ⚠️ Every selector but --slug picks on what the article FROZE, which a rewrite changes: run twice, the second
+ * run selects nothing it already rewrote, so `--limit N` batches move on.
  *
  * ⚠️ DRY-RUN BY DEFAULT. Without --write it still CALLS THE MODEL (the operator reads the new
  * headline and lede before approving), and writes nothing. With --write each article's previous
@@ -182,6 +186,9 @@ export interface Candidate {
   why: string;
   /** `--inferred-family`: write as if this family were switched off. */
   withdrawFamily?: InferredFamily;
+  /** `--slug`: record `cause-corrected` only when the new frozen cause differs from the old one
+   *  (`causeChanged`), and `regenerated` otherwise, so the page claims no correction that was not. */
+  reasonFromDiff?: boolean;
 }
 
 type FrozenCoarse = "explosion" | "vehicle" | "environment";
@@ -202,8 +209,44 @@ export function frozenCauseOf(a: Pick<ArticleRow, "facts" | "tags">): { unknown:
     return { unknown, coarse };
   }
   const unknown = f.causeCategory === "unknown" || (f.causeCategory == null && (a.tags ?? [])[2] === "Unknown");
-  const coarse = typeof f.cause === "string" && COARSE_WORDS.has(f.cause) ? (f.cause as FrozenCoarse) : null;
+  // v3 filed a cause word that names nothing ("died", the parser's catch-alls, none) under
+  // Environment when the old read-time guess (`facts.verdict.cause`) named a mechanism, and the
+  // prose narrated that guess. The record never stated it: read it as a bare "environment".
+  const guessed = f.causeCategory === "environment" && (f.cause == null || UNNAMED_WORDS.has(String(f.cause)));
+  const coarse = typeof f.cause === "string" && COARSE_WORDS.has(f.cause) ? (f.cause as FrozenCoarse) : guessed ? "environment" : null;
   return { unknown, coarse };
+}
+
+/** v3 cause words that name no mechanism (the old `isUnrecordedCause`). */
+const UNNAMED_WORDS: ReadonlySet<string> = new Set(["", "died", "unknown", "environment", "environmental"]);
+
+const frozenDeath = (a: Pick<ArticleRow, "facts">): Record<string, unknown> | null => {
+  const d = factsOf(a as ArticleRow).death;
+  return d != null && typeof d === "object" && typeof (d as Record<string, unknown>).key === "string" ? (d as Record<string, unknown>) : null;
+};
+
+/** The family an article's frozen text narrated as a "Likely" reading; null when it narrated none. */
+export function frozenInferredFamily(a: Pick<ArticleRow, "facts">): InferredFamily | null {
+  const d = frozenDeath(a);
+  if (!d || d.certainty !== "inferred" || !Object.hasOwn(PUBLIC_ROWS, d.key as string)) return null;
+  return PUBLIC_ROWS[d.key as PublicCauseKey].family ?? null;
+}
+
+/**
+ * Whether the cause a rewrite froze (`next`, the new `facts.death`) differs from what the article
+ * said before. A v4 article is compared on its frozen key, certainty and detail; a v3 one through
+ * `frozenCauseOf` (no cause, or a coarse word the record now says more than), else on its cause tag.
+ */
+export function causeChanged(a: Pick<ArticleRow, "facts" | "tags">, next: Pick<PublicDeath, "key" | "certainty" | "detail" | "tag">): boolean {
+  const old = frozenDeath(a);
+  if (old) {
+    return old.key !== next.key || old.certainty !== next.certainty || JSON.stringify(old.detail ?? null) !== JSON.stringify(next.detail ?? null);
+  }
+  const frozen = frozenCauseOf(a);
+  const nextUnknown = next.tag === "Unknown" || ["unknown", "withheld"].includes(next.certainty as string);
+  if (frozen.unknown) return !nextUnknown;
+  if (frozen.coarse) return saysMore(frozen.coarse, next as PublicDeath);
+  return (a.tags ?? [])[2] !== next.tag;
 }
 
 /** Whether the live verdict says more than the coarse word the article was filed under. */
@@ -257,36 +300,40 @@ export async function selectStaleInferred(db: Database, opts: { slug?: string | 
 }
 
 /**
- * `--inferred-family <family>` (spec 6.3): published v4 obituaries (the prose narrates the
- * inferred cause, hedged) whose stored verdict is inferred in that family, WHATEVER the switch
- * says. Each is rewritten as "not recorded", under the no-mechanism directive.
+ * `--inferred-family <family>` (spec 6.3): published v4 obituaries whose FROZEN text narrated a
+ * "Likely" reading in that family (`facts.death`), WHATEVER the switch says now. Each is rewritten
+ * as "not recorded", under the no-mechanism directive.
+ *
+ * ⚠️ Selected on what the article said, not on the stored verdict: a rewrite leaves the stored
+ * verdict alone and freezes "not recorded", so the rewritten article is not selected again
+ * (repeated `--limit` batches move on), and an article already written as "not recorded" while
+ * the family was off is never picked up and given a false correction line. An article whose life
+ * no longer resolves is selected, and `regenerateOne` skips and reports it.
  */
 export async function selectInferredFamily(
   db: Database, family: InferredFamily, opts: { slug?: string | null; limit?: number | null } = {},
 ): Promise<Candidate[]> {
-  const rows = (await publishedObituaries(db, opts.slug ?? null)).filter((a) => promptHedgesInferred(a.promptVersion));
-  const found = await getArticleLives(db, keys(rows));
-  const families = await getInferredFamilies(db, [...new Set([...found.values()].map((l) => l.id))]);
-  const out: Candidate[] = [];
-  for (const a of rows) {
-    const k = keyOf(a);
-    const life = k ? found.get(articleKey(k)) : undefined;
-    if (life && families.get(life.id) === family) {
-      out.push({ article: a, action: "rewrite", reason: "cause-corrected", why: `a "${family}" reading, withdrawn`, withdrawFamily: family });
-    }
-  }
+  const rows = (await publishedObituaries(db, opts.slug ?? null))
+    .filter((a) => promptHedgesInferred(a.promptVersion) && frozenInferredFamily(a) === family);
+  const out: Candidate[] = rows.map((a) => ({
+    article: a, action: "rewrite", reason: "cause-corrected", why: `a "${family}" reading, withdrawn`, withdrawFamily: family,
+  }));
   return cap(out, opts.limit);
 }
 
-/** Trap kills credited to `life`'s player: in the life (on its server), and before it (anywhere). */
+/**
+ * Trap kills credited to `life`'s player: in the life, and before it, counted by the SAME readers
+ * that built the frozen `facts.trapKills` (`getLifeKills`, through `getLifeTimeline`) and
+ * `facts.priors.trapKills` (`getPlayerPriors`). ⚠️ Never a copy of their windows: when those
+ * readers' window rules change (the two-second kill grace), a copy would disagree with the frozen
+ * counts and select, again on every run, articles whose counts are right.
+ */
 async function liveTrapKills(db: Database, life: ArticleLife): Promise<{ life: number; prior: number }> {
-  const trap = and(eq(kills.basis, "trap_placement"), eq(kills.killerPlayerId, life.playerId));
-  const [inLife] = await db.select({ n: sql<number>`count(*)::int` }).from(kills).where(and(
-    trap, eq(kills.serverId, life.serverId), gte(kills.occurredAt, life.startedAt),
-    life.endedAt ? lte(kills.occurredAt, life.endedAt) : undefined,
-  ));
-  const [prior] = await db.select({ n: sql<number>`count(*)::int` }).from(kills).where(and(trap, lt(kills.occurredAt, life.startedAt)));
-  return { life: inLife?.n ?? 0, prior: prior?.n ?? 0 };
+  const [inLife, priors] = await Promise.all([
+    getLifeKills(db, life.serverId, life.currentGamertag, life.startedAt, life.endedAt),
+    getPlayerPriors(db, life.currentGamertag, life.startedAt),
+  ]);
+  return { life: inLife.filter((k) => k.basis === "trap_placement").length, prior: priors.trapKills };
 }
 
 /** Whether the life still qualifies (the predicate `findObituaryTargets` uses). */
@@ -318,7 +365,11 @@ export async function selectDeniedCredit(db: Database, opts: { slug?: string | n
   for (const a of rows) {
     const k = keyOf(a);
     const life = k ? found.get(articleKey(k)) : undefined;
-    if (!life) continue; // reported by nothing: an unresolvable life cannot be checked
+    if (!life) {
+      // Cannot be checked; listed so the run reports it (spec 6.2: skipped and reported).
+      out.push({ article: a, action: "rewrite", reason: "kills-corrected", why: "its life cannot be resolved, so its trap credit cannot be checked" });
+      continue;
+    }
     const f = factsOf(a);
     const priors = f.priors != null && typeof f.priors === "object" ? (f.priors as Record<string, unknown>) : {};
     const counts = await liveTrapKills(db, life);
@@ -338,7 +389,8 @@ export async function selectDeniedCredit(db: Database, opts: { slug?: string | n
 
 /** `--slug` alone: that published obituary, rewritten from the live verdict. */
 async function selectSlug(db: Database, slug: string): Promise<Candidate[]> {
-  return (await publishedObituaries(db, slug)).map((a) => ({ article: a, action: "rewrite", reason: "cause-corrected", why: "named with --slug" }));
+  return (await publishedObituaries(db, slug))
+    .map((a) => ({ article: a, action: "rewrite", reason: "cause-corrected", why: "named with --slug", reasonFromDiff: true }));
 }
 
 const cap = <T>(xs: T[], limit: number | null | undefined): T[] => (limit != null ? xs.slice(0, limit) : xs);
@@ -379,11 +431,17 @@ export async function regenerateOne(
   const a = c.article;
   if (c.action === "retract") {
     if (!opts.write) return { status: "would-retract" };
-    await db.transaction(async (tx) => {
-      const db2 = tx as unknown as Database;
-      await archive(db2, a, "retracted", deps.now());
-      await tx.update(articles).set({ status: "retracted" }).where(and(eq(articles.id, a.id), eq(articles.status, "published")));
-    });
+    try {
+      await db.transaction(async (tx) => {
+        const db2 = tx as unknown as Database;
+        const current = await lockUnchanged(db2, a);
+        await archive(db2, current, "retracted", deps.now());
+        await tx.update(articles).set({ status: "retracted" }).where(eq(articles.id, a.id));
+      });
+    } catch (e) {
+      if (e instanceof ChangedUnderneath) return { status: "failed", why: e.message };
+      throw e;
+    }
     return { status: "retracted" };
   }
 
@@ -417,9 +475,15 @@ export async function regenerateOne(
 
   const stored = storedFacts(facts);
   const now = deps.now();
-  await db.transaction(async (tx) => {
-    await archive(tx as unknown as Database, a, c.reason, now);
-    await tx.update(articles).set({
+  const reason: RevisionReason = c.reasonFromDiff && !causeChanged(a, stored.death) ? "regenerated" : c.reason;
+  try {
+    await db.transaction(async (tx) => {
+      const db2 = tx as unknown as Database;
+      // Archive the row as it stands now, locked, and only if it is still what was selected: a
+      // version another run wrote in between would otherwise be overwritten without an archive.
+      const current = await lockUnchanged(db2, a);
+      await archive(db2, current, reason, now);
+      await tx.update(articles).set({
       headline: deduped.headline,
       lede: deduped.lede,
       body: deduped.body,
@@ -439,8 +503,34 @@ export async function regenerateOne(
       generatedAt: now,
       verdictVersion: inputs.verdictVersion,
     }).where(eq(articles.id, a.id));
-  });
+    });
+  } catch (e) {
+    if (e instanceof ChangedUnderneath) return { status: "failed", why: e.message };
+    throw e;
+  }
   return { status: "rewritten", headline: deduped.headline, lede: deduped.lede };
+}
+
+/** The article changed (or left `published`) between selection and write. */
+class ChangedUnderneath extends Error {
+  constructor() {
+    super("the article changed since it was selected (another run, a restore or a retraction); nothing written. Run again to see it as it is now");
+    this.name = "ChangedUnderneath";
+  }
+}
+
+/**
+ * Inside the write's transaction: lock the article's row and return it as it stands, or throw
+ * `ChangedUnderneath` when it is no longer published or no longer the version that was read at
+ * selection (its text or its generation stamp moved).
+ */
+async function lockUnchanged(db: Database, a: ArticleRow): Promise<ArticleRow> {
+  const [row] = await db.select(ROW_COLS).from(articles).where(eq(articles.id, a.id)).for("update");
+  if (!row || row.status !== "published" || row.status !== a.status) throw new ChangedUnderneath();
+  const same = row.headline === a.headline && row.lede === a.lede && row.body === a.body
+    && (row.generatedAt?.getTime() ?? null) === (a.generatedAt?.getTime() ?? null) && row.promptVersion === a.promptVersion;
+  if (!same) throw new ChangedUnderneath();
+  return { ...row, id: Number(row.id) };
 }
 
 /** Copy the row as it stands into `article_revisions`. */
@@ -457,16 +547,20 @@ async function archive(db: Database, a: ArticleRow, reason: RevisionReason, at: 
  * so the page shows the line exactly when that text was a correction (`correctedAtOf`).
  */
 export async function restore(db: Database, slug: string, deps: Pick<RegenerateDeps, "now" | "out" | "siteUrl">): Promise<boolean> {
-  const [row] = await db.select(ROW_COLS).from(articles).where(and(eq(articles.kind, "obituary"), eq(articles.slug, slug)));
-  if (!row) { deps.out(`${slug}: no obituary with this slug`); return false; }
-  const a: ArticleRow = { ...row, id: Number(row.id) };
-  const latest = await db.select().from(articleRevisions).where(eq(articleRevisions.articleId, a.id))
-    .orderBy(sql`${articleRevisions.id} desc`).limit(1);
-  const rev = latest[0];
-  if (!rev) { deps.out(`${slug}: nothing to restore (no archived version)`); return false; }
-  const s = rev.snapshot as ArticleSnapshot;
-  await db.transaction(async (tx) => {
-    await archive(tx as unknown as Database, a, "restored", deps.now(), { restoredCorrectedAt: s.correctedAt ?? null });
+  type Done = { a: ArticleRow; s: ArticleSnapshot; replacedAt: Date; reason: string };
+  // Read, archive and write in one transaction with the row locked, so a rewrite running at the
+  // same time cannot slip a version in between that no revision holds.
+  const done = await db.transaction(async (tx): Promise<Done | string> => {
+    const db2 = tx as unknown as Database;
+    const [row] = await db2.select(ROW_COLS).from(articles).where(and(eq(articles.kind, "obituary"), eq(articles.slug, slug))).for("update");
+    if (!row) return "no obituary with this slug";
+    const a: ArticleRow = { ...row, id: Number(row.id) };
+    const latest = await db2.select().from(articleRevisions).where(eq(articleRevisions.articleId, a.id))
+      .orderBy(sql`${articleRevisions.id} desc`).limit(1);
+    const rev = latest[0];
+    if (!rev) return "nothing to restore (no archived version)";
+    const s = rev.snapshot as ArticleSnapshot;
+    await archive(db2, a, "restored", deps.now(), { restoredCorrectedAt: s.correctedAt ?? null });
     await tx.update(articles).set({
       status: s.status, headline: s.headline, lede: s.lede, body: s.body, bodyBlocks: s.bodyBlocks ?? null,
       pullQuoteText: s.pullQuoteText, pullQuoteAttribution: s.pullQuoteAttribution, tags: s.tags, facts: s.facts,
@@ -474,10 +568,12 @@ export async function restore(db: Database, slug: string, deps: Pick<RegenerateD
       generatedAt: s.generatedAt ? new Date(s.generatedAt) : null, verdictVersion: s.verdictVersion,
       kills: s.kills, timeAliveSeconds: s.timeAliveSeconds, longestKillMeters: s.longestKillMeters,
     }).where(eq(articles.id, a.id));
+    return { a, s, replacedAt: rev.replacedAt, reason: rev.reason };
   });
-  deps.out(`${slug}: restored the version archived at ${rev.replacedAt.toISOString()} (${rev.reason}); status ${s.status}`);
-  deps.out(`  now:      ${s.headline ?? ""}`);
-  deps.out(`  replaced: ${a.headline ?? ""}`);
+  if (typeof done === "string") { deps.out(`${slug}: ${done}`); return false; }
+  deps.out(`${slug}: restored the version archived at ${done.replacedAt.toISOString()} (${done.reason}); status ${done.s.status}`);
+  deps.out(`  now:      ${done.s.headline ?? ""}`);
+  deps.out(`  replaced: ${done.a.headline ?? ""}`);
   deps.out(`  ${obituaryUrl(deps.siteUrl, slug)}`);
   return true;
 }
@@ -551,6 +647,12 @@ export async function runRegenerate(db: Database, args: Exclude<RegenerateArgs, 
     }
   }
   deps.out(`done: ${res.rewritten} rewritten, ${res.retracted} retracted, ${res.skipped} skipped, ${res.failed} failed`);
+  if (args.write && args.limit != null && chosen.length > 0 && res.rewritten + res.retracted === 0) {
+    // A failed or skipped article stays selected, and the selection is ordered by death: repeating
+    // the batch would retry the same ones and never reach the rest.
+    deps.out(`note: nothing in this batch was written, and the next run with --limit selects the same ${chosen.length} article(s) `
+      + "first. Fix them, rewrite them one at a time with --slug, or raise --limit past them.");
+  }
   return res;
 }
 

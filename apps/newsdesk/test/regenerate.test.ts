@@ -7,13 +7,14 @@ import { eq, inArray, sql as dsql } from "drizzle-orm";
 import { getObituaryBySlug, getPublishedObituaries, type VerdictSweepBacklog } from "@onelife/read-models";
 import { findSyndicationTargets } from "../../crier/src/pg-store.js";
 import {
-  frozenCauseOf, parseRegenerateArgs, restore, runRegenerate, selectDeniedCredit, selectInferredFamily, selectStale,
+  frozenCauseOf, parseRegenerateArgs, regenerateOne, restore, runRegenerate, selectDeniedCredit, selectInferredFamily, selectStale,
   selectStaleInferred, SweepNotCaughtUpError, type RegenerateDeps,
 } from "../src/regenerate.js";
 import { findObituaryTargets } from "../src/pg-store.js";
 import { NO_MECHANISM_DIRECTIVE } from "../src/prompt.js";
 import type { CompletionClient } from "../src/generate.js";
 import { seedVerdict } from "./verdict.js";
+import { deathVerdicts } from "@onelife/db";
 
 /**
  * `regenerate` against the test database, with a STUB model client: no model is ever called.
@@ -118,6 +119,11 @@ describe("frozenCauseOf", () => {
   it("reads a v3 article's category and coarse word, and a v4 article's frozen death", () => {
     expect(frozenCauseOf({ facts: { causeCategory: "unknown", cause: "died" }, tags: [] })).toEqual({ unknown: true, coarse: null });
     expect(frozenCauseOf({ facts: { causeCategory: "environment", cause: "explosion" }, tags: [] })).toEqual({ unknown: false, coarse: "explosion" });
+    // v3 filed a bare "died" as Environment when the old read-time guess named a mechanism: the
+    // prose narrated that guess, which the record never stated.
+    expect(frozenCauseOf({ facts: { causeCategory: "environment", cause: "died", verdict: { cause: "starvation", confidence: "low" } }, tags: [] }))
+      .toEqual({ unknown: false, coarse: "environment" });
+    expect(frozenCauseOf({ facts: { causeCategory: "environment", cause: "fall" }, tags: [] })).toEqual({ unknown: false, coarse: null });
     expect(frozenCauseOf({ facts: { death: { key: "unknown", tag: "Unknown", certainty: "unknown" } }, tags: [] }).unknown).toBe(true);
     expect(frozenCauseOf({ facts: { death: { key: "explosion", tag: "Explosion", certainty: "definitive", detail: null } }, tags: [] }).coarse).toBe("explosion");
     expect(frozenCauseOf({ facts: { death: { key: "tripwire", tag: "Trap", certainty: "definitive", detail: "M67" } }, tags: [] }))
@@ -227,7 +233,12 @@ describe("regenerate --slug / --stale-cause", () => {
       verdict: { cause: "pvp", confidence: "definitive", attrBasis: "kill_line", rule: "A04" }, deathCause: "pvp",
       facts: { causeCategory: "pvp", cause: "pvp" }, tags: ["Obituaries", "Chernarus", "PvP"],
     });
+    const guessed = await seed({
+      facts: { causeCategory: "environment", cause: "died", verdict: { cause: "starvation", confidence: "low", conditions: [] } },
+      tags: ["Obituaries", "Chernarus", "Environment"],
+    });
     const picked = slugsOf(await selectStale(db));
+    expect(picked).toContain(guessed.slug);
     expect(picked).toContain(unknown.slug);
     expect(picked).toContain(r1.slug);
     expect(picked).not.toContain(inferred.slug);
@@ -269,6 +280,54 @@ describe("regenerate --slug / --stale-cause", () => {
     expect(await db.select().from(articles).where(eq(articles.gamertag, newName))).toHaveLength(0); // no second row
   });
 
+  it("--slug over an article whose cause does not change records 'regenerated' and shows no correction line", async () => {
+    const s = await seed({
+      verdict: { cause: "pvp", confidence: "definitive", attrBasis: "kill_line", rule: "A04" }, deathCause: "pvp",
+      facts: { causeCategory: "pvp", cause: "pvp" }, tags: ["Obituaries", "Chernarus", "PvP"],
+    });
+    await runRegenerate(db, { selector: { kind: "slug" }, slug: s.slug, limit: null, write: true }, deps(stub().client));
+    expect((await revisions(s.articleId)).map((r) => r.reason)).toEqual(["regenerated"]);
+    expect((await getObituaryBySlug(db, s.slug))!.correctedAt).toBeNull();
+  });
+
+  it("a second --slug rewrite of a corrected article records 'regenerated' and keeps the first correction's line", async () => {
+    const s = await seed({});
+    await runRegenerate(db, { selector: { kind: "slug" }, slug: s.slug, limit: null, write: true }, deps(stub().client));
+    await runRegenerate(db, { selector: { kind: "slug" }, slug: s.slug, limit: null, write: true },
+      { ...deps(stub().client), now: () => hrs(550) });
+    expect((await revisions(s.articleId)).map((r) => r.reason)).toEqual(["cause-corrected", "regenerated"]);
+    expect((await getObituaryBySlug(db, s.slug))!.correctedAt).toEqual(hrs(500));
+  });
+
+  it("a rewrite whose article changed after it was selected writes and archives nothing", async () => {
+    const s = await seed({});
+    const [c] = await selectStale(db, { slug: s.slug });
+    expect(c).toBeTruthy();
+    // another run rewrites the article in between
+    await runRegenerate(db, { selector: { kind: "slug" }, slug: s.slug, limit: null, write: true }, deps(stub().client));
+    const between = await article(s.slug);
+    const late = stub((n) => ({ headline: `A Late Draft Number ${n}`, lede: "Late.", body: "B", pullQuote: null, tags: [] }));
+    const o = await regenerateOne(db, { ...deps(late.client), now: () => hrs(520) }, c!, { write: true, recent: [], batchProse: [] });
+    expect(o).toMatchObject({ status: "failed" });
+    expect((o as { why: string }).why).toMatch(/changed since it was selected/);
+    expect(await article(s.slug)).toEqual(between);
+    expect((await revisions(s.articleId)).map((r) => r.reason)).toEqual(["cause-corrected"]);
+    // a retraction is guarded the same way
+    await db.update(articles).set({ status: "retracted" }).where(eq(articles.id, s.articleId));
+    const r = await regenerateOne(db, deps(null), { ...c!, action: "retract", reason: "retracted" }, { write: true, recent: [], batchProse: [] });
+    expect(r).toMatchObject({ status: "failed" });
+    expect(await revisions(s.articleId)).toHaveLength(1);
+    await db.update(articles).set({ status: "published" }).where(eq(articles.id, s.articleId));
+  });
+
+  it("says so when every article of a --limit batch failed, since the next run picks the same ones", async () => {
+    const boom: CompletionClient = { complete: async () => { throw new Error("api boom"); } };
+    const out: string[] = [];
+    const r = await runRegenerate(db, { selector: { kind: "stale-cause" }, slug: null, limit: 1, write: true }, deps(boom, out));
+    expect(r).toMatchObject({ selected: 1, failed: 1 });
+    expect(out.join("\n")).toMatch(/the next run with --limit selects the same/);
+  });
+
   it("an unresolvable life is skipped and reported", async () => {
     const s = await seed({ articleTag: `rg-nobody-${uid()}` });
     const out: string[] = [];
@@ -308,6 +367,45 @@ describe("regenerate --inferred-family", () => {
     expect(picked).not.toContain(other.slug);
   });
 
+  it("never selects a v4 article that was written as not recorded", async () => {
+    const s = await seed({
+      promptVersion: "obituary-v4", verdict: hunger,
+      facts: { death: { key: "unknown", tag: "Unknown", certainty: "unknown", label: "Not recorded" } },
+    });
+    expect(slugsOf(await selectInferredFamily(db, "hunger_thirst"))).not.toContain(s.slug);
+  });
+
+  it("is idempotent: a rewritten article is not selected again, so repeated --limit batches reach every article", async () => {
+    const a = await seed({ startH: 800, promptVersion: "obituary-v4", verdict: hunger, facts: v4Facts, tags: ["Obituaries", "Chernarus", "Hunger and Thirst"] });
+    const b = await seed({ startH: 810, promptVersion: "obituary-v4", verdict: hunger, facts: v4Facts, tags: ["Obituaries", "Chernarus", "Hunger and Thirst"] });
+    const sel = { kind: "inferred-family", family: "hunger_thirst" } as const;
+    const total = (await selectInferredFamily(db, "hunger_thirst")).length;
+    expect(total).toBeGreaterThanOrEqual(2);
+    const m = stub((c) => ({ headline: `The Record Stops At Number ${c}`, lede: "Nothing was written next to his name.", body: "B", pullQuote: null, tags: [] }));
+    for (let i = 0; i < total; i++) {
+      const r = await runRegenerate(db, { selector: sel, slug: null, limit: 1, write: true }, deps(m.client));
+      expect(r.selected).toBe(1);
+    }
+    expect(await selectInferredFamily(db, "hunger_thirst")).toEqual([]);
+    expect(await revisions(a.articleId)).toHaveLength(1);
+    expect(await revisions(b.articleId)).toHaveLength(1);
+    const again = await runRegenerate(db, { selector: sel, slug: null, limit: 1, write: true }, deps(m.client));
+    expect(again.selected).toBe(0);
+  });
+
+  it("rewrites the article of a death held for review as not recorded too", async () => {
+    const s = await seed({ startH: 820, promptVersion: "obituary-v4", verdict: { ...hunger, needsReview: true }, facts: v4Facts, tags: ["Obituaries", "Chernarus", "Hunger and Thirst"] });
+    const m = stub(() => ({ headline: "The Record Simply Stops", lede: "Nothing was written next to his name.", body: "B", pullQuote: null, tags: [] }));
+    const r = await runRegenerate(db, { selector: { kind: "inferred-family", family: "hunger_thirst" }, slug: s.slug, limit: null, write: true }, deps(m.client));
+    expect(r).toMatchObject({ selected: 1, rewritten: 1, skipped: 0 });
+    const after = await article(s.slug);
+    expect(after.headline).toBe("The Record Simply Stops");
+    expect((after.facts as { death: { key: string } }).death.key).toBe("unknown");
+    // the stored verdict is left as it was: still held for review
+    const [held] = await db.select().from(deathVerdicts).where(eq(deathVerdicts.lifeId, s.lifeId));
+    expect(held!.needsReview).toBe(true);
+  });
+
   it("rewrites a v4 article under the no-mechanism directive, with no family word left in it", async () => {
     const s = await seed({ promptVersion: "obituary-v4", verdict: hunger, facts: v4Facts, tags: ["Obituaries", "Chernarus", "Hunger and Thirst"] });
     const m = stub((c) => c === 0
@@ -337,6 +435,15 @@ describe("regenerate --denied-credit", () => {
     const [pl] = await db.insert(players).values({ gamertag: name }).returning();
     pids.push(pl!.id);
     const s = await seed({ facts: { creditSent: true, trapKills: 0, priors: { trapKills: 0 }, death: { key: "tripwire", tag: "Trap", certainty: "definitive" } }, promptVersion: "obituary-v4" });
+    // The credit as it stood when the article was written: the writer was handed the placer's name.
+    const [credit] = await db.insert(kills).values({ serverId, killerGamertag: name, killerPlayerId: pl!.id, victimGamertag: "y", victimLifeId: s.lifeId,
+      weapon: "Tripwire", occurredAt: hrs(2), basis: "trap_placement", creditSource: "classifier" }).returning();
+    const first = stub();
+    await runRegenerate(db, { selector: { kind: "slug" }, slug: s.slug, limit: null, write: false }, deps(first.client));
+    expect(first.prompts[0]).toContain(name);
+    expect(slugsOf(await selectDeniedCredit(db))).not.toContain(s.slug);
+    // The operator denies it.
+    await db.delete(kills).where(eq(kills.id, credit!.id));
     const m = stub();
     expect(slugsOf(await selectDeniedCredit(db))).toContain(s.slug);
     await runRegenerate(db, { selector: { kind: "denied-credit" }, slug: s.slug, limit: null, write: true }, deps(m.client));
@@ -368,6 +475,17 @@ describe("regenerate --denied-credit", () => {
     expect((after.facts as { trapKills: number }).trapKills).toBe(0);
     // a count correction is not a cause correction: no line on the page
     expect((await getObituaryBySlug(db, s.slug))!.correctedAt).toBeNull();
+    // and a corrected article is not selected again
+    expect(slugsOf(await selectDeniedCredit(db))).not.toContain(s.slug);
+  });
+
+  it("an article whose life cannot be resolved is listed and reported, not dropped", async () => {
+    const s = await seed({ startH: 250, articleTag: `rg-nobody-${uid()}`, facts: { creditSent: false, trapKills: 1, priors: { trapKills: 0 } }, promptVersion: "obituary-v4" });
+    expect(slugsOf(await selectDeniedCredit(db))).toContain(s.slug);
+    const out: string[] = [];
+    const r = await runRegenerate(db, { selector: { kind: "denied-credit" }, slug: s.slug, limit: null, write: true }, deps(stub().client, out));
+    expect(r.skipped).toBe(1);
+    expect(out.join("\n")).toContain("SKIPPED: its life cannot be resolved");
   });
 
   it("a later life's article whose priors.trapKills held the denied kill is selected", async () => {

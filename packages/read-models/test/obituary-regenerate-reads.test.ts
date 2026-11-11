@@ -149,6 +149,14 @@ describe("correctedAt", () => {
     expect(correctedAtOf({ reason: "cause-corrected", replacedAt: t, snapshot: {} })).toEqual(t);
     expect(correctedAtOf({ reason: "kills-corrected", replacedAt: t, snapshot: {} })).toBeNull();
     expect(correctedAtOf({ reason: "retracted", replacedAt: t, snapshot: {} })).toBeNull();
+    expect(correctedAtOf({ reason: "regenerated", replacedAt: t, snapshot: {} })).toBeNull();
+    // A rewrite that did not change the cause keeps the line the replaced text had: a kill count
+    // corrected on a text already rewritten for its cause still narrates the corrected cause.
+    const earlier = "2031-04-01T00:00:00.000Z";
+    for (const reason of ["kills-corrected", "retracted", "regenerated"]) {
+      expect(correctedAtOf({ reason, replacedAt: t, snapshot: { correctedAt: earlier } })).toEqual(new Date(earlier));
+      expect(correctedAtOf({ reason, replacedAt: t, snapshot: { correctedAt: null } })).toBeNull();
+    }
     expect(correctedAtOf({ reason: "restored", replacedAt: t, snapshot: { restoredCorrectedAt: null } })).toBeNull();
     expect(correctedAtOf({ reason: "restored", replacedAt: t, snapshot: { restoredCorrectedAt: "2031-05-01T00:00:00.000Z" } }))
       .toEqual(new Date("2031-05-01T00:00:00.000Z"));

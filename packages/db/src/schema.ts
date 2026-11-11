@@ -548,7 +548,7 @@ export const articleRevisions = pgTable("article_revisions", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   articleId: bigint("article_id", { mode: "number" }).notNull(),
   replacedAt: timestamp("replaced_at", { withTimezone: true }).notNull().defaultNow(),
-  reason: text("reason").notNull(),   // 'cause-corrected' | 'kills-corrected' | 'retracted' | 'restored'
+  reason: text("reason").notNull(),   // 'cause-corrected' | 'kills-corrected' | 'regenerated' | 'retracted' | 'restored'
   snapshot: jsonb("snapshot").notNull(),
 }, (t) => ({
   byArticle: index("article_revisions_article_idx").on(t.articleId, t.id),

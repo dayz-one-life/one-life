@@ -72,13 +72,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   would write unless given `--write`, writes each rewrite through the same checks as a new
   obituary, keeps the earlier text so `--restore` can put it back, and never posts anything to
   Discord or Facebook again. A rewritten obituary says under its byline "This obituary was
-  rewritten on <date> after the cause of death was corrected." An obituary that was taken down is
-  never written again by itself. New table `article_revisions` (migration `0042`).
+  rewritten on <date> after the cause of death was corrected." (only when the cause did change),
+  and a later rewrite that keeps the cause keeps that line. Running it again does not rewrite an
+  obituary it has already corrected, and an obituary that changes while the command is working on
+  it is left alone. An obituary that was taken down is never written again by itself. New table
+  `article_revisions` (migration `0042`).
 - A command for the operator to lift bans that rest on a trap kill since denied:
   `pnpm --filter @onelife/enforcer run unqualified-bans`, which lists running bans whose life no
   longer qualifies and, with `--lift`, lifts them. The player is told "the ban was lifted by the
   server operator" rather than that a token was spent; a token spent on such a ban is refunded by
-  hand. Bans now record who lifted them (`bans.lift_reason`, migration `0043`). This command and
+  hand. It judges a life on the player's own kills, so a player who changed name since is not
+  listed while a kill still qualifies his life; the enforcer now counts a short life's kills the
+  same way when it bans. Bans now record who lifted them (`bans.lift_reason`, migration `0043`). This command and
   `regenerate --denied-credit` refuse to run until every death has its stored cause. No
   `--rebuild` and no backfill is needed.
 

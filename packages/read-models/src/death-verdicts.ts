@@ -257,7 +257,8 @@ export function writerDeathOf(
 
 /**
  * The death an obituary is written from: only a FINAL row (any version, not `needs_review`) of a
- * life that ended in a death; null otherwise. There is no pending brief: no obituary is written
+ * life that ended in a death; null otherwise. The one exception is `opts.withdrawFamily` over a
+ * held row inferred in that family, written as "not recorded". There is no pending brief: no obituary is written
  * until the row exists (spec 6.1). `findObituaryTargets` already gates on a row at the current
  * version, so in the tick `verdictVersion` is the current one.
  */
@@ -268,9 +269,14 @@ export async function getWriterDeath(db: Database, life: PublicDeathLife, opts: 
     .from(deathVerdicts)
     .where(eq(deathVerdicts.lifeId, life.id));
   const r = row[0];
-  if (!r || r.needsReview) return null;
+  if (!r) return null;
+  const stored = storedOf({ ...r, lifeId: Number(r.lifeId) });
+  // A held row is never written from, except to withdraw its family (`regenerate
+  // --inferred-family`): the writer is then given "not recorded", which review cannot change, and
+  // the published reading must come down now, not after review.
+  if (r.needsReview && !(opts.withdrawFamily && inferredFamilyOfStored(stored) === opts.withdrawFamily)) return null;
   const credit = await getTrapCreditForVictimLife(db, life.id);
-  return writerDeathOf(storedOf({ ...r, lifeId: Number(r.lifeId) }), life, credit, r.classifierVersion, opts);
+  return writerDeathOf(stored, life, credit, r.classifierVersion, opts);
 }
 
 /** The knock-out and logout causes, and the restrained logout: the deaths whose stored marker must

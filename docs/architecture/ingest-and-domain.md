@@ -445,12 +445,23 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
     `--stale-cause` (filed with no cause, or as a bare explosion / vehicle / environment, while the
     verdict now states one at definitive or strong; never an inferred one), `--stale-inferred`
     (written before `obituary-v4` about a death now read "Likely ..." with its family on; residual
-    question R5 decides whether it is run), `--inferred-family <f>` (v4 articles inferred in `f`,
-    rewritten as not recorded whatever `PUBLIC_INFERRED` says: `getWriterDeath`'s
-    `withdrawFamily`), `--denied-credit` (spec 6.4: a victim's article whose credit is gone, or a
-    placer's whose `facts.trapKills` / `facts.priors.trapKills` exceeds the live count; retracted
-    with `status = 'retracted'` when the life no longer qualifies). `--restore <slug>` writes the
-    latest archived version back.
+    question R5 decides whether it is run), `--inferred-family <f>` (v4 articles whose FROZEN
+    `facts.death` narrated a "Likely" reading in `f`, rewritten as not recorded whatever
+    `PUBLIC_INFERRED` says: `getWriterDeath`'s `withdrawFamily`, which also writes a death held for
+    review in that family), `--denied-credit` (spec 6.4: a victim's article whose credit is gone,
+    or a placer's whose `facts.trapKills` / `facts.priors.trapKills` exceeds the live count, counted
+    by the same readers that froze them, `getLifeKills` and `getPlayerPriors`; retracted with
+    `status = 'retracted'` when the life no longer qualifies; an article whose life does not
+    resolve is listed and reported as skipped). `--restore <slug>` writes the latest archived
+    version back. A v3 article filed as Environment over a bare "died" (the old read-time guess)
+    counts as a bare "environment" for `--stale-cause`.
+    - **⚠️ Every selector but `--slug` is idempotent**: each selects on what the article froze, which a rewrite
+      changes, so a repeated `--limit N --write` batch moves on. Never select on the stored verdict
+      alone (a rewrite leaves it as it is). A batch in which nothing was written prints a note:
+      failures stay at the front of the selection.
+    - **⚠️ The write locks the row and checks it is still the version selected** (`lockUnchanged`:
+      published, same text and `generated_at`); otherwise nothing is archived or written and the
+      article is reported as failed. `--restore` reads, archives and writes under the same lock.
     - **⚠️ Dry-run is the default, and it still calls the model** (the operator reads the new
       headline and lede first). `--write` archives the row in `article_revisions` (0042, durable,
       no FK) and swaps the text in one transaction. Failed generation or check: nothing changes.
@@ -476,12 +487,16 @@ Split out of `CLAUDE.md` (2026-07-29), verbatim. Feature entries in original ord
       corrected.", question 5 answer A) is `correctedAt` on `getObituaryBySlug`, read from the
       NEWEST revision only (`correctedAtOf`): a `cause-corrected` rewrite shows it; a `restored`
       revision carries the restored text's own value (`restoredCorrectedAt`), so restoring the
-      original text drops the line; `kills-corrected` (a count fix) and `retracted` never show it.
+      original text drops the line; `kills-corrected` (a count fix), `regenerated` (`--slug` with
+      the cause unchanged, `causeChanged`) and `retracted` keep the line the replaced text had
+      (`snapshot.correctedAt`), and never start one.
     - Discord and Facebook posts cannot be recalled: `--inferred-family` and `--denied-credit`
       print each article's URL and publish date so they can be deleted by hand.
   - **Unqualified bans** (spec 6.4). `pnpm --filter @onelife/enforcer run unqualified-bans [--
     --lift]` lists running `qualified_death` bans whose life no longer qualifies by the predicate
-    `planBans` uses (`lifeQualifies`, on the same kills: `endedLifeOf`). `--lift` sets an applied
+    `planBans` uses (`lifeQualifies`, on the same kills: `endedLifeOf`, which matches kills by
+    `killer_player_id`, and by name, ignoring case, only on a row with no id: the command runs
+    after renames, and the current name is not the one on an old kill line). `--lift` sets an applied
     ban to `lift_pending` and a pending one to `lifted`, with `bans.lift_reason = 'operator'` (0043;
     `redeem` writes `'token'`; NULL on older rows reads as token). The next enforcer tick removes
     only the names no other running ban needs (`namesToRemove`). Same sweep guard as above. The
